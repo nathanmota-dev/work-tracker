@@ -13,4 +13,6 @@ Work Tracker is an Electron desktop app for managing the job-search process. It 
 
 ## Agent instructions
 
+Read and follow the repository-specific rules in [RULES.md](RULES.md). These rules take precedence over general skill conventions.
+
 When a task requires creating a Git branch, commit, or pull request, follow the `git-pr-conventions` skill at `.agents/skills/git-pr-conventions/SKILL.md`.
