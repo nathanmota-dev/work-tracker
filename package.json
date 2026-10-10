@@ -18,6 +18,8 @@
   "scripts": {
     "dev": "electron-vite dev --watch --noSandbox",
     "start": "electron-vite preview --skipBuild --noSandbox",
+    "test": "npm run test --workspace web",
+    "test:watch": "npm run test:watch --workspace web",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p web/tsconfig.json",
     "build": "npm run typecheck && electron-vite build",
     "package": "npm run build && electron-builder --config desktop/electron-builder.yml",

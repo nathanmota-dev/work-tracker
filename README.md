@@ -55,6 +55,25 @@ npm run package    # Gera um instalador para o sistema atual em release/
 
 O empacotamento usa AppImage no Linux, NSIS no Windows e DMG no macOS.
 
+## Testes unitários do frontend
+
+Os testes de `web/` usam Vitest, React Testing Library e os matchers do
+jest-dom, com jsdom para simular o DOM. Execute na raiz:
+
+```bash
+npm test           # Executa os testes uma vez
+npm run test:watch # Reexecuta os testes ao alterar os arquivos
+```
+
+Os mesmos comandos funcionam dentro de `web/`. Crie arquivos `*.test.ts`
+ou `*.test.tsx` ao lado do código testado em `web/src/` (o padrão `*.spec.*`
+também é aceito). Importe `describe`, `it` e `expect` de `vitest`.
+O alias `@/` aponta para `web/src/`, e o setup em `web/src/test/setup.ts`
+registra os matchers de DOM e limpa os componentes renderizados após cada teste.
+
+O teste inicial em `web/src/components/workspace-page.test.tsx` verifica
+que `WorkspacePage` exibe o título recebido como um heading de nível 1.
+
 Para adicionar componentes do shadcn, execute na raiz:
 
 ```bash
