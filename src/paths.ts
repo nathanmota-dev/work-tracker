@@ -1,6 +1,6 @@
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
 /**
  * Central path resolution for Work Tracker.
@@ -107,7 +107,7 @@ export const DEFAULT_OUTREACH_CONFIG: OutreachConfig = {
 export function loadConfig(): WorkTrackerConfig {
   if (!existsSync(paths.config)) return {};
   try {
-    return JSON.parse(require("node:fs").readFileSync(paths.config, "utf8"));
+    return JSON.parse(readFileSync(paths.config, "utf8"));
   } catch {
     return {};
   }
@@ -130,5 +130,5 @@ export function loadOutreachConfig(): OutreachConfig {
 
 export function saveConfig(cfg: WorkTrackerConfig): void {
   ensureHome();
-  require("node:fs").writeFileSync(paths.config, JSON.stringify(cfg, null, 2), { mode: 0o600 });
+  writeFileSync(paths.config, JSON.stringify(cfg, null, 2), { mode: 0o600 });
 }

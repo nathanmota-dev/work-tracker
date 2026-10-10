@@ -22,6 +22,7 @@
     "electron.vite.config.mts",
     "desktop/src/**/*.ts",
     "src/**/*.ts",
-    "vitest.config.mts"
+    "vitest.config.mts",
+    "vitest.integration.config.mts"
   ]
 }

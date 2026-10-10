@@ -1,521 +1,291 @@
-/**
- * Integration tests for outreach/store.ts.
- * Uses an in-memory SQLite database (new Database(":memory:")) with SCHEMA_SQL
- * applied, bypassing the memoized db() singleton entirely. Every store function
- * accepts an explicit `d` argument for exactly this purpose.
- */
-import { describe, expect, test, beforeEach } from "vitest";
-import { Database } from "../db/sqlite.ts";
-import { SCHEMA_SQL } from "../db/schema.ts";
-import { DEFAULT_OUTREACH_CONFIG, type OutreachConfig } from "../paths.ts";
-import { addDays } from "./core.ts";
+import { beforeEach, expect, test, vi } from "vitest";
+import { db, now } from "../db/index.ts";
+import { notifyChange } from "../db/notify.ts";
+import { DEFAULT_OUTREACH_CONFIG, loadOutreachConfig } from "../paths.ts";
+import { databaseDouble } from "../test/doubles.ts";
 import {
-  logAttempt,
-  checkBlocked,
-  transition,
-  dueAttempts,
   blockedForCompany,
+  checkBlocked,
+  dueAttempts,
   getBudget,
+  logAttempt,
+  notifyOutreach,
+  refundCredit,
   setBudget,
   spendCredit,
-  refundCredit,
+  transition,
+  type OutreachAttempt,
 } from "./store.ts";
-
-/** Create a fresh in-memory DB with the full Work Tracker schema + seeded budget. */
-function makeDb(): Database {
-  const d = new Database(":memory:");
-  d.exec("PRAGMA journal_mode = WAL;");
-  d.exec("PRAGMA foreign_keys = ON;");
-  d.exec(SCHEMA_SQL);
-  // Seed the singleton budget row (id=1) — mirrors seedOutreachBudget in db/index.ts
-  d.exec(
-    `INSERT INTO outreach_budget (id, plan, inmail_monthly_allotment,
-       inmail_rollover_cap, cycle_reset_day, credits_remaining,
-       credits_used_this_cycle, reserve_floor)
-     VALUES (1, 'career', 5, 15, 1, 10, 0, 1)`,
+vi.mock("../db/index.ts", () => ({
+  db: vi.fn(),
+  now: vi.fn(() => "2026-10-10T12:00:00.000Z"),
+}));
+vi.mock("../db/notify.ts", () => ({ notifyChange: vi.fn() }));
+vi.mock("../paths.ts", async (original) => ({
+  ...(await original<typeof import("../paths.ts")>()),
+  loadOutreachConfig: vi.fn(),
+}));
+const NOW = "2026-10-10T12:00:00.000Z";
+const attempt = (patch: Partial<OutreachAttempt> = {}): OutreachAttempt => ({
+  id: 1,
+  person_username: "candidate",
+  person_name: null,
+  recruiter_id: null,
+  company_urn: "42",
+  company_name: "Acme",
+  job_id: null,
+  channel: "connect_note",
+  cost_credits: 0,
+  credit_refunded: 0,
+  refund_eligible_until: null,
+  message_body: null,
+  state: "invited",
+  sent_at: "2026-10-01T12:00:00.000Z",
+  accepted_at: null,
+  first_msg_at: null,
+  replied_at: null,
+  withdrawn_at: null,
+  closed_at: null,
+  followed_up_at: null,
+  next_action_due: null,
+  block_until: null,
+  reason: null,
+  source_skill: null,
+  created_at: NOW,
+  updated_at: NOW,
+  ...patch,
+});
+let d: ReturnType<typeof databaseDouble>;
+beforeEach(() => {
+  d = databaseDouble();
+  vi.mocked(db).mockReturnValue(d.asDatabase);
+  vi.mocked(loadOutreachConfig).mockReturnValue(DEFAULT_OUTREACH_CONFIG);
+});
+test("blocking checks use person/company scope, skip expired blocks and return the active reason", () => {
+  const expired = attempt({
+      state: "invite_ignored",
+      block_until: "2026-10-09T12:00:00.000Z",
+    }),
+    active = attempt({ id: 2, state: "do_not_contact", reason: "manual" });
+  d.statement.all.mockReturnValue([expired, active]);
+  expect(checkBlocked("candidate", "42")).toEqual({
+    blocked: true,
+    attempt: active,
+    reason: "do_not_contact (permanent) — manual",
+  });
+  expect(d.statement.all).toHaveBeenCalledWith({ $u: "candidate", $c: "42" });
+  expect(blockedForCompany("42")).toEqual([active]);
+  expect(d.statement.all).toHaveBeenLastCalledWith({ $c: "42" });
+  d.statement.all.mockReturnValue([expired]);
+  expect(checkBlocked("candidate", "42")).toEqual({ blocked: false });
+  d.statement.all.mockReturnValue([
+    attempt({ state: "invite_ignored", block_until: "2027-01-01T00:00:00Z" }),
+  ]);
+  expect(checkBlocked("candidate", "42").reason).toBe(
+    "invite_ignored until 2027-01-01 — no reason recorded",
   );
-  return d;
-}
-
-const CFG: OutreachConfig = DEFAULT_OUTREACH_CONFIG;
-const NOW = "2025-06-01T12:00:00.000Z";
-
-describe("logAttempt", () => {
-  let d: Database;
-  beforeEach(() => { d = makeDb(); });
-
-  test("connect_note → state=invited, sent_at set, next_action_due set", () => {
-    const a = logAttempt(
-      { username: "alice", companyUrn: "urn:li:company:1", channel: "connect_note" },
-      d, CFG, NOW,
-    );
-    expect(a.state).toBe("invited");
-    expect(a.sent_at).toBe(NOW);
-    expect(a.next_action_due).toBe(addDays(NOW, CFG.inviteWithdrawDays));
-  });
-
-  test("queued state → sent_at is null, next_action_due is null", () => {
-    const a = logAttempt(
-      {
-        username: "bob",
-        companyUrn: "urn:li:company:2",
-        channel: "connect_note",
-        state: "queued",
-      },
-      d, CFG, NOW,
-    );
-    expect(a.state).toBe("queued");
-    expect(a.sent_at).toBeNull();
-    expect(a.next_action_due).toBeNull();
-  });
-
-  test("inmail with cost_credits=1 → spends a credit and sets refund_eligible_until", () => {
-    const before = getBudget(d).credits_remaining;
-    const a = logAttempt(
-      {
-        username: "carol",
-        companyUrn: "urn:li:company:3",
-        channel: "inmail",
-        costCredits: 1,
-      },
-      d, CFG, NOW,
-    );
-    expect(a.cost_credits).toBe(1);
-    expect(a.refund_eligible_until).not.toBeNull();
-    // InMail replies are eligible for refunds for 90 days.
-    const refundDate = new Date(a.refund_eligible_until!);
-    const sentDate = new Date(NOW);
-    const diffDays = (refundDate.getTime() - sentDate.getTime()) / 86_400_000;
-    expect(diffDays).toBe(90);
-    expect(getBudget(d).credits_remaining).toBe(before - 1);
-  });
-
-  test("inmail with cost_credits=0 → no credit spent, no refund window", () => {
-    const before = getBudget(d).credits_remaining;
-    const a = logAttempt(
-      {
-        username: "dave",
-        companyUrn: "urn:li:company:4",
-        channel: "inmail",
-        costCredits: 0,
-      },
-      d, CFG, NOW,
-    );
-    expect(a.cost_credits).toBe(0);
-    expect(a.refund_eligible_until).toBeNull();
-    expect(getBudget(d).credits_remaining).toBe(before);
-  });
-
-  test("message channel → state=invited, sent_at set", () => {
-    const a = logAttempt(
-      { username: "eve", companyUrn: "urn:li:company:5", channel: "message" },
-      d, CFG, NOW,
-    );
-    expect(a.state).toBe("invited");
-    expect(a.sent_at).toBe(NOW);
-  });
 });
-
-describe("checkBlocked", () => {
-  let d: Database;
-  beforeEach(() => { d = makeDb(); });
-
-  test("no attempts → not blocked", () => {
-    const r = checkBlocked("alice", "urn:li:company:1", d, NOW);
-    expect(r.blocked).toBe(false);
-    expect(r.attempt).toBeUndefined();
+test("logging uses defaults and literal due dates; paid InMail creates a refund window and spends once", () => {
+  const row = attempt();
+  d.statement.get.mockReturnValue(row);
+  expect(
+    logAttempt({
+      username: "candidate",
+      companyUrn: "42",
+      channel: "connect_note",
+    }),
+  ).toBe(row);
+  expect(d.statement.get).toHaveBeenLastCalledWith({
+    $u: "candidate",
+    $n: null,
+    $rid: null,
+    $curn: "42",
+    $cname: null,
+    $job: null,
+    $ch: "connect_note",
+    $cost: 0,
+    $refund: null,
+    $body: null,
+    $state: "invited",
+    $sent: NOW,
+    $due: "2026-10-17T12:00:00.000Z",
+    $skill: null,
+    $now: NOW,
   });
-
-  test("active (invited) attempt → not blocked", () => {
-    logAttempt(
-      { username: "alice", companyUrn: "urn:li:company:1", channel: "connect_note" },
-      d, CFG, NOW,
-    );
-    const r = checkBlocked("alice", "urn:li:company:1", d, NOW);
-    expect(r.blocked).toBe(false);
+  expect(d.statement.run).not.toHaveBeenCalled();
+  logAttempt({
+    username: "candidate",
+    name: "Person",
+    companyUrn: "42",
+    companyName: "Acme",
+    channel: "inmail",
+    costCredits: 1,
+    messageBody: "hello",
+    jobId: "job",
+    recruiterId: 2,
+    sourceSkill: "scout",
   });
-
-  test("invite_ignored within cooldown → blocked", () => {
-    const a = logAttempt(
-      { username: "alice", companyUrn: "urn:li:company:1", channel: "connect_note" },
-      d, CFG, NOW,
-    );
-    transition(a.id, "invite_ignored", { reason: "no response" }, d, CFG, NOW);
-    const r = checkBlocked("alice", "urn:li:company:1", d, NOW);
-    expect(r.blocked).toBe(true);
-    expect(r.attempt?.state).toBe("invite_ignored");
+  expect(d.statement.get).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      $cost: 1,
+      $refund: "2027-01-08T12:00:00.000Z",
+      $n: "Person",
+      $rid: 2,
+      $job: "job",
+      $body: "hello",
+      $skill: "scout",
+    }),
+  );
+  expect(d.statement.run).toHaveBeenCalledExactlyOnceWith({ $now: NOW });
+  logAttempt({
+    username: "candidate",
+    companyUrn: "42",
+    channel: "connect_note",
+    state: "queued",
   });
-
-  test("invite_ignored for company A does NOT block for company B (per-company scoping)", () => {
-    const a = logAttempt(
-      { username: "alice", companyUrn: "urn:li:company:A", channel: "connect_note" },
-      d, CFG, NOW,
-    );
-    transition(a.id, "invite_ignored", { reason: "no response" }, d, CFG, NOW);
-
-    const r = checkBlocked("alice", "urn:li:company:B", d, NOW);
-    expect(r.blocked).toBe(false);
-  });
-
-  test("invite_ignored past cooldown → not blocked", () => {
-    const a = logAttempt(
-      { username: "alice", companyUrn: "urn:li:company:1", channel: "connect_note" },
-      d, CFG, NOW,
-    );
-    transition(a.id, "invite_ignored", { reason: "no response" }, d, CFG, NOW);
-
-    const farFuture = addDays(NOW, 365);
-    const r = checkBlocked("alice", "urn:li:company:1", d, farFuture);
-    expect(r.blocked).toBe(false);
-  });
-
-  test("do_not_contact (permanent) → always blocked", () => {
-    const a = logAttempt(
-      { username: "alice", companyUrn: "urn:li:company:1", channel: "connect_note" },
-      d, CFG, NOW,
-    );
-    const permanentCfg: OutreachConfig = { ...CFG, companyBlock: "permanent" };
-    transition(a.id, "invite_ignored", { reason: "DNC" }, d, permanentCfg, NOW);
-
-    const farFuture = addDays(NOW, 3650);
-    const r = checkBlocked("alice", "urn:li:company:1", d, farFuture);
-    expect(r.blocked).toBe(true);
-  });
-
-  test("different username for same company → not blocked", () => {
-    const a = logAttempt(
-      { username: "alice", companyUrn: "urn:li:company:1", channel: "connect_note" },
-      d, CFG, NOW,
-    );
-    transition(a.id, "invite_ignored", { reason: "no response" }, d, CFG, NOW);
-
-    const r = checkBlocked("bob", "urn:li:company:1", d, NOW);
-    expect(r.blocked).toBe(false);
-  });
+  expect(d.statement.get).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      $sent: null,
+      $due: null,
+      $refund: null,
+      $state: "queued",
+    }),
+  );
 });
-
-describe("transition", () => {
-  let d: Database;
-  beforeEach(() => { d = makeDb(); });
-
-  test("illegal transition throws with descriptive message", () => {
-    const a = logAttempt(
-      { username: "alice", companyUrn: "urn:li:company:1", channel: "connect_note" },
-      d, CFG, NOW,
-    );
-    // A new connection invite cannot move directly to "unresponsive".
-    expect(() => transition(a.id, "unresponsive", {}, d, CFG, NOW)).toThrow(
-      /illegal outreach transition/,
-    );
-  });
-
-  test("transition to non-existent attempt throws", () => {
-    expect(() => transition(9999, "accepted", {}, d, CFG, NOW)).toThrow(
-      /not found/,
-    );
-  });
-
-  test("idempotent: same state → no-op, returns existing row", () => {
-    const a = logAttempt(
-      { username: "alice", companyUrn: "urn:li:company:1", channel: "connect_note" },
-      d, CFG, NOW,
-    );
-    const a2 = transition(a.id, "invited", {}, d, CFG, NOW);
-    expect(a2.state).toBe("invited");
-    expect(a2.id).toBe(a.id);
-  });
-
-  test("invited → accepted sets accepted_at and first_msg_at", () => {
-    const a = logAttempt(
-      { username: "alice", companyUrn: "urn:li:company:1", channel: "connect_note" },
-      d, CFG, NOW,
-    );
-    const a2 = transition(a.id, "accepted", {}, d, CFG, NOW);
-    expect(a2.state).toBe("accepted");
-    expect(a2.accepted_at).toBe(NOW);
-    expect(a2.first_msg_at).toBe(NOW);
-    expect(a2.next_action_due).toBe(addDays(NOW, CFG.followupAfterDays));
-  });
-
-  test("accepted → followed_up sets followed_up_at", () => {
-    const a = logAttempt(
-      { username: "alice", companyUrn: "urn:li:company:1", channel: "connect_note" },
-      d, CFG, NOW,
-    );
-    transition(a.id, "accepted", {}, d, CFG, NOW);
-    const a2 = transition(a.id, "followed_up", {}, d, CFG, NOW);
-    expect(a2.state).toBe("followed_up");
-    expect(a2.followed_up_at).toBe(NOW);
-    expect(a2.next_action_due).toBe(addDays(NOW, CFG.followupGraceDays));
-  });
-
-  test("invite_ignored sets block_until (cooldown)", () => {
-    const a = logAttempt(
-      { username: "alice", companyUrn: "urn:li:company:1", channel: "connect_note" },
-      d, CFG, NOW,
-    );
-    const a2 = transition(a.id, "invite_ignored", { reason: "no response" }, d, CFG, NOW);
-    expect(a2.state).toBe("invite_ignored");
-    expect(a2.block_until).not.toBeNull();
-    const blockDate = new Date(a2.block_until!);
-    const nowDate = new Date(NOW);
-    const diffMonths =
-      (blockDate.getFullYear() - nowDate.getFullYear()) * 12 +
-      (blockDate.getMonth() - nowDate.getMonth());
-    expect(diffMonths).toBe(CFG.companyBlockCooldownMonths);
-  });
-
-  test("engaged refunds InMail credit (cost_credits=1 within refund window)", () => {
-    const before = getBudget(d).credits_remaining;
-    const a = logAttempt(
-      {
-        username: "alice",
-        companyUrn: "urn:li:company:1",
-        channel: "inmail",
-        costCredits: 1,
-      },
-      d, CFG, NOW,
-    );
-    expect(getBudget(d).credits_remaining).toBe(before - 1);
-
-    const a2 = transition(a.id, "engaged", {}, d, CFG, NOW);
-    expect(a2.state).toBe("engaged");
-    expect(a2.credit_refunded).toBe(1);
-    expect(getBudget(d).credits_remaining).toBe(before);
-  });
-
-  test("engaged does NOT refund when cost_credits=0", () => {
-    const before = getBudget(d).credits_remaining;
-    const a = logAttempt(
-      {
-        username: "alice",
-        companyUrn: "urn:li:company:1",
-        channel: "connect_note",
-        costCredits: 0,
-      },
-      d, CFG, NOW,
-    );
-    expect(getBudget(d).credits_remaining).toBe(before); // no spend
-    const a2 = transition(a.id, "engaged", {}, d, CFG, NOW);
-    expect(a2.credit_refunded).toBe(0);
-    expect(getBudget(d).credits_remaining).toBe(before); // no change
-  });
-
-  test("engaged sets replied_at and closed_at", () => {
-    const a = logAttempt(
-      { username: "alice", companyUrn: "urn:li:company:1", channel: "connect_note" },
-      d, CFG, NOW,
-    );
-    const a2 = transition(a.id, "engaged", {}, d, CFG, NOW);
-    expect(a2.replied_at).toBe(NOW);
-    expect(a2.closed_at).toBe(NOW);
-  });
-
-  test("invite_ignored sets withdrawn_at", () => {
-    const a = logAttempt(
-      { username: "alice", companyUrn: "urn:li:company:1", channel: "connect_note" },
-      d, CFG, NOW,
-    );
-    const a2 = transition(a.id, "invite_ignored", {}, d, CFG, NOW);
-    expect(a2.withdrawn_at).toBe(NOW);
-  });
+test("transition rejects missing or illegal attempts and same-state updates make no writes", () => {
+  expect(() => transition(1, "accepted")).toThrow("not found");
+  const row = attempt();
+  d.statement.get.mockReturnValue(row);
+  expect(transition(1, "invited")).toBe(row);
+  expect(d.query).toHaveBeenCalledTimes(2);
+  expect(() => transition(1, "unresponsive")).toThrow(
+    "illegal outreach transition",
+  );
+  expect(d.statement.run).not.toHaveBeenCalled();
+  expect(
+    d.query.mock.calls.filter(([sql]) => sql.startsWith("UPDATE")),
+  ).toHaveLength(0);
 });
-
-describe("dueAttempts", () => {
-  let d: Database;
-  beforeEach(() => { d = makeDb(); });
-
-  test("no attempts → empty array", () => {
-    expect(dueAttempts(d, CFG, NOW)).toHaveLength(0);
-  });
-
-  test("invited past inviteWithdrawDays → withdraw action", () => {
-    const sentAt = addDays(NOW, -8);
-    const a = logAttempt(
-      { username: "alice", companyUrn: "urn:li:company:1", channel: "connect_note" },
-      d, CFG, sentAt,
+test.each([
+  ["invited", "accepted", "2026-10-14T12:00:00.000Z", "accepted_at = COALESCE"],
+  [
+    "accepted",
+    "followed_up",
+    "2026-10-17T12:00:00.000Z",
+    "followed_up_at = $now",
+  ],
+  ["invited", "invite_ignored", null, "withdrawn_at = $now"],
+  ["followed_up", "unresponsive", null, "closed_at = COALESCE"],
+  ["invited", "do_not_contact", null, "closed_at = COALESCE"],
+] as const)(
+  "%s → %s sets due dates and lifecycle timestamps",
+  (from, to, due, timestamp) => {
+    const updated = attempt({ state: to });
+    d.statement.get
+      .mockReturnValueOnce(attempt({ state: from }))
+      .mockReturnValueOnce(updated);
+    expect(transition(1, to, { reason: "confirmed" })).toBe(updated);
+    expect(d.statement.get).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        $id: 1,
+        $state: to,
+        $now: NOW,
+        $reason: "confirmed",
+        $due: due,
+      }),
     );
-    const results = dueAttempts(d, CFG, NOW);
-    expect(results).toHaveLength(1);
-    expect(results[0]!.action.kind).toBe("withdraw");
-    expect(results[0]!.attempt.id).toBe(a.id);
-  });
-
-  test("invited not yet past threshold → not in due list", () => {
-    const sentAt = addDays(NOW, -3);
-    logAttempt(
-      { username: "alice", companyUrn: "urn:li:company:1", channel: "connect_note" },
-      d, CFG, sentAt,
+    expect(d.query).toHaveBeenLastCalledWith(
+      expect.stringContaining(timestamp),
     );
-    expect(dueAttempts(d, CFG, NOW)).toHaveLength(0);
+    if (["invite_ignored", "unresponsive", "do_not_contact"].includes(to))
+      expect(d.statement.get).toHaveBeenLastCalledWith(
+        expect.objectContaining({ $bu: "2027-07-10T12:00:00.000Z" }),
+      );
+  },
+);
+test("permanent policy writes a null cooldown", () => {
+  vi.mocked(loadOutreachConfig).mockReturnValue({
+    ...DEFAULT_OUTREACH_CONFIG,
+    companyBlock: "permanent",
   });
-
-  test("accepted past followupAfterDays → followup action", () => {
-    const sentAt = addDays(NOW, -10);
-    const a = logAttempt(
-      { username: "bob", companyUrn: "urn:li:company:2", channel: "connect_note" },
-      d, CFG, sentAt,
-    );
-    // Transition to accepted 5 days ago (past 4-day threshold)
-    const acceptedAt = addDays(NOW, -5);
-    transition(a.id, "accepted", {}, d, CFG, acceptedAt);
-
-    const results = dueAttempts(d, CFG, NOW);
-    expect(results).toHaveLength(1);
-    expect(results[0]!.action.kind).toBe("followup");
-  });
-
-  test("followed_up past followupGraceDays → close action", () => {
-    const sentAt = addDays(NOW, -20);
-    const a = logAttempt(
-      { username: "carol", companyUrn: "urn:li:company:3", channel: "connect_note" },
-      d, CFG, sentAt,
-    );
-    transition(a.id, "accepted", {}, d, CFG, addDays(NOW, -15));
-    transition(a.id, "followed_up", {}, d, CFG, addDays(NOW, -8));
-
-    const results = dueAttempts(d, CFG, NOW);
-    expect(results).toHaveLength(1);
-    expect(results[0]!.action.kind).toBe("close");
-  });
-
-  test("terminal states are excluded from due list", () => {
-    const sentAt = addDays(NOW, -10);
-    const a = logAttempt(
-      { username: "dave", companyUrn: "urn:li:company:4", channel: "connect_note" },
-      d, CFG, sentAt,
-    );
-    transition(a.id, "invite_ignored", {}, d, CFG, NOW);
-    expect(dueAttempts(d, CFG, NOW)).toHaveLength(0);
-  });
+  d.statement.get.mockReturnValue(attempt());
+  transition(1, "do_not_contact");
+  expect(d.statement.get).toHaveBeenLastCalledWith(
+    expect.objectContaining({ $bu: null }),
+  );
 });
-
-describe("blockedForCompany", () => {
-  let d: Database;
-  beforeEach(() => { d = makeDb(); });
-
-  test("no attempts → empty array", () => {
-    expect(blockedForCompany("urn:li:company:1", d, NOW)).toHaveLength(0);
-  });
-
-  test("active attempt → not in blocked list", () => {
-    logAttempt(
-      { username: "alice", companyUrn: "urn:li:company:1", channel: "connect_note" },
-      d, CFG, NOW,
+test.each([
+  [1, 0, "2026-10-10T12:00:00.000Z", true],
+  [1, 0, null, true],
+  [1, 0, "2026-10-10T11:59:59.999Z", false],
+  [1, 1, null, false],
+  [0, 0, null, false],
+] as const)(
+  "refund decision for cost=%s refunded=%s window=%s",
+  (cost, refunded, until, eligible) => {
+    d.statement.get
+      .mockReturnValueOnce(
+        attempt({
+          cost_credits: cost,
+          credit_refunded: refunded,
+          refund_eligible_until: until,
+        }),
+      )
+      .mockReturnValueOnce(attempt({ state: "engaged" }));
+    transition(1, "engaged");
+    expect(d.statement.run).toHaveBeenCalledTimes(eligible ? 1 : 0);
+    expect(d.query).toHaveBeenLastCalledWith(
+      expect.stringContaining("replied_at = COALESCE"),
     );
-    expect(blockedForCompany("urn:li:company:1", d, NOW)).toHaveLength(0);
-  });
-
-  test("invite_ignored within cooldown → in blocked list", () => {
-    const a = logAttempt(
-      { username: "alice", companyUrn: "urn:li:company:1", channel: "connect_note" },
-      d, CFG, NOW,
-    );
-    transition(a.id, "invite_ignored", {}, d, CFG, NOW);
-    const blocked = blockedForCompany("urn:li:company:1", d, NOW);
-    expect(blocked).toHaveLength(1);
-    expect(blocked[0]!.person_username).toBe("alice");
-  });
-
-  test("multiple blocked people for same company", () => {
-    const a1 = logAttempt(
-      { username: "alice", companyUrn: "urn:li:company:1", channel: "connect_note" },
-      d, CFG, NOW,
-    );
-    const a2 = logAttempt(
-      { username: "bob", companyUrn: "urn:li:company:1", channel: "connect_note" },
-      d, CFG, NOW,
-    );
-    transition(a1.id, "invite_ignored", {}, d, CFG, NOW);
-    transition(a2.id, "invite_ignored", {}, d, CFG, NOW);
-    const blocked = blockedForCompany("urn:li:company:1", d, NOW);
-    expect(blocked).toHaveLength(2);
-  });
-
-  test("invite_ignored past cooldown → not in blocked list", () => {
-    const a = logAttempt(
-      { username: "alice", companyUrn: "urn:li:company:1", channel: "connect_note" },
-      d, CFG, NOW,
-    );
-    transition(a.id, "invite_ignored", {}, d, CFG, NOW);
-    const farFuture = addDays(NOW, 365);
-    expect(blockedForCompany("urn:li:company:1", d, farFuture)).toHaveLength(0);
-  });
-
-  test("different company URN → not in blocked list", () => {
-    const a = logAttempt(
-      { username: "alice", companyUrn: "urn:li:company:A", channel: "connect_note" },
-      d, CFG, NOW,
-    );
-    transition(a.id, "invite_ignored", {}, d, CFG, NOW);
-    expect(blockedForCompany("urn:li:company:B", d, NOW)).toHaveLength(0);
-  });
+    expect(d.statement.get).toHaveBeenLastCalledWith({
+      $id: 1,
+      $state: "engaged",
+      $now: NOW,
+      $due: null,
+    });
+    expect(
+      String(d.query.mock.calls.at(-1)?.[0]).includes("credit_refunded = 1"),
+    ).toBe(eligible);
+  },
+);
+test("due queue filters items using the core cadence and preserves row identity", () => {
+  const invited = attempt(),
+    accepted = attempt({
+      id: 2,
+      state: "accepted",
+      first_msg_at: "2026-10-01T12:00:00Z",
+    }),
+    future = attempt({ id: 3, sent_at: NOW });
+  d.statement.all.mockReturnValue([invited, accepted, future]);
+  expect(
+    dueAttempts().map(({ attempt, action }) => [attempt.id, action.kind]),
+  ).toEqual([
+    [1, "withdraw"],
+    [2, "followup"],
+  ]);
+  expect(now).toHaveBeenCalled();
 });
-
-describe("budget", () => {
-  let d: Database;
-  beforeEach(() => { d = makeDb(); });
-
-  test("getBudget returns the seeded row", () => {
-    const b = getBudget(d);
-    expect(b.id).toBe(1);
-    expect(b.credits_remaining).toBe(10);
-    expect(b.reserve_floor).toBe(1);
+test("budget updates use bounded credit expressions, patch only provided fields and notify outreach", async () => {
+  const budget = { id: 1, credits_remaining: 5 };
+  d.statement.get.mockReturnValue(budget);
+  expect(getBudget()).toBe(budget);
+  spendCredit();
+  expect(d.query).toHaveBeenLastCalledWith(
+    expect.stringContaining("MAX(0, credits_remaining - 1)"),
+  );
+  refundCredit();
+  expect(d.query).toHaveBeenLastCalledWith(
+    expect.stringContaining("MIN(inmail_rollover_cap, credits_remaining + 1)"),
+  );
+  d.statement.run.mockClear();
+  setBudget({});
+  expect(d.statement.run).not.toHaveBeenCalled();
+  expect(setBudget({ credits_remaining: 0, reserve_floor: 2 })).toBe(budget);
+  expect(d.statement.run).toHaveBeenCalledWith({
+    $now: NOW,
+    $credits_remaining: 0,
+    $reserve_floor: 2,
   });
-
-  test("spendCredit decrements credits_remaining by 1", () => {
-    const before = getBudget(d).credits_remaining;
-    spendCredit(d, NOW);
-    expect(getBudget(d).credits_remaining).toBe(before - 1);
-  });
-
-  test("spendCredit clamps at 0 (never goes negative)", () => {
-    setBudget({ credits_remaining: 0 }, d, NOW);
-    spendCredit(d, NOW);
-    expect(getBudget(d).credits_remaining).toBe(0);
-  });
-
-  test("spendCredit increments credits_used_this_cycle", () => {
-    const before = getBudget(d).credits_used_this_cycle;
-    spendCredit(d, NOW);
-    expect(getBudget(d).credits_used_this_cycle).toBe(before + 1);
-  });
-
-  test("refundCredit increments credits_remaining by 1", () => {
-    spendCredit(d, NOW);
-    const before = getBudget(d).credits_remaining;
-    refundCredit(d, NOW);
-    expect(getBudget(d).credits_remaining).toBe(before + 1);
-  });
-
-  test("refundCredit clamps at inmail_rollover_cap", () => {
-    const b = getBudget(d);
-    setBudget({ credits_remaining: b.inmail_rollover_cap }, d, NOW);
-    refundCredit(d, NOW);
-    expect(getBudget(d).credits_remaining).toBe(b.inmail_rollover_cap);
-  });
-
-  test("refundCredit decrements credits_used_this_cycle (clamps at 0)", () => {
-    setBudget({ credits_used_this_cycle: 0 }, d, NOW);
-    refundCredit(d, NOW);
-    expect(getBudget(d).credits_used_this_cycle).toBe(0);
-  });
-
-  test("setBudget patches individual fields", () => {
-    const b = setBudget({ credits_remaining: 7, reserve_floor: 2 }, d, NOW);
-    expect(b.credits_remaining).toBe(7);
-    expect(b.reserve_floor).toBe(2);
-    expect(b.inmail_rollover_cap).toBe(15);
-  });
-
-  test("setBudget with empty patch → no-op, returns current row", () => {
-    const before = getBudget(d);
-    const after = setBudget({}, d, NOW);
-    expect(after.credits_remaining).toBe(before.credits_remaining);
-  });
-
-  test("setBudget sets last_synced", () => {
-    setBudget({ credits_remaining: 5 }, d, NOW);
-    expect(getBudget(d).last_synced).toBe(NOW);
-  });
+  await notifyOutreach();
+  expect(notifyChange).toHaveBeenCalledWith("outreach_attempts");
 });

@@ -1,5 +1,5 @@
-import { describe, expect, test } from "vitest";
-import { buildSkillPrompt } from "./session.ts";
+import { beforeEach, describe, expect, test, vi } from "vitest";
+import { buildSkillPrompt, SessionManager } from "./session.ts";
 
 const SKILLS = [
   "job-scout",
@@ -15,7 +15,11 @@ const DELIM = "\n\n---\nAdditional context from the user (honor this):\n";
 describe("buildSkillPrompt — no extra (byte-identical)", () => {
   for (const skill of SKILLS) {
     test(`${skill}: omitted extra unchanged`, () => {
-      const without = buildSkillPrompt(skill, { query: "q", company: "Acme Corp", jobIds: "1,2" });
+      const without = buildSkillPrompt(skill, {
+        query: "q",
+        company: "Acme Corp",
+        jobIds: "1,2",
+      });
       const withEmpty = buildSkillPrompt(skill, {
         query: "q",
         company: "Acme Corp",
@@ -28,19 +32,28 @@ describe("buildSkillPrompt — no extra (byte-identical)", () => {
   }
 
   test("default case with prompt, no extra", () => {
-    expect(buildSkillPrompt("unknown-skill", { prompt: "do the thing" })).toBe("do the thing");
+    expect(buildSkillPrompt("unknown-skill", { prompt: "do the thing" })).toBe(
+      "do the thing",
+    );
   });
 
   test("whitespace-only extra is a no-op", () => {
     const base = buildSkillPrompt("job-scout", { query: "q" });
-    expect(buildSkillPrompt("job-scout", { query: "q", extra: "   \n\t " })).toBe(base);
+    expect(
+      buildSkillPrompt("job-scout", { query: "q", extra: "   \n\t " }),
+    ).toBe(base);
   });
 });
 
 describe("buildSkillPrompt — with extra (delimited append)", () => {
   for (const skill of SKILLS) {
     test(`${skill}: appends delimited block once`, () => {
-      const params = { query: "q", company: "Acme Corp", jobIds: "1,2", extra: "skip crypto" };
+      const params = {
+        query: "q",
+        company: "Acme Corp",
+        jobIds: "1,2",
+        extra: "skip crypto",
+      };
       const base = buildSkillPrompt(skill, { ...params, extra: "" });
       const out = buildSkillPrompt(skill, params);
 
@@ -52,12 +65,18 @@ describe("buildSkillPrompt — with extra (delimited append)", () => {
   }
 
   test("default (params.prompt) case also gets the extra appended", () => {
-    const out = buildSkillPrompt("unknown-skill", { prompt: "do the thing", extra: "be terse" });
+    const out = buildSkillPrompt("unknown-skill", {
+      prompt: "do the thing",
+      extra: "be terse",
+    });
     expect(out).toBe(`do the thing${DELIM}be terse`);
   });
 
   test("extra is trimmed before appending", () => {
-    const out = buildSkillPrompt("job-scout", { query: "q", extra: "  focus remote  " });
+    const out = buildSkillPrompt("job-scout", {
+      query: "q",
+      extra: "  focus remote  ",
+    });
     expect(out.endsWith("focus remote")).toBe(true);
     expect(out).not.toContain("  focus remote  ");
   });
@@ -71,9 +90,162 @@ describe("buildSkillPrompt — with extra (delimited append)", () => {
 
 describe("buildSkillPrompt — profile target", () => {
   test("profile-optimizer includes the configured LinkedIn username when provided", () => {
-    const out = buildSkillPrompt("profile-optimizer", { username: "candidate-example-000001" });
+    const out = buildSkillPrompt("profile-optimizer", {
+      username: "candidate-example-000001",
+    });
     expect(out).toContain('My LinkedIn username is "candidate-example-000001"');
-    expect(out).toContain("https://www.linkedin.com/in/candidate-example-000001/");
-    expect(out).toContain('get_person_profile(linkedin_username="candidate-example-000001")');
+    expect(out).toContain(
+      "https://www.linkedin.com/in/candidate-example-000001/",
+    );
+    expect(out).toContain(
+      'get_person_profile(linkedin_username="candidate-example-000001")',
+    );
   });
+});
+
+import { AcpClient } from "./client.ts";
+import { loadConfig } from "../paths.ts";
+import { prepareWorkspace } from "../cli/skills.ts";
+import { deferred } from "../test/doubles.ts";
+vi.mock("./client.ts", () => ({ AcpClient: vi.fn() }));
+vi.mock("../paths.ts", () => ({ loadConfig: vi.fn(() => ({})) }));
+vi.mock("../cli/skills.ts", () => ({ prepareWorkspace: vi.fn() }));
+
+beforeEach(() => {
+  vi.mocked(loadConfig).mockReturnValue({});
+  vi.mocked(prepareWorkspace).mockReset();
+});
+test("all bundled prompt templates handle defaults, prefix and optional context", () => {
+  expect(buildSkillPrompt("work-tracker-job-scout", {})).toContain(
+    '"software engineer"',
+  );
+  expect(
+    buildSkillPrompt("job-scout", { query: "Node", location: "Brazil" }),
+  ).toContain('"Node" in Brazil');
+  expect(buildSkillPrompt("recruiter-outreach", {})).toContain(
+    "the target companies",
+  );
+  expect(
+    buildSkillPrompt("recruiter-outreach", {
+      company: "Acme",
+      location: "Brazil",
+    }),
+  ).toContain("Acme who hire in Brazil");
+  expect(buildSkillPrompt("resume-tailor", {})).toContain("(none provided)");
+  expect(buildSkillPrompt("outreach-tracker", {})).toContain(
+    "request confirmation before sending",
+  );
+  expect(buildSkillPrompt("portal-filler", {})).toContain(
+    "selected application",
+  );
+  expect(buildSkillPrompt("portal-filler", { jobIds: "1" })).toContain("for 1");
+  expect(
+    buildSkillPrompt("portal-filler", { url: "https://fixture.invalid" }),
+  ).toContain("https://fixture.invalid");
+  expect(buildSkillPrompt("unknown", {})).toBe("unknown");
+});
+test("SessionManager forwards events, uses saved profile and selected model, prevents concurrent runs and cleans up", async () => {
+  const pending = deferred();
+  const start = vi.fn().mockResolvedValue(undefined),
+    prompt = vi.fn(() => pending.promise),
+    stop = vi.fn(),
+    cancel = vi.fn().mockRejectedValue(new Error("gone"));
+  let callbacks!: import("./client.ts").AcpEvents;
+  vi.mocked(AcpClient).mockImplementation(function (_provider, _cwd, events) {
+    callbacks = events!;
+    return { start, prompt, stop, cancel } as unknown as AcpClient;
+  });
+  vi.mocked(loadConfig).mockReturnValue({
+    username: " saved-profile ",
+    displayName: "Candidate",
+  });
+  const sink = vi.fn(),
+    manager = new SessionManager("/private", sink);
+  const run = manager.run("claude-code", "profile-optimizer", {}, "sonnet");
+  expect(manager.isRunning).toBe(true);
+  await Promise.resolve();
+  expect(AcpClient).toHaveBeenCalledWith(
+    "claude-code",
+    "/private",
+    expect.any(Object),
+    "sonnet",
+  );
+  expect(prompt).toHaveBeenCalledWith(
+    expect.stringContaining('username is "saved-profile"'),
+  );
+  await manager.run("opencode", "job-scout", {});
+  expect(AcpClient).toHaveBeenCalledOnce();
+  expect(sink).toHaveBeenCalledWith({
+    type: "acp-error",
+    message: "A skill run is already in progress.",
+  });
+  callbacks.onUpdate!({ text: "chunk" });
+  callbacks.onLog!("line");
+  callbacks.onExit!(0);
+  expect(
+    await callbacks.onPermission!({
+      options: [
+        { kind: "deny", optionId: "no" },
+        { kind: "allow_once", optionId: "yes" },
+      ],
+    }),
+  ).toBe("yes");
+  expect(await callbacks.onPermission!({})).toBe("allow");
+  expect(
+    await callbacks.onPermission!({ options: [{ optionId: "fallback" }] }),
+  ).toBe("fallback");
+  manager.cancel();
+  expect(cancel).toHaveBeenCalledOnce();
+  expect(stop).toHaveBeenCalledOnce();
+  pending.resolve();
+  await run;
+  expect(manager.isRunning).toBe(false);
+  expect(stop).toHaveBeenCalledTimes(2);
+  expect(sink.mock.calls.map(([event]) => event)).toEqual(
+    expect.arrayContaining([
+      {
+        type: "acp-status",
+        status: "starting",
+        provider: "claude-code",
+        skill: "profile-optimizer",
+      },
+      { type: "acp-status", status: "running", skill: "profile-optimizer" },
+      { type: "acp-status", status: "done", skill: "profile-optimizer" },
+      { type: "acp-update", update: { text: "chunk" } },
+      { type: "acp-log", line: "line" },
+      { type: "acp-exit", code: 0 },
+    ]),
+  );
+  manager.stop();
+  manager.cancel();
+  expect(stop).toHaveBeenCalledTimes(2);
+});
+test("explicit profile overrides saved data and errors reset the manager for the next run", async () => {
+  const start = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("start failed"))
+      .mockResolvedValue(undefined),
+    prompt = vi.fn().mockRejectedValueOnce("prompt failed"),
+    stop = vi.fn();
+  vi.mocked(AcpClient).mockImplementation(function () {
+    return { start, prompt, stop } as unknown as AcpClient;
+  });
+  vi.mocked(loadConfig).mockReturnValue({ username: "saved" });
+  const sink = vi.fn(),
+    manager = new SessionManager("/private", sink);
+  await manager.run("opencode", "profile-optimizer", {});
+  expect(sink).toHaveBeenCalledWith({
+    type: "acp-error",
+    message: "start failed",
+  });
+  expect(manager.isRunning).toBe(false);
+  await manager.run("opencode", "profile-optimizer", { username: " chosen " });
+  expect(prompt).toHaveBeenCalledWith(
+    expect.stringContaining('username is "chosen"'),
+  );
+  expect(sink).toHaveBeenCalledWith({
+    type: "acp-error",
+    message: "prompt failed",
+  });
+  expect(stop).toHaveBeenCalledTimes(2);
 });

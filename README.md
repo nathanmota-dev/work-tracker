@@ -166,9 +166,31 @@ node scripts/smoke-electron.mjs node_modules/.bin/electron-vite dev --watch --no
 node scripts/smoke-electron.mjs './release/Work Tracker-1.0.0.AppImage' --no-sandbox
 ```
 
-Os testes usam dados sintéticos, homes temporários com espaços e subprocessos
-simulados. Cobrem SQLite vazio, persistência, parâmetros SQL, rollback, CLI,
-autenticação HTTP/WS, notificações, MCP, streaming ACP, erros, timeout e cancelamento.
+Os unitários do backend ficam ao lado dos módulos (`<modulo>.test.ts`), usam
+Vitest em ambiente Node e são executados sem compilar a CLI. As fronteiras de
+SQLite, arquivos, HTTP, rede e subprocessos são simuladas; datas, cache e timeouts
+usam relógio controlado quando necessário. O setup da suíte rejeita operações de
+I/O não configuradas e restaura ambiente, globais e relógio entre os casos.
+
+```bash
+npm run test:backend              # somente unitários do backend
+npm run test:backend:watch        # acompanha os unitários
+npm run test:backend:coverage     # texto, HTML e JSON de cobertura unitária
+npm run test:backend:integration  # compila a CLI e executa as integrações preservadas
+npx tsc --noEmit -p tsconfig.node.json  # tipos do backend e desktop
+```
+
+`npm test` executa os unitários do backend e os testes do frontend. A suíte de
+integração é explícita: fica em `src/test/integration`, usa SQLite real (inclusive
+em memória), homes temporários com espaços, arquivos, HTTP/WebSocket e
+subprocessos locais. Preserva os cenários anteriores de persistência, CLI,
+autenticação, notificações e protocolos MCP/ACP; não acessa contas LinkedIn reais.
+
+Os relatórios completos ficam em `coverage/backend/unit/index.html` e
+`coverage/backend/unit/coverage-final.json`, ignorados pelo Git. Não há meta
+percentual de cobertura. Consulte o [relatório por arquivo](docs/backend-unit-coverage.md)
+para os resultados desta implementação, exclusões e lacunas restantes.
+
 O smoke verifica `ready → shutdown → stopped`, banco vazio e remoção do lock.
 Não envia mensagens nem acessa contas LinkedIn reais. As integrações com serviços
 reais exigem instalação e autenticação locais. Validação de execução nesta etapa:

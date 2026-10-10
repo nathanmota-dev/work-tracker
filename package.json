@@ -25,7 +25,10 @@
     "package": "npm run build && electron-builder --config desktop/electron-builder.yml",
     "postinstall": "install-electron",
     "build:cli": "node scripts/build-cli.mjs",
-    "test:backend": "npm run build:cli && vitest run --config vitest.config.mts",
+    "test:backend": "vitest run --config vitest.config.mts",
+    "test:backend:watch": "vitest --config vitest.config.mts",
+    "test:backend:coverage": "vitest run --coverage --config vitest.config.mts",
+    "test:backend:integration": "npm run build:cli && vitest run --config vitest.integration.config.mts",
     "cli": "node out/cli/work-tracker.cjs"
   },
   "engines": {
@@ -38,6 +41,7 @@
     "@types/react-dom": "^19.3.0",
     "@types/ws": "^8.18.2",
     "@vitejs/plugin-react": "^5.2.0",
+    "@vitest/coverage-v8": "5.0.3",
     "electron": "^44.7.0",
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
