@@ -3,6 +3,7 @@ import { Link, useMatchRoute } from "@tanstack/react-router"
 import { Home, Search, Settings } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import logo from "@/public/logo.png"
+import { workspacePages } from "@/routes/workspace-pages"
 import {
   Sidebar,
   SidebarContent,
@@ -17,11 +18,22 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 
+const navigationItems = [
+  { to: "/dashboard", title: "Dashboard", icon: Home },
+  ...workspacePages.map((page) => ({
+    to: `/${page.path}` as const,
+    title: page.title,
+    icon: page.icon,
+  })),
+] as const
+
 export function AppSidebar() {
   const [search, setSearch] = useState("")
   const matchRoute = useMatchRoute()
   const { setOpenMobile } = useSidebar()
-  const showDashboard = "dashboard".includes(search.trim().toLowerCase())
+  const visibleItems = navigationItems.filter((item) =>
+    item.title.toLowerCase().includes(search.trim().toLowerCase()),
+  )
 
   return (
     <Sidebar variant="inset" collapsible="icon" aria-label="Navegação principal">
@@ -48,7 +60,7 @@ export function AppSidebar() {
             placeholder="Search anything..."
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            className="h-8 rounded-lg bg-white pl-8 text-xs shadow-xs md:text-xs"
+            className="h-8 rounded-lg bg-background pl-8 text-xs shadow-xs md:text-xs"
           />
         </div>
       </SidebarHeader>
@@ -56,25 +68,26 @@ export function AppSidebar() {
         <SidebarGroup className="p-0">
           <SidebarGroupContent>
             <SidebarMenu aria-label="Páginas">
-              {showDashboard && (
-                <SidebarMenuItem>
+              {visibleItems.map((item) => (
+                <SidebarMenuItem key={item.to}>
                   <SidebarMenuButton
                     asChild
-                    isActive={Boolean(matchRoute({ to: "/dashboard" }))}
-                    tooltip="Dashboard"
+                    isActive={Boolean(matchRoute({ to: item.to, fuzzy: true }))}
+                    tooltip={item.title}
                     className="rounded-lg font-normal data-[active=true]:font-normal [&>svg]:stroke-[1.7]"
                   >
                     <Link
-                      to="/dashboard"
+                      to={item.to}
+                      className="cursor-pointer"
                       activeProps={{ "aria-current": "page" }}
                       onClick={() => setOpenMobile(false)}
                     >
-                      <Home />
-                      <span>Dashboard</span>
+                      <item.icon />
+                      <span>{item.title}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
-              )}
+              ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -83,13 +96,20 @@ export function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
-              disabled
-              tooltip="Settings — em breve"
-              title="Settings — em breve"
-              className="rounded-lg text-muted-foreground disabled:opacity-70 [&>svg]:stroke-[1.7]"
+              asChild
+              isActive={Boolean(matchRoute({ to: "/settings", fuzzy: true }))}
+              tooltip="Settings"
+              className="rounded-lg font-normal data-[active=true]:font-normal [&>svg]:stroke-[1.7]"
             >
-              <Settings />
-              <span>Settings</span>
+              <Link
+                to="/settings"
+                className="cursor-pointer"
+                activeProps={{ "aria-current": "page" }}
+                onClick={() => setOpenMobile(false)}
+              >
+                <Settings />
+                <span>Settings</span>
+              </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
