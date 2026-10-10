@@ -4,6 +4,8 @@ import type { UtilityProcess } from "electron"
 import backendPath from "./backend-process?modulePath"
 
 let backend: UtilityProcess | null = null
+let quitting = false
+let shutdownTimer: ReturnType<typeof setTimeout> | undefined
 
 function createWindow() {
   const window = new BrowserWindow({
@@ -43,9 +45,20 @@ void app.whenReady().then(() => {
 
   backend = utilityProcess.fork(backendPath, [], {
     serviceName: "Work Tracker Backend",
+    env: { ...process.env,
+      WORK_TRACKER_RESOURCES: app.isPackaged ? join(process.resourcesPath, "work-tracker") : join(app.getAppPath(), "resources"),
+      WORK_TRACKER_CLI: app.isPackaged ? join(process.resourcesPath, "work-tracker", "cli", "work-tracker.cjs") : join(app.getAppPath(), "out", "cli", "work-tracker.cjs"),
+    },
+  })
+  backend.on("message", (message) => {
+    console.log("[backend]", JSON.stringify(message))
+    if (message?.type === "failed") app.quit()
+    if (message?.type === "ready" && process.env.WORK_TRACKER_SMOKE === "1") app.quit()
   })
   backend.on("exit", (code) => {
     backend = null
+    clearTimeout(shutdownTimer)
+    if (quitting) app.quit()
     if (code !== 0) console.error(`O backend encerrou com código ${code}.`)
   })
 
@@ -56,9 +69,13 @@ void app.whenReady().then(() => {
   })
 })
 
-app.on("before-quit", () => {
-  backend?.kill()
-  backend = null
+app.on("before-quit", (event) => {
+  if (!backend) return
+  event.preventDefault()
+  if (quitting) return
+  quitting = true
+  backend.postMessage({ type: "shutdown" })
+  shutdownTimer = setTimeout(() => { backend?.kill() }, 5000)
 })
 
 app.on("window-all-closed", () => {

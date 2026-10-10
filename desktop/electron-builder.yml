@@ -13,3 +13,9 @@ win:
   target: nsis
 mac:
   target: dmg
+
+extraResources:
+  - from: resources
+    to: work-tracker
+  - from: out/cli
+    to: work-tracker/cli
