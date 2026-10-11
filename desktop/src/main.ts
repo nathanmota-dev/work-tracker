@@ -53,6 +53,10 @@ void app.whenReady().then(() => {
     },
   })
   backend.on("message", (message) => {
+    if (process.env.WORK_TRACKER_SMOKE === "1" &&
+        (message?.type === "ready" || message?.type === "stopped")) {
+      console.log(JSON.stringify({ type: message.type }))
+    }
     if (message?.type === "ready") connectApiBridge(message)
     if (message?.type === "failed") app.quit()
     if (message?.type === "ready" && process.env.WORK_TRACKER_SMOKE === "1") app.quit()
