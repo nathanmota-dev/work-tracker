@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeEach, expect, test, vi } from "vitest";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -14,6 +15,7 @@ const { getProvider, listProviderModels } = await import(
 );
 const { AcpClient } = await import("../../acp/client.ts");
 const { stopAllOwned } = await import("../../acp/process.ts");
+const { agentEnvironment } = await import("../../cli/skills.ts");
 type ProviderId = "opencode" | "claude-code";
 
 const configure = (id: ProviderId, env: Record<string, string>) =>
@@ -34,6 +36,29 @@ afterAll(async () => {
   await stopAllOwned();
   rmSync(home, { recursive: true, force: true });
   process.env = previousEnv;
+});
+
+test.skipIf(process.platform === "win32")("desktop PATH discovers an ACP executable and Node installed through NVM", async () => {
+  const nvmDir = join(home, "synthetic-nvm");
+  const bin = join(nvmDir, "versions", "node", "v24.18.0", "bin");
+  mkdirSync(bin, { recursive: true });
+  symlinkSync(process.execPath, join(bin, "node"));
+  writeFileSync(join(bin, "fixture-desktop-acp"), "#!/usr/bin/env node\n" + readFileSync(fixture, "utf8"), { mode: 0o755 });
+  vi.stubEnv("NVM_DIR", nvmDir);
+  vi.stubEnv("PATH", "/usr/bin:/bin");
+  const record = join(home, "desktop-session.json");
+  saveConfig({ acp: { opencode: { command: "fixture-desktop-acp", env: { FIXTURE_MODE: "normal", FIXTURE_RECORD: record } } } });
+  const node = spawnSync("node", ["--version"], { env: agentEnvironment(), encoding: "utf8" });
+  expect(node.status).toBe(0);
+  expect(node.stdout.trim()).toBe(process.version);
+  const client = new AcpClient("opencode", paths.workspace);
+  try {
+    await client.start();
+    expect(await client.prompt("synthetic desktop run")).toEqual({ stopReason: "end_turn" });
+    expect(readRecord(record).path.split(":" )).toContain(bin);
+  } finally {
+    client.stop();
+  }
 });
 
 test.each<ProviderId>(["opencode", "claude-code"])(

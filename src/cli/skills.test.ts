@@ -1,5 +1,6 @@
 import { beforeEach, expect, test, vi } from "vitest";
-import { cpSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { delimiter, join } from "node:path";
 import { paths, ensureHome } from "../paths.ts";
 import {
@@ -26,6 +27,8 @@ vi.mock("../mcp/config.ts", () => ({
   ],
 }));
 beforeEach(() => {
+  vi.mocked(existsSync).mockReturnValue(false);
+  vi.mocked(readdirSync).mockReturnValue([]);
   vi.mocked(mkdirSync).mockReturnValue(undefined);
   vi.mocked(cpSync).mockReturnValue(undefined);
   vi.mocked(writeFileSync).mockReturnValue(undefined);
@@ -102,5 +105,26 @@ test("agent environment preserves credentials, overrides global config directori
   });
   expect(process.env.CLAUDE_CONFIG_DIR).toBe("/global");
   vi.stubEnv("PATH", undefined);
-  expect(agentEnvironment().PATH).toBe(paths.bin + delimiter);
+  expect(agentEnvironment().PATH).toBe(paths.bin);
+});
+
+test("desktop agent PATH discovers user tools and supported NVM runtimes without duplicates", () => {
+  vi.stubEnv("NVM_DIR", "/synthetic/nvm");
+  const openCodeBin = join(homedir(), ".opencode", "bin");
+  const localBin = join(homedir(), ".local", "bin");
+  vi.stubEnv("PATH", ["/usr/bin", openCodeBin].join(delimiter));
+  const versions = ["v24.9.0", "v22.0.0", "v24.18.0", "v26.0.0", "unrelated"];
+  vi.mocked(readdirSync).mockReturnValue(versions as unknown as ReturnType<typeof readdirSync>);
+  const runtimeBins = ["v26.0.0", "v24.18.0", "v24.9.0"].map(version => join("/synthetic/nvm/versions/node", version, "bin"));
+  vi.mocked(existsSync).mockImplementation(path => [openCodeBin, localBin, ...runtimeBins].includes(String(path)));
+  expect(agentEnvironment().PATH.split(delimiter)).toEqual([paths.bin, openCodeBin, localBin, ...runtimeBins, "/usr/bin"]);
+  expect(process.env.PATH).toBe(["/usr/bin", openCodeBin].join(delimiter));
+});
+
+test("agent PATH tolerates unavailable NVM and keeps the inherited executable directories", () => {
+  vi.stubEnv("NVM_DIR", undefined);
+  vi.stubEnv("PATH", "/synthetic/bin");
+  vi.mocked(readdirSync).mockImplementation(() => { throw new Error("unreadable directory"); });
+  expect(agentEnvironment().PATH).toBe([paths.bin, "/synthetic/bin"].join(delimiter));
+  expect(readdirSync).toHaveBeenCalledWith(join(homedir(), ".nvm", "versions", "node"));
 });

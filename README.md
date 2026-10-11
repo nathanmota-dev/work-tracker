@@ -214,6 +214,13 @@ o app define `CLAUDE_CONFIG_DIR`, `XDG_CONFIG_HOME`, `XDG_DATA_HOME` e
 ou forneça as credenciais necessárias em `acp.<provider>.env`; o app não copia
 credenciais de outros ambientes.
 
+Ao abrir pelo menu do Linux, o app acrescenta ao PATH dos processos externos as
+pastas existentes `~/.opencode/bin`, `~/.local/bin`, `~/.bun/bin` e as instalações
+Node 24+ do NVM (em `$NVM_DIR` ou `~/.nvm`), priorizando a versão mais recente do
+NVM sobre o Node do sistema. Isso permite encontrar os agentes sem depender da
+configuração do terminal. O PATH herdado e os comandos personalizados continuam
+disponíveis.
+
 O modelo escolhido para uma execução é repassado mesmo com comandos ACP
 personalizados, preservando as demais configurações do provider.
 `/api/acp/providers` consulta os modelos anunciados na inicialização ACP com o

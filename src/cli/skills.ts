@@ -1,4 +1,5 @@
-import { cpSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { join, resolve, delimiter } from "node:path";
 import { mcpServers } from "../mcp/config.ts";
 import { ensureHome, paths } from "../paths.ts";
@@ -34,5 +35,25 @@ Use the Work Tracker CLI to read and write records. Do not inspect config.json o
 }
 export function agentEnvironment(): Record<string, string> {
   const env = Object.fromEntries(Object.entries(process.env).filter((entry): entry is [string, string] => typeof entry[1] === "string"));
-  return { ...env, CLAUDE_CONFIG_DIR: join(paths.home, "agents", "claude"), XDG_CONFIG_HOME: join(paths.home, "agents", "config"), XDG_DATA_HOME: join(paths.home, "agents", "data"), OPENCODE_CONFIG_DIR: join(paths.workspace, ".opencode"), WORK_TRACKER_HOME: paths.home, PATH: paths.bin + delimiter + (process.env.PATH ?? "") };
+  return { ...env, CLAUDE_CONFIG_DIR: join(paths.home, "agents", "claude"), XDG_CONFIG_HOME: join(paths.home, "agents", "config"), XDG_DATA_HOME: join(paths.home, "agents", "data"), OPENCODE_CONFIG_DIR: join(paths.workspace, ".opencode"), WORK_TRACKER_HOME: paths.home, PATH: agentPath() };
+}
+
+function agentPath(): string {
+  const inherited = (process.env.PATH ?? "").split(delimiter).filter(Boolean);
+  if (process.platform === "win32") return [paths.bin, ...inherited].join(delimiter);
+
+  // Desktop launchers do not load the shell configuration that adds user tools.
+  const homeDir = homedir();
+  const local = [join(homeDir, ".opencode", "bin"), join(homeDir, ".local", "bin"), join(homeDir, ".bun", "bin")];
+  const versionsDir = join(process.env.NVM_DIR || join(homeDir, ".nvm"), "versions", "node");
+  try {
+    const versions = readdirSync(versionsDir)
+      .filter(version => /^v\d+\.\d+\.\d+$/.test(version) && Number(version.slice(1).split(".")[0]) >= 24)
+      .sort((a, b) => b.localeCompare(a, "en", { numeric: true }));
+    local.push(...versions.map(version => join(versionsDir, version, "bin")));
+  } catch {
+    // NVM is optional; a missing or unreadable installation needs no setup.
+  }
+  // Prefer supported NVM runtimes to older system Node installations.
+  return [...new Set([paths.bin, ...local.filter(existsSync), ...inherited])].join(delimiter);
 }
