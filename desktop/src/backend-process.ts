@@ -13,7 +13,7 @@ process.parentPort.on("message", ({ data }) => {
 void startBackend().then(async handle => {
   backend = handle;
   if (stopping) { await shutdown(); return; }
-  process.parentPort.postMessage({ type: "ready", address: handle.address, port: handle.port });
+  process.parentPort.postMessage({ type: "ready", address: handle.address, port: handle.port, token: handle.token });
 }).catch(error => {
   process.parentPort.postMessage({ type: "failed", message: String(error) });
   process.exit(1);

@@ -1,6 +1,7 @@
 import { join } from "node:path"
 import { app, BrowserWindow, ipcMain, utilityProcess } from "electron"
 import type { UtilityProcess } from "electron"
+import { registerApiBridge, connectApiBridge, closeApiBridge } from "./api-bridge"
 import backendPath from "./backend-process?modulePath"
 
 let backend: UtilityProcess | null = null
@@ -42,6 +43,7 @@ function createWindow() {
 
 void app.whenReady().then(() => {
   ipcMain.handle("app:get-version", () => app.getVersion())
+  registerApiBridge()
 
   backend = utilityProcess.fork(backendPath, [], {
     serviceName: "Work Tracker Backend",
@@ -51,7 +53,7 @@ void app.whenReady().then(() => {
     },
   })
   backend.on("message", (message) => {
-    console.log("[backend]", JSON.stringify(message))
+    if (message?.type === "ready") connectApiBridge(message)
     if (message?.type === "failed") app.quit()
     if (message?.type === "ready" && process.env.WORK_TRACKER_SMOKE === "1") app.quit()
   })
@@ -74,6 +76,7 @@ app.on("before-quit", (event) => {
   event.preventDefault()
   if (quitting) return
   quitting = true
+  closeApiBridge()
   backend.postMessage({ type: "shutdown" })
   shutdownTimer = setTimeout(() => { backend?.kill() }, 5000)
 })

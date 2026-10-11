@@ -1,10 +1,21 @@
+import { Sparkles } from "lucide-react"
 import { DashboardOverview } from "@/components/dashboard-overview"
-
+import { Page } from "@/components/workspace-ui"
+import { Button } from "@/components/ui/button"
+import { prepareSkill } from "@/lib/agent"
 export function Dashboard() {
   return (
-    <div className="flex min-w-0 flex-1 flex-col gap-6 p-6">
-      <h1 className="text-base font-medium">Dashboard</h1>
+    <Page
+      title="Dashboard"
+      description="A little clarity for your next career move."
+      actions={
+        <Button size="sm" onClick={() => prepareSkill("job-scout")}>
+          <Sparkles />
+          Discover opportunities
+        </Button>
+      }
+    >
       <DashboardOverview />
-    </div>
+    </Page>
   )
 }

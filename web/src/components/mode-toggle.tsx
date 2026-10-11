@@ -13,7 +13,7 @@ export function ModeToggle() {
       size="icon-sm"
       aria-label={label}
       title={label}
-      className="ml-auto cursor-pointer text-muted-foreground"
+      className="cursor-pointer text-muted-foreground"
       onClick={() => setTheme(isDark ? "light" : "dark")}
     >
       <svg

@@ -28,7 +28,9 @@ function WorkspaceHeader() {
         </>
       )}
       <RouteBreadcrumb />
-      <ModeToggle />
+      <div className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
+        <ModeToggle />
+      </div>
     </header>
   )
 }
