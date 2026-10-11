@@ -95,7 +95,7 @@ export function SearchPage() {
             <Button
               key={key}
               size="sm"
-              variant={kind === key ? "default" : "outline"}
+              variant={kind === key ? "secondary" : "outline"}
               disabled={busy}
               aria-pressed={kind === key}
               onClick={() => {
