@@ -181,7 +181,6 @@ test("SessionManager forwards events, uses saved profile and selected model, pre
   });
   callbacks.onUpdate!({ text: "chunk" });
   callbacks.onLog!("line");
-  callbacks.onExit!(0);
   expect(
     await callbacks.onPermission!({
       options: [
@@ -200,7 +199,7 @@ test("SessionManager forwards events, uses saved profile and selected model, pre
   pending.resolve();
   await run;
   expect(manager.isRunning).toBe(false);
-  expect(stop).toHaveBeenCalledTimes(2);
+  expect(stop).toHaveBeenCalledOnce();
   expect(sink.mock.calls.map(([event]) => event)).toEqual(
     expect.arrayContaining([
       {
@@ -210,15 +209,73 @@ test("SessionManager forwards events, uses saved profile and selected model, pre
         skill: "profile-optimizer",
       },
       { type: "acp-status", status: "running", skill: "profile-optimizer" },
-      { type: "acp-status", status: "done", skill: "profile-optimizer" },
+      { type: "acp-status", status: "cancelled", skill: "profile-optimizer" },
       { type: "acp-update", update: { text: "chunk" } },
       { type: "acp-log", line: "line" },
-      { type: "acp-exit", code: 0 },
     ]),
   );
   manager.stop();
   manager.cancel();
-  expect(stop).toHaveBeenCalledTimes(2);
+  expect(stop).toHaveBeenCalledOnce();
+});
+test("pending login retains the ACP and browser, unrelated tools do not mark it done, and retry reuses the same session", async () => {
+  let callbacks!: import("./client.ts").AcpEvents;
+  const start = vi.fn().mockResolvedValue(undefined), stop = vi.fn();
+  const prompt = vi.fn().mockImplementationOnce(async () => {
+    callbacks.onUpdate!({ update: { sessionUpdate: "tool_call", toolCallId: "login", title: "linkedin_get_person_profile", status: "in_progress" } });
+    callbacks.onUpdate!({ update: { sessionUpdate: "tool_call_update", toolCallId: "login", status: "failed", content: [{ content: { type: "text", text: "A LinkedIn login window is open and login is still in progress. This is not a failure." } }] } });
+    callbacks.onUpdate!({ update: { sessionUpdate: "tool_call", toolCallId: "todo", title: "5 todos", status: "completed" } });
+  }).mockImplementationOnce(async () => {
+    callbacks.onUpdate!({ update: { sessionUpdate: "tool_call", toolCallId: "retry", title: "linkedin_get_person_profile", status: "in_progress" } });
+    callbacks.onUpdate!({ update: { sessionUpdate: "tool_call_update", toolCallId: "retry", status: "completed", content: [{ content: { type: "text", text: "Retrieved profile" } }] } });
+  });
+  vi.mocked(AcpClient).mockImplementation(function (_provider, _cwd, events) {
+    callbacks = events!;
+    return { start, prompt, stop } as unknown as AcpClient;
+  });
+  vi.mocked(loadConfig).mockReturnValue({});
+  const sink = vi.fn(), manager = new SessionManager("/private", sink);
+  await manager.run("opencode", "profile-optimizer", {});
+  expect(manager.isRunning).toBe(false);
+  expect(stop).not.toHaveBeenCalled();
+  expect(sink).toHaveBeenLastCalledWith({ type: "acp-status", status: "waiting_for_sign_in", skill: "profile-optimizer" });
+  await manager.run("opencode", "profile-optimizer", {});
+  expect(AcpClient).toHaveBeenCalledOnce();
+  expect(start).toHaveBeenCalledOnce();
+  expect(prompt).toHaveBeenCalledTimes(2);
+  expect(stop).toHaveBeenCalledOnce();
+  expect(sink).toHaveBeenLastCalledWith({ type: "acp-status", status: "done", skill: "profile-optimizer" });
+});
+test.each(["cancel", "stop", "exit", "change provider"])("a retained login session can be released by %s", async action => {
+  let callbacks!: import("./client.ts").AcpEvents;
+  const stop = vi.fn(), cancel = vi.fn().mockResolvedValue(undefined);
+  vi.mocked(AcpClient).mockImplementation(function (_provider, _cwd, events) {
+    callbacks = events!;
+    return { start: vi.fn().mockResolvedValue(undefined), stop, cancel, prompt: vi.fn(async () => {
+      callbacks.onUpdate!({ sessionUpdate: "tool_call", toolCallId: "login", title: "linkedin_get_person_profile", status: "failed", content: [{ content: { type: "text", text: "LinkedIn login in progress" } }] });
+    }) } as unknown as AcpClient;
+  });
+  vi.mocked(loadConfig).mockReturnValue({});
+  const sink = vi.fn(), manager = new SessionManager("/private", sink);
+  await manager.run("opencode", "profile-optimizer", {});
+  const oldCallbacks = callbacks;
+  if (action === "exit") {
+    callbacks.onExit!(1);
+    await manager.run("opencode", "profile-optimizer", {});
+    expect(AcpClient).toHaveBeenCalledTimes(2);
+  } else if (action === "change provider") {
+    await manager.run("claude-code", "profile-optimizer", {});
+    expect(stop).toHaveBeenCalledOnce();
+    oldCallbacks.onExit!(0); // Late exit from the old process must not clear its replacement.
+    await manager.run("claude-code", "profile-optimizer", {});
+    expect(AcpClient).toHaveBeenCalledTimes(2);
+  } else {
+    if (action === "cancel") manager.cancel();
+    else manager.stop();
+    expect(stop).toHaveBeenCalledOnce();
+    if (action === "cancel") expect(sink).toHaveBeenLastCalledWith({ type: "acp-status", status: "cancelled" });
+  }
+  manager.stop();
 });
 test("explicit profile overrides saved data and errors reset the manager for the next run", async () => {
   const start = vi

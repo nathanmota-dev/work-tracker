@@ -18,8 +18,8 @@ gaps via Chrome MCP browser automation.
 
 ## Prerequisites
 
-- **LinkedIn MCP** — for pulling the full profile and analytics
-- **Chrome MCP** — for making edits. Auto-starts Chrome on first tool call (no manual launch flags needed); use the session where you're logged into LinkedIn
+- **LinkedIn MCP** — for pulling the full profile and analytics. Reuses the MCP server's persistent session (the standard profile is `~/.linkedin-mcp/profile`). If it reports login in progress, login has not succeeded yet: complete it in that window, then retry the same tool. Work Tracker keeps the session alive if the turn ends waiting for sign-in; the user can run the skill again to retry. If Google sign-in loops, sign in to LinkedIn in regular Chrome and retry so the MCP can import that LinkedIn session. Signing in to Gmail alone is insufficient.
+- **Chrome MCP** — for making edits. Uses a separate profile from LinkedIn MCP, so it may need its own sign-in. The user can open Settings → Browser sign-in before a run to sign in through regular Chrome; keep that window open for the agent.
 - For multi-step edits, call `navigate_page`, `take_snapshot`, then `click`/`fill` sequentially with fresh uids.
 
 ## Workflow
@@ -104,6 +104,8 @@ Present ranked pitfalls with specific, actionable fixes.
 ### 4. Persist to Work Tracker
 
 Capture the profile metrics + computed score so the dashboard can chart progress over time. Run this whenever you pull fresh analytics (this is the only point profile metrics enter the system — the dashboard can't scrape them itself):
+
+Only record values that were actually retrieved. If sign-in is pending or analytics are unavailable, report that and skip the metric command. Never create an empty snapshot or substitute zero for a missing value.
 
 ```
 work-tracker metric record \

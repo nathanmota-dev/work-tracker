@@ -4,11 +4,12 @@ const { spawn } = require('node:child_process');
 const mode = process.env.FIXTURE_MODE;
 if (process.env.FIXTURE_START_LOG) fs.appendFileSync(process.env.FIXTURE_START_LOG, JSON.stringify({ pid: process.pid, argv: process.argv.slice(2) }) + '\n');
 if (mode === 'exit') process.exit(7);
-if (mode === 'tree') {
+if (mode === 'tree' || mode === 'auth-retry') {
   const child = spawn(process.execPath, ['-e', 'setInterval(()=>{},1000)'], { stdio: 'ignore' });
   fs.writeFileSync(process.env.FIXTURE_PID, String(child.pid));
 }
 const send = m => process.stdout.write(JSON.stringify({ jsonrpc: '2.0', ...m }) + '\n');
+let prompts = 0;
 readline.createInterface({ input: process.stdin }).on('line', line => {
   const m = JSON.parse(line);
   if (mode === 'hang') return;
@@ -28,6 +29,15 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
     } });
   }
   if (m.method === 'session/prompt') {
+    if (mode === 'auth-retry') {
+      prompts++;
+      send({ method: 'session/update', params: { sessionId: 'synthetic-session', update: {
+        sessionUpdate: 'tool_call', toolCallId: `profile-${prompts}`, title: 'linkedin_get_person_profile',
+        status: prompts === 1 ? 'failed' : 'completed', content: [{ content: {
+          type: 'text', text: prompts === 1 ? 'LinkedIn login is still in progress' : 'Retrieved profile',
+        } }],
+      } } });
+    }
     send({ method: 'session/update', params: { sessionId: 'synthetic-session', update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'synthetic stream' } } } });
     if (mode !== 'cancel') send({ id: m.id, result: { stopReason: 'end_turn' } });
   }

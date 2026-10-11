@@ -14,6 +14,8 @@ import { stopAllOwned } from "../acp/process.ts";
 import { searchJobs, searchPeople, jobDetails } from "../mcp/search.ts";
 import { runSync } from "../recruiter/sync.ts";
 import { databaseDouble } from "../test/doubles.ts";
+import { chromeLoginOpening, openChromeLogin } from "../mcp/chrome.ts";
+vi.mock("../mcp/chrome.ts", () => ({ chromeLoginOpening: vi.fn(() => false), openChromeLogin: vi.fn() }));
 vi.mock("./queries.ts", () => ({
   queries: Object.fromEntries(
     [
@@ -89,10 +91,28 @@ beforeEach(() => {
   };
   broadcast = vi.fn();
   handle = createRequestHandler({ token: "secret", acp, broadcast });
+  vi.mocked(chromeLoginOpening).mockReturnValue(false);
+  vi.mocked(openChromeLogin).mockReset().mockResolvedValue(undefined);
   vi.mocked(searchJobs).mockReset();
   vi.mocked(searchPeople).mockReset();
   vi.mocked(jobDetails).mockReset();
   vi.mocked(runSync).mockReset();
+});
+test("browser sign-in requires authentication, reports startup failures and avoids active sessions", async () => {
+  expect((await handle(req("/api/browser/login", {}, ""))).status).toBe(403);
+  expect(openChromeLogin).not.toHaveBeenCalled();
+  expect((await handle(req("/api/browser/login", {}))).status).toBe(200);
+  expect(openChromeLogin).toHaveBeenCalledOnce();
+  vi.mocked(openChromeLogin).mockRejectedValueOnce(new Error("Chrome missing"));
+  const failed = await handle(req("/api/browser/login", {}));
+  expect(failed.status).toBe(502);
+  expect(await failed.json()).toEqual({ error: "Chrome missing" });
+  const running = createRequestHandler({ token: "secret", acp: { ...acp, isRunning: true }, broadcast });
+  expect((await running(req("/api/browser/login", {}))).status).toBe(409);
+  expect(openChromeLogin).toHaveBeenCalledTimes(2);
+  vi.mocked(chromeLoginOpening).mockReturnValue(true);
+  expect((await handle(req("/api/acp/run", {}))).status).toBe(409);
+  expect(acp.run).not.toHaveBeenCalled();
 });
 test("authentication precedes dispatch; unknown routes are 404", async () => {
   expect((await handle(req("/api/jobs", undefined, ""))).status).toBe(403);

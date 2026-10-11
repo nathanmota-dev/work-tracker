@@ -12,6 +12,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { randomUUID } from "node:crypto";
 import { closeMcp } from "../mcp/linkedin.ts";
 import { stopAllOwned } from "../acp/process.ts";
+import { chromeLoginOpening, openChromeLogin } from "../mcp/chrome.ts";
 
 /** Internal HTTP boundary, shared by the server adapter and unit tests. */
 export function createRequestHandler({
@@ -20,7 +21,7 @@ export function createRequestHandler({
   broadcast,
 }: {
   token: string;
-  acp: Pick<SessionManager, "run" | "cancel">;
+  acp: Pick<SessionManager, "run" | "cancel"> & Partial<Pick<SessionManager, "isRunning">>;
   broadcast: (event: unknown) => void;
 }): (req: Request) => Promise<Response> {
   return async (req: Request): Promise<Response> => {
@@ -44,6 +45,15 @@ export function createRequestHandler({
       // Search endpoints proxy requests to the LinkedIn MCP.
       if (path.startsWith("/api/search/")) {
         return handleSearch(path, req);
+      }
+      if (path === "/api/browser/login" && req.method === "POST") {
+        if (acp.isRunning) return Response.json({ error: "Finish or cancel the active agent run before opening browser sign-in." }, { status: 409 });
+        try {
+          await openChromeLogin();
+          return Response.json({ ok: true });
+        } catch (error) {
+          return Response.json({ error: error instanceof Error ? error.message : String(error) }, { status: 502 });
+        }
       }
       if (path === "/api/answer" && req.method === "POST") {
         const body = (await req.json().catch(() => ({}))) as {
@@ -89,6 +99,7 @@ export function createRequestHandler({
         });
       }
       if (path === "/api/acp/run" && req.method === "POST") {
+        if (chromeLoginOpening()) return Response.json({ error: "Wait for the sign-in browser to open before starting your agent." }, { status: 409 });
         const body = (await req.json().catch(() => ({}))) as {
           provider?: string;
           skill?: string;

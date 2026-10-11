@@ -28,7 +28,9 @@ export function prepareWorkspace(): void {
   // External agents use the installed Node 24 runtime, never Electron-as-Node.
   writeFileSync(join(paths.bin, "work-tracker"), `#!/bin/sh\nexec node ${quote(cli)} "$@"\n`, { mode: 0o755 });
   writeFileSync(join(paths.bin, "work-tracker.cmd"), `@node "${cli.replaceAll('"', '')}" %*\r\n`);
-  writeFileSync(join(paths.workspace, "AGENTS.md"), `Use only the work-tracker-* skills bundled in this workspace. Persist records with work-tracker CLI. WORK_TRACKER_HOME is ${paths.home}. Store artifacts under this home; never read Mercury data or skills.\n`);
+  writeFileSync(join(paths.workspace, "AGENTS.md"), `Use only the work-tracker-* skills bundled in this workspace. Persist records with work-tracker CLI. WORK_TRACKER_HOME is ${paths.home}. Store artifacts under this home; never read Mercury data or skills.
+LinkedIn MCP owns its standard persistent profile and can reuse an existing browser session. Chrome MCP uses a separate profile: Settings > Browser sign-in authenticates Chrome MCP only. When a tool reports login in progress, tell the user that login has NOT succeeded yet, complete sign-in in that browser and retry the same tool after about 30 seconds. If you end the turn while sign-in is pending, Work Tracker keeps this session alive; the user can run the skill again to resume. Do not reset or kill browsers during login. If Google sign-in loops in LinkedIn MCP, the user can sign in to LinkedIn in regular Chrome and retry so the server can import that LinkedIn session. A Gmail login alone is not a LinkedIn session.
+Use the Work Tracker CLI to read and write records. Do not inspect config.json or query SQLite directly when a CLI command provides the data. Record profile metrics only after fetching actual values; never save an empty metric snapshot while authentication is pending.\n`);
 }
 export function agentEnvironment(): Record<string, string> {
   const env = Object.fromEntries(Object.entries(process.env).filter((entry): entry is [string, string] => typeof entry[1] === "string"));

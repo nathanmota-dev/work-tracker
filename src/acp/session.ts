@@ -73,6 +73,10 @@ function appendExtra(prompt: string, extra: string | undefined): string {
 export class SessionManager {
   private client: AcpClient | null = null;
   private running = false;
+  private cancelled = false;
+  private clientKey = "";
+  private waitingForSignIn = false;
+  private tools = new Map<string, { title: string; output: string; status: string }>();
 
   constructor(
     private cwd: string,
@@ -89,10 +93,19 @@ export class SessionManager {
       return;
     }
     this.running = true;
+    this.cancelled = false;
     const prompt = buildSkillPrompt(skill, withSavedProfile(params));
+    const config = loadConfig();
+    const clientKey = JSON.stringify([providerId, model, config.acp, config.mcp, config.linkedinMcpCommand]);
+    if (this.client && this.clientKey !== clientKey) this.stop();
+    const resuming = this.client !== null;
 
-    this.client = new AcpClient(providerId, this.cwd, {
-      onUpdate: (u) => this.sink({ type: "acp-update", update: u }),
+    if (!this.client) this.client = new AcpClient(providerId, this.cwd, {
+      onUpdate: (u) => {
+        if (this.client !== client) return;
+        this.trackSignIn(u);
+        this.sink({ type: "acp-update", update: u });
+      },
       onLog: (line) => this.sink({ type: "acp-log", line }),
       onPermission: async (p) => {
         // The desktop UI has no permission prompt, so accept the agent's request.
@@ -102,31 +115,66 @@ export class SessionManager {
         return allow?.optionId ?? "allow";
       },
       onExit: (code) => {
+        if (this.client !== client) return;
         this.sink({ type: "acp-exit", code });
+        if (!this.running) this.stop();
+        this.waitingForSignIn = false;
+        this.tools.clear();
       },
     }, model);
+    const client = this.client;
+    this.clientKey = clientKey;
 
+    let completed = false;
     try {
       prepareWorkspace();
       this.sink({ type: "acp-status", status: "starting", provider: providerId, skill });
-      await this.client.start();
+      if (!resuming) await client.start();
       this.sink({ type: "acp-status", status: "running", skill });
-      await this.client.prompt(prompt);
-      this.sink({ type: "acp-status", status: "done", skill });
+      await client.prompt(prompt);
+      completed = true;
+      this.sink({ type: "acp-status", status: this.cancelled ? "cancelled" : this.waitingForSignIn ? "waiting_for_sign_in" : "done", skill });
     } catch (e) {
-      this.sink({ type: "acp-error", message: e instanceof Error ? e.message : String(e) });
+      if (this.cancelled) this.sink({ type: "acp-status", status: "cancelled", skill });
+      else this.sink({ type: "acp-error", message: e instanceof Error ? e.message : String(e) });
     } finally {
       this.running = false;
-      this.client?.stop();
-      this.client = null;
+      // A pending-auth tool returns before the human finishes signing in. Keep
+      // its ACP process and MCP/browser alive, and reuse them on the next run.
+      if (!completed || !this.waitingForSignIn) this.stop();
     }
   }
 
-  stop(): void { this.client?.stop(); }
+  private trackSignIn(event: unknown): void {
+    if (!event || typeof event !== "object") return;
+    const outer = event as Record<string, unknown>;
+    const value = (outer.update ?? outer) as Record<string, unknown>;
+    if (!value || !["tool_call", "tool_call_update"].includes(String(value.sessionUpdate))) return;
+    const key = String(value.toolCallId ?? value.title ?? "auth");
+    const previous = this.tools.get(key);
+    const tool = {
+      title: String(value.title ?? previous?.title ?? ""),
+      status: String(value.status ?? previous?.status ?? ""),
+      output: Array.isArray(value.content) ? value.content.map(item => item?.content?.type === "text" ? item.content.text : "").join("\n") : previous?.output ?? "",
+    };
+    this.tools.set(key, tool);
+    if (tool.status !== "completed" && /\b(?:login (?:is still in|already in|in) progress|sign-in[^\n]*pending)\b/i.test(tool.output)) this.waitingForSignIn = true;
+    else if (tool.status === "completed" && /linkedin|(?:get[ _](?:person|my)[ _]profile)/i.test(tool.title)) this.waitingForSignIn = false;
+  }
+
+  stop(): void {
+    const client = this.client;
+    this.client = null;
+    this.waitingForSignIn = false;
+    this.tools.clear();
+    client?.stop();
+  }
 
   cancel(): void {
+    this.cancelled = true;
     void this.client?.cancel().catch(() => {});
-    this.client?.stop();
+    this.stop();
+    if (!this.running) this.sink({ type: "acp-status", status: "cancelled" });
   }
 }
 

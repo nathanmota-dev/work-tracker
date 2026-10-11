@@ -58,11 +58,27 @@ export type Provider = {
   defaultModel?: string
 }
 export type Providers = { providers: Provider[]; default: string }
-type Message = { role: "user" | "agent" | "system"; text: string }
+export type ToolActivity = {
+  title: string
+  kind: string
+  status: string
+  output: string
+  input?: unknown
+}
+export type AgentMessage = {
+  id: string
+  role: "user" | "agent" | "system"
+  text: string
+  tool?: ToolActivity
+  diagnostic?: boolean
+}
+let nextMessage = 0
+let runId = 0
+const toolMessages = new Map<string, string>()
 let state = {
   running: false,
   status: "Ready",
-  messages: [] as Message[],
+  messages: [] as AgentMessage[],
   draft: null as { skill: string; params: Record<string, string> } | null,
 }
 const observers = new Set<() => void>()
@@ -71,13 +87,48 @@ function update(patch: Partial<typeof state>) {
   state = { ...state, ...patch }
   for (const listener of observers) listener()
 }
-function append(role: Message["role"], text: string, chunk = false) {
+function append(role: AgentMessage["role"], text: string, chunk = false, diagnostic = false) {
   const messages = [...state.messages]
   const last = messages.at(-1)
   if (chunk && last?.role === role)
-    messages[messages.length - 1] = { role, text: last.text + text }
-  else messages.push({ role, text })
+    messages[messages.length - 1] = { ...last, text: last.text + text }
+  else messages.push({ id: String(++nextMessage), role, text, diagnostic })
   update({ messages: messages.slice(-500) })
+}
+export function isLoginPending(tool: ToolActivity): boolean {
+  return !["completed", "interrupted"].includes(tool.status) && /\b(?:login (?:is still in|already in|in) progress|sign-in[^\n]*pending)\b/i.test(tool.output)
+}
+function interruptedMessages() {
+  return state.messages.map(message => message.tool && (["pending", "in_progress"].includes(message.tool.status) || isLoginPending(message.tool))
+    ? { ...message, tool: { ...message.tool, status: "interrupted" } } : message)
+}
+function updateTool(value: Row) {
+  const key = typeof value.toolCallId === "string" ? `${runId}:${value.toolCallId}` : undefined
+  const messageId = key ? toolMessages.get(key) : undefined
+  const messages = [...state.messages]
+  const index = messageId ? messages.findIndex(message => message.id === messageId) : -1
+  const previous = index >= 0 ? messages[index] : undefined
+  const tool: ToolActivity = {
+    title: String(value.title ?? previous?.tool?.title ?? "Tool activity"),
+    kind: String(value.kind ?? previous?.tool?.kind ?? "other"),
+    status: String(value.status ?? previous?.tool?.status ?? "pending"),
+    output: Array.isArray(value.content)
+      ? (value.content as Row[]).map(item => {
+          const block = item.content as Row | undefined
+          return block?.type === "text" ? String(block.text ?? "") : ""
+        }).filter(Boolean).join("\n")
+      : previous?.tool?.output ?? "",
+    input: value.rawInput ?? previous?.tool?.input,
+  }
+  const message: AgentMessage = { id: previous?.id ?? String(++nextMessage), role: "system", text: "", tool }
+  if (index >= 0) messages[index] = message
+  else messages.push(message)
+  if (key) toolMessages.set(key, message.id)
+  update({
+    messages: messages.slice(-500),
+    ...(state.running && isLoginPending(tool) ? { status: "Waiting for sign-in" } : {}),
+    ...(state.running && state.status === "Waiting for sign-in" && tool.status === "completed" && (previous?.tool && isLoginPending(previous.tool) || /linkedin|get[ _](?:person|my)[ _]profile/i.test(tool.title)) ? { status: "running" } : {}),
+  })
 }
 function listen() {
   if (listening) return
@@ -87,19 +138,21 @@ function listen() {
       update({ status: "Connection lost — run status unknown" })
     if (event.type === "acp-status")
       update({
-        status: String(event.status),
+        status: event.status === "waiting_for_sign_in" ? "Waiting for sign-in" : String(event.status),
         running: ["starting", "running"].includes(String(event.status)),
+        ...(event.status === "cancelled" ? { messages: interruptedMessages() } : {}),
       })
     if (event.type === "acp-error") {
       append("system", String(event.message))
-      update({ running: false, status: "Error" })
+      update({ running: false, status: "Error", messages: interruptedMessages() })
     }
-    if (event.type === "acp-exit" && state.running)
+    if (event.type === "acp-exit" && (state.running || state.status === "Waiting for sign-in"))
       update({
         running: false,
         status: `Agent exited (${event.code ?? "unknown"})`,
+        messages: interruptedMessages(),
       })
-    if (event.type === "acp-log") append("system", String(event.line))
+    if (event.type === "acp-log") append("system", String(event.line), false, true)
     if (event.type === "acp-permission")
       append(
         "system",
@@ -119,21 +172,7 @@ function listen() {
         value?.sessionUpdate === "tool_call" ||
         value?.sessionUpdate === "tool_call_update"
       ) {
-        const output = Array.isArray(value.content)
-          ? (value.content as Row[])
-              .map((item) => {
-                const block = item.content as Row | undefined
-                return block?.type === "text" ? String(block.text ?? "") : ""
-              })
-              .filter(Boolean)
-              .join("\n")
-          : ""
-        append(
-          "system",
-          [String(value.title ?? "Tool activity"), value.status, output]
-            .filter(Boolean)
-            .join("\n"),
-        )
+        updateTool(value)
       } else if (value?.title)
         append(
           "system",
@@ -176,6 +215,8 @@ export async function runAgent(
 ) {
   listen()
   if (state.running) return
+  runId++
+  toolMessages.clear()
   update({ running: true, status: "Starting", draft: null })
   append(
     "user",
@@ -205,9 +246,14 @@ export async function runAgent(
   }
 }
 export async function cancelAgent() {
-  await request("acp/cancel", {})
-  update({ status: "Cancelling" })
+  const previous = { status: state.status, running: state.running }
+  update({ status: "Cancelling", running: true })
+  try { await request("acp/cancel", {}) }
+  catch (error) { update(previous); throw error }
 }
 export function clearAgent() {
-  if (!state.running) update({ messages: [], status: "Ready" })
+  if (!state.running && state.status !== "Waiting for sign-in") {
+    toolMessages.clear()
+    update({ messages: [], status: "Ready" })
+  }
 }

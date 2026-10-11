@@ -43,7 +43,8 @@ A CLI possui `--help`, `fetch-profile`, `recruiter`, `job`, `metric`, `score`,
 `detect-portal`, `export` e importação **explícita** de um arquivo `import-journey`.
 `dashboard` é um alias legado de `serve`, sem servir a UI antiga.
 
-Sem override, todos os dados ficam em `~/.work-tracker`:
+Sem override, os dados do app ficam em `~/.work-tracker`; a sessão do LinkedIn MCP
+fica no perfil padrão do próprio servidor (`~/.linkedin-mcp/profile`):
 
 ```text
 work-tracker.db             SQLite, WAL, foreign keys, migração inicial própria
@@ -53,8 +54,8 @@ workspace/                 cwd privado dos agentes e skills work-tracker-*
 artifacts/                 artefatos gerados
 bin/                       wrapper work-tracker disponível no PATH dos agentes
 agents/                    configuração/autenticação privada dos providers
-browsers/linkedin/profile/ perfil dedicado do LinkedIn
-browsers/chrome/profile/   perfil dedicado do Chrome DevTools
+browsers/linkedin/profile/ perfil legado, preservado para recuperação
+browsers/chrome/profile/   perfil da janela de login aberta pelo app
 ```
 
 Não há leitura de banco, configuração, skills ou checkout do Mercury, instalação
@@ -117,17 +118,53 @@ cache de cinco minutos, invalidado quando o comando ou ambiente muda. Se o agent
 estiver indisponível ou não anunciar modelos, o fallback é `opus`, `sonnet` e
 `haiku` para Claude Code, ou uma lista vazia para OpenCode.
 
-Não inclua flags de perfil nos argumentos MCP: o app injeta `--user-data-dir`
-para LinkedIn e `--userDataDir` para Chrome. O LinkedIn recebe também
-`--no-auto-import`, evitando importar sessões de outro navegador. Para login manual:
+O LinkedIn MCP usa seus argumentos e perfil persistente padrão, como no Mercury:
+o app não injeta `--user-data-dir` nem `--no-auto-import`. Assim, uma sessão válida
+de `~/.linkedin-mcp/profile` pode ser reutilizada, e o servidor pode importar uma
+sessão do LinkedIn já aberta no Chrome. Para separar a sessão explicitamente,
+configure `--user-data-dir` nos argumentos do LinkedIn; `--no-auto-import` também
+é respeitado quando configurado. Os MCPs recebem os diretórios XDG do desktop,
+sem herdar os diretórios privados do agente. O Chrome MCP inicia normalmente,
+sem selecionar perfis do computador. Para login manual no perfil padrão:
 
 ```bash
-export WORK_TRACKER_HOME="${WORK_TRACKER_HOME:-$HOME/.work-tracker}"
-mcp-server-linkedin --user-data-dir "$WORK_TRACKER_HOME/browsers/linkedin/profile" --login
+uvx mcp-server-linkedin@latest --chrome-path /usr/bin/google-chrome --login
 ```
 
-A pasta pai do perfil LinkedIn é exclusiva desse servidor. `linkedin reset`
-limpa somente processos Chrome/Chromium com o argumento exato desse perfil e os
+Para login Google no Chrome usado pelo agente, abra **Settings → Browser sign-in →
+Open sign-in browser** antes da execução. O app inicia o Chrome normal com seu
+perfil privado e uma porta de depuração dinâmica em `127.0.0.1`; o Chrome MCP se
+conecta a essa janela. Mantenha-a aberta durante a execução. Ela continua aberta
+entre execuções e é encerrada quando o app fecha. Nenhum executável é instalado
+por essa ação: Chrome e Chrome MCP precisam estar disponíveis/configurados.
+O comando Chrome é `google-chrome`, ou o `--executablePath`/`--channel` configurado
+nos argumentos MCP. O app preserva `--chrome-arg`, `--proxyServer` e o ambiente
+configurado ao abrir a janela.
+
+Os perfis LinkedIn MCP e Chrome MCP são separados: cada um pode pedir seu próprio
+login. A mensagem "login is still in progress" do LinkedIn é uma espera, e o agente
+deve repetir a mesma ferramenta após cerca de 30 segundos sem reiniciar o servidor.
+Se o agente encerrar o turno nessa espera, o app mantém o processo ACP e o navegador
+abertos. Conclua o login e clique em **Retry after sign-in**: a mesma sessão é
+reutilizada com o mesmo provider/modelo/configuração. **Cancel** ou fechar o app
+encerra a sessão; mudar de provider/modelo/configuração também inicia outra conexão.
+Uma tarefa auxiliar marcada Completed não indica que o login terminou.
+Quando o Google fica em loop no navegador do LinkedIn MCP, entre no LinkedIn pelo
+Chrome habitual e tente novamente. Um login no Gmail sozinho não autentica o LinkedIn;
+Settings → Browser sign-in autentica o Chrome MCP, não o LinkedIn MCP.
+O painel do agente reúne as atualizações de uma chamada no mesmo cartão e mantém
+comandos, argumentos, saídas e diagnósticos recolhidos.
+
+Conexões Chrome explícitas com `--browser-url`/`--browserUrl` ou `--ws-endpoint`/
+`--wsEndpoint` usam a janela indicada e não recebem `--userDataDir`, pois são modos
+de conexão, não de lançamento. Uma configuração explícita `--autoConnect` segue
+o comportamento padrão do Chrome MCP. A conexão explícita tem
+precedência sobre uma janela aberta pelo app. Esse fluxo segue a
+[documentação do Chrome MCP para login em navegador existente](https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/main/docs/advanced-usage.md#connecting-to-a-running-chrome-instance).
+
+`linkedin reset` recupera somente o perfil privado legado em
+`~/.work-tracker/browsers/linkedin/profile`, sem tocar na sessão compartilhada
+`~/.linkedin-mcp`. Limpa processos Chrome/Chromium com o argumento exato e os
 três locks Singleton desse diretório. Essa recuperação foi implementada para Linux.
 
 O Work Tracker é atualmente exclusivo para Linux. Após concluir as funcionalidades

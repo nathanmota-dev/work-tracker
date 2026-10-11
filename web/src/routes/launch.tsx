@@ -1,4 +1,5 @@
 import { candidateFromAnswers } from "@/lib/candidate-profile"
+import { AgentActivity } from "@/components/agent-activity"
 import { Textarea } from "@/components/ui/textarea"
 import { SelectControl } from "@/components/ui/select-control"
 import { useEffect, useRef, useState } from "react"
@@ -180,7 +181,7 @@ export function LaunchPage() {
                 disabled={agent.running || !selectedProvider || !live}
               >
                 <Play className="size-4" />
-                Run agent
+                {agent.status === "Waiting for sign-in" ? "Retry after sign-in" : "Run agent"}
               </Button>
               {!live && (
                 <p className="text-xs text-muted-foreground">
@@ -198,7 +199,7 @@ export function LaunchPage() {
           title="Agent workspace"
           action={
             <div className="flex gap-2">
-              {agent.running ? (
+              {agent.running || agent.status === "Waiting for sign-in" ? (
                 <Button
                   size="sm"
                   variant="outline"
@@ -236,9 +237,9 @@ export function LaunchPage() {
                 <Sparkles className="size-5 text-chart-1" />
               </Empty>
             )}
-            {agent.messages.map((m, i) => (
+            {agent.messages.map((m) => m.tool || m.diagnostic ? <AgentActivity key={m.id} message={m} /> : (
               <div
-                key={i}
+                key={m.id}
                 className={`rounded-xl border p-4 ${m.role === "user" ? "ml-8 bg-muted/40" : "mr-4"}`}
               >
                 <p className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">

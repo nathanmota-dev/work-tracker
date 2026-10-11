@@ -1,4 +1,5 @@
 import { SettingsProfile } from "@/components/settings-profile"
+import { BrowserSignIn } from "@/components/browser-sign-in"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { SelectControl } from "@/components/ui/select-control"
 import { useState } from "react"
@@ -140,6 +141,7 @@ export function SettingsPage() {
                 </form>
               )}
             </Panel>
+            <BrowserSignIn />
           </div>
         </TabsContent>
         <TabsContent value="profile">
