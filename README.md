@@ -26,6 +26,111 @@ As execuções locais usam `--no-sandbox` por compatibilidade com AppArmor.
 O pacote mantém o sandbox padrão; em hosts que o bloqueiam, passe `--no-sandbox`
 explicitamente ao executável.
 
+## Instalação no Linux pelo menu de aplicativos
+
+A instalação por usuário copia o aplicativo completo para
+`~/.local/opt/work-tracker` e registra **Work Tracker** no menu de aplicativos.
+Ela não exige `sudo` e usa o ícone do projeto. Os dados continuam separados em
+`~/.work-tracker` (ou no override `WORK_TRACKER_HOME`).
+
+Use a worktree que está na branch `main`; consulte `git worktree list` para
+identificá-la. No checkout atual, o caminho é
+`/mnt/linux-data/projects/git/work-tracker`. Para instalar o último commit da
+`main`, esse checkout também deve estar sem alterações locais de código: o build
+inclui as alterações presentes nos arquivos, mesmo que ainda não tenham commit.
+
+Com as dependências npm instaladas, feche o Work Tracker e execute o bloco abaixo
+na raiz dessa worktree. Além dos requisitos de desenvolvimento, ele usa `rsync`,
+`desktop-file-validate` e `update-desktop-database` (os dois últimos são fornecidos
+por `desktop-file-utils`).
+
+```bash
+(
+  set -eu
+  if [ "$(git branch --show-current)" != "main" ]; then
+    printf '%s\n' 'Execute na worktree da branch main.' >&2
+    exit 1
+  fi
+
+  npm run build
+  ./node_modules/.bin/electron-builder --linux --dir --config desktop/electron-builder.yml
+
+  install_dir="$HOME/.local/opt/work-tracker"
+  applications_dir="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+  desktop_file="$applications_dir/dev.nathanmota.worktracker.desktop"
+  mkdir -p "$install_dir" "$applications_dir"
+  rsync -a --delete release/linux-unpacked/ "$install_dir/"
+  cp web/src/public/logo.png "$install_dir/icon.png"
+
+  cat > "$desktop_file" <<EOF
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Work Tracker
+Comment=Organize sua busca de emprego e acompanhe candidaturas
+Exec="$install_dir/work-tracker-app" --no-sandbox
+TryExec=$install_dir/work-tracker-app
+Path=$install_dir
+Icon=$install_dir/icon.png
+Terminal=false
+Categories=Office;
+StartupNotify=true
+StartupWMClass=work-tracker-app
+EOF
+
+  chmod 644 "$desktop_file"
+  desktop-file-validate "$desktop_file"
+  update-desktop-database "$applications_dir"
+)
+```
+
+Procure **Work Tracker** no menu de aplicativos. Para testar o mesmo atalho pelo
+terminal:
+
+```bash
+gio launch "${XDG_DATA_HOME:-$HOME/.local/share}/applications/dev.nathanmota.worktracker.desktop"
+```
+
+`--no-sandbox` é o argumento usado na instalação validada neste Ubuntu, conforme
+a compatibilidade com AppArmor descrita acima. O atalho aponta para a cópia
+instalada e continua funcionando se o checkout mudar de branch ou de lugar.
+
+### Atualizar durante o desenvolvimento, somente a partir da main
+
+Não é necessário gerar um AppImage nem recriar o atalho a cada atualização.
+Feche o app e execute na worktree da `main`:
+
+```bash
+(
+  set -eu
+  if [ "$(git branch --show-current)" != "main" ]; then
+    printf '%s\n' 'Execute na worktree da branch main.' >&2
+    exit 1
+  fi
+
+  npm run build
+  ./node_modules/.bin/electron-builder --linux --dir --config desktop/electron-builder.yml
+  rsync -a --delete release/linux-unpacked/ "$HOME/.local/opt/work-tracker/"
+  cp web/src/public/logo.png "$HOME/.local/opt/work-tracker/icon.png"
+)
+```
+
+`npm run build` atualiza `out/`; `electron-builder --dir` monta o aplicativo com
+o runtime Electron, dependências, CLI e recursos em `release/linux-unpacked`,
+sem gerar AppImage. A cópia dessa pasta atualiza o aplicativo que abre pelo menu,
+preservando seus dados. Execute a instalação completa primeiro para criar o
+atalho e os diretórios.
+
+Se o último `npm run build` nessa worktree já foi feito na `main` e, desde então,
+não houve alterações de código/dependências, troca de branch ou execução de
+`npm run dev`, pode omitir apenas a etapa `npm run build` e reutilizar `out/`.
+As pastas geradas não registram a branch ou o commit de origem; se houver dúvida,
+refaça o build na `main` antes de instalar.
+
+A atualização é manual: só executar `npm run build` não altera a instalação.
+Uma build em outra branch ou worktree também não a atualiza; ela continua usando
+a última versão copiada da `main`.
+
 ## Execução isolada e CLI
 
 ```bash
