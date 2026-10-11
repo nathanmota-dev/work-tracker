@@ -44,6 +44,7 @@ const dependencies: Record<string, string[]> = {
   outreach: ["outreach_attempts", "outreach_budget", "recruiters"],
   "recruiters/due": ["outreach_attempts", "recruiters"],
   applications: ["applications", "jobs"],
+  "application-board": ["applications", "application_stages", "application_events"],
   "acp/providers": [],
 }
 export function useApi<T>(path: string) {

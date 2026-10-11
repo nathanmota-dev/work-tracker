@@ -10,6 +10,7 @@ const reads = new Set([
   "metrics",
   "interviews",
   "applications",
+  "application-board",
   "answers",
   "activity",
   "profile",
@@ -24,6 +25,15 @@ const writes = new Set([
   "search/jobs",
   "search/people",
   "search/job-details",
+  "application-board/create",
+  "application-board/update",
+  "application-board/move",
+  "application-board/archive",
+  "application-board/reopen",
+  "application-board/details",
+  "application-board/stages/save",
+  "application-board/stages/reorder",
+  "application-board/stages/set-archived",
 ])
 let connection: { address: string; token: string } | undefined
 let socket: WebSocket | undefined

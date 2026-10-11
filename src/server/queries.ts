@@ -149,7 +149,8 @@ export const queries = {
   applications() {
     return db()
       .query(`
-        SELECT a.id, a.job_id, j.title AS job_title, j.company_name,
+        SELECT a.id, a.job_id, COALESCE(a.role_title, j.title) AS job_title,
+               COALESCE(a.company_name, j.company_name) AS company_name,
                a.resume_path, a.cover_letter_path, a.report_path,
                a.keyword_score, a.status, a.applied_at,
                a.portal, a.external_url, a.fields_filled_json, a.unfilled_json

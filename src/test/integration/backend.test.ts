@@ -57,7 +57,7 @@ test("fresh private database, WAL, foreign keys, initial schema and empty domain
   }
   expect(
     db().query("SELECT value FROM meta WHERE key='schema_version'").get(),
-  ).toEqual({ value: "1" });
+  ).toEqual({ value: "2" });
   const columns = db().query("PRAGMA table_info(applications)").all() as {
     name: string;
   }[];

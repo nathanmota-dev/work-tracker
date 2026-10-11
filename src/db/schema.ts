@@ -3,7 +3,7 @@
  * Single migration block for v0.1; versioned migrations can layer on later
  * via the `schema_version` pragma table.
  */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export const SCHEMA_SQL = /* sql */ `
 CREATE TABLE IF NOT EXISTS meta (
@@ -75,6 +75,17 @@ CREATE TABLE IF NOT EXISTS jobs (
   scouted_at       TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS application_stages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  key TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  category TEXT NOT NULL CHECK (category IN ('applied', 'recruiter', 'technical', 'assessment', 'offer')),
+  position INTEGER NOT NULL,
+  is_archived INTEGER NOT NULL DEFAULT 0 CHECK (is_archived IN (0, 1)),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS applications (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
   job_id           INTEGER REFERENCES jobs(id),
@@ -84,6 +95,19 @@ CREATE TABLE IF NOT EXISTS applications (
   keyword_score    INTEGER,
   status           TEXT NOT NULL DEFAULT 'draft',
   applied_at       TEXT
+);
+
+CREATE TABLE IF NOT EXISTS application_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  application_id INTEGER NOT NULL REFERENCES applications(id),
+  event_type TEXT NOT NULL CHECK (event_type IN ('created', 'moved', 'archived', 'reopened')),
+  from_stage_id INTEGER REFERENCES application_stages(id),
+  to_stage_id INTEGER NOT NULL REFERENCES application_stages(id),
+  stage_name TEXT NOT NULL,
+  stage_category TEXT NOT NULL,
+  occurred_at TEXT NOT NULL,
+  reason TEXT,
+  note TEXT
 );
 
 -- Reusable, single-source-of-truth answers for external ATS application forms
@@ -206,5 +230,31 @@ export const COLUMN_MIGRATIONS: Record<string, Record<string, string>> = {
     external_url: "TEXT",
     fields_filled_json: "TEXT",
     unfilled_json: "TEXT",
+    company_name: "TEXT",
+    role_title: "TEXT",
+    role_type: "TEXT CHECK (role_type IN ('front_end', 'back_end', 'full_stack'))",
+    stack_json: "TEXT",
+    comp: "TEXT",
+    company_url: "TEXT",
+    notes: "TEXT",
+    current_stage_id: "INTEGER REFERENCES application_stages(id)",
+    tracking_status: "TEXT CHECK (tracking_status IN ('active', 'archived'))",
+    archive_reason: "TEXT CHECK (archive_reason IN ('rejected', 'withdrawn', 'no_response', 'hired'))",
+    archived_at: "TEXT",
+    created_at: "TEXT",
+    updated_at: "TEXT",
   },
 };
+
+// These depend on additive application columns and must run after migrations.
+export const APPLICATION_BOARD_INDEX_SQL = /* sql */ `
+CREATE INDEX IF NOT EXISTS idx_applications_tracking ON applications(tracking_status, current_stage_id);
+CREATE INDEX IF NOT EXISTS idx_application_events_history ON application_events(application_id, occurred_at, id);
+`;
+
+export const DEFAULT_APPLICATION_STAGES = [
+  { key: "applied", name: "Applied", category: "applied" },
+  { key: "recruiter", name: "Recruiter interview", category: "recruiter" },
+  { key: "technical", name: "Technical interview", category: "technical" },
+  { key: "offer", name: "Offer", category: "offer" },
+] as const;

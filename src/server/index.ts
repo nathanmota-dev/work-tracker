@@ -13,6 +13,7 @@ import { randomUUID } from "node:crypto";
 import { closeMcp } from "../mcp/linkedin.ts";
 import { stopAllOwned } from "../acp/process.ts";
 import { chromeLoginOpening, openChromeLogin } from "../mcp/chrome.ts";
+import { handleApplicationBoard } from "../applications/http.ts";
 
 /** Internal HTTP boundary, shared by the server adapter and unit tests. */
 export function createRequestHandler({
@@ -41,6 +42,9 @@ export function createRequestHandler({
     if (path.startsWith("/api/")) {
       if (url.searchParams.get("token") !== token) {
         return new Response("forbidden", { status: 403 });
+      }
+      if (path === "/api/application-board" || path.startsWith("/api/application-board/")) {
+        return handleApplicationBoard(path, req, broadcast);
       }
       // Search endpoints proxy requests to the LinkedIn MCP.
       if (path.startsWith("/api/search/")) {

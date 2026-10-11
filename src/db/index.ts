@@ -1,6 +1,6 @@
 import { Database } from "./sqlite.ts";
 import { ensureHome, paths } from "../paths.ts";
-import { SCHEMA_SQL, SCHEMA_VERSION, COLUMN_MIGRATIONS } from "./schema.ts";
+import { SCHEMA_SQL, SCHEMA_VERSION, COLUMN_MIGRATIONS, APPLICATION_BOARD_INDEX_SQL, DEFAULT_APPLICATION_STAGES } from "./schema.ts";
 
 let _db: Database | null = null;
 
@@ -47,6 +47,12 @@ export function db(): Database {
     d.transaction(() => {
       d.exec(SCHEMA_SQL);
       applyColumnMigrations(d);
+      d.exec(APPLICATION_BOARD_INDEX_SQL);
+      DEFAULT_APPLICATION_STAGES.forEach((stage, position) => {
+        d.query(`INSERT INTO application_stages (key, name, category, position, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(key) DO NOTHING`)
+          .run(stage.key, stage.name, stage.category, position, now(), now());
+      });
       seedOutreachBudget(d);
       d.query("INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', ?)").run(String(SCHEMA_VERSION));
     })();

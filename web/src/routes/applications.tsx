@@ -15,7 +15,7 @@ export function ApplicationsPage() {
   const [selected, setSelected] = useState<Row | null>(null)
   return (
     <Page
-      title="Applications"
+      title="Automatic applications"
       description="Every application, from first draft to next steps."
       actions={
         <Button size="sm" onClick={() => prepareSkill("resume-tailor")}>
@@ -27,7 +27,7 @@ export function ApplicationsPage() {
       {api.data && (
         <Records
           rows={api.data}
-          noun="Applications"
+          noun="Automatic applications"
           onSelect={setSelected}
           columns={[
             {
