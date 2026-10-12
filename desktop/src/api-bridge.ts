@@ -18,6 +18,9 @@ const reads = new Set([
   "acp/providers",
 ])
 const writes = new Set([
+  "jobs/archive",
+  "jobs/restore",
+  "jobs/delete",
   "answer",
   "acp/run",
   "acp/cancel",

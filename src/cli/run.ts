@@ -40,6 +40,7 @@ Write API (used by skills):
   work-tracker outreach budget [set: --plan --remaining --allotment --rollover-cap --reserve-floor]
   work-tracker outreach withdraw --id <n>                        Withdraw pending invite (browser) + block
   work-tracker job save [--linkedin-id --title --company --location --work-type --comp --fit --link --status]
+  work-tracker job list                     List jobs, including archived_at
   work-tracker metric record [--search-appearances --profile-views --post-impressions --connections --score]
   work-tracker score record --value <n> [--signals <json>]
   work-tracker interview add --company <c> [--when --stage --status --note]

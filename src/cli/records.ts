@@ -2,17 +2,22 @@ import { db, now } from "../db/index.ts";
 import { notifyChange } from "../db/notify.ts";
 import { type Flags, str, int, reqStr } from "./flags.ts";
 
-/** work-tracker job save */
+/** work-tracker job save | list */
 export async function jobCmd(sub: string, flags: Flags): Promise<void> {
   const d = db();
+  if (sub === "list") {
+    console.log(JSON.stringify(d.query("SELECT * FROM jobs ORDER BY scouted_at DESC, id DESC").all(), null, 2));
+    return;
+  }
   if (sub === "save") {
     const row = d.query(`
       INSERT INTO jobs (linkedin_job_id, title, company_name, location, work_type, comp, fit, requirements_json, status, link)
       VALUES ($jid, $title, $company, $location, $work, $comp, $fit, $reqs, $status, $link)
       ON CONFLICT(linkedin_job_id) DO UPDATE SET
         fit = COALESCE(excluded.fit, jobs.fit),
-        status = COALESCE(excluded.status, jobs.status)
-      RETURNING id
+        status = CASE WHEN jobs.archived_at IS NULL
+          THEN COALESCE(excluded.status, jobs.status) ELSE jobs.status END
+      RETURNING id, archived_at
     `).get({
       $jid: str(flags, "linkedin-id") ?? null,
       $title: str(flags, "title") ?? null,
@@ -24,9 +29,9 @@ export async function jobCmd(sub: string, flags: Flags): Promise<void> {
       $reqs: str(flags, "requirements") ?? null,
       $status: str(flags, "status") ?? "saved",
       $link: str(flags, "link") ?? null,
-    }) as { id: number };
+    }) as { id: number; archived_at: string | null };
     await notifyChange("jobs");
-    console.log(`job #${row.id} saved`);
+    console.log(row.archived_at ? `job #${row.id} remains archived` : `job #${row.id} saved`);
     return;
   }
   console.error(`unknown job subcommand: ${sub}`);

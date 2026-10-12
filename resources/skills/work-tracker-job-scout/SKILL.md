@@ -172,6 +172,11 @@ For each role, rate as:
 
 ### 5. Present Shortlist
 
+Before presenting or saving the shortlist, run `work-tracker job list` and compare
+LinkedIn job IDs with the stored records. Exclude records with a non-null
+`archived_at`: the user archived these roles and they must not be recommended or
+reopened by a later search. Saving an existing LinkedIn ID preserves its archive.
+
 Use two tables:
 
 **Location-based roles:**

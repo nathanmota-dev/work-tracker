@@ -14,6 +14,7 @@ import { closeMcp } from "../mcp/linkedin.ts";
 import { stopAllOwned } from "../acp/process.ts";
 import { chromeLoginOpening, openChromeLogin } from "../mcp/chrome.ts";
 import { handleApplicationBoard } from "../applications/http.ts";
+import { handleJobAction } from "../jobs/http.ts";
 
 /** Internal HTTP boundary, shared by the server adapter and unit tests. */
 export function createRequestHandler({
@@ -42,6 +43,9 @@ export function createRequestHandler({
     if (path.startsWith("/api/")) {
       if (url.searchParams.get("token") !== token) {
         return new Response("forbidden", { status: 403 });
+      }
+      if (path.startsWith("/api/jobs/")) {
+        return handleJobAction(path, req, broadcast);
       }
       if (path === "/api/application-board" || path.startsWith("/api/application-board/")) {
         return handleApplicationBoard(path, req, broadcast);

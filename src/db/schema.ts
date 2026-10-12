@@ -225,6 +225,9 @@ CREATE INDEX IF NOT EXISTS idx_attempts_company   ON outreach_attempts(company_u
  *
  */
 export const COLUMN_MIGRATIONS: Record<string, Record<string, string>> = {
+  jobs: {
+    archived_at: "TEXT",
+  },
   applications: {
     portal: "TEXT",
     external_url: "TEXT",

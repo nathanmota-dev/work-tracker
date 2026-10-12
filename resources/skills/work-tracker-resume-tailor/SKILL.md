@@ -51,6 +51,8 @@ On first run, create `$WORK_TRACKER_HOME/` and copy the user's base resume into 
 
 ### 1. Gather Inputs
 
+- Run `work-tracker job list` to check selected roles. Skip jobs with a non-null
+  `archived_at`; ask the user to restore those roles in Jobs before tailoring.
 - **Base resume**: Read from `$WORK_TRACKER_HOME/base/resume.typ` (or init from user-provided path)
   - Supported formats: `.typ`, `.md`, `.txt`, `.pdf` (PDF → text extraction)
 - **Experience bank**: Read all entries in `$WORK_TRACKER_HOME/experience/` (if present). This is the deep, tagged pool of achievements that don't fit on the short base resume — built by the `work-tracker-experience-bank` skill. Read-only here.

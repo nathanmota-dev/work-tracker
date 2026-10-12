@@ -38,6 +38,8 @@ used by `work-tracker-recruiter-outreach`.
 ### 1. Load inputs
 
 - Resolve the opportunity: the `jobs` row (id, company, title, `link`).
+- Read `work-tracker job list` before proceeding. If the selected job has a
+  non-null `archived_at`, stop and ask the user to restore it in Jobs first.
 - Confirm tailored artifacts exist for it (resume `.typ`, cover letter).
 - Load the reusable answer store:
 
