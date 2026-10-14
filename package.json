@@ -56,6 +56,7 @@
     "web"
   ],
   "dependencies": {
+    "@babel/parser": "^8.0.7",
     "@modelcontextprotocol/sdk": "^1.32.1",
     "ws": "^8.22.0"
   },

@@ -33,12 +33,14 @@ function baseSkillPrompt(skill: string, params: Record<string, string>): string 
     case "experience-bank":
       return `Use the work-tracker-experience-bank skill ("grill me"). Load my existing bank, base resume, and LinkedIn profile first, then interview me about new achievements I don't already have captured. Store tagged entries in \`$WORK_TRACKER_HOME/experience/\` and log the run via \`work-tracker activity log\`.`;
     case "resume-tailor":
+      if (params.manifestPath) return `Use the work-tracker-resume-tailor skill in its managed LaTeX mode. Read the run manifest at ${JSON.stringify(params.manifestPath)}. Edit only the working project and produce its selection and report files. The backend owns compilation and persistence.`;
       return `Use the work-tracker-resume-tailor skill. Tailor my resume for these roles: ${
         params.jobIds ?? "(none provided)"
       }. Produce tailored Typst resumes, cover letters, and gap reports, and record each via \`work-tracker application add\`.`;
     case "outreach-tracker":
       return `Use the work-tracker-outreach-tracker skill. Review due actions, draft follow-ups, and request confirmation before sending. Record changes with work-tracker outreach.`;
     case "portal-filler":
+      if (params.manifestPath) return `Use the work-tracker-portal-filler skill in its managed PDF mode. Read ${JSON.stringify(params.manifestPath)}. Use exactly the validated PDF identified there. Write the fill result to its resultPath, preserve the existing application ID, and stop for human review without clicking Submit.`;
       return `Use the work-tracker-portal-filler skill for ${params.url ?? params.jobIds ?? "the selected application"}. Fill the portal and stop for human review before submission.`;
     case "deep-scout":
       return `Use the work-tracker-job-scout skill to deeply assess this role for fit against my profile: ${params.query}. Save it via \`work-tracker job save\` with a fit rating.`;
@@ -70,7 +72,13 @@ function appendExtra(prompt: string, extra: string | undefined): string {
  * user). Forwards all agent updates to the provided sink (the WebSocket
  * broadcaster).
  */
+export interface AcpRunResult { status: "done" | "cancelled" | "waiting_for_sign_in" | "error"; message?: string }
+
 export class SessionManager {
+  private listeners = new Set<(event: Record<string, unknown>) => void>();
+  private context: Record<string, string> = {};
+  subscribe(listener: (event: Record<string, unknown>) => void): () => void { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; }
+  private emit(event: Record<string, unknown>) { const value = { ...event, ...this.context }; this.sink(value); for (const listener of this.listeners) listener(value); }
   private client: AcpClient | null = null;
   private running = false;
   private cancelled = false;
@@ -87,11 +95,12 @@ export class SessionManager {
     return this.running;
   }
 
-  async run(providerId: string, skill: string, params: Record<string, string>, model?: string): Promise<void> {
+  async run(providerId: string, skill: string, params: Record<string, string>, model?: string): Promise<AcpRunResult | void> {
     if (this.running) {
-      this.sink({ type: "acp-error", message: "A skill run is already in progress." });
-      return;
+      this.emit({ type: "acp-error", message: "A skill run is already in progress." });
+      return { status: "error", message: "A skill run is already in progress." };
     }
+    this.context = params.runId ? { runId: params.runId, source: "apply" } : {};
     this.running = true;
     this.cancelled = false;
     const prompt = buildSkillPrompt(skill, withSavedProfile(params));
@@ -104,19 +113,19 @@ export class SessionManager {
       onUpdate: (u) => {
         if (this.client !== client) return;
         this.trackSignIn(u);
-        this.sink({ type: "acp-update", update: u });
+        this.emit({ type: "acp-update", update: u });
       },
-      onLog: (line) => this.sink({ type: "acp-log", line }),
+      onLog: (line) => this.emit({ type: "acp-log", line }),
       onPermission: async (p) => {
         // The desktop UI has no permission prompt, so accept the agent's request.
-        this.sink({ type: "acp-permission", params: p });
+        this.emit({ type: "acp-permission", params: p });
         const opts = (p as { options?: Array<{ optionId: string; kind?: string }> }).options ?? [];
         const allow = opts.find((o) => o.kind?.includes("allow")) ?? opts[0];
         return allow?.optionId ?? "allow";
       },
       onExit: (code) => {
         if (this.client !== client) return;
-        this.sink({ type: "acp-exit", code });
+        this.emit({ type: "acp-exit", code });
         if (!this.running) this.stop();
         this.waitingForSignIn = false;
         this.tools.clear();
@@ -128,15 +137,18 @@ export class SessionManager {
     let completed = false;
     try {
       prepareWorkspace();
-      this.sink({ type: "acp-status", status: "starting", provider: providerId, skill });
+      this.emit({ type: "acp-status", status: "starting", provider: providerId, skill });
       if (!resuming) await client.start();
-      this.sink({ type: "acp-status", status: "running", skill });
+      this.emit({ type: "acp-status", status: "running", skill });
       await client.prompt(prompt);
       completed = true;
-      this.sink({ type: "acp-status", status: this.cancelled ? "cancelled" : this.waitingForSignIn ? "waiting_for_sign_in" : "done", skill });
+      const status = this.cancelled ? "cancelled" : this.waitingForSignIn ? "waiting_for_sign_in" : "done";
+      this.emit({ type: "acp-status", status, skill });
+      return { status };
     } catch (e) {
-      if (this.cancelled) this.sink({ type: "acp-status", status: "cancelled", skill });
-      else this.sink({ type: "acp-error", message: e instanceof Error ? e.message : String(e) });
+      if (this.cancelled) this.emit({ type: "acp-status", status: "cancelled", skill });
+      else this.emit({ type: "acp-error", message: e instanceof Error ? e.message : String(e) });
+      return { status: this.cancelled ? "cancelled" : "error", message: e instanceof Error ? e.message : String(e) };
     } finally {
       this.running = false;
       // A pending-auth tool returns before the human finishes signing in. Keep
@@ -174,7 +186,7 @@ export class SessionManager {
     this.cancelled = true;
     void this.client?.cancel().catch(() => {});
     this.stop();
-    if (!this.running) this.sink({ type: "acp-status", status: "cancelled" });
+    if (!this.running) this.emit({ type: "acp-status", status: "cancelled" });
   }
 }
 

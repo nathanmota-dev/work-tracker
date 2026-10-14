@@ -29,6 +29,9 @@ beforeEach(() => {
   })
   window.desktop = {
     request,
+    readPdf: vi.fn(),
+    savePdf: vi.fn(),
+    chooseSource: vi.fn(),
     connectionStatus: async () => true,
     getVersion: async () => "1",
     openExternal: vi.fn(),

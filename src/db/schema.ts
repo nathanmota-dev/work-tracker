@@ -3,7 +3,7 @@
  * Single migration block for v0.1; versioned migrations can layer on later
  * via the `schema_version` pragma table.
  */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export const SCHEMA_SQL = /* sql */ `
 CREATE TABLE IF NOT EXISTS meta (
@@ -96,6 +96,35 @@ CREATE TABLE IF NOT EXISTS applications (
   status           TEXT NOT NULL DEFAULT 'draft',
   applied_at       TEXT
 );
+
+CREATE TABLE IF NOT EXISTS application_runs (
+  id TEXT PRIMARY KEY,
+  job_id INTEGER NOT NULL REFERENCES jobs(id),
+  application_id INTEGER REFERENCES applications(id),
+  status TEXT NOT NULL,
+  phase TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  model TEXT,
+  error TEXT,
+  report TEXT,
+  events_json TEXT NOT NULL DEFAULT '[]',
+  options_json TEXT NOT NULL DEFAULT '{}',
+  manifest_json TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS pdf_artifacts (
+  id TEXT PRIMARY KEY,
+  run_id TEXT REFERENCES application_runs(id),
+  kind TEXT NOT NULL,
+  path TEXT NOT NULL,
+  pages INTEGER NOT NULL,
+  text TEXT NOT NULL,
+  warnings_json TEXT NOT NULL,
+  source_version TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_application_runs_job ON application_runs(job_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_pdf_artifacts_run ON pdf_artifacts(run_id);
 
 CREATE TABLE IF NOT EXISTS application_events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -227,8 +256,10 @@ CREATE INDEX IF NOT EXISTS idx_attempts_company   ON outreach_attempts(company_u
 export const COLUMN_MIGRATIONS: Record<string, Record<string, string>> = {
   jobs: {
     archived_at: "TEXT",
+    description: "TEXT",
   },
   applications: {
+    preparation_run_id: "TEXT REFERENCES application_runs(id)",
     portal: "TEXT",
     external_url: "TEXT",
     fields_filled_json: "TEXT",

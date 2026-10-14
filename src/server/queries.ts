@@ -121,7 +121,7 @@ export const queries = {
     return db()
       .query(`
         SELECT id, linkedin_job_id, title, company_name, location, work_type,
-               comp, fit, status, link, scouted_at, archived_at
+               comp, fit, status, link, scouted_at, archived_at, description
         FROM jobs ORDER BY scouted_at DESC
       `)
       .all();

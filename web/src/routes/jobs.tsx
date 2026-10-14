@@ -19,6 +19,7 @@ import {
   Stats,
 } from "@/components/workspace-ui"
 import { useApi, request, text, date, type Row } from "@/lib/api"
+import { openApply } from "@/lib/preparation"
 import { prepareSkill } from "@/lib/agent"
 export function JobsPage() {
   const api = useApi<Row[]>("jobs")
@@ -46,9 +47,10 @@ export function JobsPage() {
     }
   }
 
-  function actions(row: Row) {
+  function actions(row: Row, includePreparation = true) {
     return (
       <div className="flex flex-wrap gap-2">
+        {includePreparation && <Button size="sm" variant="outline" disabled={busy || !!row.archived_at} onClick={() => openApply(row.id)}>Prepare application</Button>}
         <Button
           variant="outline"
           size="icon-sm"
@@ -193,10 +195,10 @@ export function JobsPage() {
           <Button
             disabled={busy || !!selected?.archived_at}
             onClick={() =>
-              prepareSkill("resume-tailor", { jobIds: String(selected?.id) })
+              openApply(selected?.id)
             }
           >
-            Tailor resume
+            Prepare application
           </Button>
           <Button
             variant="outline"
@@ -219,7 +221,7 @@ export function JobsPage() {
             Restore this role before preparing a new application.
           </p>
         )}
-        {selected && actions(selected)}
+        {selected && actions(selected, false)}
       </Details>
       <Dialog
         open={!!deleting}

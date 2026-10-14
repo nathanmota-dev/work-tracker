@@ -1,3 +1,4 @@
+import { ResumeSources } from "@/components/resume-sources"
 import { SettingsProfile } from "@/components/settings-profile"
 import { BrowserSignIn } from "@/components/browser-sign-in"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
@@ -32,6 +33,7 @@ export function SettingsPage() {
       <Tabs defaultValue="general">
         <TabsList aria-label="Settings views">
           <TabsTrigger value="general">General</TabsTrigger>
+          <TabsTrigger value="resume">Resume sources</TabsTrigger>
           <TabsTrigger value="profile">Profile</TabsTrigger>
         </TabsList>
         <TabsContent value="general">
@@ -144,6 +146,7 @@ export function SettingsPage() {
             <BrowserSignIn />
           </div>
         </TabsContent>
+        <TabsContent value="resume"><ResumeSources /></TabsContent>
         <TabsContent value="profile">
           <SettingsProfile />
         </TabsContent>

@@ -8,3 +8,9 @@ release/
 !.env.example
 
 coverage/
+
+# Local resume sources, assets and generated files; publish only generic examples.
+/base/latex/*
+!/base/latex/resume.example.tex
+/base/data/*
+!/base/data/resume-data.example.ts

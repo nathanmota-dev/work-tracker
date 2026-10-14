@@ -23,11 +23,19 @@ export function chromeLoginOpening(): boolean { return opening !== undefined; }
 export async function openChromeLogin(): Promise<void> {
   if (opening) return opening;
   if (browserUrl) return;
-  opening = startBrowser();
+  opening = startBrowser("https://www.linkedin.com/login");
   try { await opening; } finally { opening = undefined; }
 }
 
-async function startBrowser(): Promise<void> {
+export async function openChromePortal(url: string): Promise<void> {
+  if (hasChromeConnection(loadConfig().mcp?.chrome?.args ?? [])) return;
+  if (opening) await opening;
+  if (browserUrl) return;
+  opening = startBrowser(url);
+  try { await opening; } finally { opening = undefined; }
+}
+
+async function startBrowser(initialUrl: string): Promise<void> {
   const config = loadConfig().mcp?.chrome;
   const args = config?.args ?? [];
   if (hasChromeConnection(args)) throw new Error("Chrome uses an external browser connection. Complete sign-in in that browser.");
@@ -53,7 +61,7 @@ async function startBrowser(): Promise<void> {
     "--remote-debugging-port=0",
     "--no-first-run",
     "--no-default-browser-check",
-    "https://www.linkedin.com/login",
+    initialUrl,
   ], { env: { ...process.env, ...config?.env } });
   child.stdout.resume();
   child.stderr.resume();

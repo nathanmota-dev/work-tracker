@@ -152,7 +152,7 @@ export class AcpClient {
         this.pending.delete(id);
         reject(new Error(`ACP timeout: ${method}`));
         this.stop();
-      }, method === "session/prompt" ? 600000 : this.requestTimeoutMs);
+      }, method === "session/prompt" ? 20 * 60 * 1000 : this.requestTimeoutMs);
       this.pending.set(id, {
         resolve: value => { clearTimeout(timer); resolve(value); },
         reject: error => { clearTimeout(timer); reject(error); },

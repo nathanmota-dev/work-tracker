@@ -1,5 +1,5 @@
 import { candidateFromAnswers } from "@/lib/candidate-profile"
-import { AgentActivity } from "@/components/agent-activity"
+import { AgentConversation } from "@/components/agent-conversation"
 import { Textarea } from "@/components/ui/textarea"
 import { SelectControl } from "@/components/ui/select-control"
 import { useEffect, useRef, useState } from "react"
@@ -64,7 +64,8 @@ export function LaunchPage() {
     api.data?.providers.find((p) => p.id === api.data?.default) ??
     api.data?.providers[0]
   const effectiveModel = selectedProvider?.models.includes(model) ? model : ""
-  const selected = skills.find((s) => s.id === skill) ?? skills[0]
+  const launchSkills = skills.filter(s => s.id !== "resume-tailor")
+  const selected = launchSkills.find((s) => s.id === skill) ?? launchSkills[0]
   return (
     <Page
       title="Launch"
@@ -137,7 +138,7 @@ export function LaunchPage() {
                     setParams({})
                   }}
                 >
-                  {skills.map((s) => (
+                  {launchSkills.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name}
                     </option>
@@ -223,40 +224,7 @@ export function LaunchPage() {
             </div>
           }
         >
-          <div
-            role="log"
-            aria-label="Agent conversation"
-            aria-live="polite"
-            className="h-[540px] space-y-4 overflow-y-auto pr-2"
-          >
-            {!agent.messages.length && (
-              <Empty
-                title="Make room for your next opportunity"
-                description="Choose a skill and give your agent a clear starting point. Progress and results will appear here."
-              >
-                <Sparkles className="size-5 text-chart-1" />
-              </Empty>
-            )}
-            {agent.messages.map((m) => m.tool || m.diagnostic ? <AgentActivity key={m.id} message={m} /> : (
-              <div
-                key={m.id}
-                className={`rounded-xl border p-4 ${m.role === "user" ? "ml-8 bg-muted/40" : "mr-4"}`}
-              >
-                <p className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                  {m.role === "agent" && <Bot className="size-3.5" />}
-                  {m.role === "user"
-                    ? "You"
-                    : m.role === "agent"
-                      ? "Agent"
-                      : "Activity"}
-                </p>
-                <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-                  {m.text}
-                </div>
-              </div>
-            ))}
-            <div ref={end} />
-          </div>
+          <AgentConversation messages={agent.messages} />
           {error && (
             <p role="alert" className="text-sm text-destructive">
               {error}

@@ -109,7 +109,7 @@ test("additive migration preserves legacy applications and is idempotent after r
   expect(list().stages).toHaveLength(4);
   expect(
     db().query("SELECT value FROM meta WHERE key='schema_version'").get(),
-  ).toEqual({ value: "2" });
+  ).toEqual({ value: "3" });
   const record = create();
   action("stages/save", {
     id: findStage("technical").id,

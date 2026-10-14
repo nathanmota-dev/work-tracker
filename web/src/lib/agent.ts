@@ -1,3 +1,4 @@
+import { openApply } from "./preparation"
 import { candidateFromAnswers, withCandidateProfile } from "./candidate-profile"
 import { useSyncExternalStore } from "react"
 import { request, subscribe, type Row } from "./api"
@@ -134,6 +135,7 @@ function listen() {
   if (listening) return
   listening = true
   subscribe((event) => {
+    if (event.source === "apply") return;
     if (event.type === "connection" && !event.live && state.running)
       update({ status: "Connection lost — run status unknown" })
     if (event.type === "acp-status")
@@ -204,6 +206,7 @@ export function prepareSkill(
   skill: string,
   params: Record<string, string> = {},
 ) {
+  if (skill === "resume-tailor") { openApply(params.jobIds); return }
   update({ draft: { skill, params } })
   window.location.hash = "/launch"
 }

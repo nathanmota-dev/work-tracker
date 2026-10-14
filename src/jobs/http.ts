@@ -31,7 +31,8 @@ export async function handleJobAction(
       return { error: "Job not found.", status: 404 };
     if (action === "delete") {
       const linked = d.query(`SELECT 1 FROM applications WHERE job_id = ?
-        UNION ALL SELECT 1 FROM interviews WHERE job_id = ? LIMIT 1`).get(job.id, job.id);
+        UNION ALL SELECT 1 FROM interviews WHERE job_id = ?
+        UNION ALL SELECT 1 FROM application_runs WHERE job_id = ? LIMIT 1`).get(job.id, job.id, job.id);
       if (linked)
         return {
           error: "This job has linked applications or interviews. Archive it to keep their history.",

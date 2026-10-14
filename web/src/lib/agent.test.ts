@@ -17,6 +17,9 @@ beforeEach(() => {
     )
   window.desktop = {
     request,
+    readPdf: vi.fn(),
+    savePdf: vi.fn(),
+    chooseSource: vi.fn(),
     connectionStatus: async () => true,
     getVersion: async () => "1",
     openExternal: vi.fn(),
@@ -95,13 +98,11 @@ describe("agent session", () => {
     await act(async () => { await runAgent("opencode", "profile-optimizer", {}) })
     expect(request).toHaveBeenCalledWith("acp/run", expect.objectContaining({ params: expect.objectContaining({ username: "ana-silva", displayName: "Ana Silva" }) }))
   })
-  it("prefills launch without starting an agent", () => {
+  it("opens tailoring in Apply without starting an agent", () => {
     const view = renderHook(useAgent)
     act(() => prepareSkill("resume-tailor", { jobIds: "12" }))
-    expect(view.result.current.draft).toEqual({
-      skill: "resume-tailor",
-      params: { jobIds: "12" },
-    })
+    expect(view.result.current.draft).toBeNull()
+    expect(window.location.hash).toBe("#/apply?jobId=12")
     expect(request).not.toHaveBeenCalled()
   })
   it("merges tool updates by ID while preserving omitted fields and streamed output snapshots", () => {

@@ -1,4 +1,5 @@
-import { BrowserWindow, ipcMain, shell } from "electron"
+import { BrowserWindow, ipcMain, shell, dialog } from "electron"
+import { writeFile } from "node:fs/promises"
 import WebSocket from "ws"
 
 const reads = new Set([
@@ -16,6 +17,7 @@ const reads = new Set([
   "profile",
   "profile-snapshot",
   "acp/providers",
+  "resume-sources",
 ])
 const writes = new Set([
   "jobs/archive",
@@ -23,6 +25,14 @@ const writes = new Set([
   "jobs/delete",
   "answer",
   "acp/run",
+  "resume-sources",
+  "resume-sources/preview",
+  "application-preparation/details",
+  "application-preparation/generate",
+  "application-preparation/description",
+  "application-preparation/cancel",
+  "application-preparation/fill",
+  "application-preparation/submitted",
   "acp/cancel",
   "recruiters/sync",
   "search/jobs",
@@ -46,7 +56,27 @@ function emit(event: unknown) {
   for (const window of BrowserWindow.getAllWindows())
     window.webContents.send("api:event", event)
 }
+async function pdfBuffer(artifactId: string): Promise<ArrayBuffer> {
+  if (typeof artifactId !== "string" || !connection) throw new Error("Backend unavailable.")
+  const url = new URL("/api/application-preparation/pdf", connection.address)
+  url.searchParams.set("token", connection.token)
+  const response = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ artifactId }) })
+  if (!response.ok) throw new Error(((await response.json()) as { error?: string }).error ?? "PDF unavailable.")
+  return response.arrayBuffer()
+}
 export function registerApiBridge() {
+  ipcMain.handle("api:pdf", (_event, artifactId: string) => pdfBuffer(artifactId))
+  ipcMain.handle("api:save-pdf", async (_event, artifactId: string) => {
+    const bytes = await pdfBuffer(artifactId)
+    const selected = await dialog.showSaveDialog({ defaultPath: "resume.pdf", filters: [{ name: "PDF", extensions: ["pdf"] }] })
+    if (!selected.canceled && selected.filePath) await writeFile(selected.filePath, Buffer.from(bytes))
+    return !selected.canceled
+  })
+  ipcMain.handle("app:choose-source", async (_event, kind: string) => {
+    if (!["folder", "data"].includes(kind)) throw new Error("Unknown source type")
+    const selected = await dialog.showOpenDialog({ properties: kind === "folder" ? ["openDirectory"] : ["openFile"], ...(kind === "data" ? { filters: [{ name: "Resume data", extensions: ["json", "ts"] }] } : {}) })
+    return selected.canceled ? null : selected.filePaths[0] ?? null
+  })
   ipcMain.handle("api:status", () => live)
   ipcMain.handle(
     "api:request",
@@ -65,7 +95,7 @@ export function registerApiBridge() {
               headers: { "content-type": "application/json" },
               body: JSON.stringify(body),
             }),
-        signal: AbortSignal.timeout(path === "acp/providers" ? 120000 : 60000),
+        signal: AbortSignal.timeout(["acp/providers", "resume-sources/preview"].includes(path) ? 120000 : 60000),
       })
       const text = await response.text()
       if (!response.ok) {

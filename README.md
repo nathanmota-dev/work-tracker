@@ -2,8 +2,9 @@
 
 Aplicativo Electron com backend Node independente, importado do Mercury 0.9.1.
 O backend inclui SQLite, API HTTP/WebSocket, CLI, clientes MCP, sessões ACP,
-matching de formulários e sete skills próprias. O React e o preload existentes
-continuam sem integração com essa API nesta etapa.
+matching de formulários e sete skills próprias. A interface React se conecta à
+API pelo preload e inclui uma tela Apply para gerar currículos por vaga,
+comparar PDFs e preparar o preenchimento de candidaturas.
 
 ## Desenvolvimento
 
@@ -170,6 +171,39 @@ A versão da CLI vem do `package.json`. Código e licença de origem estão em
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Dependências locais e configuração
+
+### Currículo pessoal e exemplos
+
+Os exemplos genéricos em [`base/`](base/README.md) mostram como preparar um
+currículo LaTeX e um arquivo opcional de experiências e projetos. Copie e
+preencha pelo menos `base/latex/resume.tex`. Os arquivos pessoais dessas pastas,
+incluindo PDFs e recursos do projeto LaTeX, são ignorados pelo Git; somente os
+exemplos são destinados ao versionamento.
+
+O app usa automaticamente `base/latex/resume.tex` e os dados opcionais em
+`base/data/resume-data.json` ou `base/data/resume-data.ts`, sem seleção manual.
+O app instalado mantém uma referência ao checkout usado no build e lê esses
+arquivos locais; eles não são incluídos no pacote. Configure **Settings → Resume
+sources** para usar outros arquivos ou outro compilador; caminhos salvos têm
+prioridade sobre a detecção automática. A tela **Apply** está no menu e nos
+botões de preparação de Jobs e Automatic applications. Ela mostra o
+PDF base, gera um currículo no idioma da vaga usando o agente ACP selecionado,
+registra versões e relatórios, e preenche o portal com o PDF escolhido para
+revisão e envio manual.
+
+A compilação exige `latexmk` e o compilador selecionado (`pdflatex` por padrão;
+`xelatex` e `lualatex` também são aceitos), além de `pdfinfo` e `pdftotext`
+(Poppler). O projeto LaTeX pode exigir pacotes e fontes adicionais. Instale-os
+com TeX Live, TinyTeX ou MiKTeX e disponibilize os executáveis no PATH. A tela
+mostra as dependências ausentes e a CLI `doctor` também as verifica.
+
+Os originais são lidos da pasta configurada e cada execução trabalha sobre uma
+cópia em `$WORK_TRACKER_HOME/artifacts/applications/`. TypeScript é interpretado
+como dados estáticos, sem executar imports ou funções. Também é possível usar
+JSON ou somente o `.tex`. Histórico e PDFs anteriores permanecem disponíveis
+quando uma nova execução falha.
+
+### Executáveis e integrações
 
 Banco e API abrem mesmo sem MCPs ou agentes instalados. `doctor` verifica os
 executáveis; ausência de login, compatibilidade de ferramentas e conectividade

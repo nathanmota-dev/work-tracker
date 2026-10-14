@@ -1,6 +1,9 @@
 /// <reference types="vite/client" />
 interface Window {
   desktop?: {
+    readPdf: (id: string) => Promise<ArrayBuffer>
+    savePdf: (id: string) => Promise<boolean>
+    chooseSource: (kind: "folder" | "data") => Promise<string | null>
     getVersion: () => Promise<string>
     request: (path: string, body?: unknown) => Promise<unknown>
     connectionStatus: () => Promise<boolean>

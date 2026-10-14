@@ -20,6 +20,9 @@ beforeEach(() => {
   })
   window.desktop = {
     request,
+    readPdf: vi.fn(),
+    savePdf: vi.fn(),
+    chooseSource: vi.fn(),
     connectionStatus: async () => true,
     getVersion: async () => "1",
     openExternal: vi.fn(),
@@ -51,13 +54,13 @@ it("keeps archived details readable and disables application preparation until r
   fireEvent.click(screen.getByRole("button", { name: "View Old role" }))
   const details = within(screen.getByRole("dialog"))
   expect(details.getByText("applied")).toBeInTheDocument()
-  expect(details.getByRole("button", { name: "Tailor resume" })).toBeDisabled()
+  expect(details.getByRole("button", { name: "Prepare application" })).toBeDisabled()
   expect(details.getByRole("button", { name: "Assess fit" })).toBeDisabled()
   fireEvent.click(details.getByRole("button", { name: "Restore Old role" }))
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
   tab("Active (2)")
   fireEvent.click(screen.getByRole("button", { name: "View Old role" }))
-  expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Tailor resume" })).toBeEnabled()
+  expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Prepare application" })).toBeEnabled()
 })
 
 it("requires explicit deletion confirmation, supports cancellation and refreshes after deletion", async () => {
@@ -107,6 +110,6 @@ it("refreshes archive state in an open details dialog after a backend event", as
   fireEvent.click(await screen.findByRole("button", { name: "View Engineer" }))
   jobs[0].archived_at = "2026-10-11T12:00:00Z"
   act(() => publish({ type: "changed", table: "jobs" }))
-  await waitFor(() => expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Tailor resume" })).toBeDisabled())
+  await waitFor(() => expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Prepare application" })).toBeDisabled())
   expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Restore Engineer" })).toBeInTheDocument()
 })

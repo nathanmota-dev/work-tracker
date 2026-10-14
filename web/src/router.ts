@@ -59,6 +59,11 @@ export function createAppRouter(sidebarLayout: RouteComponent) {
           getParentRoute: () => sidebarRoute,
           path: page.path,
           component: page.component,
+          validateSearch: (search: Record<string, unknown>) => {
+            if (page.path !== "apply") return {}
+            const number = (value: unknown) => { const n = Number(value); return Number.isSafeInteger(n) && n > 0 ? n : undefined }
+            return { jobId: number(search.jobId), applicationId: number(search.applicationId), runId: typeof search.runId === "string" ? search.runId : undefined }
+          },
           staticData: { title: page.title },
         }),
       ),

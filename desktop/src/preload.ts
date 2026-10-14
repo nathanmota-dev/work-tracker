@@ -9,5 +9,8 @@ contextBridge.exposeInMainWorld("desktop", {
     ipcRenderer.on("api:event", handler)
     return () => ipcRenderer.removeListener("api:event", handler)
   },
+  readPdf: (id: string): Promise<ArrayBuffer> => ipcRenderer.invoke("api:pdf", id),
+  savePdf: (id: string): Promise<boolean> => ipcRenderer.invoke("api:save-pdf", id),
+  chooseSource: (kind: "folder" | "data"): Promise<string | null> => ipcRenderer.invoke("app:choose-source", kind),
   getVersion: (): Promise<string> => ipcRenderer.invoke("app:get-version"),
 })

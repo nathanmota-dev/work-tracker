@@ -15,7 +15,7 @@ test("opens once, enables pragmas, adds only missing columns and seeds budget in
   vi.mocked(Database).mockImplementation(function () {
     return d.asDatabase;
   });
-  const existing = Object.keys(COLUMN_MIGRATIONS.applications);
+  const existing = [...Object.keys(COLUMN_MIGRATIONS.applications), ...Object.keys(COLUMN_MIGRATIONS.jobs)];
   d.statement.all.mockReturnValue(
     existing.filter((c) => c !== "external_url").map((name) => ({ name })),
   );

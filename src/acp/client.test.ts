@@ -257,8 +257,15 @@ test("invalid sessions, destroyed stdin and prompt timeout are rejected", async 
   await expect(next.prompt("x")).rejects.toThrow("not running");
   p.child.stdin.destroyed = false;
   const prompt = next.prompt("long");
+  const settled = vi.fn();
+  void prompt.then(settled, settled);
   const timeout = expect(prompt).rejects.toThrow("ACP timeout: session/prompt");
-  await vi.advanceTimersByTimeAsync(600000);
+  await vi.advanceTimersByTimeAsync(10 * 60 * 1000);
+  expect(settled).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(10 * 60 * 1000 - 1);
+  expect(settled).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(1);
   await timeout;
+  expect(settled).toHaveBeenCalledTimes(1);
   expect(vi.getTimerCount()).toBe(0);
 });

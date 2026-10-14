@@ -2,7 +2,7 @@
 name: work-tracker-resume-tailor
 description: >-
   Tailor a candidate's resume to specific scouted roles using their base resume
-  and LinkedIn profile data. Produces role-specific Typst resumes, cover letters,
+  and LinkedIn profile data. Produces role-specific LaTeX or Typst resumes, cover letters,
   and gap/match reports. Supports batch tailoring to multiple roles in one pass.
   Use when user wants to customize their resume for a specific job application.
   Part of the Work Tracker job search toolkit.
@@ -12,6 +12,9 @@ Use the private Work Tracker workspace and `$WORK_TRACKER_HOME` for data. Read o
 
 
 # Resume Tailor
+
+When a run manifest is supplied, use [managed LaTeX generation](references/latex.md)
+and follow that mode instead of the legacy Typst workflow below.
 
 Take a candidate's existing resume + one or more scouted job listings and
 produce role-tailored versions with gap analysis, ATS keyword alignment, and

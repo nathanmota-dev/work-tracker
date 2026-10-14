@@ -4,6 +4,8 @@ import type { UtilityProcess } from "electron"
 import { registerApiBridge, connectApiBridge, closeApiBridge } from "./api-bridge"
 import backendPath from "./backend-process?modulePath"
 
+declare const __WORK_TRACKER_REPO_ROOT__: string
+
 let backend: UtilityProcess | null = null
 let quitting = false
 let shutdownTimer: ReturnType<typeof setTimeout> | undefined
@@ -36,6 +38,7 @@ function createWindow() {
     : window.loadFile(join(__dirname, "../renderer/index.html"))
 
   void load.catch((error: unknown) => {
+    if (quitting) return
     console.error("Não foi possível carregar a interface:", error)
     app.quit()
   })
@@ -48,6 +51,7 @@ void app.whenReady().then(() => {
   backend = utilityProcess.fork(backendPath, [], {
     serviceName: "Work Tracker Backend",
     env: { ...process.env,
+      WORK_TRACKER_REPO_ROOT: process.env.WORK_TRACKER_REPO_ROOT ?? (app.isPackaged ? __WORK_TRACKER_REPO_ROOT__ : app.getAppPath()),
       WORK_TRACKER_RESOURCES: app.isPackaged ? join(process.resourcesPath, "work-tracker") : join(app.getAppPath(), "resources"),
       WORK_TRACKER_CLI: app.isPackaged ? join(process.resourcesPath, "work-tracker", "cli", "work-tracker.cjs") : join(app.getAppPath(), "out", "cli", "work-tracker.cjs"),
     },
@@ -59,6 +63,7 @@ void app.whenReady().then(() => {
     }
     if (message?.type === "ready") connectApiBridge(message)
     if (message?.type === "failed") app.quit()
+    if (message?.type === "stopped") backend?.postMessage({ type: "exit" })
     if (message?.type === "ready" && process.env.WORK_TRACKER_SMOKE === "1") app.quit()
   })
   backend.on("exit", (code) => {

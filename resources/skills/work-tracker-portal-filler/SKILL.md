@@ -14,6 +14,10 @@ Use the private Work Tracker workspace and `$WORK_TRACKER_HOME` for data. Read o
 
 # Portal Filler
 
+When a fill manifest is supplied, use [managed PDF filling](references/managed-pdf.md).
+The existing PDF and application ID belong to that execution; skip the legacy
+artifact creation and persistence steps below.
+
 Take an identified opportunity (a `jobs` row with an external `link`) plus its
 tailored artifacts from `work-tracker-resume-tailor`, navigate the employer's ATS with
 Chrome MCP, and fill the application form. **Fill, then pause for human review —

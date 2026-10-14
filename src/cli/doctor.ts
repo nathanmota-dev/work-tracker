@@ -7,5 +7,5 @@ export function executableExists(command: string): boolean {
   return candidates.some(path => { try { accessSync(path, constants.X_OK); return true; } catch { return false; } });
 }
 export function doctor() {
-  return { node: process.versions.node, home: paths.home, dependencies: [...mcpServers().map(s => ({ name: s.name, command: s.command })), ...["opencode", "claude", "claude-code-acp", "typst"].map(command => ({ name: command, command }))].map(d => ({ ...d, available: executableExists(d.command) })) };
+  return { node: process.versions.node, home: paths.home, dependencies: [...mcpServers().map(s => ({ name: s.name, command: s.command })), ...["opencode", "claude", "claude-code-acp", "typst", "latexmk", "pdflatex", "xelatex", "lualatex", "pdfinfo", "pdftotext"].map(command => ({ name: command, command }))].map(d => ({ ...d, available: executableExists(d.command) })) };
 }

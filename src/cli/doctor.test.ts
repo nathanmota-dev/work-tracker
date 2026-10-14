@@ -35,6 +35,7 @@ test("doctor reports optional dependency availability without starting any execu
       { name: "claude", command: "claude", available: false },
       { name: "claude-code-acp", command: "claude-code-acp", available: false },
       { name: "typst", command: "typst", available: false },
+      ...["latexmk", "pdflatex", "xelatex", "lualatex", "pdfinfo", "pdftotext"].map(command => ({ name: command, command, available: false })),
     ],
   });
 });

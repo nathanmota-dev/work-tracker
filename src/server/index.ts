@@ -15,16 +15,20 @@ import { stopAllOwned } from "../acp/process.ts";
 import { chromeLoginOpening, openChromeLogin } from "../mcp/chrome.ts";
 import { handleApplicationBoard } from "../applications/http.ts";
 import { handleJobAction } from "../jobs/http.ts";
+import { PreparationService } from "../preparation/service.ts";
+import { handlePreparation } from "../preparation/http.ts";
 
 /** Internal HTTP boundary, shared by the server adapter and unit tests. */
 export function createRequestHandler({
   token,
   acp,
   broadcast,
+  preparation,
 }: {
   token: string;
   acp: Pick<SessionManager, "run" | "cancel"> & Partial<Pick<SessionManager, "isRunning">>;
   broadcast: (event: unknown) => void;
+  preparation?: PreparationService;
 }): (req: Request) => Promise<Response> {
   return async (req: Request): Promise<Response> => {
     const url = new URL(req.url);
@@ -44,6 +48,10 @@ export function createRequestHandler({
       if (url.searchParams.get("token") !== token) {
         return new Response("forbidden", { status: 403 });
       }
+      if (path.startsWith("/api/resume-sources") || path.startsWith("/api/application-preparation/")) {
+        preparation ??= new PreparationService(acp, broadcast);
+        return handlePreparation(path, req, preparation);
+      }
       if (path.startsWith("/api/jobs/")) {
         return handleJobAction(path, req, broadcast);
       }
@@ -55,7 +63,7 @@ export function createRequestHandler({
         return handleSearch(path, req);
       }
       if (path === "/api/browser/login" && req.method === "POST") {
-        if (acp.isRunning) return Response.json({ error: "Finish or cancel the active agent run before opening browser sign-in." }, { status: 409 });
+        if (acp.isRunning || preparation?.isBusy) return Response.json({ error: "Finish or cancel the active agent run before opening browser sign-in." }, { status: 409 });
         try {
           await openChromeLogin();
           return Response.json({ ok: true });
@@ -107,6 +115,7 @@ export function createRequestHandler({
         });
       }
       if (path === "/api/acp/run" && req.method === "POST") {
+        if (preparation?.isBusy || acp.isRunning) return Response.json({ error: "Finish or cancel the active execution first." }, { status: 409 });
         if (chromeLoginOpening()) return Response.json({ error: "Wait for the sign-in browser to open before starting your agent." }, { status: 409 });
         const body = (await req.json().catch(() => ({}))) as {
           provider?: string;
@@ -178,9 +187,11 @@ export async function startBackend(flags: Flags = {}) {
     broadcast(sockets, event),
   );
 
+  const preparation = new PreparationService(acp, event => broadcast(sockets, event));
   const handleRequest = createRequestHandler({
     token,
     acp,
+    preparation,
     broadcast: (event) => broadcast(sockets, event),
   });
   const server = createServer(async (incoming, outgoing) => {
@@ -250,6 +261,7 @@ export async function startBackend(flags: Flags = {}) {
     address: `http://127.0.0.1:${address.port}`,
     close(): Promise<void> {
       return (closing ??= (async () => {
+        await preparation.close();
         acp.stop();
         for (const ws of sockets) ws.terminate();
         wss.close();

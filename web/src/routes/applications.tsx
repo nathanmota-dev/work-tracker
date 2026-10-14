@@ -9,7 +9,7 @@ import {
   ExternalLink,
 } from "@/components/workspace-ui"
 import { useApi, text, date, type Row } from "@/lib/api"
-import { prepareSkill } from "@/lib/agent"
+import { openApply } from "@/lib/preparation"
 export function ApplicationsPage() {
   const api = useApi<Row[]>("applications")
   const [selected, setSelected] = useState<Row | null>(null)
@@ -18,7 +18,7 @@ export function ApplicationsPage() {
       title="Automatic applications"
       description="Every application, from first draft to next steps."
       actions={
-        <Button size="sm" onClick={() => prepareSkill("resume-tailor")}>
+        <Button size="sm" onClick={() => openApply()}>
           Tailor a resume
         </Button>
       }
@@ -76,10 +76,7 @@ export function ApplicationsPage() {
           <Button
             disabled={!selected?.external_url && !selected?.job_id}
             onClick={() =>
-              prepareSkill("portal-filler", {
-                url: String(selected?.external_url ?? ""),
-                jobIds: String(selected?.job_id ?? ""),
-              })
+              openApply(selected?.job_id, selected?.id)
             }
           >
             Prepare application

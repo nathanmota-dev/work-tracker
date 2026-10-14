@@ -11,6 +11,7 @@ import {
   UserRound,
   UsersRound,
 } from "lucide-react"
+import { ApplyPage } from "@/routes/apply"
 import { ActivityPage } from "@/routes/activity"
 import { AnswersPage } from "@/routes/answers"
 import { ApplicationsPage } from "@/routes/applications"
@@ -29,6 +30,7 @@ export const workspacePages = [
   { path: "launch", title: "Launch", icon: Rocket, component: LaunchPage },
   { path: "recruiters", title: "Recruiters", icon: UsersRound, component: RecruitersPage },
   { path: "outreach", title: "Outreach", icon: Send, component: OutreachPage },
+  { path: "apply", title: "Apply", icon: FileText, component: ApplyPage },
   { path: "jobs", title: "Jobs", icon: BriefcaseBusiness, component: JobsPage },
   { path: "applications", title: "Automatic applications", icon: FileText, component: ApplicationsPage },
   { path: "application-board", title: "Application board", icon: Columns3, component: ApplicationBoardPage },

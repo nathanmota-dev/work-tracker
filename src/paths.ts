@@ -41,6 +41,7 @@ export function ensureHome(): void {
  * @property [outreach] Outreach settings. Omitted fields fall back to DEFAULT_OUTREACH_CONFIG.
  */
 export interface WorkTrackerConfig {
+  resumeSources?: import("./preparation/types.ts").ResumeSourcesConfig;
   username?: string;
   displayName?: string;
   provider?: "opencode" | "claude-code";

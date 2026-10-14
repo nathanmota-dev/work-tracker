@@ -1,19 +1,23 @@
 import { startBackend } from "../../src/server/index";
-let backend: Awaited<ReturnType<typeof startBackend>> | undefined;
+const startup = startBackend();
 let stopping = false;
-async function shutdown() {
+let shutdownTask: Promise<void> | undefined;
+function shutdown(): Promise<void> {
   stopping = true;
-  await backend?.close();
-  process.parentPort.postMessage({ type: "stopped" });
-  process.exit(0);
+  return shutdownTask ??= (async () => {
+    const backend = await startup;
+    await backend.close();
+    // Stay alive until the main process acknowledges delivery of this message.
+    process.parentPort.postMessage({ type: "stopped" });
+  })();
 }
 process.parentPort.on("message", ({ data }) => {
   if (data?.type === "shutdown") void shutdown();
+  if (data?.type === "exit" && stopping) process.exit(0);
 });
-void startBackend().then(async handle => {
-  backend = handle;
+void startup.then(async backend => {
   if (stopping) { await shutdown(); return; }
-  process.parentPort.postMessage({ type: "ready", address: handle.address, port: handle.port, token: handle.token });
+  process.parentPort.postMessage({ type: "ready", address: backend.address, port: backend.port, token: backend.token });
 }).catch(error => {
   process.parentPort.postMessage({ type: "failed", message: String(error) });
   process.exit(1);
