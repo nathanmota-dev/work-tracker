@@ -41,7 +41,9 @@ export function PdfViewer({ title, artifact }: { title: string; artifact?: PdfAr
       <Button variant="ghost" size="sm" onClick={() => setZoom(1)}>Fit width</Button>
     </div>}
     {error && <p role="alert" className="mb-3 text-sm text-destructive">{error}</p>}
-    <div ref={container} className="h-[580px] overflow-auto rounded-lg border bg-muted/30 p-2">
+    {/* Keep the measured width fixed when zoom adds/removes vertical overflow.
+        Otherwise the scrollbar can repeatedly resize and cancel the PDF render. */}
+    <div ref={container} className="h-[580px] overflow-auto [scrollbar-gutter:stable] rounded-lg border bg-muted/30 p-2">
       {!artifact ? <Empty title="No PDF yet" description="Generate a resume or update the base preview to see it here." /> : !file ? <p role="status" className="p-4 text-sm">Loading PDF…</p> : <Document file={file} options={pdfOptions} suspense={false} onLoadSuccess={({ numPages }) => setPages(numPages)} onLoadError={e => setError(e.message)} loading={<p className="p-4 text-sm">Loading PDF…</p>}><Page pageNumber={page} width={Math.floor(width * zoom)} onRenderError={e => setError(e.message)} /></Document>}
     </div>
     {!!artifact?.warnings.length && <ul className="mt-3 list-disc space-y-1 pl-4 text-xs text-muted-foreground">{artifact.warnings.map(w => <li key={w}>{w}</li>)}</ul>}

@@ -24,6 +24,10 @@ test('Apply: real PDFs, generation/regeneration/history, filling, submission and
   await page.getByRole('button', { name: 'Save description' }).click()
   await page.getByLabel('Additional context').fill('Focus on testing')
   await generate(workspace)
+  // Classic scrollbars consume layout width. At this viewport, zoom crosses
+  // the vertical overflow threshold and must not trigger a resize/render loop.
+  await workspace.resize(1200)
+  await page.addStyleTag({ content: '::-webkit-scrollbar { width: 15px; height: 15px; }' })
   const first = workspace.query('SELECT id FROM application_runs')[0]!.id
   const id = workspace.query('SELECT id FROM applications')[0]!.id
   await expect(panel(page, 'Base PDF').locator('.react-pdf__Page__textContent')).toContainText('Base resume.')
@@ -49,8 +53,11 @@ test('Apply: real PDFs, generation/regeneration/history, filling, submission and
   }
   await expect(panel(page, 'Base PDF').locator('.react-pdf__Page__textContent')).toContainText('Base resume.')
   const baseWidth = await stableCanvasWidth()
+  const viewport = panel(page, 'Base PDF').locator('.overflow-auto')
+  const viewportWidth = await viewport.evaluate(el => el.clientWidth)
   await page.getByRole('button', { name: 'Zoom in Base PDF' }).click()
   expect(await stableCanvasWidth()).toBeGreaterThan(baseWidth)
+  expect(await viewport.evaluate(el => el.clientWidth)).toBe(viewportWidth)
   await page.getByRole('button', { name: 'Zoom out Base PDF' }).click()
   expect(await stableCanvasWidth()).toBe(baseWidth)
   await page.getByRole('button', { name: 'Zoom in Base PDF' }).click()
