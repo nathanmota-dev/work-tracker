@@ -61,7 +61,7 @@ export function Panel({
         <h2 className="text-sm font-medium">{title}</h2>
         {action}
       </div>
-      <CardContent className="px-4">{children}</CardContent>
+      <CardContent className="min-w-0 px-4">{children}</CardContent>
     </Card>
   )
 }
