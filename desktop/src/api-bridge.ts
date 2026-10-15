@@ -20,6 +20,7 @@ const reads = new Set([
   "resume-sources",
 ])
 const writes = new Set([
+  "browser/login",
   "jobs/archive",
   "jobs/restore",
   "jobs/delete",

@@ -58,6 +58,7 @@ it("keeps archived details readable and disables application preparation until r
   expect(details.getByRole("button", { name: "Assess fit" })).toBeDisabled()
   fireEvent.click(details.getByRole("button", { name: "Restore Old role" }))
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
+  await screen.findByRole("tab", { name: "Active (2)" })
   tab("Active (2)")
   fireEvent.click(screen.getByRole("button", { name: "View Old role" }))
   expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Prepare application" })).toBeEnabled()

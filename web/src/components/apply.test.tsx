@@ -87,3 +87,12 @@ it("shows an explicitly refreshed base PDF when an older execution is selected",
   expect(await screen.findByText("base-current")).toBeInTheDocument()
   expect(screen.getByText("pdf-1")).toBeInTheDocument()
 })
+
+it("selects the validated PDF run when filling after a failed newer execution", async () => {
+  details.runs.unshift({ ...details.runs[0], id: "failed-run", status: "failed", artifacts: [], error: "Compilation failed" })
+  render(<ApplyPage />)
+  await waitFor(() => expect(screen.getByRole("button", { name: "Fill application" })).toBeEnabled())
+  fireEvent.click(screen.getByRole("button", { name: "Fill application" }))
+  await waitFor(() => expect(request).toHaveBeenCalledWith("application-preparation/fill", { runId: "run-1", extra: "" }))
+  await waitFor(() => expect(window.location.hash).toContain("runId=run-1"))
+})
