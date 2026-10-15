@@ -20,7 +20,7 @@
     "start": "electron-vite preview --skipBuild --noSandbox",
     "test": "npm run test:backend && npm run test --workspace web",
     "test:watch": "npm run test:watch --workspace web",
-    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p web/tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p web/tsconfig.json && tsc --noEmit -p tsconfig.e2e.json",
     "build": "npm run typecheck && npm run build:cli && electron-vite build",
     "package": "npm run build && electron-builder --config desktop/electron-builder.yml",
     "postinstall": "install-electron",
@@ -29,12 +29,17 @@
     "test:backend:watch": "vitest --config vitest.config.mts",
     "test:backend:coverage": "vitest run --coverage --config vitest.config.mts",
     "test:backend:integration": "npm run build:cli && vitest run --config vitest.integration.config.mts",
-    "cli": "node out/cli/work-tracker.cjs"
+    "cli": "node out/cli/work-tracker.cjs",
+    "test:e2e": "npm run build && playwright test",
+    "test:e2e:run": "playwright test",
+    "test:e2e:debug": "npm run build && playwright test --debug",
+    "test:e2e:report": "playwright show-report"
   },
   "engines": {
     "node": ">=24.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",

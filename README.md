@@ -343,10 +343,14 @@ Skills e CLI são distribuídas em `resources/work-tracker`, fora do ASAR; a CLI
 ```bash
 npm run typecheck
 npm test
+npm run test:backend:integration
 npm run package
 node scripts/smoke-electron.mjs
 node scripts/smoke-electron.mjs node_modules/.bin/electron-vite dev --watch --noSandbox
 node scripts/smoke-electron.mjs './release/Work Tracker-1.0.0.AppImage' --no-sandbox
+node scripts/smoke-apply.mjs node_modules/.bin/electron-vite dev --watch --noSandbox
+node scripts/smoke-apply.mjs './release/Work Tracker-1.0.0.AppImage' --no-sandbox
+npm run test:e2e
 ```
 
 Os unitários do backend ficam ao lado dos módulos (`<modulo>.test.ts`), usam
@@ -378,3 +382,28 @@ O smoke verifica `ready → shutdown → stopped`, banco vazio e remoção do lo
 Não envia mensagens nem acessa contas LinkedIn reais. As integrações com serviços
 reais exigem instalação e autenticação locais. Validação de execução nesta etapa:
 Linux; Windows e macOS ainda não validados.
+
+### E2E com Playwright
+
+`npm run test:e2e` compila o app e executa os testes no Electron real, com backend,
+SQLite e CLI reais, além de agentes ACP, LinkedIn MCP e Chrome simulados. A suíte
+cobre as 14 telas da sidebar, funcionalidades, persistência e jornadas entre telas.
+Cada teste usa um workspace e um perfil Electron temporários; os dados pessoais
+em `~/.work-tracker` não são usados.
+
+Requer Node 24+, ambiente gráfico (ou `xvfb-run -a npm run test:e2e`), `latexmk`,
+`pdflatex` e Poppler (`pdfinfo` e `pdftotext`). O fixture E2E usa apenas a classe
+LaTeX `article`; os smoke checks existentes continuam exigindo os pacotes do
+currículo de exemplo.
+
+```bash
+npm run test:e2e
+npm run test:e2e:debug
+npm run test:e2e:report
+# Reutilizar um build de produção atualizado e selecionar testes:
+npm run test:e2e:run -- e2e/apply.spec.ts
+```
+
+O workflow **Electron E2E** executa a suíte em pull requests e pushes em `main`.
+Relatórios HTML e evidências de falhas ficam disponíveis como artifacts por sete
+dias. Consulte [a documentação da suíte](docs/e2e.md).

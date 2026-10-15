@@ -50,6 +50,7 @@ export function ApplyPage() {
       const body = kind === "generate" ? { jobId: search.jobId, applicationId: search.applicationId ?? run?.application_id, provider: selectedProvider?.id, model: effectiveModel || undefined, extra } : kind === "description" ? { jobId: search.jobId, description } : { runId: kind === "fill" || kind === "submitted" ? pdfRun?.id : run?.id, extra }
       const value = await request<{ id?: string }>(`application-preparation/${kind}`, body)
       if (kind === "generate" && value.id) openApply(search.jobId, body && "applicationId" in body ? body.applicationId : undefined, value.id)
+      if (kind === "fill" && pdfRun) openApply(search.jobId, pdfRun.application_id ?? undefined, pdfRun.id)
       if (kind === "description") setDescriptionDirty(false)
       details.refresh()
     } catch (e) { setError((e as Error).message) }
