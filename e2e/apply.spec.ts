@@ -31,20 +31,32 @@ test('Apply: real PDFs, generation/regeneration/history, filling, submission and
   await expect(panel(page, 'Base PDF').locator('.react-pdf__Page__textContent')).toContainText('Second page.')
   await panel(page, 'Base PDF').getByRole('button', { name: 'Previous', exact: true }).click()
   const canvas = panel(page, 'Base PDF').locator('canvas')
-  // PDF.js can hide or replace the canvas while changing page or scale.
-  // Treat that transient state as not ready, so polling retries instead of throwing.
-  const canvasWidth = async () => (await canvas.boundingBox())?.width ?? 0
+  // PDF.js can hide or replace the canvas while changing page or scale, while
+  // ResizeObserver may trigger another render. Wait for two identical visible
+  // measurements so controls are not exercised during that transient state.
+  const stableCanvasWidth = async () => {
+    let previous = 0
+    let stable = 0
+    let result = 0
+    await expect.poll(async () => {
+      const width = (await canvas.boundingBox())?.width ?? 0
+      stable = width > 0 && width === previous ? stable + 1 : 0
+      previous = width
+      if (stable >= 1) result = width
+      return stable
+    }).toBeGreaterThan(0)
+    return result
+  }
   await expect(panel(page, 'Base PDF').locator('.react-pdf__Page__textContent')).toContainText('Base resume.')
-  let baseWidth = 0
-  await expect.poll(async () => { baseWidth = await canvasWidth(); return baseWidth }).toBeGreaterThan(0)
+  const baseWidth = await stableCanvasWidth()
   await page.getByRole('button', { name: 'Zoom in Base PDF' }).click()
-  await expect.poll(canvasWidth).toBeGreaterThan(baseWidth)
+  expect(await stableCanvasWidth()).toBeGreaterThan(baseWidth)
   await page.getByRole('button', { name: 'Zoom out Base PDF' }).click()
-  await expect.poll(canvasWidth).toBe(baseWidth)
+  expect(await stableCanvasWidth()).toBe(baseWidth)
   await page.getByRole('button', { name: 'Zoom in Base PDF' }).click()
-  await expect.poll(canvasWidth).toBeGreaterThan(baseWidth)
+  expect(await stableCanvasWidth()).toBeGreaterThan(baseWidth)
   await panel(page, 'Base PDF').getByRole('button', { name: 'Fit width', exact: true }).click()
-  await expect.poll(canvasWidth).toBe(baseWidth)
+  expect(await stableCanvasWidth()).toBe(baseWidth)
   await page.getByRole('tab', { name: 'Report', exact: true }).click()
   await expect(page.getByText('Emphasized React and TypeScript experience.', { exact: true })).toBeVisible()
   const output = join(workspace.home, 'tailored-export.pdf')
