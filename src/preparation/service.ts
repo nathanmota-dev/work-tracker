@@ -31,7 +31,7 @@ export function readableJobDetails(value: unknown): string {
   if (!value || typeof value !== "object") return "";
   const row = value as Record<string, unknown>;
   if (row.structuredContent) return readableJobDetails(row.structuredContent);
-  for (const key of ["description", "job_description", "jobDescription", "details"]) if (row[key]) return readableJobDetails(row[key]);
+  for (const key of ["description", "job_description", "jobDescription", "details"]) if (row[key] !== undefined && row[key] !== null) return readableJobDetails(row[key]);
   if (Array.isArray(row.content)) return row.content.map(item => readableJobDetails((item as { text?: string }).text)).join("\n\n");
   return JSON.stringify(row, null, 2);
 }

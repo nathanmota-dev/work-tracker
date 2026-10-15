@@ -82,6 +82,7 @@ it("shows an explicitly refreshed base PDF when an older execution is selected",
   render(<ApplyPage />)
   await screen.findByText("pdf-1")
   fireEvent.click(screen.getByText("Resume sources", { selector: "summary" }))
+  await waitFor(() => expect(screen.getByRole("button", { name: "Update base PDF" })).toBeEnabled())
   fireEvent.click(screen.getByRole("button", { name: "Update base PDF" }))
   expect(await screen.findByText("base-current")).toBeInTheDocument()
   expect(screen.getByText("pdf-1")).toBeInTheDocument()

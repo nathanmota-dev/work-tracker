@@ -55,7 +55,7 @@ export function usePreparation(jobId?: number, applicationId?: number) {
   }, [refresh])
   useEffect(() => {
     let active = true
-    if (!jobId) { setData(undefined); setError(""); return }
+    if (!jobId) { setData(undefined); setError(""); setLoading(false); return }
     setLoading(true)
     request<PreparationDetails>("application-preparation/details", { jobId, applicationId })
       .then(value => { if (active) { setData(value); setError("") } })

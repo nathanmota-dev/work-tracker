@@ -194,3 +194,27 @@ test("outreach aggregates active company blocks, default funnel states, due acti
   expect(dueAttempts).toHaveBeenCalledWith(d.asDatabase);
   expect(getBudget).toHaveBeenCalledWith(d.asDatabase);
 });
+
+test.each([
+  "recruiters",
+  "jobs",
+  "metrics",
+  "interviews",
+  "applications",
+  "answers",
+] as const)("%s forwards rows and supports empty results", (name) => {
+  const rows = [{ id: 1 }];
+  d.statement.all.mockReturnValueOnce(rows).mockReturnValueOnce([]);
+  expect(queries[name]()).toBe(rows);
+  expect(queries[name]()).toEqual([]);
+  expect(d.statement.all).toHaveBeenCalledWith();
+});
+test("activity binds the default/custom limit and profile returns existing identity", () => {
+  d.statement.all.mockReturnValue([{ summary: "saved" }]);
+  expect(queries.activity()).toEqual([{ summary: "saved" }]);
+  expect(d.statement.all).toHaveBeenLastCalledWith(50);
+  queries.activity(7);
+  expect(d.statement.all).toHaveBeenLastCalledWith(7);
+  d.statement.get.mockReturnValue({ id: 1, name: "Ana" });
+  expect(queries.profile()).toEqual({ id: 1, name: "Ana" });
+});
