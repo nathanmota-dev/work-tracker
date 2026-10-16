@@ -77,7 +77,8 @@ assertions, not fixed sleeps. Unexpected renderer exceptions/crashes and prematu
 Electron closure fail the test. Failed tests attach screenshots, manually recorded
 Electron-context traces, application output and the mock call transcript. Reports
 and test-results are ignored by Git. The Electron E2E workflow runs on pull requests
-and main pushes with Xvfb, and uploads HTML reports/evidence for seven days.
+to main with Xvfb, and uploads HTML reports/evidence for seven days. It no longer
+runs on pushes or merges to main; see `docs/ci.md` for the other PR workflows.
 
 The repository's complete mandatory verification sequence remains in AGENTS.md,
 with the E2E suite added after the existing checks. The installed app is updated

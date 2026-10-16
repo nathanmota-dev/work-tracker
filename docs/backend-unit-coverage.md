@@ -4,7 +4,7 @@ Registro da implementação em 2026-10-10, Linux, Node 24.18.0, Vitest 5.0.3 e c
 
 Foram verificados **327 testes unitários em 32 arquivos**, **70 testes de integração em 5 arquivos**, a compilação da CLI e `npx tsc --noEmit -p tsconfig.node.json`. Todos passaram. As integrações são os casos anteriores reorganizados, sem novos cenários.
 
-Cobertura total: **98.72% de statements**, **95.37% de branches**, **95.45% de funções** e **99.07% de linhas**. Não há meta percentual.
+Cobertura total: **98.72% de statements**, **95.37% de branches**, **95.45% de funções** e **99.07% de linhas**. Desde a introdução do quality gate, o piso é de 80% por métrica e a cobertura não pode cair frente à baseline (ver [CI e quality gate](ci.md)).
 
 Os percentuais medem execução dos unitários, com I/O simulado. As integrações validam separadamente o SQL e a persistência reais. Uma linha executada ainda pode ter branches não exercitados. A coluna de lacunas inclui linhas de branches/funções não executados mesmo quando a cobertura de linhas é 100%. “—” significa que o V8 não apontou lacunas de execução.
 
@@ -51,4 +51,4 @@ A medição exclui testes e seus helpers, declarações de tipos, versão gerada
 
 Os unitários ficam ao lado do módulo. O setup impede I/O real nas fronteiras usadas pelo backend, e os doubles fornecem respostas explícitas de statements e eventos de processos, sem interpretar SQL. SQLite em memória pertence à integração. Estado dos caches/conexões é reiniciado nas suítes que o mantêm; ambiente, mocks, globais e timers são restaurados entre casos.
 
-Para atualizar a medição, execute `npm run test:backend:coverage`. Os relatórios completos e atuais são `coverage/backend/unit/index.html` e `coverage/backend/unit/coverage-final.json`, ignorados pelo Git. Esta tabela é um registro da implementação, não é regenerada automaticamente.
+Para atualizar a medição, execute `npm run test:backend:coverage`. Os relatórios completos e atuais são `coverage/backend/unit/index.html`, `coverage/backend/unit/coverage-final.json` e `coverage/backend/unit/coverage-summary.json`, ignorados pelo Git. As exclusões ficam em `scripts/ci/layers.json`, usado pelo Vitest e pelo quality gate. Esta tabela é um registro da implementação, não é regenerada automaticamente.
