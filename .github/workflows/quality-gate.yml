@@ -1,0 +1,129 @@
+name: Layer Quality Gate
+
+# Called by Backend CI and Frontend CI. Each call evaluates one layer using only
+# the artifact produced earlier in the same workflow run and attempt.
+on:
+  workflow_call:
+    inputs:
+      layer:
+        description: backend or frontend
+        required: true
+        type: string
+      artifact:
+        description: Name of the artifact with this run's coverage and ESLint reports
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    name: Quality gate (${{ inputs.layer }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Validate layer
+        env:
+          LAYER: ${{ inputs.layer }}
+        run: |
+          case "$LAYER" in
+            backend|frontend) ;;
+            *) echo "::error::Unknown layer: $LAYER"; exit 1 ;;
+          esac
+
+      - name: Checkout pull request
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node.js
+        id: node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Restore Electron downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+          key: electron-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Download this run's layer reports
+        id: download
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact }}
+          path: .
+
+      - name: Select trusted baseline
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          baseline_path="$RUNNER_TEMP/quality-baseline.json"
+          if [[ -n "$BASE_SHA" ]] && git cat-file -e "${BASE_SHA}:scripts/quality-baseline.json" 2>/dev/null; then
+            git show "${BASE_SHA}:scripts/quality-baseline.json" > "$baseline_path"
+            echo "QUALITY_GATE_BASELINE_PATH=$baseline_path" >> "$GITHUB_ENV"
+            echo "QUALITY_GATE_BASELINE_LABEL=main@${BASE_SHA:0:12}:scripts/quality-baseline.json" >> "$GITHUB_ENV"
+          else
+            echo "QUALITY_GATE_BASELINE_PATH=$GITHUB_WORKSPACE/scripts/quality-baseline.json" >> "$GITHUB_ENV"
+            echo "QUALITY_GATE_BASELINE_LABEL=bootstrap:scripts/quality-baseline.json" >> "$GITHUB_ENV"
+            echo "::notice::The PR base has no quality baseline yet; using the checked-in bootstrap baseline."
+          fi
+
+      - name: Test gate scripts
+        id: infra
+        continue-on-error: true
+        run: npm run test:infra
+
+      - name: Evaluate quality metrics
+        id: gate
+        continue-on-error: true
+        env:
+          LAYER: ${{ inputs.layer }}
+        run: node scripts/quality-gate.cjs --layer "$LAYER"
+
+      - name: Publish job summary
+        if: always()
+        env:
+          LAYER: ${{ inputs.layer }}
+        run: |
+          report="reports/$LAYER/quality-gate.md"
+          if [[ -f "$report" ]]; then
+            cat "$report" >> "$GITHUB_STEP_SUMMARY"
+          else
+            printf '# Quality Gate (%s)\n\n**ERROR** — The report was not generated.\n' "$LAYER" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload quality report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-${{ inputs.layer }}-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 14
+          if-no-files-found: warn
+          path: reports/${{ inputs.layer }}/
+
+      - name: Enforce blocking checks
+        if: always()
+        env:
+          DOWNLOAD: ${{ steps.download.outcome }}
+          INFRA: ${{ steps.infra.outcome }}
+          GATE: ${{ steps.gate.outcome }}
+        run: |
+          failures=()
+          [[ "$DOWNLOAD" == "success" ]] || failures+=("layer reports from this run are missing")
+          [[ "$INFRA" == "success" ]] || failures+=("gate script tests")
+          [[ "$GATE" == "success" ]] || failures+=("quality metrics")
+          if (( ${#failures[@]} > 0 )); then
+            printf 'Blocking quality checks failed: %s\n' "${failures[*]}"
+            exit 1
+          fi

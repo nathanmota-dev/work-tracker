@@ -16,13 +16,17 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "allowImportingTsExtensions": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "incremental": true,
+    "tsBuildInfoFile": ".cache/work-tracker/backend/typescript/tsconfig.tsbuildinfo"
   },
   "include": [
     "electron.vite.config.mts",
     "desktop/src/**/*.ts",
     "src/**/*.ts",
     "vitest.config.mts",
-    "vitest.integration.config.mts"
+    "vitest.integration.config.mts",
+    "vitest.benchmark.config.mts",
+    "benchmarks/**/*.ts"
   ]
 }

@@ -18,3 +18,7 @@ coverage/
 # Playwright reports and failure evidence.
 /playwright-report/
 /test-results/
+
+# Local tool caches and generated CI reports.
+/.cache/
+/reports/

@@ -6,9 +6,9 @@ usage() {
   cat <<'EOF'
 Usage: scripts/create-worktree-local.sh <branch-name> [destination] [start-point]
 
-Creates a task worktree and reuses compatible local dependencies and personal
-resume files. The destination defaults to a sibling of this repository and the
-start point defaults to main.
+Creates a task worktree and reuses compatible local dependencies, tool caches
+and personal resume files. The destination defaults to a sibling of this
+repository and the start point defaults to main.
 
 Example:
   scripts/create-worktree-local.sh feat/batch-apply
@@ -77,8 +77,12 @@ if [[ $dependencies_reusable == true ]]; then
   copy_directory web/node_modules
 else
   printf '%s\n' 'Dependencies are missing or the lockfile differs; running npm ci.'
-  npm --prefix "$destination" ci
+  npm --prefix "$destination" ci --prefer-offline --no-audit
 fi
+
+# ESLint, TypeScript and Vitest caches are copied, never shared; each tool
+# validates its entries and rebuilds anything tied to the previous path.
+copy_directory .cache/work-tracker
 
 copy_directory base/data
 copy_directory base/latex

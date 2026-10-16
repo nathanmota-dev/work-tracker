@@ -1,5 +1,9 @@
 {
   "extends": "./tsconfig.node.json",
-  "compilerOptions": { "lib": ["ES2022", "DOM"], "types": ["node"] },
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM"],
+    "types": ["node"],
+    "tsBuildInfoFile": ".cache/work-tracker/backend/typescript/tsconfig.e2e.tsbuildinfo"
+  },
   "include": ["playwright.config.ts", "e2e/**/*.ts", "web/src/vite-env.d.ts"]
 }

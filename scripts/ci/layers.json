@@ -1,0 +1,46 @@
+{
+  "backend": {
+    "sourceRoots": ["src", "desktop/src"],
+    "lintTargets": [
+      "src",
+      "desktop",
+      "scripts",
+      "e2e",
+      "benchmarks",
+      "electron.vite.config.mts",
+      "vitest.config.mts",
+      "vitest.integration.config.mts",
+      "vitest.benchmark.config.mts",
+      "playwright.config.ts",
+      "eslint.config.mjs"
+    ],
+    "coverage": {
+      "root": ".",
+      "reportsDirectory": "coverage/backend/unit",
+      "include": ["src/**/*.ts"],
+      "exclude": [
+        "src/**/*.test.ts",
+        "src/test/**",
+        "src/**/*.d.ts",
+        "src/version.gen.ts",
+        "src/db/schema.ts",
+        "src/match/synonyms.ts",
+        "src/adapters/types.ts",
+        "src/mcp/withdraw.ts",
+        "src/cli/index.ts",
+        "src/cli/setup.ts",
+        "src/cli/detect-portal.ts"
+      ]
+    }
+  },
+  "frontend": {
+    "sourceRoots": ["web/src"],
+    "lintTargets": ["web"],
+    "coverage": {
+      "root": "web",
+      "reportsDirectory": "coverage/frontend/unit",
+      "include": ["src/**/*.{ts,tsx}"],
+      "exclude": ["src/**/*.{test,spec}.{ts,tsx}", "src/test/**", "src/**/*.d.ts"]
+    }
+  }
+}

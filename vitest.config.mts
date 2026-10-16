@@ -1,5 +1,9 @@
 import { defineConfig } from "vitest/config";
+import layers from "./scripts/ci/layers.json" with { type: "json" };
+
+const { coverage } = layers.backend;
 export default defineConfig({
+  cacheDir: ".cache/work-tracker/backend/vite",
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
@@ -9,24 +13,14 @@ export default defineConfig({
     restoreMocks: true,
     unstubEnvs: true,
     unstubGlobals: true,
+    fsModuleCache: true,
+    fsModuleCachePath: ".cache/work-tracker/backend/transforms",
     coverage: {
       provider: "v8",
-      reportsDirectory: "coverage/backend/unit",
-      reporter: ["text", "html", "json"],
-      include: ["src/**/*.ts"],
-      exclude: [
-        "src/**/*.test.ts",
-        "src/test/**",
-        "src/**/*.d.ts",
-        "src/version.gen.ts",
-        "src/db/schema.ts",
-        "src/match/synonyms.ts",
-        "src/adapters/types.ts",
-        "src/mcp/withdraw.ts",
-        "src/cli/index.ts",
-        "src/cli/setup.ts",
-        "src/cli/detect-portal.ts",
-      ],
+      reportsDirectory: coverage.reportsDirectory,
+      reporter: ["text", "html", "json", "json-summary"],
+      include: coverage.include,
+      exclude: coverage.exclude,
     },
   },
 });
