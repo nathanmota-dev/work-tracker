@@ -1,38 +1,24 @@
 import { candidateFromAnswers } from "@/lib/candidate-profile"
 import { AgentConversation } from "@/components/agent-conversation"
-import { Textarea } from "@/components/ui/textarea"
-import { SelectControl } from "@/components/ui/select-control"
+import {
+  AgentSelectors,
+  RunFooter,
+  SkillFields,
+  SkillPicker,
+  WorkspaceActions,
+  launchSkills,
+} from "@/components/launch-form"
 import { useEffect, useRef, useState } from "react"
-import { Bot, Play, Square, Sparkles } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import {
   Page,
   Panel,
-  Field,
-  controlClass,
   LoadState,
-  Empty,
   Status,
 } from "@/components/workspace-ui"
 import { useApi, useConnection, type Row } from "@/lib/api"
-import {
-  skills,
-  useAgent,
-  runAgent,
-  cancelAgent,
-  clearAgent,
-  type Providers,
-} from "@/lib/agent"
-const labels: Record<string, string> = {
-  query: "Role, keywords or job URL",
-  location: "Location",
-  jobIds: "Saved job IDs",
-  username: "LinkedIn username",
-  company: "Target company",
-  url: "Application URL",
-}
-export function LaunchPage() {
+import { useAgent, runAgent, type Providers } from "@/lib/agent"
+
+function useLaunchState() {
   const profile = useApi<Row[]>("answers")
   const candidate = candidateFromAnswers(profile.data ?? [])
   const api = useApi<Providers>("acp/providers")
@@ -64,8 +50,64 @@ export function LaunchPage() {
     api.data?.providers.find((p) => p.id === api.data?.default) ??
     api.data?.providers[0]
   const effectiveModel = selectedProvider?.models.includes(model) ? model : ""
-  const launchSkills = skills.filter(s => s.id !== "resume-tailor")
   const selected = launchSkills.find((s) => s.id === skill) ?? launchSkills[0]
+  function submit() {
+    setError("")
+    if (!selectedProvider || !live) return
+    if (
+      skill === "portal-filler" &&
+      !params.url?.trim() &&
+      !params.jobIds?.trim()
+    ) {
+      setError("Enter an application URL or a saved job ID.")
+      return
+    }
+    void runAgent(
+      selectedProvider.id,
+      skill,
+      params,
+      effectiveModel || undefined,
+    )
+  }
+  return {
+    candidate,
+    api,
+    agent,
+    live,
+    skill,
+    setSkill,
+    params,
+    setParams,
+    setProvider,
+    setModel,
+    error,
+    setError,
+    selectedProvider,
+    effectiveModel,
+    selected,
+    submit,
+  }
+}
+
+export function LaunchPage() {
+  const {
+    candidate,
+    api,
+    agent,
+    live,
+    skill,
+    setSkill,
+    params,
+    setParams,
+    setProvider,
+    setModel,
+    error,
+    setError,
+    selectedProvider,
+    effectiveModel,
+    selected,
+    submit,
+  } = useLaunchState()
   return (
     <Page
       title="Launch"
@@ -80,148 +122,52 @@ export function LaunchPage() {
               className="space-y-4"
               onSubmit={(e) => {
                 e.preventDefault()
-                setError("")
-                if (!selectedProvider || !live) return
-                if (
-                  skill === "portal-filler" &&
-                  !params.url?.trim() &&
-                  !params.jobIds?.trim()
-                ) {
-                  setError("Enter an application URL or a saved job ID.")
-                  return
-                }
-                void runAgent(
-                  selectedProvider.id,
-                  skill,
-                  params,
-                  effectiveModel || undefined,
-                )
+                submit()
               }}
             >
-              <Field label="Agent">
-                <SelectControl
-                  className={controlClass}
-                  value={selectedProvider?.id ?? ""}
-                  disabled={agent.running}
-                  onChange={(e) => {
-                    setProvider(e.target.value)
-                    setModel("")
-                  }}
-                >
-                  {api.data.providers.map((p) => (
-                    <option value={p.id} key={p.id}>
-                      {p.displayName}
-                    </option>
-                  ))}
-                </SelectControl>
-              </Field>
-              <Field label="Model">
-                <SelectControl
-                  className={controlClass}
-                  value={effectiveModel}
-                  disabled={agent.running}
-                  onChange={(e) => setModel(e.target.value)}
-                >
-                  <option value="">Provider default</option>
-                  {selectedProvider?.models.map((m) => (
-                    <option key={m}>{m}</option>
-                  ))}
-                </SelectControl>
-              </Field>
-              <Field label="Skill">
-                <SelectControl
-                  className={controlClass}
-                  value={skill}
-                  disabled={agent.running}
-                  onChange={(e) => {
-                    setSkill(e.target.value)
-                    setParams({})
-                  }}
-                >
-                  {launchSkills.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </SelectControl>
-              </Field>
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                {selected.description}
-              </p>
-              {selected.fields.map((key) => (
-                <Field key={key} label={labels[key]}>
-                  <Input
-                    value={
-                      params[key] ??
-                      (key === "username" ? candidate.linkedinUsername : "")
-                    }
-                    disabled={agent.running}
-                    onChange={(e) =>
-                      setParams((p) => ({ ...p, [key]: e.target.value }))
-                    }
-                    required={
-                      ["query", "jobIds"].includes(key) &&
-                      skill !== "portal-filler"
-                    }
-                  />
-                </Field>
-              ))}
-              <Field label="Additional context">
-                <Textarea
-                  className={`${controlClass} h-28 resize-y py-2`}
-                  placeholder="What should the agent know?"
-                  disabled={agent.running}
-                  value={params.extra ?? ""}
-                  onChange={(e) =>
-                    setParams((p) => ({ ...p, extra: e.target.value }))
-                  }
-                />
-              </Field>
-              <Button
-                className="w-full"
-                disabled={agent.running || !selectedProvider || !live}
-              >
-                <Play className="size-4" />
-                {agent.status === "Waiting for sign-in" ? "Retry after sign-in" : "Run agent"}
-              </Button>
-              {!live && (
-                <p className="text-xs text-muted-foreground">
-                  Waiting for the live connection before starting a run.
-                </p>
-              )}
-              <p className="text-xs text-muted-foreground">
-                Include everything the agent needs before starting. You can
-                adjust context in your next run.
-              </p>
+              <AgentSelectors
+                providers={api.data.providers}
+                selectedProvider={selectedProvider}
+                effectiveModel={effectiveModel}
+                disabled={agent.running}
+                onProvider={(value) => {
+                  setProvider(value)
+                  setModel("")
+                }}
+                onModel={setModel}
+              />
+              <SkillPicker
+                skill={skill}
+                description={selected.description}
+                disabled={agent.running}
+                onSkill={(value) => {
+                  setSkill(value)
+                  setParams({})
+                }}
+              />
+              <SkillFields
+                fields={selected.fields}
+                skill={skill}
+                params={params}
+                setParams={setParams}
+                username={candidate.linkedinUsername}
+                disabled={agent.running}
+              />
+              <RunFooter
+                extra={params.extra ?? ""}
+                onExtra={(extra) => setParams((p) => ({ ...p, extra }))}
+                running={agent.running}
+                canRun={!!selectedProvider && live}
+                live={live}
+                waitingForSignIn={agent.status === "Waiting for sign-in"}
+              />
             </form>
           )}
         </Panel>
         <Panel
           title="Agent workspace"
           action={
-            <div className="flex gap-2">
-              {agent.running || agent.status === "Waiting for sign-in" ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() =>
-                    void cancelAgent().catch((e) => setError(e.message))
-                  }
-                >
-                  <Square />
-                  Cancel
-                </Button>
-              ) : (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={!agent.messages.length}
-                  onClick={clearAgent}
-                >
-                  Clear
-                </Button>
-              )}
-            </div>
+            <WorkspaceActions agent={agent} onError={setError} />
           }
         >
           <AgentConversation messages={agent.messages} />

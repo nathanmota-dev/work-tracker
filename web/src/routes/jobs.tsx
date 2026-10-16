@@ -1,7 +1,5 @@
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import { Button } from "@/components/ui/button"
-import { Archive, ArchiveRestore, Trash2 } from "lucide-react"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import {
   Dialog,
   DialogContent,
@@ -11,21 +9,125 @@ import {
 } from "@/components/ui/dialog"
 import {
   Page,
-  Records,
   LoadState,
   Details,
-  Status,
   ExternalLink,
-  Stats,
 } from "@/components/workspace-ui"
-import { useApi, request, text, date, type Row } from "@/lib/api"
+import { JobActions, JobStats, JobTabs, jobColumns } from "@/components/job-list"
+import { useApi, request, text, type Row } from "@/lib/api"
 import { openApply } from "@/lib/preparation"
 import { prepareSkill } from "@/lib/agent"
+
+function JobDetailActions({
+  selected,
+  busy,
+  error,
+  actions,
+}: {
+  selected: Row | null
+  busy: boolean
+  error: string
+  actions: (row: Row) => ReactNode
+}) {
+  return (
+    <>
+      {error && (
+        <p role="alert" className="text-sm text-destructive">{error}</p>
+      )}
+      <div className="flex flex-wrap gap-2">
+        <ExternalLink value={selected?.link} label="View opportunity" />
+        <Button
+          disabled={busy || !!selected?.archived_at}
+          onClick={() =>
+            openApply(selected?.id)
+          }
+        >
+          Prepare application
+        </Button>
+        <Button
+          variant="outline"
+          disabled={busy || !!selected?.archived_at}
+          onClick={() =>
+            prepareSkill("deep-scout", {
+              query: text(
+                selected?.link ??
+                  selected?.linkedin_job_id ??
+                  selected?.title,
+              ),
+            })
+          }
+        >
+          Assess fit
+        </Button>
+      </div>
+      {!!selected?.archived_at && (
+        <p className="text-sm text-muted-foreground">
+          Restore this role before preparing a new application.
+        </p>
+      )}
+      {selected && actions(selected)}
+    </>
+  )
+}
+
+function DeleteJobDialog({
+  deleting,
+  busy,
+  error,
+  onCancel,
+  onConfirm,
+}: {
+  deleting: Row | null
+  busy: boolean
+  error: string
+  onCancel: () => void
+  onConfirm: (row: Row) => void
+}) {
+  return (
+    <Dialog
+      open={!!deleting}
+      onOpenChange={(open) => {
+        if (!open && !busy) onCancel()
+      }}
+    >
+      <DialogContent showCloseButton={!busy} className="[&_button]:cursor-pointer">
+        <DialogHeader>
+          <DialogTitle>Delete {text(deleting?.title)}?</DialogTitle>
+          <DialogDescription>
+            This permanently removes the saved role from your workspace.
+            It may appear again in a future search. Archive it instead to keep
+            a record and exclude it from future shortlists. Jobs with linked
+            applications or interviews must be archived to preserve their history.
+          </DialogDescription>
+        </DialogHeader>
+        {error && (
+          <p role="alert" className="text-sm text-destructive">{error}</p>
+        )}
+        <div className="flex justify-end gap-2">
+          <Button
+            variant="outline"
+            disabled={busy}
+            onClick={onCancel}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            disabled={busy}
+            onClick={() => deleting && onConfirm(deleting)}
+          >
+            {busy ? "Deleting…" : "Delete job"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export function JobsPage() {
   const api = useApi<Row[]>("jobs")
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const selected = api.data?.find((row) => row.id === selectedId) ?? null
-  const [view, setView] = useState("active")
   const [deleting, setDeleting] = useState<Row | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
@@ -49,35 +151,17 @@ export function JobsPage() {
 
   function actions(row: Row, includePreparation = true) {
     return (
-      <div className="flex flex-wrap gap-2">
-        {includePreparation && <Button size="sm" variant="outline" disabled={busy || !!row.archived_at} onClick={() => openApply(row.id)}>Prepare application</Button>}
-        <Button
-          variant="outline"
-          size="icon-sm"
-          className="cursor-pointer"
-          disabled={busy}
-          title={row.archived_at ? "Restore job" : "Archive job"}
-          aria-label={`${row.archived_at ? "Restore" : "Archive"} ${text(row.title)}`}
-          onClick={() => void mutate(row.archived_at ? "restore" : "archive", row)}
-        >
-          {row.archived_at ? <ArchiveRestore /> : <Archive />}
-        </Button>
-        <Button
-          variant="outline"
-          size="icon-sm"
-          className="cursor-pointer"
-          disabled={busy}
-          title="Delete job"
-          aria-label={`Delete ${text(row.title)}`}
-          onClick={() => {
-            setError("")
-            setSelectedId(null)
-            setDeleting(row)
-          }}
-        >
-          <Trash2 />
-        </Button>
-      </div>
+      <JobActions
+        row={row}
+        busy={busy}
+        includePreparation={includePreparation}
+        onMutate={(action, target) => void mutate(action, target)}
+        onDelete={(target) => {
+          setError("")
+          setSelectedId(null)
+          setDeleting(target)
+        }}
+      />
     )
   }
   return (
@@ -98,88 +182,13 @@ export function JobsPage() {
       )}
       {api.data && (
         <>
-          <Stats
-            items={[
-              { label: "Active roles", value: active.length },
-              {
-                label: "Companies",
-                value: new Set(
-                  active.map((r) => r.company_name).filter(Boolean),
-                ).size,
-              },
-              {
-                label: "Remote roles",
-                value: active.filter((r) => /remote/i.test(text(r.work_type)))
-                  .length,
-              },
-              {
-                label: "Assessed roles",
-                value: active.filter((r) => !!r.fit).length,
-              },
-            ]}
+          <JobStats jobs={active} />
+          <JobTabs
+            active={active}
+            archived={archived}
+            columns={jobColumns(actions)}
+            onSelect={(row) => setSelectedId(Number(row.id))}
           />
-          <Tabs value={view} onValueChange={setView}>
-            <TabsList aria-label="Job archive filter">
-              <TabsTrigger value="active">Active ({active.length})</TabsTrigger>
-              <TabsTrigger value="archived">
-                Archived ({archived.length})
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value={view}>
-              {view === "archived" && (
-                <p className="mb-4 text-sm text-muted-foreground">
-                  Archived roles stay saved and are excluded from future shortlists.
-                  Restore a role before preparing a new application.
-                </p>
-              )}
-              <Records
-                key={view}
-                rows={view === "archived" ? archived : active}
-                noun={view === "archived" ? "Archived opportunities" : "Opportunities"}
-                onSelect={(row) => setSelectedId(Number(row.id))}
-                columns={[
-                  {
-                    key: "title",
-                    label: "Opportunity",
-                    render: (r) => (
-                      <div>
-                        <p className="font-medium">{text(r.title)}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {text(r.company_name)}
-                        </p>
-                      </div>
-                    ),
-                  },
-                  { key: "location", label: "Location" },
-                  { key: "work_type", label: "Work type" },
-                  {
-                    key: "fit",
-                    label: "Fit",
-                    render: (r) => <Status value={r.fit} />,
-                  },
-                  {
-                    key: "status",
-                    label: "Status",
-                    render: (r) => <Status value={r.status} />,
-                  },
-                  {
-                    key: "scouted_at",
-                    label: "Saved",
-                    render: (r) => (
-                      <span className="text-xs text-muted-foreground">
-                        {date(r.scouted_at)}
-                      </span>
-                    ),
-                  },
-                  {
-                    key: "actions",
-                    label: "Actions",
-                    render: actions,
-                  },
-                ]}
-              />
-            </TabsContent>
-          </Tabs>
         </>
       )}
       <Details
@@ -187,85 +196,23 @@ export function JobsPage() {
         title={text(selected?.title)}
         onClose={() => setSelectedId(null)}
       >
-        {error && (
-          <p role="alert" className="text-sm text-destructive">{error}</p>
-        )}
-        <div className="flex flex-wrap gap-2">
-          <ExternalLink value={selected?.link} label="View opportunity" />
-          <Button
-            disabled={busy || !!selected?.archived_at}
-            onClick={() =>
-              openApply(selected?.id)
-            }
-          >
-            Prepare application
-          </Button>
-          <Button
-            variant="outline"
-            disabled={busy || !!selected?.archived_at}
-            onClick={() =>
-              prepareSkill("deep-scout", {
-                query: text(
-                  selected?.link ??
-                    selected?.linkedin_job_id ??
-                    selected?.title,
-                ),
-              })
-            }
-          >
-            Assess fit
-          </Button>
-        </div>
-        {!!selected?.archived_at && (
-          <p className="text-sm text-muted-foreground">
-            Restore this role before preparing a new application.
-          </p>
-        )}
-        {selected && actions(selected, false)}
+        <JobDetailActions
+          selected={selected}
+          busy={busy}
+          error={error}
+          actions={(row) => actions(row, false)}
+        />
       </Details>
-      <Dialog
-        open={!!deleting}
-        onOpenChange={(open) => {
-          if (!open && !busy) {
-            setDeleting(null)
-            setError("")
-          }
+      <DeleteJobDialog
+        deleting={deleting}
+        busy={busy}
+        error={error}
+        onCancel={() => {
+          setDeleting(null)
+          setError("")
         }}
-      >
-        <DialogContent showCloseButton={!busy} className="[&_button]:cursor-pointer">
-          <DialogHeader>
-            <DialogTitle>Delete {text(deleting?.title)}?</DialogTitle>
-            <DialogDescription>
-              This permanently removes the saved role from your workspace.
-              It may appear again in a future search. Archive it instead to keep
-              a record and exclude it from future shortlists. Jobs with linked
-              applications or interviews must be archived to preserve their history.
-            </DialogDescription>
-          </DialogHeader>
-          {error && (
-            <p role="alert" className="text-sm text-destructive">{error}</p>
-          )}
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="outline"
-              disabled={busy}
-              onClick={() => {
-                setDeleting(null)
-                setError("")
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={busy}
-              onClick={() => deleting && void mutate("delete", deleting)}
-            >
-              {busy ? "Deleting…" : "Delete job"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+        onConfirm={(row) => void mutate("delete", row)}
+      />
     </Page>
   )
 }

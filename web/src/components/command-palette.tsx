@@ -42,6 +42,57 @@ export function useCommandPalette() {
   return context
 }
 
+function PageCommands({ onSelect }: { onSelect: (to: (typeof navigationItems)[number]["to"]) => void }) {
+  return (
+    <Command loop className="**:data-[slot=command-input-wrapper]:h-12">
+      <div className="relative">
+        <CommandInput
+          aria-label="Search pages"
+          placeholder="Search pages..."
+          className="h-12 pr-12"
+        />
+        <DialogClose
+          aria-label="Close search"
+          className="absolute right-4 top-1/2 -translate-y-1/2 cursor-pointer rounded border px-1 text-[10px] text-muted-foreground hover:bg-accent focus-visible:outline-ring"
+        >
+          Esc
+        </DialogClose>
+      </div>
+      <CommandList className="max-h-[min(360px,55dvh)] p-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <CommandEmpty>No pages found.</CommandEmpty>
+        <CommandGroup heading="Go to">
+          {navigationItems.map((item) => (
+            <CommandItem
+              key={item.to}
+              value={item.title}
+              keywords={[item.to]}
+              className="h-10 cursor-pointer rounded-lg gap-3 px-2.5"
+              onSelect={() => onSelect(item.to)}
+            >
+              <item.icon className="size-4" strokeWidth={1.7} />
+              <span className="min-w-0 truncate">{item.title}</span>
+              <span aria-hidden="true" className="ml-auto shrink-0 font-mono text-xs tracking-wide text-muted-foreground">
+                {item.to}
+              </span>
+            </CommandItem>
+          ))}
+        </CommandGroup>
+      </CommandList>
+      <div className="flex items-center gap-4 border-t bg-muted/20 px-4 py-2 text-[11px] text-muted-foreground">
+        <span className="flex items-center gap-1">
+          <kbd className="rounded border p-0.5"><ArrowUp className="size-3" /></kbd>
+          <kbd className="rounded border p-0.5"><ArrowDown className="size-3" /></kbd>
+          Navigate
+        </span>
+        <span className="flex items-center gap-1">
+          <kbd className="rounded border p-0.5"><CornerDownLeft className="size-3" /></kbd>
+          Open
+        </span>
+      </div>
+    </Command>
+  )
+}
+
 export function CommandPaletteProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false)
   const openerRef = useRef<HTMLElement | null>(null)
@@ -91,55 +142,12 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
           <DialogDescription className="sr-only">
             Search for a page. Use the arrow keys to navigate and Enter to open it.
           </DialogDescription>
-          <Command loop className="**:data-[slot=command-input-wrapper]:h-12">
-            <div className="relative">
-              <CommandInput
-                aria-label="Search pages"
-                placeholder="Search pages..."
-                className="h-12 pr-12"
-              />
-              <DialogClose
-                aria-label="Close search"
-                className="absolute right-4 top-1/2 -translate-y-1/2 cursor-pointer rounded border px-1 text-[10px] text-muted-foreground hover:bg-accent focus-visible:outline-ring"
-              >
-                Esc
-              </DialogClose>
-            </div>
-            <CommandList className="max-h-[min(360px,55dvh)] p-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <CommandEmpty>No pages found.</CommandEmpty>
-              <CommandGroup heading="Go to">
-                {navigationItems.map((item) => (
-                  <CommandItem
-                    key={item.to}
-                    value={item.title}
-                    keywords={[item.to]}
-                    className="h-10 cursor-pointer rounded-lg gap-3 px-2.5"
-                    onSelect={() => {
-                      void navigate({ to: item.to })
-                      setOpen(false)
-                    }}
-                  >
-                    <item.icon className="size-4" strokeWidth={1.7} />
-                    <span className="min-w-0 truncate">{item.title}</span>
-                    <span aria-hidden="true" className="ml-auto shrink-0 font-mono text-xs tracking-wide text-muted-foreground">
-                      {item.to}
-                    </span>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            </CommandList>
-            <div className="flex items-center gap-4 border-t bg-muted/20 px-4 py-2 text-[11px] text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <kbd className="rounded border p-0.5"><ArrowUp className="size-3" /></kbd>
-                <kbd className="rounded border p-0.5"><ArrowDown className="size-3" /></kbd>
-                Navigate
-              </span>
-              <span className="flex items-center gap-1">
-                <kbd className="rounded border p-0.5"><CornerDownLeft className="size-3" /></kbd>
-                Open
-              </span>
-            </div>
-          </Command>
+          <PageCommands
+            onSelect={(to) => {
+              void navigate({ to })
+              setOpen(false)
+            }}
+          />
         </DialogContent>
       </Dialog>
     </CommandPaletteContext.Provider>

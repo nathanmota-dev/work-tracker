@@ -3,10 +3,10 @@ import {
   Page,
   Panel,
   Stats,
-  Records,
   LoadState,
   Status,
 } from "@/components/workspace-ui"
+import { Records } from "@/components/records"
 import { useApi, text, type Row } from "@/lib/api"
 import { prepareSkill } from "@/lib/agent"
 type Outreach = {

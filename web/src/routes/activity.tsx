@@ -1,4 +1,5 @@
-import { Page, Records, LoadState, Status } from "@/components/workspace-ui"
+import { Page, LoadState, Status } from "@/components/workspace-ui"
+import { Records } from "@/components/records"
 import { useApi, date, type Row } from "@/lib/api"
 export function ActivityPage() {
   const api = useApi<Row[]>("activity")

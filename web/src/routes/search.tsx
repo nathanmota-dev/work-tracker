@@ -9,57 +9,124 @@ import {
   Field,
   controlClass,
   Empty,
-  Records,
   Details,
-  ExternalLink,
 } from "@/components/workspace-ui"
+import {
+  ResultActions,
+  SearchResults,
+  initialValues,
+  type SearchKind,
+  type SearchValues,
+} from "@/components/search-results"
 import { request, text, type Row } from "@/lib/api"
-import { prepareSkill } from "@/lib/agent"
-// MCP servers may return structuredContent, text content blocks, or raw arrays.
-export function searchRows(raw: unknown): Row[] {
-  if (Array.isArray(raw))
-    return raw.filter((x): x is Row => !!x && typeof x === "object")
-  if (!raw || typeof raw !== "object") return []
-  const data = raw as Row
-  for (const key of [
-    "structuredContent",
-    "jobs",
-    "people",
-    "results",
-    "data",
-    "items",
-    "elements",
-  ]) {
-    if (data[key]) {
-      const rows = searchRows(data[key])
-      if (rows.length) return rows
-    }
-  }
-  if (Array.isArray(data.content))
-    for (const item of data.content as Row[]) {
-      if (typeof item.text === "string") {
-        try {
-          const rows = searchRows(JSON.parse(item.text))
-          if (rows.length) return rows
-        } catch {
-          /* display readable raw output below */
-        }
-      }
-    }
-  return []
+
+export { searchRows } from "@/components/search-results"
+
+function SearchFilters({
+  kind,
+  values,
+  busy,
+  set,
+}: {
+  kind: SearchKind
+  values: SearchValues
+  busy: boolean
+  set: <K extends keyof SearchValues>(key: K, value: SearchValues[K]) => void
+}) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      <Field label="Keywords">
+        <Input
+          required
+          placeholder={
+            kind === "jobs"
+              ? "Product engineer, React…"
+              : "Technical recruiter…"
+          }
+          value={values.keywords}
+          disabled={busy}
+          onChange={(e) => set("keywords", e.target.value)}
+        />
+      </Field>
+      <Field label="Location">
+        <Input
+          placeholder="City, country or region"
+          value={values.location}
+          disabled={busy}
+          onChange={(e) => set("location", e.target.value)}
+        />
+      </Field>
+      {kind === "people" ? (
+        <Field label="Company">
+          <Input
+            value={values.company}
+            disabled={busy}
+            onChange={(e) => set("company", e.target.value)}
+            placeholder="Target company"
+          />
+        </Field>
+      ) : (
+        <>
+          <Field label="Work arrangement">
+            <SelectControl
+              className={controlClass}
+              value={values.workType}
+              disabled={busy}
+              onChange={(e) => set("workType", e.target.value)}
+            >
+              <option value="">Any arrangement</option>
+              <option value="remote">Remote</option>
+              <option value="hybrid">Hybrid</option>
+              <option value="on-site">On-site</option>
+            </SelectControl>
+          </Field>
+          <Field label="Pages to search">
+            <Input
+              type="number"
+              min={1}
+              max={10}
+              value={values.maxPages}
+              disabled={busy}
+              onChange={(e) => set("maxPages", Number(e.target.value))}
+            />
+          </Field>
+        </>
+      )}
+    </div>
+  )
 }
-function readable(raw: unknown): string {
-  if (raw && typeof raw === "object" && Array.isArray((raw as Row).content))
-    return ((raw as Row).content as Row[]).map((r) => text(r.text)).join("\n\n")
-  return typeof raw === "string" ? raw : JSON.stringify(raw, null, 2)
+
+
+function KindToggle({
+  kind,
+  busy,
+  onKind,
+}: {
+  kind: SearchKind
+  busy: boolean
+  onKind: (kind: SearchKind) => void
+}) {
+  return (
+    <div className="mb-5 flex gap-2">
+      {(["jobs", "people"] as const).map((key) => (
+        <Button
+          key={key}
+          size="sm"
+          variant={kind === key ? "secondary" : "outline"}
+          disabled={busy}
+          aria-pressed={kind === key}
+          onClick={() => onKind(key)}
+        >
+          {key === "jobs" ? "Opportunities" : "People & recruiters"}
+        </Button>
+      ))}
+    </div>
+  )
 }
+
 export function SearchPage() {
-  const [kind, setKind] = useState("jobs")
-  const [keywords, setKeywords] = useState("")
-  const [location, setLocation] = useState("")
-  const [company, setCompany] = useState("")
-  const [workType, setWorkType] = useState("")
-  const [maxPages, setMaxPages] = useState(1)
+  const [kind, setKind] = useState<SearchKind>("jobs")
+  const [values, setValues] = useState(initialValues)
   const [result, setResult] = useState<unknown>()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
@@ -72,9 +139,11 @@ export function SearchPage() {
     try {
       setResult(
         await request(`search/${kind}`, {
-          keywords: keywords.trim(),
-          location,
-          ...(kind === "jobs" ? { workType, maxPages } : { company }),
+          keywords: values.keywords.trim(),
+          location: values.location,
+          ...(kind === "jobs"
+            ? { workType: values.workType, maxPages: values.maxPages }
+            : { company: values.company }),
         }),
       )
     } catch (e) {
@@ -83,31 +152,21 @@ export function SearchPage() {
       setBusy(false)
     }
   }
-  const rows = searchRows(result)
   return (
     <Page
       title="Search"
       description="Find the roles and people that fit your direction."
     >
       <Panel title="Explore LinkedIn">
-        <div className="mb-5 flex gap-2">
-          {["jobs", "people"].map((key) => (
-            <Button
-              key={key}
-              size="sm"
-              variant={kind === key ? "secondary" : "outline"}
-              disabled={busy}
-              aria-pressed={kind === key}
-              onClick={() => {
-                setKind(key)
-                setResult(undefined)
-                setError("")
-              }}
-            >
-              {key === "jobs" ? "Opportunities" : "People & recruiters"}
-            </Button>
-          ))}
-        </div>
+        <KindToggle
+          kind={kind}
+          busy={busy}
+          onKind={(key) => {
+            setKind(key)
+            setResult(undefined)
+            setError("")
+          }}
+        />
         <form
           className="space-y-4"
           onSubmit={(e) => {
@@ -115,66 +174,13 @@ export function SearchPage() {
             void search()
           }}
         >
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Keywords">
-              <Input
-                required
-                placeholder={
-                  kind === "jobs"
-                    ? "Product engineer, React…"
-                    : "Technical recruiter…"
-                }
-                value={keywords}
-                disabled={busy}
-                onChange={(e) => setKeywords(e.target.value)}
-              />
-            </Field>
-            <Field label="Location">
-              <Input
-                placeholder="City, country or region"
-                value={location}
-                disabled={busy}
-                onChange={(e) => setLocation(e.target.value)}
-              />
-            </Field>
-            {kind === "people" ? (
-              <Field label="Company">
-                <Input
-                  value={company}
-                  disabled={busy}
-                  onChange={(e) => setCompany(e.target.value)}
-                  placeholder="Target company"
-                />
-              </Field>
-            ) : (
-              <>
-                <Field label="Work arrangement">
-                  <SelectControl
-                    className={controlClass}
-                    value={workType}
-                    disabled={busy}
-                    onChange={(e) => setWorkType(e.target.value)}
-                  >
-                    <option value="">Any arrangement</option>
-                    <option value="remote">Remote</option>
-                    <option value="hybrid">Hybrid</option>
-                    <option value="on-site">On-site</option>
-                  </SelectControl>
-                </Field>
-                <Field label="Pages to search">
-                  <Input
-                    type="number"
-                    min={1}
-                    max={10}
-                    value={maxPages}
-                    disabled={busy}
-                    onChange={(e) => setMaxPages(Number(e.target.value))}
-                  />
-                </Field>
-              </>
-            )}
-          </div>
-          <Button disabled={busy || !keywords.trim()}>
+          <SearchFilters
+            kind={kind}
+            values={values}
+            busy={busy}
+            set={(key, value) => setValues((previous) => ({ ...previous, [key]: value }))}
+          />
+          <Button disabled={busy || !values.keywords.trim()}>
             <SearchIcon className="size-4" />
             {busy ? "Searching LinkedIn…" : "Search LinkedIn"}
           </Button>
@@ -198,124 +204,21 @@ export function SearchPage() {
           />
         </Panel>
       )}
-      {result !== undefined &&
-        (rows.length ? (
-          <Records
-            rows={rows}
-            noun="Search results"
-            onSelect={setSelected}
-            columns={
-              kind === "jobs"
-                ? [
-                    {
-                      key: "title",
-                      label: "Role",
-                      render: (r) => text(r.title ?? r.job_title),
-                    },
-                    {
-                      key: "company",
-                      label: "Company",
-                      render: (r) => text(r.company_name ?? r.company),
-                    },
-                    { key: "location", label: "Location" },
-                  ]
-                : [
-                    {
-                      key: "name",
-                      label: "Name",
-                      render: (r) => text(r.name ?? r.full_name),
-                    },
-                    {
-                      key: "title",
-                      label: "Headline",
-                      render: (r) => text(r.headline ?? r.title),
-                    },
-                    { key: "location", label: "Location" },
-                  ]
-            }
-          />
-        ) : (
-          <Panel title="Search results">
-            {readable(result) &&
-            !["[]", "{}", "null"].includes(readable(result)) ? (
-              <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-                {readable(result)}
-              </div>
-            ) : (
-              <Empty
-                title="No results found"
-                description="Try broader keywords or a different location."
-              />
-            )}
-          </Panel>
-        ))}
+      {result !== undefined && (
+        <SearchResults kind={kind} result={result} onSelect={setSelected} />
+      )}
       <Details
         row={selected}
         title={text(selected?.title ?? selected?.name ?? "Search result")}
         onClose={() => setSelected(null)}
       >
-        <div className="flex flex-wrap gap-2">
-          <ExternalLink
-            value={
-              selected?.url ??
-              selected?.link ??
-              selected?.profile_url ??
-              selected?.job_url
-            }
-          />
-          {kind === "jobs" && (
-            <>
-              <Button
-                variant="outline"
-                disabled={
-                  detailBusy ||
-                  !(
-                    selected?.job_id ??
-                    selected?.id ??
-                    selected?.linkedin_job_id
-                  )
-                }
-                onClick={async () => {
-                  setDetailBusy(true)
-                  try {
-                    const details = await request("search/job-details", {
-                      jobId: String(
-                        selected?.job_id ??
-                          selected?.id ??
-                          selected?.linkedin_job_id,
-                      ),
-                    })
-                    setSelected((r) =>
-                      r ? { ...r, description: readable(details) } : null,
-                    )
-                  } catch (e) {
-                    setSelected((r) =>
-                      r ? { ...r, error: (e as Error).message } : null,
-                    )
-                  } finally {
-                    setDetailBusy(false)
-                  }
-                }}
-              >
-                {detailBusy ? "Loading…" : "Full details"}
-              </Button>
-              <Button
-                onClick={() =>
-                  prepareSkill("deep-scout", {
-                    query: text(
-                      selected?.url ??
-                        selected?.link ??
-                        selected?.job_url ??
-                        selected?.title,
-                    ),
-                  })
-                }
-              >
-                Assess & save with agent
-              </Button>
-            </>
-          )}
-        </div>
+        <ResultActions
+          kind={kind}
+          selected={selected}
+          setSelected={setSelected}
+          detailBusy={detailBusy}
+          setDetailBusy={setDetailBusy}
+        />
       </Details>
     </Page>
   )
