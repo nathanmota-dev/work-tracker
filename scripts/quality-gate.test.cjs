@@ -183,7 +183,9 @@ describe("report provenance", () => {
     assert.throws(() => common.verifyArtifact(file, { layer: "frontend", kind: "eslint", label: "summary" }), /kind/);
     process.env.GITHUB_RUN_ID = "another-run";
     assert.throws(() => common.verifyArtifact(file, { layer: "frontend", kind: "coverage", label: "summary" }), /runId/);
-    delete process.env.GITHUB_RUN_ID;
+    // Restore the run that stamped the report; on GitHub Actions this is the real run ID.
+    if (previousRun === undefined) delete process.env.GITHUB_RUN_ID;
+    else process.env.GITHUB_RUN_ID = previousRun;
     fs.writeFileSync(file, "{\"changed\":true}");
     assert.throws(() => common.verifyArtifact(file, { layer: "frontend", kind: "coverage", label: "summary" }), /sha256/);
     fs.rmSync(common.provenancePath(file));
