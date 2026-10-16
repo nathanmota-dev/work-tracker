@@ -27,7 +27,7 @@ async function connect(): Promise<Client> {
       return c;
     } catch (error) {
       await t.close().catch(() => {});
-      throw new Error(`LinkedIn MCP unavailable. Run work-tracker doctor and configure a local server. ${String(error)}`);
+      throw new Error(`LinkedIn MCP unavailable. Run work-tracker doctor and configure a local server. ${String(error)}`, { cause: error });
     }
   })();
   try { return await connecting; } finally { connecting = null; }

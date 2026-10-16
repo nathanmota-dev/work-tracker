@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { db, now } from "../db/index.ts";
+import { db } from "../db/index.ts";
 import { notifyChange } from "../db/notify.ts";
 
 /**

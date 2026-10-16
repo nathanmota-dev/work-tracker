@@ -36,16 +36,23 @@ export function saveSources(body: unknown): ResumeSourcesConfig {
   saveConfig({ ...loadConfig(), resumeSources: config });
   return config;
 }
+type LiteralNode = {
+  type: string;
+  value?: unknown;
+  expression?: LiteralNode;
+  elements?: LiteralNode[];
+  properties?: { type: string; computed?: boolean; method?: boolean; key: { name?: string; value?: unknown }; value: LiteralNode }[];
+};
 function literal(node: unknown): unknown {
-  const n = node as Record<string, any>;
+  const n = node as LiteralNode | undefined;
   if (!n) throw new PreparationError("Missing resume data.");
   if (["TSAsExpression", "TSSatisfiesExpression"].includes(n.type)) return literal(n.expression);
   if (["StringLiteral", "NumericLiteral", "BooleanLiteral"].includes(n.type)) return n.value;
   if (n.type === "NullLiteral") return null;
-  if (n.type === "ArrayExpression") return n.elements.map(literal);
+  if (n.type === "ArrayExpression") return (n.elements ?? []).map(literal);
   if (n.type === "ObjectExpression") {
     const result: Record<string, unknown> = {};
-    for (const property of n.properties) {
+    for (const property of n.properties ?? []) {
       if (property.type !== "ObjectProperty" || property.computed || property.method) throw new PreparationError("Resume data must contain only literal properties.");
       const key = property.key.name ?? property.key.value;
       if (typeof key !== "string" || ["__proto__", "prototype", "constructor"].includes(key)) throw new PreparationError("Unsupported resume property.");
