@@ -1,0 +1,126 @@
+name: Frontend CI
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      # Frontend sources, configuration and benchmarks.
+      - "web/**"
+      # Backend contracts imported by the frontend.
+      - "src/applications/types.ts"
+      - "src/preparation/types.ts"
+      # Shared manifests, tooling and gates.
+      - "package.json"
+      - "package-lock.json"
+      - "eslint.config.mjs"
+      - "scripts/ci/**"
+      - "scripts/*.cjs"
+      - "scripts/*.json"
+      - ".github/workflows/frontend-ci.yml"
+      - ".github/workflows/quality-gate.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-ci-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Audit, lint, typecheck and unit coverage
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        id: node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Restore Electron downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+          key: electron-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Restore frontend tool caches
+        uses: actions/cache@v4
+        with:
+          path: .cache/work-tracker/frontend
+          key: tools-frontend-${{ runner.os }}-${{ runner.arch }}-node${{ steps.node.outputs.node-version }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('eslint.config.mjs', 'web/tsconfig.json', 'web/vitest.config.ts', 'scripts/ci/layers.json') }}-${{ hashFiles('web/**', 'src/applications/types.ts', 'src/preparation/types.ts') }}
+          restore-keys: |
+            tools-frontend-${{ runner.os }}-${{ runner.arch }}-node${{ steps.node.outputs.node-version }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('eslint.config.mjs', 'web/tsconfig.json', 'web/vitest.config.ts', 'scripts/ci/layers.json') }}-
+
+      - name: Dependency audit (critical blocks, high warns)
+        id: audit
+        continue-on-error: true
+        run: npm run audit:ci -- frontend
+
+      - name: Lint
+        id: lint
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: npm run lint:frontend
+
+      - name: Typecheck
+        id: typecheck
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: npm run typecheck:frontend
+
+      - name: Unit and component tests with coverage
+        id: coverage
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: npm run test:frontend:coverage
+
+      - name: Upload layer reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-checks-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 14
+          if-no-files-found: warn
+          path: |
+            coverage/frontend/unit/
+            reports/frontend/
+
+      - name: Enforce blocking checks
+        if: ${{ !cancelled() }}
+        env:
+          AUDIT: ${{ steps.audit.outcome }}
+          LINT: ${{ steps.lint.outcome }}
+          TYPECHECK: ${{ steps.typecheck.outcome }}
+          COVERAGE: ${{ steps.coverage.outcome }}
+        run: |
+          failures=()
+          [[ "$AUDIT" == "success" ]] || failures+=("critical dependency audit")
+          [[ "$LINT" == "success" ]] || failures+=("lint")
+          [[ "$TYPECHECK" == "success" ]] || failures+=("typecheck")
+          [[ "$COVERAGE" == "success" ]] || failures+=("unit and component tests with coverage")
+          if (( ${#failures[@]} > 0 )); then
+            printf 'Blocking frontend checks failed: %s\n' "${failures[*]}"
+            exit 1
+          fi
+
+  quality:
+    name: Quality gate
+    needs: checks
+    if: ${{ !cancelled() }}
+    uses: ./.github/workflows/quality-gate.yml
+    with:
+      layer: frontend
+      artifact: frontend-checks-${{ github.run_id }}-${{ github.run_attempt }}

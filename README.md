@@ -351,7 +351,21 @@ node scripts/smoke-electron.mjs './release/Work Tracker-1.0.0.AppImage' --no-san
 node scripts/smoke-apply.mjs node_modules/.bin/electron-vite dev --watch --noSandbox
 node scripts/smoke-apply.mjs './release/Work Tracker-1.0.0.AppImage' --no-sandbox
 npm run test:e2e
+npm run lint
+npm run test:infra
+npm run audit:ci
+npm run test:backend:coverage
+npm run test:frontend:coverage
+npm run quality:check
+npm run benchmark
+npm run performance:check
 ```
+
+Os checks adicionais reproduzem localmente os gates do CI: lint com zero erros e
+avisos, testes dos scripts e dos workflows, audit (critical bloqueia, high avisa),
+cobertura de cada camada com piso de 80%, duplicação, limites de 350 linhas por
+arquivo e 100 por função e microbenchmarks. Consulte [CI, quality gate,
+performance e caches](docs/ci.md).
 
 Os unitários do backend ficam ao lado dos módulos (`<modulo>.test.ts`), usam
 Vitest em ambiente Node e são executados sem compilar a CLI. As fronteiras de
@@ -362,9 +376,13 @@ I/O não configuradas e restaura ambiente, globais e relógio entre os casos.
 ```bash
 npm run test:backend              # somente unitários do backend
 npm run test:backend:watch        # acompanha os unitários
-npm run test:backend:coverage     # texto, HTML e JSON de cobertura unitária
+npm run test:backend:coverage     # unitários uma vez, com cobertura (texto, HTML, JSON e resumo)
+npm run test:frontend:coverage    # unitários e componentes do frontend com cobertura
 npm run test:backend:integration  # compila a CLI e executa as integrações preservadas
-npx tsc --noEmit -p tsconfig.node.json  # tipos do backend e desktop
+npm run typecheck:backend         # backend, CLI, Electron main/preload e E2E
+npm run typecheck:frontend        # web
+npm run lint:backend              # ESLint com cache por conteúdo
+npm run lint:frontend
 ```
 
 `npm test` executa os unitários do backend e os testes do frontend. A suíte de
@@ -373,10 +391,11 @@ em memória), homes temporários com espaços, arquivos, HTTP/WebSocket e
 subprocessos locais. Preserva os cenários anteriores de persistência, CLI,
 autenticação, notificações e protocolos MCP/ACP; não acessa contas LinkedIn reais.
 
-Os relatórios completos ficam em `coverage/backend/unit/index.html` e
-`coverage/backend/unit/coverage-final.json`, ignorados pelo Git. Não há meta
-percentual de cobertura. Consulte o [relatório por arquivo](docs/backend-unit-coverage.md)
-para os resultados desta implementação, exclusões e lacunas restantes.
+Os relatórios completos ficam em `coverage/<camada>/unit/` (`index.html`,
+`coverage-final.json` e `coverage-summary.json`), ignorados pelo Git. O quality
+gate exige 80% em statements, branches, funções e linhas em cada camada e impede
+regressões frente à baseline. Consulte o [relatório por arquivo](docs/backend-unit-coverage.md)
+para os resultados do backend, exclusões e lacunas restantes.
 
 O smoke verifica `ready → shutdown → stopped`, banco vazio e remoção do lock.
 Não envia mensagens nem acessa contas LinkedIn reais. As integrações com serviços
@@ -404,6 +423,6 @@ npm run test:e2e:report
 npm run test:e2e:run -- e2e/apply.spec.ts
 ```
 
-O workflow **Electron E2E** executa a suíte em pull requests e pushes em `main`.
+O workflow **Electron E2E** executa a suíte em pull requests destinados à `main`.
 Relatórios HTML e evidências de falhas ficam disponíveis como artifacts por sete
 dias. Consulte [a documentação da suíte](docs/e2e.md).

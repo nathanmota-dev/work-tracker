@@ -29,7 +29,8 @@ export function ApplyPage() {
   const [wide, setWide] = useState(window.innerWidth >= 1100)
   useEffect(() => { const resize = () => setWide(window.innerWidth >= 1100); window.addEventListener("resize", resize); return () => window.removeEventListener("resize", resize) }, [])
   const [pdfTab, setPdfTab] = useState("base")
-  useEffect(() => subscribe(event => { if (event.type === "resume-sources-changed") sources.refresh() }), [sources.refresh])
+  const refreshSources = sources.refresh
+  useEffect(() => subscribe(event => { if (event.type === "resume-sources-changed") refreshSources() }), [refreshSources])
   useEffect(() => { setDescriptionDirty(false); setError("") }, [search.jobId])
   useEffect(() => { if (!descriptionDirty) setDescription(details.data?.job.description ?? "") }, [details.data?.job.description, descriptionDirty])
   const selectedProvider = providers.data?.providers.find(p => p.id === provider) ?? providers.data?.providers.find(p => p.id === providers.data?.default) ?? providers.data?.providers[0]

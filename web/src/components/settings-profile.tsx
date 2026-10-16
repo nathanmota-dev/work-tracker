@@ -13,6 +13,82 @@ import {
   type CandidateProfile,
 } from "@/lib/candidate-profile"
 
+type ChangeField = (key: keyof CandidateProfile, value: string) => void
+
+function ProfileFields({ draft, busy, change }: { draft: CandidateProfile; busy: boolean; change: ChangeField }) {
+  return (
+    <>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="First name">
+          <Input
+            autoComplete="given-name"
+            value={draft.firstName}
+            disabled={busy}
+            onChange={(e) => change("firstName", e.target.value)}
+            placeholder="Your first name"
+          />
+        </Field>
+        <Field label="Last name">
+          <Input
+            autoComplete="family-name"
+            value={draft.lastName}
+            disabled={busy}
+            onChange={(e) => change("lastName", e.target.value)}
+            placeholder="Your last name"
+          />
+        </Field>
+      </div>
+      <Field label="Email">
+        <Input
+          type="email"
+          autoComplete="email"
+          value={draft.email}
+          disabled={busy}
+          onChange={(e) => change("email", e.target.value)}
+          placeholder="you@example.com"
+        />
+      </Field>
+      <Field label="LinkedIn username">
+        <Input
+          autoComplete="off"
+          value={draft.linkedinUsername}
+          disabled={busy}
+          onChange={(e) => change("linkedinUsername", e.target.value)}
+          placeholder="your-name or linkedin.com/in/your-name"
+        />
+      </Field>
+      <p className="text-xs text-muted-foreground">
+        Paste your username or your full LinkedIn profile URL.
+      </p>
+    </>
+  )
+}
+
+function ProfileSharingPanel() {
+  return (
+  <Panel title="One profile, everywhere">
+    <div className="mb-4 inline-flex rounded-xl border bg-muted/30 p-3">
+      <UserRound className="size-5 text-muted-foreground" />
+    </div>
+    <p className="text-sm leading-relaxed text-muted-foreground">
+      Your LinkedIn username is filled in for profile audits. Your name and
+      contact details are available when tailoring resumes and preparing
+      applications.
+    </p>
+    <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+      These details are shared with your{" "}
+      <Link
+        to="/answers"
+        className="text-foreground underline underline-offset-4"
+      >
+        saved answers
+      </Link>
+      , so changes in either place stay in sync.
+    </p>
+  </Panel>
+  )
+}
+
 export function SettingsProfile() {
   const api = useApi<Row[]>("answers")
   const [draft, setDraft] = useState<CandidateProfile>(emptyProfile)
@@ -73,48 +149,7 @@ export function SettingsProfile() {
               void save()
             }}
           >
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="First name">
-                <Input
-                  autoComplete="given-name"
-                  value={draft.firstName}
-                  disabled={busy}
-                  onChange={(e) => change("firstName", e.target.value)}
-                  placeholder="Your first name"
-                />
-              </Field>
-              <Field label="Last name">
-                <Input
-                  autoComplete="family-name"
-                  value={draft.lastName}
-                  disabled={busy}
-                  onChange={(e) => change("lastName", e.target.value)}
-                  placeholder="Your last name"
-                />
-              </Field>
-            </div>
-            <Field label="Email">
-              <Input
-                type="email"
-                autoComplete="email"
-                value={draft.email}
-                disabled={busy}
-                onChange={(e) => change("email", e.target.value)}
-                placeholder="you@example.com"
-              />
-            </Field>
-            <Field label="LinkedIn username">
-              <Input
-                autoComplete="off"
-                value={draft.linkedinUsername}
-                disabled={busy}
-                onChange={(e) => change("linkedinUsername", e.target.value)}
-                placeholder="your-name or linkedin.com/in/your-name"
-              />
-            </Field>
-            <p className="text-xs text-muted-foreground">
-              Paste your username or your full LinkedIn profile URL.
-            </p>
+            <ProfileFields draft={draft} busy={busy} change={change} />
             {error && (
               <p role="alert" className="text-sm text-destructive">
                 {error}
@@ -146,26 +181,7 @@ export function SettingsProfile() {
           </form>
         )}
       </Panel>
-      <Panel title="One profile, everywhere">
-        <div className="mb-4 inline-flex rounded-xl border bg-muted/30 p-3">
-          <UserRound className="size-5 text-muted-foreground" />
-        </div>
-        <p className="text-sm leading-relaxed text-muted-foreground">
-          Your LinkedIn username is filled in for profile audits. Your name and
-          contact details are available when tailoring resumes and preparing
-          applications.
-        </p>
-        <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-          These details are shared with your{" "}
-          <Link
-            to="/answers"
-            className="text-foreground underline underline-offset-4"
-          >
-            saved answers
-          </Link>
-          , so changes in either place stay in sync.
-        </p>
-      </Panel>
+      <ProfileSharingPanel />
     </div>
   )
 }

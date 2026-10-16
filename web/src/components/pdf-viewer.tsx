@@ -24,12 +24,13 @@ export function PdfViewer({ title, artifact }: { title: string; artifact?: PdfAr
     observer.observe(container.current)
     return () => observer.disconnect()
   }, [])
+  const artifactId = artifact?.id
   useEffect(() => {
     let active = true
     setBytes(undefined); setError(""); setPage(1); setPages(0)
-    if (artifact) window.desktop?.readPdf(artifact.id).then(buffer => { if (active) setBytes(new Uint8Array(buffer)) }).catch(e => { if (active) setError(e.message) })
+    if (artifactId) window.desktop?.readPdf(artifactId).then(buffer => { if (active) setBytes(new Uint8Array(buffer)) }).catch(e => { if (active) setError(e.message) })
     return () => { active = false }
-  }, [artifact?.id])
+  }, [artifactId])
   const file = useMemo(() => bytes ? { data: bytes } : undefined, [bytes])
   return <Panel title={title} action={artifact && <Button size="icon-sm" variant="outline" aria-label={`Download ${title}`} onClick={() => void window.desktop?.savePdf(artifact.id).catch(e => setError(e.message))}><Download /></Button>}>
     {artifact && <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">

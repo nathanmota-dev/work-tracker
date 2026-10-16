@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "generatedFromCommit": "570ba25c3664",
+  "policy": {
+    "minimumCoverage": 80,
+    "maxFileLines": 350,
+    "maxFunctionLines": 100,
+    "duplication": {
+      "minLines": 5,
+      "minTokens": 50,
+      "mode": "strict"
+    }
+  },
+  "layers": {
+    "backend": {
+      "coverage": {
+        "statements": {
+          "covered": 2362,
+          "total": 2396
+        },
+        "branches": {
+          "covered": 1605,
+          "total": 1706
+        },
+        "functions": {
+          "covered": 444,
+          "total": 453
+        },
+        "lines": {
+          "covered": 1966,
+          "total": 1974
+        }
+      },
+      "duplication": {
+        "duplicatedLines": 0,
+        "totalLines": 6155,
+        "fragments": 0
+      },
+      "violations": {
+        "lint": 0,
+        "oversizedFiles": 0,
+        "oversizedFunctions": 0
+      }
+    },
+    "frontend": {
+      "coverage": {
+        "statements": {
+          "covered": 1468,
+          "total": 1644
+        },
+        "branches": {
+          "covered": 1221,
+          "total": 1462
+        },
+        "functions": {
+          "covered": 605,
+          "total": 719
+        },
+        "lines": {
+          "covered": 1270,
+          "total": 1405
+        }
+      },
+      "duplication": {
+        "duplicatedLines": 32,
+        "totalLines": 8906,
+        "fragments": 2
+      },
+      "violations": {
+        "lint": 0,
+        "oversizedFiles": 0,
+        "oversizedFunctions": 0
+      }
+    }
+  }
+}

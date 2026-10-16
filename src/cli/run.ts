@@ -1,4 +1,4 @@
-import { parseFlags } from "./flags.ts";
+import { parseFlags, type Flags } from "./flags.ts";
 import { initCmd } from "./init.ts";
 import { setupCmd } from "./setup.ts";
 import { recruiterCmd } from "./recruiter.ts";
@@ -58,6 +58,66 @@ Options:
   -v, --version     Show version
 `;
 
+/** Returns true when the command keeps running and must not close resources. */
+type Command = (positionals: string[], flags: Flags) => Promise<boolean | void> | boolean | void;
+
+async function serveCmd(_positionals: string[], flags: Flags): Promise<boolean> {
+  const { dashboardCmd } = await import("../server/index.ts");
+  await dashboardCmd(flags);
+  return true;
+}
+
+const commands: Record<string, Command> = {
+  "fetch-profile": async ([username]) => {
+    const { fetchProfile } = await import("./fetch-profile.ts");
+    await fetchProfile(username);
+  },
+  doctor: async () => {
+    const { doctor } = await import("./doctor.ts");
+    console.log(JSON.stringify(doctor(), null, 2));
+  },
+  serve: serveCmd,
+  backend: serveCmd,
+  dashboard: serveCmd,
+  init: () => initCmd(),
+  setup: (_positionals, flags) => setupCmd(flags),
+  "import-journey": async ([file]) => {
+    if (!file) {
+      console.error("error: usage: work-tracker import-journey <FILE.md>");
+      process.exit(1);
+    }
+    await importJourneyCmd(file);
+  },
+  recruiter: ([sub], flags) => recruiterCmd(sub ?? "", flags),
+  outreach: async ([sub], flags) => {
+    const { outreachCmd } = await import("./outreach.ts");
+    await outreachCmd(sub ?? "", flags);
+  },
+  job: ([sub], flags) => jobCmd(sub ?? "", flags),
+  metric: (_positionals, flags) => metricCmd(flags), // `record` subcommand is implicit
+  score: (_positionals, flags) => scoreCmd(flags),
+  interview: ([sub], flags) => interviewCmd(sub ?? "", flags),
+  application: ([sub], flags) => applicationCmd(sub ?? "", flags),
+  answer: ([sub], flags) => answerCmd(sub ?? "", flags),
+  match: async (_positionals, flags) => {
+    const { matchCmd } = await import("./match.ts");
+    await matchCmd(flags);
+  },
+  "detect-portal": async (_positionals, flags) => {
+    const { detectPortalCmd } = await import("./detect-portal.ts");
+    await detectPortalCmd(flags);
+  },
+  export: async (_positionals, flags) => {
+    const { exportCmd } = await import("./export.ts");
+    await exportCmd(flags);
+  },
+  activity: (_positionals, flags) => activityCmd(flags),
+  linkedin: async ([sub], flags) => {
+    const { linkedinCmd } = await import("./linkedin.ts");
+    await linkedinCmd(sub ?? "", flags);
+  },
+};
+
 export async function runCli(argv: string[]): Promise<void> {
   const cmd = argv[0];
   const rest = argv.slice(1);
@@ -71,98 +131,13 @@ export async function runCli(argv: string[]): Promise<void> {
     return;
   }
   const { positionals, flags } = parseFlags(rest);
-
-  switch (cmd) {
-    case "fetch-profile": {
-      const { fetchProfile } = await import("./fetch-profile.ts");
-      await fetchProfile(positionals[0]);
-      break;
-    }
-    case "doctor": {
-      const { doctor } = await import("./doctor.ts");
-      console.log(JSON.stringify(doctor(), null, 2));
-      break;
-    }
-    case "serve":
-    case "backend": {
-      const { dashboardCmd } = await import("../server/index.ts");
-      await dashboardCmd(flags);
-      return;
-    }
-    case "init":
-      initCmd();
-      break;
-    case "setup":
-      await setupCmd(flags);
-      break;
-    case "dashboard": {
-      const { dashboardCmd } = await import("../server/index.ts");
-      await dashboardCmd(flags);
-      return;
-    }
-    case "import-journey": {
-      const file = positionals[0];
-      if (!file) {
-        console.error("error: usage: work-tracker import-journey <FILE.md>");
-        process.exit(1);
-      }
-      await importJourneyCmd(file);
-      break;
-    }
-    case "recruiter":
-      await recruiterCmd(positionals[0] ?? "", flags);
-      break;
-    case "outreach": {
-      const { outreachCmd } = await import("./outreach.ts");
-      await outreachCmd(positionals[0] ?? "", flags);
-      break;
-    }
-    case "job":
-      await jobCmd(positionals[0] ?? "", flags);
-      break;
-    case "metric":
-      await metricCmd(flags); // `record` subcommand is implicit
-      break;
-    case "score":
-      await scoreCmd(flags);
-      break;
-    case "interview":
-      await interviewCmd(positionals[0] ?? "", flags);
-      break;
-    case "application":
-      await applicationCmd(positionals[0] ?? "", flags);
-      break;
-    case "answer":
-      await answerCmd(positionals[0] ?? "", flags);
-      break;
-    case "match": {
-      const { matchCmd } = await import("./match.ts");
-      await matchCmd(flags);
-      break;
-    }
-    case "detect-portal": {
-      const { detectPortalCmd } = await import("./detect-portal.ts");
-      await detectPortalCmd(flags);
-      break;
-    }
-    case "export": {
-      const { exportCmd } = await import("./export.ts");
-      await exportCmd(flags);
-      break;
-    }
-    case "activity":
-      await activityCmd(flags);
-      break;
-    case "linkedin": {
-      const { linkedinCmd } = await import("./linkedin.ts");
-      await linkedinCmd(positionals[0] ?? "", flags);
-      break;
-    }
-    default:
-      console.error(`unknown command: ${cmd}\n`);
-      console.log(HELP);
-      process.exit(1);
+  const command = Object.hasOwn(commands, cmd) ? commands[cmd] : undefined;
+  if (!command) {
+    console.error(`unknown command: ${cmd}\n`);
+    console.log(HELP);
+    process.exit(1);
   }
+  if (command && (await command(positionals, flags))) return;
 
   await closeMcp();
   closeDb();

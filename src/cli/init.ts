@@ -1,4 +1,4 @@
-import { db, now } from "../db/index.ts";
+import { db } from "../db/index.ts";
 import { ensureHome, paths, loadConfig, saveConfig } from "../paths.ts";
 
 /** work-tracker init — scaffold ~/.work-tracker/, create db, seed config */

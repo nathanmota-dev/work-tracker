@@ -1,12 +1,12 @@
 name: Electron E2E
 on:
   pull_request:
-  push:
     branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
 permissions:
   contents: read
 concurrency:
-  group: electron-e2e-${{ github.ref }}
+  group: electron-e2e-pr-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 jobs:
   e2e:
@@ -14,11 +14,20 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
+      - name: Restore Electron downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+          key: electron-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}
+      - run: npm ci --prefer-offline --no-audit
       - name: Install system dependencies
         run: |
           npx playwright install-deps chromium

@@ -2,12 +2,12 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Page,
-  Records,
   Details,
   LoadState,
   Status,
   ExternalLink,
 } from "@/components/workspace-ui"
+import { Records } from "@/components/records"
 import { useApi, text, date, type Row } from "@/lib/api"
 import { openApply } from "@/lib/preparation"
 export function ApplicationsPage() {

@@ -1,0 +1,185 @@
+name: Backend CI
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      # Backend, CLI, Electron main/preload and integration resources.
+      - "src/**"
+      - "desktop/**"
+      - "resources/**"
+      - "e2e/**"
+      - "scripts/**"
+      - "benchmarks/**"
+      - "electron.vite.config.mts"
+      - "playwright.config.ts"
+      - "tsconfig.node.json"
+      - "tsconfig.e2e.json"
+      - "vitest.config.mts"
+      - "vitest.integration.config.mts"
+      - "vitest.benchmark.config.mts"
+      # Shared manifests, tooling and gates.
+      - "package.json"
+      - "package-lock.json"
+      - "eslint.config.mjs"
+      - ".github/workflows/backend-ci.yml"
+      - ".github/workflows/quality-gate.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-ci-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Audit, lint, typecheck and unit coverage
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        id: node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Restore Electron downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+          key: electron-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Restore backend tool caches
+        uses: actions/cache@v4
+        with:
+          path: .cache/work-tracker/backend
+          key: tools-backend-${{ runner.os }}-${{ runner.arch }}-node${{ steps.node.outputs.node-version }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('eslint.config.mjs', 'tsconfig.node.json', 'tsconfig.e2e.json', 'vitest.config.mts', 'scripts/ci/layers.json') }}-${{ hashFiles('src/**', 'desktop/**', 'e2e/**', 'scripts/**', 'benchmarks/**') }}
+          restore-keys: |
+            tools-backend-${{ runner.os }}-${{ runner.arch }}-node${{ steps.node.outputs.node-version }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('eslint.config.mjs', 'tsconfig.node.json', 'tsconfig.e2e.json', 'vitest.config.mts', 'scripts/ci/layers.json') }}-
+
+      - name: Dependency audit (critical blocks, high warns)
+        id: audit
+        continue-on-error: true
+        run: npm run audit:ci -- backend
+
+      - name: Lint
+        id: lint
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: npm run lint:backend
+
+      - name: Typecheck backend, Electron main/preload and E2E sources
+        id: typecheck
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: npm run typecheck:backend
+
+      - name: Unit tests with coverage
+        id: coverage
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: npm run test:backend:coverage
+
+      - name: Upload layer reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-checks-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 14
+          if-no-files-found: warn
+          path: |
+            coverage/backend/unit/
+            reports/backend/
+
+      - name: Enforce blocking checks
+        if: ${{ !cancelled() }}
+        env:
+          AUDIT: ${{ steps.audit.outcome }}
+          LINT: ${{ steps.lint.outcome }}
+          TYPECHECK: ${{ steps.typecheck.outcome }}
+          COVERAGE: ${{ steps.coverage.outcome }}
+        run: |
+          failures=()
+          [[ "$AUDIT" == "success" ]] || failures+=("critical dependency audit")
+          [[ "$LINT" == "success" ]] || failures+=("lint")
+          [[ "$TYPECHECK" == "success" ]] || failures+=("typecheck")
+          [[ "$COVERAGE" == "success" ]] || failures+=("unit tests with coverage")
+          if (( ${#failures[@]} > 0 )); then
+            printf 'Blocking backend checks failed: %s\n' "${failures[*]}"
+            exit 1
+          fi
+
+  quality:
+    name: Quality gate
+    needs: checks
+    if: ${{ !cancelled() }}
+    uses: ./.github/workflows/quality-gate.yml
+    with:
+      layer: backend
+      artifact: backend-checks-${{ github.run_id }}-${{ github.run_attempt }}
+
+  integration:
+    name: Integration tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        id: node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Restore Electron downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+          key: electron-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Restore integration tool caches
+        uses: actions/cache@v4
+        with:
+          path: .cache/work-tracker/integration
+          key: tools-integration-${{ runner.os }}-${{ runner.arch }}-node${{ steps.node.outputs.node-version }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('vitest.integration.config.mts') }}-${{ hashFiles('src/**', 'resources/**') }}
+          restore-keys: |
+            tools-integration-${{ runner.os }}-${{ runner.arch }}-node${{ steps.node.outputs.node-version }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('vitest.integration.config.mts') }}-
+
+      - name: Install LaTeX and Poppler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends latexmk texlive-latex-base poppler-utils
+
+      - name: Integration tests
+        run: npm run test:backend:integration -- --reporter=default --reporter=junit --outputFile.junit=reports/integration/junit.xml
+
+      - name: Upload integration report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-integration-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 14
+          if-no-files-found: warn
+          path: reports/integration/

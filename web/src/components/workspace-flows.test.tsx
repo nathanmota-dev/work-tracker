@@ -4,7 +4,7 @@ import { AnswersPage } from "@/routes/answers"
 import { JobsPage } from "@/routes/jobs"
 import { SearchPage, searchRows } from "@/routes/search"
 import { publish, useApi } from "@/lib/api"
-import { Records } from "@/components/workspace-ui"
+import { Records } from "@/components/records"
 const request = vi.fn()
 beforeEach(() => {
   request.mockReset()

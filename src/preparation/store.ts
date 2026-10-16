@@ -14,7 +14,8 @@ export function runRecord(id: string): PreparationRun {
   const { events_json, manifest_json: _manifest, options_json: _options, ...run } = row;
   return { ...run, events: JSON.parse(events_json), artifacts: artifactsForRun(id) };
 }
-export function runManifest(id: string): Record<string, any> {
+export type RunManifest = { manifestPath: string; reportPath: string; coverPath: string; [key: string]: string };
+export function runManifest(id: string): RunManifest {
   const row = db().query("SELECT manifest_json FROM application_runs WHERE id = ?").get(id) as { manifest_json: string } | undefined;
   if (!row) throw new PreparationError("Preparation run not found.", 404);
   return JSON.parse(row.manifest_json);

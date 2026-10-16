@@ -1,12 +1,12 @@
 import { useState } from "react"
 import {
   Page,
-  Records,
   Details,
   Stats,
   LoadState,
   Status,
 } from "@/components/workspace-ui"
+import { Records } from "@/components/records"
 import { useApi, text, date, type Row } from "@/lib/api"
 export function InterviewsPage() {
   const api = useApi<Row[]>("interviews")

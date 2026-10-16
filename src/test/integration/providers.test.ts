@@ -10,7 +10,7 @@ process.env.WORK_TRACKER_HOME = home;
 process.env.WORK_TRACKER_RESOURCES = resolve("resources");
 const fixture = resolve("src/test/fixtures/protocol-server.cjs");
 const { paths, saveConfig } = await import("../../paths.ts");
-const { getProvider, listProviderModels } = await import(
+const { listProviderModels } = await import(
   "../../acp/providers.ts"
 );
 const { AcpClient } = await import("../../acp/client.ts");
