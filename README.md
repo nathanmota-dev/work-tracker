@@ -153,7 +153,7 @@ Sem override, os dados do app ficam em `~/.work-tracker`; a sessão do LinkedIn 
 fica no perfil padrão do próprio servidor (`~/.linkedin-mcp/profile`):
 
 ```text
-work-tracker.db             SQLite, WAL, foreign keys, migração inicial própria
+work-tracker.db             SQLite, WAL, foreign keys, migrações versionadas
 config.json                configuração própria, inicialmente {}
 backend.lock               porta, token aleatório e PID; removido ao encerrar
 workspace/                 cwd privado dos agentes e skills work-tracker-*
@@ -162,7 +162,11 @@ bin/                       wrapper work-tracker disponível no PATH dos agentes
 agents/                    configuração/autenticação privada dos providers
 browsers/linkedin/profile/ perfil legado, preservado para recuperação
 browsers/chrome/profile/   perfil da janela de login aberta pelo app
+backups/                   cópias consistentes antes de migrações incompatíveis
 ```
+
+Versões do esquema, verificações de integridade e recuperação a partir de uma
+cópia pré-migração estão em [Migrações do banco e recuperação](docs/database-migrations.md).
 
 Não há leitura de banco, configuração, skills ou checkout do Mercury, instalação
 automática de MCPs ou atualizador externo. `setup` copia apenas recursos deste app
