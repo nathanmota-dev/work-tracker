@@ -13,7 +13,10 @@ import { SCHEMA_VERSION } from "../../db/schema.ts";
 const home = mkdtempSync(join(tmpdir(), "work-tracker-runner-"));
 afterAll(() => rmSync(home, { recursive: true, force: true }));
 const clock = () => new Date("2026-10-16T12:00:00.000Z");
-const options = { backupDir: join(home, "backups"), clock };
+// Runner semantics are pinned to the v3 baseline; the real plan has its own tests.
+const baseline = MIGRATIONS.filter((migration) => migration.version <= 3);
+const options = { backupDir: join(home, "backups"), clock, migrations: baseline, target: 3 };
+const latest = { backupDir: join(home, "latest-backups"), clock };
 let files = 0;
 const open = () => {
   const d = new Database(join(home, `runner-${files++}.db`));
@@ -28,13 +31,15 @@ const current = () => {
   migrateDatabase(d, options);
   return d;
 };
+const plan = (...steps: Migration[]) => ({ ...options, migrations: [...baseline, ...steps], target: steps.at(-1)!.version });
 
 test("creates a new database at the latest version without running steps", () => {
   const d = open();
-  expect(migrateDatabase(d, options)).toEqual({ mode: "created", from: null, to: SCHEMA_VERSION, applied: [], backup: null });
+  expect(migrateDatabase(d, latest)).toEqual({ mode: "created", from: null, to: SCHEMA_VERSION, applied: [], backup: null });
   expect(version(d)).toBe(String(SCHEMA_VERSION));
   expect(d.query("SELECT version, name, applied_at FROM schema_migrations").all()).toEqual([
     { version: 3, name: "legacy additive baseline", applied_at: "2026-10-16T12:00:00.000Z" },
+    { version: 4, name: "application journey model", applied_at: "2026-10-16T12:00:00.000Z" },
   ]);
   expect(value(d, "SELECT COUNT(*) FROM outreach_budget")).toBe(1);
 });
@@ -50,6 +55,13 @@ test("upgrades an unversioned legacy workspace in place, keeping IDs and links",
   ]);
   expect(value(d, "PRAGMA foreign_keys")).toBe(1);
   expect(existsSync(options.backupDir)).toBe(false);
+  // The journey step then snapshots it and flags the ambiguous status for review.
+  const result = migrateDatabase(d, latest);
+  expect(result).toMatchObject({ mode: "migrated", from: 3, to: SCHEMA_VERSION, applied: [4] });
+  expect(existsSync(result.backup!)).toBe(true);
+  expect(d.query("SELECT id, job_id, status, submission_status, review_reason, attempt FROM applications").all()).toEqual([
+    { id: 7, job_id: 41, status: "applied", submission_status: "not_submitted", review_reason: "unknown_status", attempt: 1 },
+  ]);
 });
 test("an up-to-date workspace only receives additive changes and repeated opens add nothing", () => {
   const d = current();
@@ -62,13 +74,13 @@ test("an up-to-date workspace only receives additive changes and repeated opens 
 test("runs pending steps in order, records each one and snapshots before incompatible steps", () => {
   const d = current();
   const order: number[] = [];
-  const plan = [
-    ...MIGRATIONS,
+  const steps = [
+    ...baseline,
     step(4, () => order.push(4)),
     step(5, (db) => { order.push(5); db.exec("ALTER TABLE jobs RENAME COLUMN comp TO compensation"); }, { incompatible: true }),
   ];
   const backup = join(options.backupDir, "work-tracker-v3-to-v5-2026-10-16T12-00-00-000Z.db");
-  expect(migrateDatabase(d, { ...options, migrations: plan, target: 5 })).toEqual({
+  expect(migrateDatabase(d, { ...options, migrations: steps, target: 5 })).toEqual({
     mode: "migrated", from: 3, to: 5, applied: [4, 5], backup,
   });
   expect(order).toEqual([4, 5]);
@@ -84,7 +96,7 @@ test("a failed snapshot stops the migration before any step runs", () => {
   const up = vi.fn();
   const blocked = join(home, "not-a-directory");
   writeFileSync(blocked, "");
-  expect(() => migrateDatabase(d, { ...options, backupDir: blocked, migrations: [...MIGRATIONS, step(4, up, { incompatible: true })], target: 4 })).toThrow();
+  expect(() => migrateDatabase(d, { ...plan(step(4, up, { incompatible: true })), backupDir: blocked })).toThrow();
   expect(up).not.toHaveBeenCalled();
   expect(readdirSync(home).filter((name) => name.endsWith(".partial"))).toEqual([]);
   expect(version(d)).toBe("3");
@@ -98,8 +110,7 @@ test.each([
 ])("rolls back every pending step when %s", (_case, failing) => {
   const d = current();
   d.exec("INSERT INTO jobs (id, title) VALUES (1, 'Kept'); CREATE TABLE legacy_notes (body TEXT)");
-  const plan = [...MIGRATIONS, step(4, (db) => db.exec("UPDATE jobs SET title = 'Changed'")), failing];
-  expect(() => migrateDatabase(d, { ...options, migrations: plan, target: 5 })).toThrow();
+  expect(() => migrateDatabase(d, plan(step(4, (db) => db.exec("UPDATE jobs SET title = 'Changed'")), failing))).toThrow();
   expect(version(d)).toBe("3");
   expect(value(d, "SELECT title FROM jobs WHERE id = 1")).toBe("Kept");
   expect(value(d, "SELECT COUNT(*) FROM schema_migrations WHERE version > 3")).toBe(0);
@@ -110,19 +121,19 @@ test.each([
 test("reports integrity failures as MigrationIntegrityError and tolerates links broken before migrating", () => {
   const d = current();
   d.exec("PRAGMA foreign_keys = OFF; INSERT INTO applications (id, job_id) VALUES (1, 500); PRAGMA foreign_keys = ON;");
-  const plan = [...MIGRATIONS, step(4, () => {})];
-  expect(migrateDatabase(d, { ...options, migrations: plan, target: 4 }).applied).toEqual([4]);
-  const breaking = [...plan, step(5, (db) => db.exec("INSERT INTO interviews (company, job_id) VALUES ('x', 9)"))];
-  expect(() => migrateDatabase(d, { ...options, migrations: breaking, target: 5 })).toThrow(MigrationIntegrityError);
-  expect(() => migrateDatabase(d, { ...options, migrations: breaking, target: 5 })).toThrow("broke 1 foreign key link(s): interviews");
+  const first = step(4, () => {});
+  expect(migrateDatabase(d, plan(first)).applied).toEqual([4]);
+  const breaking = plan(first, step(5, (db) => db.exec("INSERT INTO interviews (company, job_id) VALUES ('x', 9)")));
+  expect(() => migrateDatabase(d, breaking)).toThrow(MigrationIntegrityError);
+  expect(() => migrateDatabase(d, breaking)).toThrow("broke 1 foreign key link(s): interviews");
 });
 test("refuses a damaged database before changing it", () => {
   const d = current();
   const query = d.query.bind(d);
   vi.spyOn(d, "query").mockImplementation((sql) => sql === "PRAGMA quick_check" ? { ...query("SELECT 1"), get: () => ({ quick_check: "corrupt" }) } : query(sql));
-  expect(() => migrateDatabase(d, { ...options, migrations: [...MIGRATIONS, step(4, () => {})], target: 4 })).toThrow("integrity check failed before migration: corrupt");
+  expect(() => migrateDatabase(d, plan(step(4, () => {})))).toThrow("integrity check failed before migration: corrupt");
   vi.mocked(d.query).mockImplementation((sql) => sql === "PRAGMA quick_check" ? { ...query("SELECT 1"), get: () => undefined } : query(sql));
-  expect(() => migrateDatabase(d, { ...options, migrations: [...MIGRATIONS, step(4, () => {})], target: 4 })).toThrow("no result");
+  expect(() => migrateDatabase(d, plan(step(4, () => {})))).toThrow("no result");
   expect(version(d)).toBe("3");
 });
 test.each([

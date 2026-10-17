@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Database } from "../../db/sqlite.ts";
-import { DEFAULT_APPLICATION_STAGES } from "../../db/schema.ts";
+import { DEFAULT_APPLICATION_STAGES, SCHEMA_VERSION } from "../../db/schema.ts";
 import type {
   ApplicationActions,
   ApplicationDetails,
@@ -75,7 +75,7 @@ beforeAll(async () => {
 });
 beforeEach(() => {
   db().exec(
-    "DELETE FROM application_events; DELETE FROM applications WHERE current_stage_id IS NOT NULL; DELETE FROM application_stages WHERE key NOT IN ('applied', 'recruiter', 'technical', 'offer');",
+    "DELETE FROM application_events; DELETE FROM application_transitions; DELETE FROM applications WHERE current_stage_id IS NOT NULL; DELETE FROM application_stages WHERE key NOT IN ('applied', 'recruiter', 'technical', 'offer');",
   );
   DEFAULT_APPLICATION_STAGES.forEach((stage, position) =>
     db()
@@ -109,7 +109,7 @@ test("additive migration preserves legacy applications and is idempotent after r
   expect(list().stages).toHaveLength(4);
   expect(
     db().query("SELECT value FROM meta WHERE key='schema_version'").get(),
-  ).toEqual({ value: "3" });
+  ).toEqual({ value: String(SCHEMA_VERSION) });
   const record = create();
   action("stages/save", {
     id: findStage("technical").id,
@@ -126,7 +126,9 @@ test("additive migration preserves legacy applications and is idempotent after r
     expect.objectContaining({
       id: record.id,
       company_name: "Acme",
-      status: "applied",
+      status: "submitted",
+      origin: "manual",
+      submission_status: "submitted",
     }),
   );
 });
@@ -182,7 +184,7 @@ test("partial edits clear optional fields and preserve stage, ATS status and his
   expect(details(record.id).events).toHaveLength(1);
   expect(
     db().query("SELECT status FROM applications WHERE id = ?").get(record.id),
-  ).toEqual({ status: "applied" });
+  ).toEqual({ status: "submitted" });
 });
 
 test("skipping, returning and repeat moves preserve actual visits and name snapshots", () => {

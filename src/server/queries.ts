@@ -153,7 +153,9 @@ export const queries = {
                COALESCE(a.company_name, j.company_name) AS company_name,
                a.resume_path, a.cover_letter_path, a.report_path,
                a.keyword_score, a.status, a.applied_at,
-               a.portal, a.external_url, a.fields_filled_json, a.unfilled_json
+               a.portal, a.external_url, a.fields_filled_json, a.unfilled_json,
+               a.origin, a.attempt, a.preparation_status, a.fill_status, a.submission_status,
+               a.submitted_at, a.review_reason, j.linkedin_job_id
         FROM applications a LEFT JOIN jobs j ON j.id = a.job_id
         ORDER BY a.id DESC
       `)

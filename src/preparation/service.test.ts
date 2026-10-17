@@ -21,6 +21,15 @@ import {
 } from "./store.ts";
 import { PreparationService, readableJobDetails } from "./service.ts";
 import type { PreparationRun, PdfArtifact } from "./types.ts";
+import {
+  journeyRecord,
+  latestForJob,
+  openApplication,
+  settleExecution,
+  transition,
+  type JourneyRecord,
+} from "../applications/journey-store.ts";
+import { planTransition, type JourneyAction } from "../applications/journey.ts";
 type ApiEvent = Record<string, unknown>;
 vi.mock("../db/index.ts", () => ({ db: vi.fn(), now: () => "now" }));
 vi.mock("../paths.ts", () => ({ paths: { artifacts: "/artifacts" } }));
@@ -36,6 +45,13 @@ vi.mock("./sources.ts", async (original) => ({
   snapshotSources: vi.fn(),
   sourcesConfig: vi.fn(),
   writeSnapshot: vi.fn(),
+}));
+vi.mock("../applications/journey-store.ts", () => ({
+  journeyRecord: vi.fn(),
+  latestForJob: vi.fn(),
+  openApplication: vi.fn(),
+  settleExecution: vi.fn(),
+  transition: vi.fn(),
 }));
 vi.mock("./store.ts", () => ({
   addArtifact: vi.fn(),
@@ -65,6 +81,8 @@ let application:
     }
   | undefined;
 let run: PreparationRun;
+let journey: JourneyRecord;
+const actions = () => vi.mocked(transition).mock.calls.map((call) => call[2]);
 let listener: (event: ApiEvent) => void;
 const acp = {
   run: vi.fn(),
@@ -97,6 +115,34 @@ beforeEach(() => {
     external_url: "https://portal.invalid",
     preparation_run_id: null,
   };
+  journey = {
+    id: 2,
+    job_id: 1,
+    origin: "preparation",
+    attempt: 1,
+    previous_application_id: null,
+    preparation_status: "ready",
+    fill_status: "not_started",
+    submission_status: "not_submitted",
+    tracking_status: null,
+    submitted_at: null,
+    applied_at: null,
+    review_reason: null,
+    preparation_run_id: null,
+    external_url: "https://portal.invalid",
+    status: "draft",
+    has_fill_result: 0,
+  };
+  // The double applies the real transition table to the fixture record.
+  vi.mocked(journeyRecord).mockReset().mockImplementation(() => journey);
+  vi.mocked(latestForJob).mockReset().mockImplementation(() => journey);
+  vi.mocked(openApplication).mockReset().mockImplementation(() => ({ record: journey, created: true }));
+  vi.mocked(settleExecution).mockReset();
+  vi.mocked(transition).mockReset().mockImplementation((_d, _id, action: JourneyAction) => {
+    const { changed, next } = planTransition(journey, action);
+    Object.assign(journey, next);
+    return { record: journey, changed };
+  });
   run = {
     id: "r",
     job_id: 1,
@@ -215,9 +261,21 @@ test.each([
   expect(readableJobDetails(input)).toBe(expected);
 });
 test("marks running records interrupted on startup and removes event subscription on close", async () => {
-  expect(d.query.mock.calls[0]![0]).toContain("status = 'interrupted'");
+  expect(d.query.mock.calls.some(([sql]) => sql.includes("status = 'interrupted'"))).toBe(true);
   await service.close();
   expect(unsubscribe).toHaveBeenCalled();
+});
+test("startup settles the journey of interrupted generation and fill runs as failed", async () => {
+  d.statement.all.mockReturnValueOnce([
+    { id: "gen", application_id: 2, phase: "tailoring" },
+    { id: "fill", application_id: 3, phase: "filling" },
+    { id: "orphan", application_id: null, phase: "preparing" },
+  ]);
+  const restarted = new PreparationService(acp, broadcast);
+  expect(settleExecution).toHaveBeenCalledWith(d.asDatabase, 2, "preparation", "failed", "gen");
+  expect(settleExecution).toHaveBeenCalledWith(d.asDatabase, 3, "fill", "failed", "fill");
+  expect(settleExecution).toHaveBeenCalledTimes(2);
+  await restarted.close();
 });
 test("reports source dependencies, cache and warnings without generating output", async () => {
   expect(await service.sourcesState()).toEqual(
@@ -271,7 +329,11 @@ test("blocks concurrent execution and cancels a pending preview", async () => {
 test("details enforces job/application identity and exposes history/status", () => {
   d.statement.all.mockReturnValue([{ id: "r" }]);
   expect(service.details({ jobId: 1, applicationId: 2 })).toEqual(
-    expect.objectContaining({ runs: [run], applicationStatus: "draft" }),
+    expect.objectContaining({
+      runs: [run],
+      applicationStatus: "draft",
+      journey: expect.objectContaining({ preparation_status: "ready", submission_status: "not_submitted" }),
+    }),
   );
   application = undefined;
   expect(() => service.details({ jobId: 1, applicationId: 2 })).toThrow(
@@ -295,10 +357,11 @@ test("rejects invalid generation targets/providers and submitted applications", 
     "Restore",
   );
   job.archived_at = null;
-  application!.status = "submitted";
+  journey.submission_status = "submitted";
   expect(() =>
     service.generate({ jobId: 1, provider: "agent", applicationId: 2 }),
   ).toThrow("already submitted");
+  expect(transition).not.toHaveBeenCalled();
   application = undefined;
   expect(() =>
     service.generate({ jobId: 1, provider: "agent", applicationId: 2 }),
@@ -329,32 +392,29 @@ test("generates a validated PDF, snapshots inputs and only then updates the appl
     expect.objectContaining({ warnings: [expect.stringContaining("2 pages")] }),
   );
   expect(run.status).toBe("completed");
+  expect(actions()).toEqual(["prepare.start", "prepare.complete", "fill.reset"]);
+  // A generated resume is never a submission.
+  expect(journey).toMatchObject({ preparation_status: "ready", submission_status: "not_submitted" });
   expect(broadcast).toHaveBeenCalledWith({
     type: "changed",
     table: "applications",
   });
 });
 test("creates an application only when generation has no existing application", async () => {
-  application = undefined;
   run.application_id = null;
-  d.query.mockImplementation((sql) => ({
-    ...d.statement,
-    get: vi.fn(() =>
-      sql.includes("FROM jobs")
-        ? job
-        : sql.includes("SELECT id FROM applications WHERE job_id")
-          ? undefined
-          : sql.includes("INSERT INTO applications")
-            ? { id: 2 }
-            : { status: "draft" },
-    ),
-  }));
+  vi.mocked(latestForJob).mockReturnValue(undefined);
+  journey.preparation_status = "not_started";
   service.generate({ jobId: 1, provider: "agent" });
   await settle();
+  expect(openApplication).toHaveBeenCalledWith(d.asDatabase, { jobId: 1, origin: "preparation" });
   expect(run.application_id).toBe(2);
-  expect(d.query).toHaveBeenCalledWith(
-    expect.stringContaining("INSERT INTO applications"),
-  );
+  expect(actions()).toEqual(["prepare.complete", "fill.reset"]);
+});
+test("generation reuses the run's application instead of opening another one", async () => {
+  service.generate({ jobId: 1, provider: "agent", applicationId: 2 });
+  await settle();
+  expect(openApplication).not.toHaveBeenCalled();
+  expect(run.application_id).toBe(2);
 });
 test.each([
   "comments",
@@ -390,11 +450,14 @@ test.each([
     expect(
       vi.mocked(addArtifact).mock.calls.some(([, kind]) => kind === "tailored"),
     ).toBe(false);
-    expect(
-      d.query.mock.calls.some(([sql]) =>
-        sql.includes("UPDATE applications SET status = 'draft'"),
-      ),
-    ).toBe(false);
+    expect(actions()).not.toContain("prepare.complete");
+    expect(settleExecution).toHaveBeenCalledWith(
+      d.asDatabase,
+      2,
+      "preparation",
+      "failed",
+      expect.any(String),
+    );
   },
 );
 test.each(["", "LinkedIn sign-in pending"])(
@@ -414,7 +477,7 @@ test("fetches missing descriptions and blocks generation when the application wa
   job.linkedin_job_id = "123";
   vi.mocked(jobDetails).mockResolvedValue({ description: "Fetched role" });
   acp.run.mockImplementation(async () => {
-    application!.status = "submitted";
+    journey.submission_status = "submitted";
     return { status: "completed" };
   });
   service.generate({ jobId: 1, provider: "agent" });
@@ -428,8 +491,10 @@ test("retains sign-in state, allows cancel after the task and retries with the s
   service.fill({ runId: "r" });
   await settle();
   expect(run.status).toBe("waiting_for_sign_in");
+  expect(journey.fill_status).toBe("in_progress");
   await service.cancel("r");
   expect(run.status).toBe("cancelled");
+  expect(settleExecution).toHaveBeenCalledWith(d.asDatabase, 2, "fill", "cancelled", "r");
   acp.run.mockResolvedValue({ status: "completed" });
   service.fill({ runId: "r" });
   await settle();
@@ -449,12 +514,8 @@ test("fill uses the selected artifact and validated result without marking submi
     expect.objectContaining({ runId: "r", extra: "fill context" }),
     "model",
   );
-  expect(d.query).toHaveBeenCalledWith(
-    expect.stringContaining("status = 'filled'"),
-  );
-  expect(
-    d.query.mock.calls.some(([sql]) => sql.includes("status = 'submitted'")),
-  ).toBe(false);
+  expect(actions()).toEqual(["fill.start", "fill.complete"]);
+  expect(journey).toMatchObject({ fill_status: "filled", submission_status: "not_submitted" });
 });
 test.each([
   '{"fields":[],"unfilled":[]}',
@@ -466,9 +527,7 @@ test.each([
   service.fill({ runId: "r" });
   await settle();
   expect(run.status).toBe("failed");
-  expect(
-    d.query.mock.calls.some(([sql]) => sql.includes("status = 'filled'")),
-  ).toBe(false);
+  expect(actions()).not.toContain("fill.complete");
 });
 test("rejects archived/unvalidated/submitted fill targets and unsafe portal URLs", () => {
   job.archived_at = "now";
@@ -477,10 +536,13 @@ test("rejects archived/unvalidated/submitted fill targets and unsafe portal URLs
   run.artifacts = [];
   expect(() => service.fill({ runId: "r" })).toThrow("validated PDF");
   run.artifacts = [{ ...pdf, kind: "tailored" }];
-  application!.status = "submitted";
+  journey.submission_status = "submitted";
   expect(() => service.fill({ runId: "r" })).toThrow("already submitted");
-  application!.status = "draft";
-  application!.external_url = "file:///secret";
+  journey.submission_status = "not_submitted";
+  journey.preparation_status = "failed";
+  expect(() => service.fill({ runId: "r" })).toThrow("validated resume");
+  journey.preparation_status = "ready";
+  journey.external_url = "file:///secret";
   expect(() => service.fill({ runId: "r" })).toThrow("HTTP or HTTPS");
 });
 test("cancel aborts a pending agent and filters/bounds events for the active execution", async () => {
@@ -500,15 +562,23 @@ test("cancel aborts a pending agent and filters/bounds events for the active exe
   expect(run.status).toBe("cancelled");
   expect(service.isBusy).toBe(false);
 });
-test("submission requires the currently filled execution and is always explicit", () => {
-  service.submitted({ runId: "r" });
-  expect(d.statement.run).toHaveBeenLastCalledWith("now", 2, "r");
+test("submission requires the currently filled execution and repeating it changes nothing", () => {
+  expect(() => service.submitted({ runId: "r" })).toThrow("Fill and submit");
+  journey.fill_status = "filled";
+  journey.preparation_run_id = "other";
+  expect(() => service.submitted({ runId: "r" })).toThrow("Fill and submit");
+  expect(transition).not.toHaveBeenCalled();
+  journey.preparation_run_id = "r";
+  expect(service.submitted({ runId: "r" })).toEqual({ alreadySubmitted: false });
+  expect(transition).toHaveBeenCalledWith(d.asDatabase, 2, "submit", "api", { runId: "r" });
   expect(broadcast).toHaveBeenCalledWith({
     type: "changed",
     table: "applications",
   });
-  d.statement.run.mockReturnValue({ changes: 0, lastInsertRowid: 0 });
-  expect(() => service.submitted({ runId: "r" })).toThrow("Fill and submit");
+  broadcast.mockClear();
+  expect(service.submitted({ runId: "r" })).toEqual({ alreadySubmitted: true });
+  expect(broadcast).not.toHaveBeenCalled();
+  expect(journey.submission_status).toBe("submitted");
 });
 
 test("fails a generation with no description or LinkedIn reference before starting the agent", async () => {
@@ -525,10 +595,8 @@ test("records agent execution failures and releases the execution lock", async (
   await settle();
   expect(run.status).toBe("failed");
   expect(run.error).toBe("Agent unavailable");
-  expect(broadcast).not.toHaveBeenCalledWith({
-    type: "changed",
-    table: "applications",
-  });
+  expect(actions()).toEqual(["fill.start"]);
+  expect(settleExecution).toHaveBeenCalledWith(d.asDatabase, 2, "fill", "failed", "r");
 });
 test("closing during execution aborts work and unsubscribes", async () => {
   const pending = deferred<{ status: string }>();

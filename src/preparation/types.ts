@@ -32,6 +32,17 @@ export interface PreparationDetails {
   busy: boolean;
   applicationStatus: string | null;
   uploadedRunId: string | null;
+  /** Independent journey dimensions of the selected application. */
+  journey: {
+    id: number;
+    origin: string;
+    attempt: number | null;
+    preparation_status: string;
+    fill_status: string;
+    submission_status: string;
+    submitted_at: string | null;
+    review_reason: string | null;
+  } | null;
 }
 export interface SourcesState {
   config: ResumeSourcesConfig;

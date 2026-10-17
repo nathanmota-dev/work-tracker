@@ -3,7 +3,7 @@
  * it; existing workspaces reach it through the ordered migrations in
  * `migrations.ts`, whose last version must equal SCHEMA_VERSION.
  */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 /** Bookkeeping tables the migration runner needs before any migration runs. */
 export const MIGRATION_TABLES_SQL = /* sql */ `
@@ -148,6 +148,21 @@ CREATE TABLE IF NOT EXISTS application_events (
   note TEXT
 );
 
+-- Journey changes (preparation, fill, submission) recorded once per effective
+-- transition; repeating an action that changes nothing records nothing.
+CREATE TABLE IF NOT EXISTS application_transitions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  application_id INTEGER NOT NULL REFERENCES applications(id),
+  dimension TEXT NOT NULL CHECK (dimension IN ('preparation', 'fill', 'submission')),
+  action TEXT NOT NULL,
+  from_state TEXT NOT NULL,
+  to_state TEXT NOT NULL,
+  actor TEXT NOT NULL CHECK (actor IN ('api', 'cli', 'agent', 'system')),
+  run_id TEXT,
+  occurred_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_application_transitions ON application_transitions(application_id, id);
+
 -- Reusable, single-source-of-truth answers for external ATS application forms
 -- (PII / eligibility / links / EEO). Dashboard-editable via \`work-tracker answer\`.
 -- EEO answers MAY be stored here, but skills never auto-fill them — the human
@@ -286,6 +301,16 @@ export const COLUMN_MIGRATIONS: Record<string, Record<string, string>> = {
     archived_at: "TEXT",
     created_at: "TEXT",
     updated_at: "TEXT",
+    // Journey model (schema v4); see src/applications/journey.ts.
+    origin: "TEXT NOT NULL DEFAULT 'unknown' CHECK (origin IN ('preparation', 'manual', 'agent', 'unknown'))",
+    preparation_status: "TEXT NOT NULL DEFAULT 'not_started' CHECK (preparation_status IN ('not_started', 'in_progress', 'ready', 'failed'))",
+    fill_status: "TEXT NOT NULL DEFAULT 'not_started' CHECK (fill_status IN ('not_started', 'in_progress', 'filled', 'needs_input', 'failed'))",
+    submission_status: "TEXT NOT NULL DEFAULT 'not_submitted' CHECK (submission_status IN ('not_submitted', 'submitted'))",
+    submitted_at: "TEXT",
+    attempt: "INTEGER CHECK (attempt >= 1)",
+    previous_application_id: "INTEGER REFERENCES applications(id)",
+    idempotency_key: "TEXT",
+    review_reason: "TEXT CHECK (review_reason IN ('missing_job', 'unknown_status', 'missing_stage', 'duplicate_job'))",
   },
 };
 
@@ -293,6 +318,10 @@ export const COLUMN_MIGRATIONS: Record<string, Record<string, string>> = {
 export const APPLICATION_BOARD_INDEX_SQL = /* sql */ `
 CREATE INDEX IF NOT EXISTS idx_applications_tracking ON applications(tracking_status, current_stage_id);
 CREATE INDEX IF NOT EXISTS idx_application_events_history ON application_events(application_id, occurred_at, id);
+-- One application per (local job, attempt) and per idempotency key. NULLs stay
+-- distinct, so unclassified legacy rows and unlinked applications never collide.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_applications_job_attempt ON applications(job_id, attempt);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_applications_idempotency ON applications(idempotency_key);
 `;
 
 export const DEFAULT_APPLICATION_STAGES = [

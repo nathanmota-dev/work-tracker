@@ -7,12 +7,14 @@ import type {
   TrackedApplication,
 } from "./types.ts";
 import { ApplicationBoardError, id } from "./validation.ts";
+import { TRANSITIONS } from "./journey.ts";
 
 type ApplicationRow = Omit<TrackedApplication, "stack"> & {
   stack_json: string | null;
 };
-const applicationColumns = `id, company_name, external_url, role_title, role_type, stack_json, comp,
-  company_url, notes, applied_at, current_stage_id, tracking_status, archive_reason, archived_at, created_at, updated_at`;
+const applicationColumns = `id, job_id, origin, attempt, submission_status, submitted_at, company_name, external_url,
+  role_title, role_type, stack_json, comp, company_url, notes, applied_at, current_stage_id, tracking_status, archive_reason,
+  archived_at, created_at, updated_at`;
 
 function decodeApplication(row: ApplicationRow): TrackedApplication {
   const { stack_json, ...rest } = row;
@@ -63,12 +65,17 @@ export function applicationEvents(
     )
     .all(applicationId) as ApplicationEvent[];
 }
+/** Tracking rules come from the shared journey table (archive/reopen). */
+export function requireTracking(
+  record: TrackedApplication,
+  action: "archive" | "reopen",
+) {
+  const rule = TRANSITIONS[action];
+  if (!(rule.from as readonly string[]).includes(record.tracking_status))
+    throw new ApplicationBoardError(rule.message, 409);
+}
 export function requireActive(record: TrackedApplication) {
-  if (record.tracking_status !== "active")
-    throw new ApplicationBoardError(
-      "Reopen this application before changing its stage or archiving it.",
-      409,
-    );
+  requireTracking(record, "archive");
 }
 export function event(
   d: Database,

@@ -19,7 +19,9 @@ import {
   requireActive,
   stage,
   stages,
+  requireTracking,
 } from "./records.ts";
+import { openApplication, transition } from "./journey-store.ts";
 import {
   ApplicationBoardError,
   choice,
@@ -60,31 +62,35 @@ function details(d: Database, body: Body): Result {
 }
 function create(d: Database, body: Body): Result {
   const data = fields(body, false) as ApplicationFields;
+  const { record: opened, created } = openApplication(d, {
+    jobId: null,
+    origin: "manual",
+    idempotencyKey: optionalText(body.request_id),
+  });
+  if (!created) return { value: application(d, opened.id), changed: [] };
   const initial = d
     .query("SELECT * FROM application_stages WHERE key = 'applied'")
     .get() as ApplicationStage;
-  const at = now();
-  const row = d
-    .query(
-      `INSERT INTO applications (company_name, external_url, role_title, role_type,
-    stack_json, comp, company_url, notes, applied_at, status, current_stage_id, tracking_status, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'applied', ?, 'active', ?, ?) RETURNING id`,
-    )
-    .get(
-      data.company_name,
-      data.external_url,
-      data.role_title,
-      data.role_type,
-      JSON.stringify(data.stack),
-      data.comp,
-      data.company_url,
-      data.notes,
-      data.applied_at,
-      initial.id,
-      at,
-      at,
-    ) as { id: number };
-  const record = application(d, row.id);
+  d.query(
+    `UPDATE applications SET company_name = ?, external_url = ?, role_title = ?, role_type = ?,
+    stack_json = ?, comp = ?, company_url = ?, notes = ?, applied_at = ?, current_stage_id = ?,
+    tracking_status = 'active' WHERE id = ?`,
+  ).run(
+    data.company_name,
+    data.external_url,
+    data.role_title,
+    data.role_type,
+    JSON.stringify(data.stack),
+    data.comp,
+    data.company_url,
+    data.notes,
+    data.applied_at,
+    initial.id,
+    opened.id,
+  );
+  // Registering an application sent outside the app records its submission.
+  transition(d, opened.id, "submit", "api", { at: data.applied_at });
+  const record = application(d, opened.id);
   event(d, record, initial, "created", null);
   return { value: record, changed: [...trackedChanges] };
 }
@@ -212,8 +218,7 @@ function archive(d: Database, body: Body): Result {
 }
 function reopen(d: Database, body: Body): Result {
   const current = application(d, body.id);
-  if (current.tracking_status !== "archived")
-    throw new ApplicationBoardError("This application is already active.", 409);
+  requireTracking(current, "reopen");
   const target = stage(d, current.current_stage_id);
   if (target.is_archived) {
     d.query(

@@ -19,6 +19,12 @@ As versões 0 a 3 eram mantidas apenas com alterações aditivas; a migração 3
 (`legacy additive baseline`) completa o que faltar nesses workspaces sem alterar
 linhas, IDs ou colunas existentes.
 
+A migração 4 (`application journey model`) adiciona as dimensões da jornada da
+candidatura e classifica os registros existentes; por reescrever o resumo
+`applications.status` de registros do quadro, ela é incompatível e gera uma
+cópia pré-migração. As regras estão em
+[application-journey.md](application-journey.md#migração-dos-registros-existentes-schema-v4).
+
 ## Garantias de uma atualização
 
 Antes de qualquer passo:

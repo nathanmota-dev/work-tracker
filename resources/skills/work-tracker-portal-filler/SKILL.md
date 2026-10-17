@@ -191,7 +191,8 @@ a "do this yourself" item rather than silently skipping it.
 Record what happened so the dashboard reflects it (table-scoped live refresh):
 
 ```
-# first time for this opportunity
+# idempotent: reuses the job's existing application (never pass --new-attempt
+# unless the candidate explicitly decided to apply again to a republished role)
 work-tracker application add --job-id {jobId} --portal {portal} \
   --external-url "{link}" \
   --resume-path "$WORK_TRACKER_HOME/tailored/{company}-{jobId}.pdf" --status draft
@@ -209,6 +210,9 @@ work-tracker activity log --skill work-tracker-portal-filler \
 Status lifecycle: `draft → filled → submitted` (use `needs_input` when blocked
 on a missing answer). The candidate moves it to `submitted` after they click
 Submit — or you set it on their confirmation; this skill never submits.
+`--job-id` is the local Work Tracker job ID; pass a LinkedIn job ID with
+`--linkedin-job-id` instead. A submitted application cannot return to `draft`,
+and its resume and answers are preserved.
 
 ### 6. Hand off
 

@@ -70,6 +70,11 @@ const initialStages: ApplicationStage[] = [
 ]
 const record = (id: number, company_name: string): TrackedApplication => ({
   id,
+  job_id: null,
+  origin: "manual",
+  attempt: 1,
+  submission_status: "submitted",
+  submitted_at: at,
   company_name,
   external_url: "https://example.com/role",
   role_title: null,
@@ -190,6 +195,7 @@ describe("application board", () => {
         role_type: null,
         stack: [],
         comp: "",
+        request_id: expect.any(String),
       }),
     )
   })

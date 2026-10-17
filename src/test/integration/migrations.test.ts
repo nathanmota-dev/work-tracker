@@ -68,34 +68,47 @@ test("opening a v2 workspace keeps IDs, links, history and artifacts; reopening 
   legacy.close();
   const d = db();
   expect(value(d, "SELECT value FROM meta WHERE key = 'schema_version'")).toBe(String(SCHEMA_VERSION));
+  // Only the legacy status summary of board record 34 is rewritten (draft -> submitted).
+  before.applications = before.applications!.map((row) => (row.id === 34 ? { ...row, status: "submitted" } : row));
   for (const [table, rows] of Object.entries(before))
     expect(all(d, `SELECT * FROM ${table} ORDER BY rowid`), table).toMatchObject(rows);
+  expect(all(d, `SELECT id, origin, attempt, preparation_status, fill_status, submission_status, submitted_at, review_reason
+    FROM applications ORDER BY id`)).toEqual([
+    { id: 21, origin: "unknown", attempt: 1, preparation_status: "ready", fill_status: "not_started", submission_status: "submitted", submitted_at: "2026-01-03T09:00:00Z", review_reason: null },
+    { id: 34, origin: "manual", attempt: 1, preparation_status: "not_started", fill_status: "not_started", submission_status: "submitted", submitted_at: null, review_reason: null },
+  ]);
   expect(all(d, "SELECT id, job_id, current_stage_id, resume_path FROM applications ORDER BY id")).toEqual([
     { id: 21, job_id: 11, current_stage_id: 9, resume_path: "/fixture/artifacts/21/resume.pdf" },
     { id: 34, job_id: null, current_stage_id: 1, resume_path: null },
   ]);
   expect(all(d, "PRAGMA foreign_key_check")).toEqual([]);
-  expect(all(d, "SELECT version FROM schema_migrations")).toEqual([{ version: 3 }]);
+  expect(all(d, "SELECT version FROM schema_migrations")).toEqual([{ version: 3 }, { version: 4 }]);
   expect(all(d, "PRAGMA table_info(applications)").map((c) => c.name)).toContain("preparation_run_id");
   const migrated = dump(d, [...legacyTables, "schema_migrations", "meta"]);
   closeDb();
   expect(dump(db(), [...legacyTables, "schema_migrations", "meta"])).toEqual(migrated);
-  expect(readdirSync(home)).not.toContain("backups");
+  // The journey step rewrites data, so the v2 workspace was snapshotted first.
+  const [snapshot] = readdirSync(join(home, "backups"));
+  expect(snapshot).toMatch(new RegExp(`^work-tracker-v2-to-v${SCHEMA_VERSION}-`));
+  const copy = new Database(join(home, "backups", snapshot!));
+  expect(value(copy, "SELECT value FROM meta WHERE key = 'schema_version'")).toBe("2");
+  copy.close();
 });
 
 test("a failure in a later step rolls back the whole run; a retry applies each step once", () => {
   const d = workspace("rollback", seedJourney);
   const before = dump(d, [...legacyTables, "schema_migrations", "meta"]);
-  const addNote: Migration = { version: 4, name: "add note", up: (db) => db.exec("UPDATE applications SET notes = 'migrated' WHERE id = 40; INSERT INTO companies (name) VALUES ('Added once')") };
-  const failing: Migration = { version: 5, name: "failing", up: () => { throw new Error("injected failure"); } };
-  expect(() => migrateDatabase(d, { backupDir, migrations: [...MIGRATIONS, addNote, failing], target: 5 })).toThrow("injected failure");
+  const next = SCHEMA_VERSION + 1;
+  const addNote: Migration = { version: next, name: "add note", up: (db) => db.exec("UPDATE applications SET notes = 'migrated' WHERE id = 40; INSERT INTO companies (name) VALUES ('Added once')") };
+  const failing: Migration = { version: next + 1, name: "failing", up: () => { throw new Error("injected failure"); } };
+  expect(() => migrateDatabase(d, { backupDir, migrations: [...MIGRATIONS, addNote, failing], target: next + 1 })).toThrow("injected failure");
   expect(dump(d, [...legacyTables, "schema_migrations", "meta"])).toEqual(before);
   expect(value(d, "PRAGMA foreign_keys")).toBe(1);
   const fixed = [...MIGRATIONS, addNote, { ...failing, up: () => {} }];
-  expect(migrateDatabase(d, { backupDir, migrations: fixed, target: 5 })).toMatchObject({ mode: "migrated", from: 3, applied: [4, 5] });
-  expect(migrateDatabase(d, { backupDir, migrations: fixed, target: 5 })).toMatchObject({ mode: "current", applied: [] });
+  expect(migrateDatabase(d, { backupDir, migrations: fixed, target: next + 1 })).toMatchObject({ mode: "migrated", from: SCHEMA_VERSION, applied: [next, next + 1] });
+  expect(migrateDatabase(d, { backupDir, migrations: fixed, target: next + 1 })).toMatchObject({ mode: "current", applied: [] });
   expect(value(d, "SELECT COUNT(*) FROM companies WHERE name = 'Added once'")).toBe(1);
-  expect(all(d, "SELECT version FROM schema_migrations ORDER BY version")).toEqual([{ version: 3 }, { version: 4 }, { version: 5 }]);
+  expect(all(d, "SELECT version FROM schema_migrations ORDER BY version")).toEqual([3, 4, next, next + 1].map((version) => ({ version })));
   expect(value(d, "SELECT notes FROM applications WHERE id = 40")).toBe("migrated");
   d.close();
 });
@@ -106,14 +119,14 @@ test("an incompatible step first writes a consistent snapshot of the WAL workspa
   const tables = [...legacyTables, "application_runs", "pdf_artifacts"];
   const before = dump(d, tables);
   const result = migrateDatabase(d, { backupDir, migrations: [...MIGRATIONS, rebuildInterviews], target: rebuildInterviews.version });
-  expect(result.backup).toMatch(/work-tracker-v3-to-v4-.*\.db$/);
+  expect(result.backup).toMatch(new RegExp(`work-tracker-v${SCHEMA_VERSION}-to-v${SCHEMA_VERSION + 1}-.*\\.db$`));
   expect(dump(d, tables)).toEqual(before);
   expect(all(d, "PRAGMA foreign_key_check")).toEqual([]);
   d.close();
   const copy = new Database(result.backup!);
   expect(value(copy, "PRAGMA quick_check")).toBe("ok");
   expect(all(copy, "PRAGMA foreign_key_check")).toEqual([]);
-  expect(value(copy, "SELECT value FROM meta WHERE key = 'schema_version'")).toBe("3");
+  expect(value(copy, "SELECT value FROM meta WHERE key = 'schema_version'")).toBe(String(SCHEMA_VERSION));
   expect(dump(copy, tables)).toEqual(before);
   copy.close();
   expect(existsSync(`${result.backup}-wal`)).toBe(false);

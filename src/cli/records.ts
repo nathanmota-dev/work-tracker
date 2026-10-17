@@ -1,6 +1,9 @@
 import { db, now } from "../db/index.ts";
 import { notifyChange } from "../db/notify.ts";
+import type { Database } from "../db/sqlite.ts";
 import { type Flags, str, int, reqStr } from "./flags.ts";
+import { applyStatus, journeyRecord, openApplication, resolveJob, transition } from "../applications/journey-store.ts";
+import { JourneyError } from "../applications/journey.ts";
 
 /** work-tracker job save | list */
 export async function jobCmd(sub: string, flags: Flags): Promise<void> {
@@ -102,27 +105,62 @@ export async function interviewCmd(sub: string, flags: Flags): Promise<void> {
   process.exit(1);
 }
 
-/** work-tracker application add | update */
+const applicationColumns: Record<string, string> = {
+  portal: "portal",
+  "external-url": "external_url",
+  fields: "fields_filled_json",
+  unfilled: "unfilled_json",
+  "applied-at": "applied_at",
+  "resume-path": "resume_path",
+  "cover-path": "cover_letter_path",
+  "report-path": "report_path",
+  "keyword-score": "keyword_score",
+};
+
+/** Write provided record fields, then apply journey changes through the shared rules. */
+function updateApplication(d: Database, id: number, flags: Flags): boolean {
+  const entries = Object.entries(applicationColumns)
+    .map(([flag, column]) => [column, flag === "keyword-score" ? int(flags, flag) : str(flags, flag)] as const)
+    .filter(([, value]) => value !== undefined);
+  if (entries.length)
+    d.query(`UPDATE applications SET ${entries.map(([column]) => `${column} = ?`).join(", ")}, updated_at = ? WHERE id = ?`)
+      .run(...entries.map(([, value]) => value!), now(), id);
+  let changed = entries.length > 0;
+  if (str(flags, "resume-path") !== undefined) changed = transition(d, id, "prepare.complete", "cli").changed || changed;
+  const status = str(flags, "status");
+  if (status !== undefined) changed = applyStatus(d, id, status, "cli") || changed;
+  return changed;
+}
+
+function fail(error: unknown): never {
+  console.error(`error: ${error instanceof Error ? error.message : String(error)}`);
+  process.exit(1);
+}
+
+/**
+ * work-tracker application add | update. `add` is idempotent: a job reuses its
+ * latest application unless `--new-attempt` explicitly starts another one, and
+ * `--idempotency-key` returns the application a previous call created.
+ */
 export async function applicationCmd(sub: string, flags: Flags): Promise<void> {
   const d = db();
   if (sub === "add") {
-    const row = d.query(`
-      INSERT INTO applications (job_id, resume_path, cover_letter_path, report_path, keyword_score, status, applied_at, portal, external_url)
-      VALUES ($job, $resume, $cover, $report, $score, $status, $applied, $portal, $url)
-      RETURNING id
-    `).get({
-      $job: int(flags, "job-id") ?? null,
-      $resume: str(flags, "resume-path") ?? null,
-      $cover: str(flags, "cover-path") ?? null,
-      $report: str(flags, "report-path") ?? null,
-      $score: int(flags, "keyword-score") ?? null,
-      $status: str(flags, "status") ?? "draft",
-      $applied: str(flags, "applied-at") ?? null,
-      $portal: str(flags, "portal") ?? null,
-      $url: str(flags, "external-url") ?? null,
-    }) as { id: number };
+    let result: { id: number; created: boolean; attempt: number | null };
+    try {
+      result = d.transaction(() => {
+        const jobId = resolveJob(d, { jobId: int(flags, "job-id"), linkedinJobId: str(flags, "linkedin-job-id") });
+        const { record, created } = openApplication(d, {
+          jobId,
+          origin: "agent",
+          newAttempt: flags["new-attempt"] === true,
+          idempotencyKey: str(flags, "idempotency-key") ?? null,
+        });
+        updateApplication(d, record.id, flags);
+        return { id: record.id, created, attempt: record.attempt };
+      })();
+    } catch (error) { fail(error); }
     await notifyChange("applications");
-    console.log(`application #${row.id} added`);
+    console.log(result.created ? `application #${result.id} added` : `application #${result.id} reused (attempt ${result.attempt})`);
     return;
   }
   if (sub === "update") {
@@ -131,38 +169,14 @@ export async function applicationCmd(sub: string, flags: Flags): Promise<void> {
       console.error("error: missing required --id");
       process.exit(1);
     }
-    // Build a partial UPDATE from only the flags actually provided, so callers
-    // can transition status without clobbering portal/url/json columns.
-    const sets: string[] = [];
-    const params: Record<string, string | number | null> = { $id: id };
-    const map: Record<string, string> = {
-      status: "status",
-      portal: "portal",
-      "external-url": "external_url",
-      fields: "fields_filled_json",
-      unfilled: "unfilled_json",
-      "applied-at": "applied_at",
-      "resume-path": "resume_path",
-      "cover-path": "cover_letter_path",
-      "report-path": "report_path",
-    };
-    for (const [flag, col] of Object.entries(map)) {
-      const v = str(flags, flag);
-      if (v !== undefined) {
-        sets.push(`${col} = $${col}`);
-        params[`$${col}`] = v;
-      }
-    }
-    if (sets.length === 0) {
+    if (!str(flags, "status") && !Object.keys(applicationColumns).some((flag) => str(flags, flag) !== undefined)) {
       console.error("error: nothing to update (pass --status/--portal/--external-url/--fields/--unfilled/...)");
       process.exit(1);
     }
-    const res = d.query(
-      `UPDATE applications SET ${sets.join(", ")} WHERE id = $id RETURNING id`,
-    ).get(params) as { id: number } | null;
-    if (!res) {
-      console.error(`error: application #${id} not found`);
-      process.exit(1);
+    try {
+      d.transaction(() => { journeyRecord(d, id); updateApplication(d, id, flags); })();
+    } catch (error) {
+      fail(error instanceof JourneyError && error.status === 404 ? new Error(`application #${id} not found`) : error);
     }
     await notifyChange("applications");
     console.log(`application #${id} updated`);

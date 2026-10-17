@@ -1,3 +1,5 @@
+import type { ApplicationOrigin, SubmissionStatus } from "./journey.ts";
+
 export const ROLE_TYPES = {
   front_end: "Front-end",
   back_end: "Back-end",
@@ -40,6 +42,12 @@ export type CreateApplication = Pick<
 export type UpdateApplication = Partial<ApplicationFields> & { id: number };
 export interface TrackedApplication extends ApplicationFields {
   id: number;
+  /** Local job ID; null for applications registered without a saved job. */
+  job_id: number | null;
+  origin: ApplicationOrigin;
+  attempt: number | null;
+  submission_status: SubmissionStatus;
+  submitted_at: string | null;
   current_stage_id: number;
   tracking_status: "active" | "archived";
   archive_reason: ArchiveReason | null;
@@ -78,7 +86,8 @@ export interface ApplicationDetails {
   events: ApplicationEvent[];
 }
 export interface ApplicationActions {
-  create: CreateApplication;
+  /** `request_id` makes a repeated registration return the first result. */
+  create: CreateApplication & { request_id?: string };
   update: UpdateApplication;
   move: { id: number; stage_id: number; expected_stage_id?: number };
   archive: { id: number; reason: ArchiveReason; note?: string };
