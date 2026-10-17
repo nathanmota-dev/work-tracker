@@ -1,15 +1,24 @@
 /**
- * SQLite schema for Work Tracker. Applied idempotently on every connection open.
- * Single migration block for v0.1; versioned migrations can layer on later
- * via the `schema_version` pragma table.
+ * Latest SQLite schema for Work Tracker. New databases are created directly from
+ * it; existing workspaces reach it through the ordered migrations in
+ * `migrations.ts`, whose last version must equal SCHEMA_VERSION.
  */
 export const SCHEMA_VERSION = 3;
 
-export const SCHEMA_SQL = /* sql */ `
+/** Bookkeeping tables the migration runner needs before any migration runs. */
+export const MIGRATION_TABLES_SQL = /* sql */ `
 CREATE TABLE IF NOT EXISTS meta (
   key   TEXT PRIMARY KEY,
   value TEXT
 );
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  version    INTEGER PRIMARY KEY,
+  name       TEXT NOT NULL,
+  applied_at TEXT NOT NULL
+);
+`;
+
+export const SCHEMA_SQL = /* sql */ `${MIGRATION_TABLES_SQL}
 
 CREATE TABLE IF NOT EXISTS profile (
   id             INTEGER PRIMARY KEY CHECK (id = 1),
