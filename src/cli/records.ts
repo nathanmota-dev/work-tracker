@@ -4,6 +4,7 @@ import type { Database } from "../db/sqlite.ts";
 import { type Flags, str, int, reqStr } from "./flags.ts";
 import { applyStatus, journeyRecord, openApplication, resolveJob, transition } from "../applications/journey-store.ts";
 import { JourneyError } from "../applications/journey.ts";
+import { applicationReviewCmd, REVIEW_SUBCOMMANDS } from "./application-review.ts";
 
 /** work-tracker job save | list */
 export async function jobCmd(sub: string, flags: Flags): Promise<void> {
@@ -143,6 +144,10 @@ function fail(error: unknown): never {
  * `--idempotency-key` returns the application a previous call created.
  */
 export async function applicationCmd(sub: string, flags: Flags): Promise<void> {
+  if (REVIEW_SUBCOMMANDS.includes(sub)) {
+    try { await applicationReviewCmd(sub, flags); } catch (error) { fail(error); }
+    return;
+  }
   const d = db();
   if (sub === "add") {
     let result: { id: number; created: boolean; attempt: number | null };

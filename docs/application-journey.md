@@ -17,7 +17,7 @@ e são usadas pela API (quadro e Apply), pela CLI e, por meio dela, pelos agente
 | `attempt` | Número da tentativa para a vaga; único por `(job_id, attempt)`. |
 | `previous_application_id` | Tentativa anterior quando houve nova candidatura explícita. |
 | `idempotency_key` | Chave opcional; repetir a requisição com a mesma chave devolve o registro criado. |
-| `review_reason` | Marcação de registros legados ambíguos para a reconciliação da feature 04. |
+| `review_reason` | Marcação de registros legados ambíguos; a revisão em Candidaturas (abaixo) a recalcula a cada decisão. |
 
 Candidaturas nunca são deduplicadas por título ou empresa: duas vagas com o mesmo
 título são vagas diferentes, e dois registros manuais sem chave são registros
@@ -115,3 +115,59 @@ automaticamente** a nenhuma vaga: `missing_job` (vaga ausente ou inexistente),
 quadro; o texto original é mantido), `missing_stage` (enviado mas fora do quadro)
 e `duplicate_job` (segunda candidatura para a mesma vaga). IDs, vínculos, eventos
 do quadro e artefatos são preservados.
+
+## Candidatura manual e vínculo com a vaga
+
+Uma candidatura registrada no quadro pode escolher uma vaga salva ("Saved job"):
+os campos vazios do formulário recebem empresa, link, cargo e remuneração da
+vaga, e a candidatura existente dessa vaga é reaproveitada (seus campos já
+gravados prevalecem), então trocar de tela não cria outra candidatura.
+
+Sem vaga, "Prepare application" em Candidaturas abre primeiro o vínculo
+(`application-board/link/options` e `application-board/link`, em
+[job-link.ts](../src/applications/job-link.ts)):
+
+- vagas plausíveis vêm somente do mesmo link ou do mesmo ID do LinkedIn, nunca de
+  empresa ou cargo; com mais de uma, o usuário escolhe; uma vaga que já tem
+  candidatura aparece como conflito e não pode ser vinculada;
+- "Create a job from this application" cria a vaga com cargo, empresa, link,
+  remuneração e descrição da candidatura; cargo, empresa e link são obrigatórios,
+  e criar uma vaga com um link já salvo é recusado (escolha a vaga existente);
+- dados que faltam para a preparação (cargo, empresa, link e descrição, quando a
+  vaga não tem ID do LinkedIn) são apontados antes de abrir o Apply;
+- o vínculo preserva ID, origem, envio, etapa e eventos da candidatura, copia
+  apenas campos vazios do card e registra o vínculo em `activity_log`. Depois, o
+  Apply abre com `jobId` e `applicationId` da mesma candidatura.
+
+Na CLI: `work-tracker application link --id N --job-id M` (ou
+`--linkedin-job-id`, ou `--create [--title --company --external-url --comp
+--description]`).
+
+## Reconciliação dos registros antigos
+
+Registros com `review_reason` aparecem em "Needs review" na tela Candidaturas
+(`application-board/review`, em [review.ts](../src/applications/review.ts)) com
+o motivo, os dados faltantes, as vagas plausíveis e as outras candidaturas da
+mesma vaga. Nada é fundido nem recebe outro ID.
+
+"Apply safe fixes" (`review/reconcile`, ou `work-tracker application reconcile`)
+aplica somente o que é determinístico e pode ser repetido sem efeito:
+
+- um registro enviado fora do quadro entra nele (etapa inicial, um evento
+  `created`), mantendo `submitted_at`;
+- um `applied` legado registrado fora do Apply (CLI, agentes, manual) com data é
+  um envio: recebe `submit` na data original e entra no quadro. Um `applied` de
+  um registro do Apply continua em revisão, porque lá só a confirmação no
+  navegador envia.
+
+Registros sem empresa, link ou data para o card, vagas ambíguas e status
+desconhecidos esperam uma decisão explícita (`review/resolve`, ou
+`work-tracker application resolve --id N --decision ...`): `track`,
+`mark_submitted` (com os dados faltantes informados), `mark_not_submitted`
+(normaliza o status sem tocar preparação e preenchimento) ou `keep_attempt`
+(mantém uma segunda candidatura da mesma vaga como tentativa separada, apontando
+`previous_application_id`). Vincular a vaga usa o mesmo fluxo de vínculo acima.
+Após cada decisão, o motivo é recalculado; um registro só sai da revisão quando
+não resta nenhum problema. Cada operação roda numa transação, então uma falha
+não deixa alterações parciais.
+

@@ -1,16 +1,10 @@
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { SelectControl } from "@/components/ui/select-control"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { FormDialog, useSubmit } from "@/components/form-dialog"
 import { Field } from "@/components/workspace-ui"
+import { useApi, type Row } from "@/lib/api"
 import {
   boardAction,
   localDateTime,
@@ -21,6 +15,7 @@ import {
 
 function initialDraft(application?: TrackedApplication) {
   return {
+    job_id: "",
     company_name: application?.company_name ?? "",
     external_url: application?.external_url ?? "",
     role_title: application?.role_title ?? "",
@@ -39,6 +34,7 @@ type Draft = ReturnType<typeof initialDraft>
 function applicationFields(draft: Draft, application?: TrackedApplication) {
   return {
     ...draft,
+    job_id: Number(draft.job_id) || null,
     role_type: (draft.role_type || null) as RoleType | null,
     stack: draft.stack
       .split(",")
@@ -140,6 +136,35 @@ function ApplicationFieldset({ draft, busy, change }: {
   )
 }
 
+/** Saved job fields copied into empty card fields when a job is chosen. */
+const JOB_FIELDS = { company_name: "company_name", external_url: "link", role_title: "title", comp: "comp" } as const
+
+function SavedJob({ draft, busy, choose }: {
+  draft: Draft
+  busy: boolean
+  choose: (job: Row | undefined) => void
+}) {
+  const jobs = useApi<Row[]>("jobs")
+  const available = jobs.data?.filter((job) => !job.archived_at) ?? []
+  return (
+    <Field label="Saved job">
+      <SelectControl
+        aria-label="Saved job"
+        disabled={busy || !available.length}
+        value={draft.job_id}
+        onChange={(e) => choose(available.find((job) => String(job.id) === e.target.value))}
+      >
+        <option value="">{available.length ? "Not linked to a saved job" : "No saved jobs"}</option>
+        {available.map((job) => (
+          <option key={String(job.id)} value={String(job.id)}>
+            {String(job.company_name ?? "Unknown company")} · {String(job.title ?? "Untitled role")}
+          </option>
+        ))}
+      </SelectControl>
+    </Field>
+  )
+}
+
 export function ApplicationForm({
   application,
   onClose,
@@ -152,77 +177,42 @@ export function ApplicationForm({
   const [draft, setDraft] = useState(() => initialDraft(application))
   // One key per opened form: a retried save returns the first registration.
   const [requestId] = useState(() => crypto.randomUUID())
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState("")
+  const { busy, error, submit } = useSubmit()
   const change = (key: keyof typeof draft, value: string) =>
     setDraft((previous) => ({ ...previous, [key]: value }))
-  async function save() {
-    setBusy(true)
-    setError("")
-    try {
+  // A chosen job fills only empty fields, so typed values are kept.
+  const choose = (job: Row | undefined) =>
+    setDraft((previous) => {
+      const next = { ...previous, job_id: job ? String(job.id) : "" }
+      for (const [key, column] of Object.entries(JOB_FIELDS) as [keyof typeof JOB_FIELDS, string][])
+        if (job?.[column] && !next[key].trim()) next[key] = String(job[column])
+      return next
+    })
+  const save = () =>
+    submit(async () => {
       const fields = applicationFields(draft, application)
+      // Editing never relinks: the job link is chosen only at registration.
+      const { job_id: _jobId, ...card } = fields
       const saved = application
-        ? await boardAction("update", { ...fields, id: application.id })
+        ? await boardAction("update", { ...card, id: application.id })
         : await boardAction("create", { ...fields, request_id: requestId })
       onSaved(saved)
       onClose()
-    } catch (e) {
-      setError((e as Error).message)
-    } finally {
-      setBusy(false)
-    }
-  }
+    })
   return (
-    <Dialog
-      open
-      onOpenChange={(open) => {
-        if (!open && !busy) onClose()
-      }}
+    <FormDialog
+      title={application ? "Edit application" : "New application"}
+      description="Only the company name and job link are required. Choosing a saved job keeps this application linked to it."
+      busy={busy}
+      error={error}
+      submitLabel="Save application"
+      canSubmit={!!draft.company_name.trim() && !!draft.external_url.trim()}
+      className="max-h-[90dvh] overflow-y-auto sm:max-w-xl"
+      onClose={onClose}
+      onSubmit={() => void save()}
     >
-      <DialogContent
-        className="max-h-[90dvh] overflow-y-auto sm:max-w-xl"
-        showCloseButton={!busy}
-      >
-        <DialogHeader>
-          <DialogTitle>
-            {application ? "Edit application" : "New application"}
-          </DialogTitle>
-          <DialogDescription>
-            Only the company name and job link are required.
-          </DialogDescription>
-        </DialogHeader>
-        <form
-          className="space-y-4"
-          onSubmit={(e) => {
-            e.preventDefault()
-            void save()
-          }}
-        >
-          <ApplicationFieldset draft={draft} busy={busy} change={change} />
-          {error && (
-            <p role="alert" className="text-sm text-destructive">
-              {error}
-            </p>
-          )}
-          <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={busy}
-              onClick={onClose}
-            >
-              Cancel
-            </Button>
-            <Button
-              disabled={
-                busy || !draft.company_name.trim() || !draft.external_url.trim()
-              }
-            >
-              {busy ? "Saving…" : "Save application"}
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
+      {!application && <SavedJob draft={draft} busy={busy} choose={choose} />}
+      <ApplicationFieldset draft={draft} busy={busy} change={change} />
+    </FormDialog>
   )
 }

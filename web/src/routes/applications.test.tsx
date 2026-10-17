@@ -69,24 +69,32 @@ it("opens details/portal and prepares the selected application", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Prepare application" }))
   expect(openApply).toHaveBeenCalledWith(7, 2)
 })
-it("disables preparation when neither job nor portal exists and hides unsafe links", () => {
+it("links the job of a manual application before opening Apply and hides unsafe links", async () => {
   rows = [
     { id: 3, job_title: "No target" },
     { id: 4, job_title: "Unsafe", external_url: "javascript:bad" },
   ]
+  vi.mocked(window.desktop!.request).mockImplementation(async (path: string) =>
+    path === "application-board/link/options"
+      ? { application_id: 3, role_title: "No target", company_name: "Manual Co", external_url: "https://manual.co/job", comp: null, missing: ["description"], candidates: [] }
+      : path === "application-board/link"
+        ? { application_id: 3, job_id: 12, created_job: true, missing: [] }
+        : { items: [] },
+  )
   render(<ApplicationsPage />)
-  fireEvent.click(screen.getByRole("button", { name: "View No target" }))
-  expect(
-    screen.getByRole("button", { name: "Prepare application" }),
-  ).toBeDisabled()
-  expect(
-    screen.queryByRole("button", { name: "Open portal" }),
-  ).not.toBeInTheDocument()
-  fireEvent.click(screen.getByRole("button", { name: "Close" }))
   fireEvent.click(screen.getByRole("button", { name: "View Unsafe" }))
   expect(
     screen.queryByRole("button", { name: "Open portal" }),
   ).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole("button", { name: "Close" }))
+  fireEvent.click(screen.getByRole("button", { name: "View No target" }))
+  fireEvent.click(screen.getByRole("button", { name: "Prepare application" }))
+  const dialog = within(await screen.findByRole("dialog", { name: "Prepare this application" }))
+  expect(await dialog.findByLabelText("Role title")).toHaveValue("No target")
+  expect(openApply).not.toHaveBeenCalled()
+  fireEvent.click(dialog.getByRole("button", { name: "Link and open Apply" }))
+  await waitFor(() => expect(openApply).toHaveBeenCalledWith(12, 3))
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
 })
 it("shows empty/error states and retries", () => {
   rows = []

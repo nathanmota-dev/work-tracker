@@ -8,6 +8,9 @@ import type {
   ApplicationDetails,
   ApplicationFields,
   ApplicationStage,
+  JobLinkOptions,
+  JobLinkResult,
+  ReviewItem,
   TrackedApplication,
 } from "./types.ts";
 import {
@@ -21,7 +24,9 @@ import {
   stages,
   requireTracking,
 } from "./records.ts";
-import { openApplication, startTracking, transition } from "./journey-store.ts";
+import { openApplication, resolveJob, startTracking, transition } from "./journey-store.ts";
+import { jobLinkOptions, linkJob } from "./job-link.ts";
+import { reconcileReviews, refreshReview, resolveReview, reviewItems } from "./review.ts";
 import {
   ApplicationBoardError,
   choice,
@@ -40,7 +45,11 @@ type Result = {
     | TrackedApplication
     | ApplicationStage
     | ApplicationStage[]
-    | ApplicationDetails;
+    | ApplicationDetails
+    | JobLinkOptions
+    | JobLinkResult
+    | { items: ReviewItem[]; fixed?: number[] }
+    | { item: ReviewItem | null };
   changed: string[];
 };
 type Handler = (d: Database, body: Body) => Result;
@@ -60,33 +69,47 @@ function details(d: Database, body: Body): Result {
     changed: [],
   };
 }
+const cardColumns = ["company_name", "external_url", "role_title", "role_type", "stack_json", "comp", "company_url", "notes", "applied_at"] as const;
+type CardRow = Record<(typeof cardColumns)[number], string | null>;
+
+/**
+ * Register an application sent outside the app. With `job_id`, the saved job's
+ * existing application is reused (its stored card fields win), so changing
+ * screens never creates a second application for the same job.
+ */
 function create(d: Database, body: Body): Result {
   const data = fields(body, false) as ApplicationFields;
+  const jobId = body.job_id == null ? null : resolveJob(d, { jobId: id(body.job_id) });
   const { record: opened, created } = openApplication(d, {
-    jobId: null,
+    jobId,
     origin: "manual",
     idempotencyKey: optionalText(body.request_id),
   });
-  if (!created) return { value: application(d, opened.id), changed: [] };
-  d.query(
-    `UPDATE applications SET company_name = ?, external_url = ?, role_title = ?, role_type = ?,
-    stack_json = ?, comp = ?, company_url = ?, notes = ?, applied_at = ? WHERE id = ?`,
-  ).run(
-    data.company_name,
-    data.external_url,
-    data.role_title,
-    data.role_type,
-    JSON.stringify(data.stack),
-    data.comp,
-    data.company_url,
-    data.notes,
-    data.applied_at,
-    opened.id,
-  );
+  if (!created && opened.tracking_status !== null) return { value: application(d, opened.id), changed: [] };
+  const input: CardRow = { ...data, stack_json: JSON.stringify(data.stack) };
+  const stored = d.query(`SELECT ${cardColumns.join(", ")} FROM applications WHERE id = ?`).get(opened.id) as CardRow;
+  const values = cardColumns.map((column) => (created ? input[column] : stored[column] ?? input[column]));
+  d.query(`UPDATE applications SET ${cardColumns.map((column) => `${column} = ?`).join(", ")} WHERE id = ?`).run(...values, opened.id);
   // Registering an application sent outside the app records its submission.
   transition(d, opened.id, "submit", "api", { at: data.applied_at });
   startTracking(d, opened.id);
+  refreshReview(d, opened.id);
   return { value: application(d, opened.id), changed: [...trackedChanges] };
+}
+const linkOptions: Handler = (d, body) => ({ value: jobLinkOptions(d, body), changed: [] });
+function link(d: Database, body: Body): Result {
+  const value = linkJob(d, body);
+  refreshReview(d, value.application_id);
+  return { value, changed: ["applications", "jobs", "activity_log"] };
+}
+const review: Handler = (d) => ({ value: { items: reviewItems(d) }, changed: [] });
+function resolve(d: Database, body: Body): Result {
+  const { item, changed } = resolveReview(d, body, "api");
+  return { value: { item }, changed: changed ? [...trackedChanges] : [] };
+}
+function reconcile(d: Database): Result {
+  const value = reconcileReviews(d, "api");
+  return { value, changed: value.fixed.length ? [...trackedChanges] : [] };
 }
 function saveStage(d: Database, body: Body): Result {
   const name = requiredText(body.name, "Stage name");
@@ -235,6 +258,11 @@ function reopen(d: Database, body: Body): Result {
 const handlers: Record<keyof ApplicationActions, Handler> = {
   details,
   create,
+  "link/options": linkOptions,
+  link,
+  review,
+  "review/resolve": resolve,
+  "review/reconcile": reconcile,
   "stages/save": saveStage,
   "stages/reorder": reorderStages,
   "stages/set-archived": setStageArchived,

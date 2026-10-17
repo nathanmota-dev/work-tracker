@@ -27,7 +27,7 @@ export interface PreparationRun {
   updated_at: string;
 }
 export interface PreparationDetails {
-  job: { id: number; title: string; company_name: string; description: string | null; link: string | null; archived_at: string | null };
+  job: { id: number; title: string; company_name: string; description: string | null; link: string | null; archived_at: string | null; linkedin_job_id?: string | null };
   runs: PreparationRun[];
   busy: boolean;
   applicationStatus: string | null;

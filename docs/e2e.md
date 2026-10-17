@@ -54,8 +54,8 @@ breadcrumb, view-specific content and reload. New sidebar entries require tests.
 | Outreach | Due actions, cooldowns, funnel/budget rendering, filtering and follow-up handoff |
 | Apply | Sources, description, real two-page PDFs, generation/regeneration/history, report, viewer controls/export, failed output preservation, cancel, fill/sign-in/retry and explicit submission |
 | Jobs | Pagination, search/status filters, archive/restore, failed mutation, deletion confirmation/cancel, linked-record protection and Apply handoff |
-| Automatic applications | Records, zero score, details/portal, status updates and preserved preparation IDs |
-| Application board | Minimal/full registration, failed edits, search, pointer drag/stage selection, failed-move rollback, timeline, all archive reasons/reopen and stage management/protections |
+| Automatic applications | Records, zero score, details/portal, status updates, preserved preparation IDs, creating the job of a manual application (missing data, failed link/retry, Apply with the same IDs) and legacy review (safe fixes, explicit choice between ambiguous jobs) |
+| Application board | Minimal/full registration (optionally linked to a saved job), failed edits, search, pointer drag/stage selection, failed-move rollback, timeline, all archive reasons/reopen and stage management/protections |
 | Answers | Add/edit, required/duplicate keys, failure/retry, cancel and realtime updates |
 | Interviews | Upcoming/past/closed, details/search, live updates and Dashboard link |
 | Activity | Pagination/search/reset, real CLI notifications and reload persistence |
