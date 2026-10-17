@@ -6,6 +6,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { WebSocket } from "ws";
 import { Database } from "../../db/sqlite.ts";
+import { SCHEMA_VERSION } from "../../db/schema.ts";
 const exec = promisify(execFile);
 const previousEnv = { ...process.env };
 const home = mkdtempSync(join(tmpdir(), "work tracker integration "));
@@ -57,7 +58,7 @@ test("fresh private database, WAL, foreign keys, initial schema and empty domain
   }
   expect(
     db().query("SELECT value FROM meta WHERE key='schema_version'").get(),
-  ).toEqual({ value: "3" });
+  ).toEqual({ value: String(SCHEMA_VERSION) });
   const columns = db().query("PRAGMA table_info(applications)").all() as {
     name: string;
   }[];

@@ -4,7 +4,9 @@ import { ensureCurrentSchema } from "./current-schema.ts";
 import { snapshotDatabase } from "./snapshot.ts";
 import { IncompatibleSchemaError, MIGRATIONS, MigrationIntegrityError, migrateDatabase, type Migration } from "./migrations.ts";
 import { MIGRATION_TABLES_SQL, SCHEMA_VERSION } from "./schema.ts";
+import { backfillJourney, verifyJourney } from "./journey-backfill.ts";
 vi.mock("./current-schema.ts", () => ({ ensureCurrentSchema: vi.fn() }));
+vi.mock("./journey-backfill.ts", () => ({ backfillJourney: vi.fn(), verifyJourney: vi.fn() }));
 vi.mock("./snapshot.ts", () => ({ snapshotDatabase: vi.fn((_d: unknown, path: string) => path) }));
 
 type State = {
@@ -16,10 +18,12 @@ type State = {
 };
 let state: State, d: ReturnType<typeof databaseDouble>, log: string[];
 const clock = () => new Date("2026-10-16T12:00:00.000Z");
-const options = { backupDir: "/home/backups", clock };
+// Runner semantics are pinned to the v3 baseline; the real plan is covered at the end.
+const baseline = MIGRATIONS.filter((migration) => migration.version <= 3);
+const options = { backupDir: "/home/backups", clock, migrations: baseline, target: 3 };
 const step = (version: number, up: Migration["up"] = () => log.push(`up ${version}`), extra: Partial<Migration> = {}): Migration =>
   ({ version, name: `step ${version}`, up, ...extra });
-const plan = (...steps: Migration[]) => ({ ...options, migrations: [...MIGRATIONS, ...steps], target: steps.at(-1)!.version });
+const plan = (...steps: Migration[]) => ({ ...options, migrations: [...baseline, ...steps], target: steps.at(-1)!.version });
 const writes = () => d.statement.run.mock.calls as unknown[][];
 
 /** Answers the runner's catalog, pragma and count queries from `state`. */
@@ -41,16 +45,18 @@ beforeEach(() => {
 
 test("creates an empty database at the latest version and records the whole history", () => {
   state.tables = [];
-  expect(migrateDatabase(d.asDatabase, options)).toEqual({ mode: "created", from: null, to: SCHEMA_VERSION, applied: [], backup: null });
+  expect(migrateDatabase(d.asDatabase, { backupDir: "/b", clock })).toEqual({ mode: "created", from: null, to: SCHEMA_VERSION, applied: [], backup: null });
   expect(log).toEqual(["ensure"]);
+  expect(backfillJourney).not.toHaveBeenCalled();
   expect(writes()).toEqual([
     [3, "legacy additive baseline", "2026-10-16T12:00:00.000Z"],
+    [4, "application journey model", "2026-10-16T12:00:00.000Z"],
     [String(SCHEMA_VERSION)],
   ]);
   expect(d.transaction).toHaveBeenCalledOnce();
 });
 test("a current workspace only receives additive changes", () => {
-  expect(migrateDatabase(d.asDatabase, { backupDir: "/b" })).toEqual({ mode: "current", from: 3, to: 3, applied: [], backup: null });
+  expect(migrateDatabase(d.asDatabase, { ...options, backupDir: "/b" })).toEqual({ mode: "current", from: 3, to: 3, applied: [], backup: null });
   expect(log).toEqual(["ensure"]);
   expect(writes()).toEqual([]);
   expect(d.query).not.toHaveBeenCalledWith("PRAGMA quick_check");
@@ -139,4 +145,14 @@ test.each([
 ])("rejects an invalid migration plan before reading the database", (migrations, target, message) => {
   expect(() => migrateDatabase(d.asDatabase, { ...options, migrations, target })).toThrow(message);
   expect(d.query).not.toHaveBeenCalled();
+});
+test("the journey step snapshots a v3 workspace, completes its schema, backfills and verifies before stamping v4", () => {
+  vi.mocked(snapshotDatabase).mockImplementation((_d, path) => { log.push("snapshot"); return path; });
+  vi.mocked(backfillJourney).mockImplementation(() => log.push("backfill"));
+  vi.mocked(verifyJourney).mockImplementation(() => log.push("verify"));
+  expect(migrateDatabase(d.asDatabase, { backupDir: "/home/backups", clock })).toEqual({
+    mode: "migrated", from: 3, to: 4, applied: [4], backup: "/home/backups/work-tracker-v3-to-v4-2026-10-16T12-00-00-000Z.db",
+  });
+  expect(log).toEqual(["snapshot", "PRAGMA foreign_keys = OFF;", MIGRATION_TABLES_SQL, "ensure", "backfill", "ensure", "verify", "PRAGMA foreign_keys = ON;"]);
+  expect(writes().map((args) => args[0])).toEqual([4, "4"]);
 });

@@ -10,6 +10,8 @@ import { compileLatex, dependencyStatus, inspectPdf } from "./latex.ts";
 import { PreparationError, snapshotSources, sourcesConfig, writeSnapshot, type SourcesSnapshot } from "./sources.ts";
 import { addArtifact, artifactFile, cachedPreview, runManifest, runRecord, updateRun } from "./store.ts";
 import type { PdfArtifact, PreparationDetails, PreparationRun, SourcesState } from "./types.ts";
+import { journeyRecord, latestForJob, openApplication, settleExecution, transition } from "../applications/journey-store.ts";
+import { planTransition } from "../applications/journey.ts";
 
 export type PreparationAgent = Pick<SessionManager, "run" | "cancel"> & Partial<Pick<SessionManager, "subscribe" | "isRunning">>;
 type Job = PreparationDetails["job"] & { linkedin_job_id?: string };
@@ -41,7 +43,12 @@ export class PreparationService {
   private unsubscribe?: () => void;
   constructor(private acp: PreparationAgent, private broadcast: (event: unknown) => void) {
     // A process restart cannot resume an in-flight agent or compiler automatically.
-    db().query("UPDATE application_runs SET status = 'interrupted', error = 'The app closed during this execution. Retry to continue.', updated_at = ? WHERE status = 'running'").run(now());
+    const d = db();
+    d.transaction(() => {
+      const running = d.query("SELECT id, application_id, phase FROM application_runs WHERE status = 'running'").all() as { id: string; application_id: number | null; phase: PreparationRun["phase"] }[];
+      d.query("UPDATE application_runs SET status = 'interrupted', error = 'The app closed during this execution. Retry to continue.', updated_at = ? WHERE status = 'running'").run(now());
+      for (const run of running) if (run.application_id) settleExecution(d, run.application_id, run.phase === "filling" ? "fill" : "preparation", "failed", run.id);
+    })();
     this.unsubscribe = acp.subscribe?.(event => {
       if (!event.runId || this.active?.id !== event.runId) return;
       const run = runRecord(String(event.runId));
@@ -93,8 +100,12 @@ export class PreparationService {
     const rows = db().query("SELECT id FROM application_runs WHERE job_id = ? AND (? IS NULL OR application_id = ?) ORDER BY created_at DESC, rowid DESC").all(job.id, requestedApplication, requestedApplication) as { id: string }[];
     const runs = rows.map(row => runRecord(row.id));
     const applicationId = input.applicationId ? jobId(input.applicationId) : runs.find(run => run.application_id)?.application_id;
-    const application = applicationId ? db().query("SELECT status, preparation_run_id FROM applications WHERE id = ? AND job_id = ?").get(applicationId, job.id) as { status: string; preparation_run_id: string | null } | undefined : undefined;
-    return { job, runs, busy: this.isBusy, applicationStatus: application?.status ?? null, uploadedRunId: application?.preparation_run_id ?? null };
+    const application = applicationId ? db().query("SELECT id FROM applications WHERE id = ? AND job_id = ?").get(applicationId, job.id) as { id: number } | undefined : undefined;
+    const record = application ? journeyRecord(db(), application.id) : null;
+    return {
+      job, runs, busy: this.isBusy, applicationStatus: record?.status ?? null, uploadedRunId: record?.preparation_run_id ?? null,
+      journey: record && { id: record.id, origin: record.origin, attempt: record.attempt, preparation_status: record.preparation_status, fill_status: record.fill_status, submission_status: record.submission_status, submitted_at: record.submitted_at, review_reason: record.review_reason },
+    };
   }
   description(input: Record<string, unknown>): void {
     this.assertIdle();
@@ -108,17 +119,19 @@ export class PreparationService {
     this.assertIdle();
     const job = jobRecord(jobId(input.jobId));
     if (job.archived_at) throw new PreparationError("Restore this job before preparing an application.", 409);
+    const d = db();
+    const applicationId = input.applicationId ? jobId(input.applicationId) : latestForJob(d, job.id)?.id ?? null;
+    if (applicationId && !d.query("SELECT id FROM applications WHERE id = ? AND job_id = ?").get(applicationId, job.id)) throw new PreparationError("This application belongs to another job.");
+    // Generating a resume never changes the submission; a submitted attempt keeps its documents.
+    if (applicationId) planTransition(journeyRecord(d, applicationId), "prepare.start");
     const snapshot = snapshotSources();
     if (typeof input.provider !== "string" || !input.provider) throw new PreparationError("Select an agent.");
-    const applicationId = input.applicationId ? jobId(input.applicationId) : (db().query("SELECT id FROM applications WHERE job_id = ? ORDER BY id DESC LIMIT 1").get(job.id) as { id: number } | undefined)?.id ?? null;
-    if (applicationId && !db().query("SELECT id FROM applications WHERE id = ? AND job_id = ?").get(applicationId, job.id)) throw new PreparationError("This application belongs to another job.");
-    if (applicationId) {
-      const app = db().query("SELECT status FROM applications WHERE id = ?").get(applicationId) as { status: string };
-      if (app.status === "submitted") throw new PreparationError("This application is already submitted. Its resume is preserved.", 409);
-    }
     const id = randomUUID();
     const at = now();
-    db().query("INSERT INTO application_runs (id, job_id, application_id, status, phase, provider, model, options_json, created_at, updated_at) VALUES (?, ?, ?, 'running', 'preparing', ?, ?, ?, ?, ?)").run(id, job.id, applicationId, input.provider, typeof input.model === "string" ? input.model : null, JSON.stringify(input), at, at);
+    d.transaction(() => {
+      d.query("INSERT INTO application_runs (id, job_id, application_id, status, phase, provider, model, options_json, created_at, updated_at) VALUES (?, ?, ?, 'running', 'preparing', ?, ?, ?, ?, ?)").run(id, job.id, applicationId, input.provider as string, typeof input.model === "string" ? input.model : null, JSON.stringify(input), at, at);
+      if (applicationId) transition(d, applicationId, "prepare.start", "api", { runId: id });
+    })();
     const controller = new AbortController();
     this.active = { id, controller };
     this.task = this.performGeneration(id, job, snapshot, input, controller.signal).catch(error => this.fail(id, error)).finally(() => { this.active = null; this.task = null; this.changed(id); });
@@ -126,8 +139,18 @@ export class PreparationService {
     return runRecord(id);
   }
   private fail(id: string, error: unknown): void {
-    updateRun(id, { status: this.active?.controller.signal.aborted ? "cancelled" : "failed", error: (error instanceof Error ? error.message : String(error)).slice(-24000) });
+    const outcome = this.active?.controller.signal.aborted ? "cancelled" : "failed";
+    updateRun(id, { status: outcome, error: (error instanceof Error ? error.message : String(error)).slice(-24000) });
+    this.settle(id, outcome);
     this.changed(id);
+  }
+  /** Return the application's in-progress dimension to a resting state. */
+  private settle(id: string, outcome: "failed" | "cancelled"): void {
+    const run = runRecord(id);
+    if (!run.application_id) return;
+    const d = db();
+    d.transaction(() => settleExecution(d, run.application_id!, run.phase === "filling" ? "fill" : "preparation", outcome, id))();
+    this.broadcast({ type: "changed", table: "applications" });
   }
   private async agent(id: string, manifestPath: string, skill: string, extra = ""): Promise<boolean> {
     const run = runRecord(id);
@@ -202,16 +225,16 @@ export class PreparationService {
     addArtifact(id, "tailored", pdfPath, compiled.check);
     const report = readFileSync(manifest.reportPath, "utf8");
     const current = runRecord(id);
-    const applicationId = db().transaction(() => {
-      let appId = current.application_id;
-      if (!appId) {
-        const added = db().query("INSERT INTO applications (job_id, status, external_url) VALUES (?, 'draft', ?) RETURNING id").get(job.id, job.link) as { id: number };
-        appId = added.id;
-      }
-      const app = db().query("SELECT status FROM applications WHERE id = ?").get(appId) as { status: string };
-      if (app.status === "submitted") throw new PreparationError("The application was submitted during generation. Its previous PDF is preserved.", 409);
-      db().query("UPDATE applications SET status = 'draft', fields_filled_json = NULL, unfilled_json = NULL, resume_path = ?, report_path = ?, cover_letter_path = ?, preparation_run_id = ? WHERE id = ?").run(pdfPath, manifest.reportPath, existsSync(manifest.coverPath) ? manifest.coverPath : null, id, appId);
-      return appId;
+    const d = db();
+    const applicationId = d.transaction(() => {
+      // Reuses the job's latest attempt, so a retried generation never adds an application.
+      const app = current.application_id ? journeyRecord(d, current.application_id) : openApplication(d, { jobId: job.id, origin: "preparation" }).record;
+      if (app.submission_status === "submitted") throw new PreparationError("The application was submitted during generation. Its previous PDF is preserved.", 409);
+      d.query("UPDATE applications SET external_url = COALESCE(external_url, ?), fields_filled_json = NULL, unfilled_json = NULL, resume_path = ?, report_path = ?, cover_letter_path = ?, preparation_run_id = ? WHERE id = ?").run(job.link, pdfPath, manifest.reportPath, existsSync(manifest.coverPath) ? manifest.coverPath : null, id, app.id);
+      transition(d, app.id, "prepare.complete", "agent", { runId: id });
+      // A new resume needs a new portal fill; the submission is untouched.
+      transition(d, app.id, "fill.reset", "system", { runId: id });
+      return app.id;
     })();
     updateRun(id, { status: "completed", phase: "review", application_id: applicationId, report, error: null });
     db().query("INSERT INTO activity_log (kind, skill, summary) VALUES ('resume', 'work-tracker-resume-tailor', ?)").run(`Prepared ${job.company_name} ${job.title}`);
@@ -228,15 +251,19 @@ export class PreparationService {
     const pdf = run.artifacts.find(item => item.kind === "tailored");
     if (!pdf || !run.application_id || !["completed", "waiting_for_sign_in", "failed", "cancelled"].includes(run.status)) throw new PreparationError("Generate a validated PDF before filling the application.");
     const file = artifactFile(pdf.id);
-    const application = db().query("SELECT external_url, status FROM applications WHERE id = ?").get(run.application_id) as { external_url: string | null; status: string };
-    if (application.status === "submitted") throw new PreparationError("This application is already submitted.", 409);
+    const d = db();
+    const application = journeyRecord(d, run.application_id);
+    planTransition(application, "fill.start");
     const url = webLink(application.external_url || job.link);
     const manifest = runManifest(id);
     const manifestPath = join(dirname(manifest.manifestPath), "fill-manifest.json");
     const resultPath = join(dirname(manifest.manifestPath), "fill-result.json");
     rmSync(resultPath, { force: true });
     writeFileSync(manifestPath, JSON.stringify({ runId: id, job, applicationId: run.application_id, pdfPath: file.path, url, resultPath }, null, 2), { mode: 0o600 });
-    updateRun(id, { status: "running", phase: "filling", error: null });
+    d.transaction(() => {
+      transition(d, application.id, "fill.start", "api", { runId: id });
+      updateRun(id, { status: "running", phase: "filling", error: null });
+    })();
     const controller = new AbortController();
     this.active = { id, controller };
     this.task = (async () => {
@@ -247,19 +274,30 @@ export class PreparationService {
       const result = JSON.parse(readFileSync(resultPath, "utf8")) as Record<string, unknown>;
       if (!result.fields || typeof result.fields !== "object" || Array.isArray(result.fields) || !Array.isArray(result.unfilled)) throw new Error("The agent did not produce a valid fill result. Review the browser and retry.");
       const finalUrl = result.externalUrl ? webLink(result.externalUrl) : url;
-      db().query("UPDATE applications SET status = 'filled', fields_filled_json = ?, unfilled_json = ?, external_url = ?, portal = ?, resume_path = ?, preparation_run_id = ?, report_path = ?, cover_letter_path = ? WHERE id = ?").run(JSON.stringify(result.fields), JSON.stringify(result.unfilled), finalUrl, String(result.portal ?? "generic"), file.path, id, manifest.reportPath, manifest.coverPath && existsSync(manifest.coverPath) ? manifest.coverPath : null, run.application_id);
-      updateRun(id, { status: "completed", phase: "review" });
+      d.transaction(() => {
+        d.query("UPDATE applications SET fields_filled_json = ?, unfilled_json = ?, external_url = ?, portal = ?, resume_path = ?, preparation_run_id = ?, report_path = ?, cover_letter_path = ? WHERE id = ?").run(JSON.stringify(result.fields), JSON.stringify(result.unfilled), finalUrl, String(result.portal ?? "generic"), file.path, id, manifest.reportPath, manifest.coverPath && existsSync(manifest.coverPath) ? manifest.coverPath : null, application.id);
+        // Filling never submits: the candidate confirms the submission separately.
+        transition(d, application.id, "fill.complete", "agent", { runId: id });
+        updateRun(id, { status: "completed", phase: "review" });
+      })();
       this.broadcast({ type: "changed", table: "applications" });
     })().catch(error => this.fail(id, error)).finally(() => { this.active = null; this.task = null; this.changed(id); });
     this.changed(id);
     return runRecord(id);
   }
-  submitted(input: Record<string, unknown>): void {
+  /** Record the candidate's confirmation; repeating it returns the confirmed state unchanged. */
+  submitted(input: Record<string, unknown>): { alreadySubmitted: boolean } {
     this.assertIdle();
     const run = runRecord(String(input.runId ?? ""));
-    const result = db().query("UPDATE applications SET status = 'submitted', applied_at = ? WHERE id = ? AND status = 'filled' AND preparation_run_id = ?").run(now(), run.application_id, run.id);
-    if (!result.changes) throw new PreparationError("Fill and submit this application in the browser first.");
-    this.broadcast({ type: "changed", table: "applications" });
+    const d = db();
+    const changed = d.transaction(() => {
+      const record = run.application_id ? journeyRecord(d, run.application_id) : null;
+      const filled = record?.submission_status === "submitted" || record?.fill_status === "filled";
+      if (!record || record.preparation_run_id !== run.id || !filled) throw new PreparationError("Fill and submit this application in the browser first.");
+      return transition(d, record.id, "submit", "api", { runId: run.id }).changed;
+    })();
+    if (changed) this.broadcast({ type: "changed", table: "applications" });
+    return { alreadySubmitted: !changed };
   }
   async cancel(id?: string): Promise<void> {
     if (!this.active && id && !this.acp.isRunning) {
@@ -267,6 +305,7 @@ export class PreparationService {
       if (waiting.status === "waiting_for_sign_in") {
         this.acp.cancel();
         updateRun(id, { status: "cancelled", error: null });
+        this.settle(id, "cancelled");
         this.changed(id);
         return;
       }

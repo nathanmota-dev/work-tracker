@@ -3,6 +3,7 @@ import type { Database } from "./sqlite.ts";
 import { MIGRATION_TABLES_SQL, SCHEMA_VERSION } from "./schema.ts";
 import { ensureCurrentSchema } from "./current-schema.ts";
 import { snapshotDatabase } from "./snapshot.ts";
+import { backfillJourney, verifyJourney } from "./journey-backfill.ts";
 
 /**
  * One explicit step in the schema history.
@@ -45,6 +46,17 @@ export const MIGRATIONS: readonly Migration[] = [
     // Workspaces stamped 0-3 were kept current by additive changes only; this
     // creates whatever tables, columns and seed rows they are still missing.
     up: ensureCurrentSchema,
+  },
+  {
+    version: 4,
+    name: "application journey model",
+    // Rewrites the legacy status summary of board records, so take a snapshot.
+    incompatible: true,
+    up: (d) => {
+      ensureCurrentSchema(d);
+      backfillJourney(d);
+    },
+    verify: verifyJourney,
   },
 ];
 

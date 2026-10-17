@@ -1,0 +1,93 @@
+# Jornada da candidatura
+
+Uma candidatura é **um registro** em `applications`. Preparação do currículo,
+preenchimento do portal, envio, etapa do quadro e arquivamento são dimensões
+independentes desse mesmo registro. O contrato fica em
+[src/applications/journey.ts](../src/applications/journey.ts); as operações no
+banco ficam em [src/applications/journey-store.ts](../src/applications/journey-store.ts)
+e são usadas pela API (quadro e Apply), pela CLI e, por meio dela, pelos agentes.
+
+## Identidade, origem e vínculo com a vaga
+
+| Coluna | Significado |
+| --- | --- |
+| `id` | ID local da candidatura. Nunca é reutilizado nem recriado por uma migração. |
+| `job_id` | ID **local** da vaga (`jobs.id`). O ID externo do LinkedIn fica em `jobs.linkedin_job_id`; a CLI aceita `--job-id` (local) ou `--linkedin-job-id` (externo) e recusa combinações divergentes. |
+| `origin` | `preparation` (gerada pelo Apply), `manual` (registrada no quadro), `agent` (CLI/skills) ou `unknown` (legado sem origem determinável). |
+| `attempt` | Número da tentativa para a vaga; único por `(job_id, attempt)`. |
+| `previous_application_id` | Tentativa anterior quando houve nova candidatura explícita. |
+| `idempotency_key` | Chave opcional; repetir a requisição com a mesma chave devolve o registro criado. |
+| `review_reason` | Marcação de registros legados ambíguos para a reconciliação da feature 04. |
+
+Candidaturas nunca são deduplicadas por título ou empresa: duas vagas com o mesmo
+título são vagas diferentes, e dois registros manuais sem chave são registros
+diferentes.
+
+## Dimensões e transições
+
+| Dimensão | Coluna | Estados |
+| --- | --- | --- |
+| Preparação | `preparation_status` | `not_started`, `in_progress`, `ready`, `failed` |
+| Preenchimento | `fill_status` | `not_started`, `in_progress`, `filled`, `needs_input`, `failed` |
+| Envio | `submission_status` (+ `submitted_at`) | `not_submitted`, `submitted` |
+| Acompanhamento | `tracking_status` (+ `current_stage_id`) | `active`, `archived` (nulo antes de entrar no quadro) |
+
+| Ação | De | Para | Regras |
+| --- | --- | --- | --- |
+| `prepare.start` | `not_started`, `ready`, `failed` | `in_progress` | Bloqueada após envio. |
+| `prepare.complete` | `not_started`, `in_progress`, `failed` | `ready` | Bloqueada após envio. |
+| `prepare.fail` / `prepare.cancel` / `prepare.restore` | `in_progress` | `failed` / `not_started` / `ready` | `restore` mantém o currículo validado anterior. |
+| `fill.start` | `not_started`, `filled`, `needs_input`, `failed` | `in_progress` | Exige preparação `ready`; bloqueada após envio. |
+| `fill.complete` | `not_started`, `in_progress`, `needs_input`, `failed` | `filled` | Bloqueada após envio. |
+| `fill.needs_input` | `not_started`, `in_progress`, `filled`, `failed` | `needs_input` | Bloqueada após envio. |
+| `fill.fail` / `fill.cancel` / `fill.restore` | `in_progress` | `failed` / `not_started` / `filled` | `restore` mantém o preenchimento anterior. |
+| `fill.reset` | `filled`, `needs_input`, `failed` | `not_started` | Um currículo novo exige novo preenchimento. |
+| `submit` | `not_submitted` | `submitted` | Não exige preparação (registro manual); nunca é desfeita. |
+| `archive` / `reopen` | `active` / `archived` | `archived` / `active` | Executadas pelo quadro. |
+
+Regras gerais:
+
+- Cada ação altera somente a própria dimensão. Gerar currículo não envia; mover
+  ou arquivar um card não altera `submission_status` nem `submitted_at`.
+- Ações marcadas como idempotentes (`*.start`, `*.complete`, `fill.needs_input`,
+  `fill.reset`, `submit`) não fazem nada quando a dimensão já está no estado de
+  destino. Repetir uma ação não cria candidatura, card, evento nem transição.
+- Cada mudança efetiva grava uma linha em `application_transitions` com ação,
+  estados, ator (`api`, `cli`, `agent`, `system`) e execução, na mesma transação
+  da mudança. Uma falha desfaz tudo.
+- `applications.status` continua existindo como resumo derivado para leitores
+  antigos: `submitted`, `filled`, `needs_input` ou `draft`. Na CLI,
+  `--status draft|filled|needs_input|submitted|applied` é convertido nas ações
+  acima; voltar para `draft` depois do envio é recusado.
+- Uma execução interrompida (fechar o app, cancelar ou falhar) devolve a dimensão
+  em andamento a um estado de repouso sem apagar o currículo ou o preenchimento
+  válidos anteriores.
+
+## Nova candidatura e republicação
+
+Sem decisão explícita, a mesma vaga reutiliza sempre a sua última tentativa:
+gerar de novo, repetir `work-tracker application add --job-id N` ou confirmar o
+envio duas vezes devolve o mesmo registro. Uma nova tentativa para a mesma vaga
+(por exemplo, a vaga foi republicada com o mesmo ID) exige `--new-attempt` e só é
+aceita depois que a tentativa anterior foi enviada; ela recebe `attempt + 1` e
+aponta para a anterior em `previous_application_id`. Uma vaga republicada com
+outro ID do LinkedIn é outra vaga e tem a sua própria tentativa 1.
+
+## Migração dos registros existentes (schema v4)
+
+A migração 4 (`application journey model`) é marcada como incompatível, então
+um snapshot é gravado antes dela. Ela classifica somente o que é determinístico:
+
+- Registros no quadro (`current_stage_id` preenchido) ou com `status = submitted`
+  ficam `submitted`, com `submitted_at = applied_at`.
+- `filled`/`needs_input` definem o preenchimento; `resume_path` define a
+  preparação como `ready`; `preparation_run_id` define a origem `preparation`, e
+  registros do quadro sem vaga, a origem `manual`.
+- Tentativas são numeradas por vaga, em ordem de ID.
+
+Registros ambíguos recebem `review_reason` e **não são associados
+automaticamente** a nenhuma vaga: `missing_job` (vaga ausente ou inexistente),
+`unknown_status` (status sem significado conhecido, como `applied` fora do
+quadro; o texto original é mantido), `missing_stage` (enviado mas fora do quadro)
+e `duplicate_job` (segunda candidatura para a mesma vaga). IDs, vínculos, eventos
+do quadro e artefatos são preservados.

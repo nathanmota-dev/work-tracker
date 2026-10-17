@@ -44,7 +44,9 @@ Write API (used by skills):
   work-tracker metric record [--search-appearances --profile-views --post-impressions --connections --score]
   work-tracker score record --value <n> [--signals <json>]
   work-tracker interview add --company <c> [--when --stage --status --note]
-  work-tracker application add [--job-id --resume-path --cover-path --report-path --keyword-score --status --portal --external-url]
+  work-tracker application add [--job-id <local> | --linkedin-job-id <external>] [--new-attempt --idempotency-key
+      --resume-path --cover-path --report-path --keyword-score --status --portal --external-url]
+      Reuses the job's latest application; --new-attempt explicitly applies again after a submission
   work-tracker application update --id <n> [--status --portal --external-url --fields --unfilled]
   work-tracker answer set --key <k> [--value --category]   Set a reusable application answer
   work-tracker answer list [--category <c>]                List reusable application answers

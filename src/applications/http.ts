@@ -4,6 +4,7 @@ import {
   listApplicationBoard,
 } from "./store.ts";
 import type { ApplicationActions } from "./types.ts";
+import { JourneyError } from "./journey.ts";
 
 const actions: (keyof ApplicationActions)[] = [
   "create",
@@ -46,10 +47,10 @@ export async function handleApplicationBoard(
     );
     for (const table of result.changed) broadcast({ type: "changed", table });
     return Response.json(result.value, {
-      status: action === "create" ? 201 : 200,
+      status: action === "create" && result.changed.length ? 201 : 200,
     });
   } catch (error) {
-    if (error instanceof ApplicationBoardError)
+    if (error instanceof ApplicationBoardError || error instanceof JourneyError)
       return Response.json({ error: error.message }, { status: error.status });
     throw error;
   }

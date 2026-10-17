@@ -12,6 +12,11 @@ const runOptions = { time: 1_000, warmupTime: 300, warmupIterations: 10 }
 const companies = ["Ácme Labs", "Northwind", "Globex", "Initech"]
 const applications: board.TrackedApplication[] = Array.from({ length: 5_000 }, (_, index) => ({
   id: index + 1,
+  job_id: null,
+  origin: "manual",
+  attempt: 1,
+  submission_status: "submitted",
+  submitted_at: "2026-01-01T00:00:00.000Z",
   company_name: companies[index % companies.length]!,
   external_url: `https://jobs.example.test/${index + 1}`,
   role_title: index % 3 ? "Frontend Engineer" : "Platform Engineer",

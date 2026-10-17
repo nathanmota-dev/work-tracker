@@ -130,7 +130,7 @@ Write a run log to `$WORK_TRACKER_HOME/logs/{ISO-timestamp}.md`:
 - Changes made vs base resume (diff summary)
 - Gaps flagged
 
-Also persist each tailored application to the Work Tracker database (powers the dashboard's Applications section):
+Also persist each tailored application to the Work Tracker database (powers the dashboard's Applications section). `application add` reuses the job's existing application, so rerunning it never creates a duplicate; a tailored resume is not a submission:
 
 ```
 work-tracker application add \

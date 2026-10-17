@@ -150,6 +150,8 @@ export function ApplicationForm({
   onSaved: (application: TrackedApplication) => void
 }) {
   const [draft, setDraft] = useState(() => initialDraft(application))
+  // One key per opened form: a retried save returns the first registration.
+  const [requestId] = useState(() => crypto.randomUUID())
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
   const change = (key: keyof typeof draft, value: string) =>
@@ -161,7 +163,7 @@ export function ApplicationForm({
       const fields = applicationFields(draft, application)
       const saved = application
         ? await boardAction("update", { ...fields, id: application.id })
-        : await boardAction("create", fields)
+        : await boardAction("create", { ...fields, request_id: requestId })
       onSaved(saved)
       onClose()
     } catch (e) {

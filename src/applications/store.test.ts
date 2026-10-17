@@ -11,6 +11,7 @@ let record: Record<string, unknown>;
 let target: Record<string, unknown>;
 let activeStages: Record<string, unknown>[];
 let linked: boolean;
+let keyed: { id: number } | undefined;
 const writes = () => d.statement.run.mock.calls;
 const act = (action: keyof ApplicationActions, body: unknown) =>
   executeApplicationAction(action, body, d.asDatabase);
@@ -19,8 +20,10 @@ beforeEach(() => {
   record = {
     id: 1,
     stack_json: '["React"]',
+    job_id: null,
     current_stage_id: 2,
     tracking_status: "active",
+    submission_status: "not_submitted",
   };
   target = {
     id: 3,
@@ -32,12 +35,14 @@ beforeEach(() => {
   };
   activeStages = [{ ...target, id: 2 }, target];
   linked = false;
+  keyed = undefined;
   d.query.mockImplementation((sql) => ({
     ...d.statement,
     get: vi.fn((...args: unknown[]) => {
       d.statement.get(...args);
       if (sql.includes("SELECT COALESCE")) return { position: 4 };
       if (sql.includes("INSERT INTO")) return { id: 1 };
+      if (sql.includes("idempotency_key = ?")) return keyed;
       if (sql.includes("SELECT id FROM applications WHERE current_stage_id"))
         return linked ? { id: 1 } : undefined;
       if (sql.includes("SELECT * FROM application_stages")) return target;
@@ -74,7 +79,7 @@ test("creates a minimal application and snapshots the initial stage in history",
     stack: [" React ", "React", ""],
   });
   expect(result.changed).toEqual(["applications", "application_events"]);
-  expect(d.statement.get).toHaveBeenCalledWith(
+  expect(writes()).toContainEqual([
     "Acme",
     "https://example.com/",
     null,
@@ -85,9 +90,28 @@ test("creates a minimal application and snapshots the initial stage in history",
     null,
     "2026-10-14T12:00:00.000Z",
     3,
+    1,
+  ]);
+  // A registered application is a recorded submission with a manual origin.
+  expect(d.statement.get).toHaveBeenCalledWith(
+    null,
+    "manual",
+    1,
+    null,
+    null,
     "2026-10-14T12:00:00.000Z",
     "2026-10-14T12:00:00.000Z",
   );
+  expect(writes()).toContainEqual([
+    1,
+    "submission",
+    "submit",
+    "not_submitted",
+    "submitted",
+    "api",
+    null,
+    "2026-10-14T12:00:00.000Z",
+  ]);
   expect(writes()).toContainEqual([
     1,
     "created",
@@ -99,6 +123,19 @@ test("creates a minimal application and snapshots the initial stage in history",
     null,
     null,
   ]);
+});
+test("a repeated registration with the same request ID returns the first record without writes", () => {
+  keyed = { id: 1 };
+  const result = act("create", {
+    company_name: "Acme",
+    external_url: "https://example.com",
+    request_id: "form-1",
+  });
+  expect(result).toEqual({
+    value: expect.objectContaining({ id: 1 }),
+    changed: [],
+  });
+  expect(writes()).toEqual([]);
 });
 test.each([
   null,
