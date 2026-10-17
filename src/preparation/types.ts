@@ -44,6 +44,12 @@ export interface PreparationDetails {
     review_reason: string | null;
   } | null;
 }
+/** Result of "I submitted in the browser"; a repeat reports the original submission. */
+export interface SubmissionConfirmation {
+  alreadySubmitted: boolean;
+  applicationId: number;
+  submittedAt: string | null;
+}
 export interface SourcesState {
   config: ResumeSourcesConfig;
   dependencies: { command: string; available: boolean }[];

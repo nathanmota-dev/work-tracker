@@ -9,8 +9,8 @@ import { openChromePortal } from "../mcp/chrome.ts";
 import { compileLatex, dependencyStatus, inspectPdf } from "./latex.ts";
 import { PreparationError, snapshotSources, sourcesConfig, writeSnapshot, type SourcesSnapshot } from "./sources.ts";
 import { addArtifact, artifactFile, cachedPreview, runManifest, runRecord, updateRun } from "./store.ts";
-import type { PdfArtifact, PreparationDetails, PreparationRun, SourcesState } from "./types.ts";
-import { journeyRecord, latestForJob, openApplication, settleExecution, transition } from "../applications/journey-store.ts";
+import type { PdfArtifact, PreparationDetails, PreparationRun, SourcesState, SubmissionConfirmation } from "./types.ts";
+import { journeyRecord, latestForJob, openApplication, settleExecution, startTracking, transition } from "../applications/journey-store.ts";
 import { planTransition } from "../applications/journey.ts";
 
 export type PreparationAgent = Pick<SessionManager, "run" | "cancel"> & Partial<Pick<SessionManager, "subscribe" | "isRunning">>;
@@ -285,19 +285,31 @@ export class PreparationService {
     this.changed(id);
     return runRecord(id);
   }
-  /** Record the candidate's confirmation; repeating it returns the confirmed state unchanged. */
-  submitted(input: Record<string, unknown>): { alreadySubmitted: boolean } {
+  /**
+   * Record the candidate's confirmation for the application filled by this
+   * execution: submission, initial board stage, active tracking and one board
+   * event change together. Repeating it returns the confirmed state unchanged.
+   */
+  submitted(input: Record<string, unknown>): SubmissionConfirmation {
     this.assertIdle();
     const run = runRecord(String(input.runId ?? ""));
     const d = db();
-    const changed = d.transaction(() => {
+    const result = d.transaction(() => {
       const record = run.application_id ? journeyRecord(d, run.application_id) : null;
       const filled = record?.submission_status === "submitted" || record?.fill_status === "filled";
-      if (!record || record.preparation_run_id !== run.id || !filled) throw new PreparationError("Fill and submit this application in the browser first.");
-      return transition(d, record.id, "submit", "api", { runId: run.id }).changed;
+      if (!record || record.preparation_run_id !== run.id || !filled || !run.artifacts.some(item => item.kind === "tailored"))
+        throw new PreparationError("Fill and submit this application in the browser first.");
+      const requested = input.applicationId === undefined || input.applicationId === null ? record.id : jobId(input.applicationId);
+      if (record.job_id !== run.job_id || requested !== record.id) throw new PreparationError("This execution belongs to another application.", 409);
+      const submitted = transition(d, record.id, "submit", "api", { runId: run.id }).changed;
+      const tracked = startTracking(d, record.id);
+      return { submitted, tracked, record: journeyRecord(d, record.id) };
     })();
-    if (changed) this.broadcast({ type: "changed", table: "applications" });
-    return { alreadySubmitted: !changed };
+    if (result.submitted || result.tracked) {
+      this.broadcast({ type: "changed", table: "applications" });
+      this.broadcast({ type: "changed", table: "application_events" });
+    }
+    return { alreadySubmitted: !result.submitted, applicationId: result.record.id, submittedAt: result.record.submitted_at };
   }
   async cancel(id?: string): Promise<void> {
     if (!this.active && id && !this.acp.isRunning) {

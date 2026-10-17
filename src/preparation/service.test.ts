@@ -26,6 +26,7 @@ import {
   latestForJob,
   openApplication,
   settleExecution,
+  startTracking,
   transition,
   type JourneyRecord,
 } from "../applications/journey-store.ts";
@@ -51,6 +52,7 @@ vi.mock("../applications/journey-store.ts", () => ({
   latestForJob: vi.fn(),
   openApplication: vi.fn(),
   settleExecution: vi.fn(),
+  startTracking: vi.fn(),
   transition: vi.fn(),
 }));
 vi.mock("./store.ts", () => ({
@@ -138,6 +140,11 @@ beforeEach(() => {
   vi.mocked(latestForJob).mockReset().mockImplementation(() => journey);
   vi.mocked(openApplication).mockReset().mockImplementation(() => ({ record: journey, created: true }));
   vi.mocked(settleExecution).mockReset();
+  vi.mocked(startTracking).mockReset().mockImplementation(() => {
+    const entered = journey.tracking_status === null;
+    journey.tracking_status = "active";
+    return entered;
+  });
   vi.mocked(transition).mockReset().mockImplementation((_d, _id, action: JourneyAction) => {
     const { changed, next } = planTransition(journey, action);
     Object.assign(journey, next);
@@ -569,16 +576,35 @@ test("submission requires the currently filled execution and repeating it change
   expect(() => service.submitted({ runId: "r" })).toThrow("Fill and submit");
   expect(transition).not.toHaveBeenCalled();
   journey.preparation_run_id = "r";
-  expect(service.submitted({ runId: "r" })).toEqual({ alreadySubmitted: false });
+  journey.submitted_at = "2026-10-17";
+  expect(service.submitted({ runId: "r", applicationId: 2 })).toEqual({ alreadySubmitted: false, applicationId: 2, submittedAt: "2026-10-17" });
   expect(transition).toHaveBeenCalledWith(d.asDatabase, 2, "submit", "api", { runId: "r" });
-  expect(broadcast).toHaveBeenCalledWith({
-    type: "changed",
-    table: "applications",
-  });
+  expect(startTracking).toHaveBeenCalledWith(d.asDatabase, 2);
+  expect(broadcast.mock.calls).toEqual([
+    [{ type: "changed", table: "applications" }],
+    [{ type: "changed", table: "application_events" }],
+  ]);
   broadcast.mockClear();
-  expect(service.submitted({ runId: "r" })).toEqual({ alreadySubmitted: true });
+  expect(service.submitted({ runId: "r" })).toEqual({ alreadySubmitted: true, applicationId: 2, submittedAt: "2026-10-17" });
   expect(broadcast).not.toHaveBeenCalled();
-  expect(journey.submission_status).toBe("submitted");
+  expect(journey).toMatchObject({ submission_status: "submitted", tracking_status: "active" });
+});
+test("a submitted application missing from the board enters it on confirmation", () => {
+  Object.assign(journey, { submission_status: "submitted", fill_status: "filled", preparation_run_id: "r" });
+  expect(service.submitted({ runId: "r" })).toMatchObject({ alreadySubmitted: true });
+  expect(broadcast).toHaveBeenCalledWith({ type: "changed", table: "application_events" });
+});
+test("rejects a confirmation whose execution belongs to another application, job or document", () => {
+  Object.assign(journey, { fill_status: "filled", preparation_run_id: "r" });
+  expect(() => service.submitted({ runId: "r", applicationId: 9 })).toThrow("belongs to another application");
+  journey.job_id = 4;
+  expect(() => service.submitted({ runId: "r" })).toThrow("belongs to another application");
+  journey.job_id = 1;
+  run.artifacts = [];
+  expect(() => service.submitted({ runId: "r" })).toThrow("Fill and submit");
+  expect(transition).not.toHaveBeenCalled();
+  expect(startTracking).not.toHaveBeenCalled();
+  expect(broadcast).not.toHaveBeenCalled();
 });
 
 test("fails a generation with no description or LinkedIn reference before starting the agent", async () => {

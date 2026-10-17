@@ -9,7 +9,7 @@ import { ResumeSources } from "@/components/resume-sources"
 import { AgentConversation } from "@/components/agent-conversation"
 import { request, useApi, useConnection, subscribe, type Row } from "@/lib/api"
 import type { Providers } from "@/lib/agent"
-import { openApply, preparationMessages, usePreparation, type SourcesState, type PdfArtifact } from "@/lib/preparation"
+import { openApply, preparationMessages, usePreparation, type SourcesState, type PdfArtifact, type SubmissionConfirmation } from "@/lib/preparation"
 const PdfViewer = lazy(() => import("@/components/pdf-viewer").then(module => ({ default: module.PdfViewer })))
 export function ApplyPage() {
   const search = useSearch({ strict: false }) as { jobId?: number; applicationId?: number; runId?: string }
@@ -24,6 +24,7 @@ export function ApplyPage() {
   const [description, setDescription] = useState("")
   const [descriptionDirty, setDescriptionDirty] = useState(false)
   const [error, setError] = useState("")
+  const [notice, setNotice] = useState("")
   const [pending, setPending] = useState(false)
   const [preview, setPreview] = useState<PdfArtifact>()
   const [wide, setWide] = useState(window.innerWidth >= 1100)
@@ -31,7 +32,7 @@ export function ApplyPage() {
   const [pdfTab, setPdfTab] = useState("base")
   const refreshSources = sources.refresh
   useEffect(() => subscribe(event => { if (event.type === "resume-sources-changed") refreshSources() }), [refreshSources])
-  useEffect(() => { setDescriptionDirty(false); setError("") }, [search.jobId])
+  useEffect(() => { setDescriptionDirty(false); setError(""); setNotice("") }, [search.jobId])
   useEffect(() => { if (!descriptionDirty) setDescription(details.data?.job.description ?? "") }, [details.data?.job.description, descriptionDirty])
   const selectedProvider = providers.data?.providers.find(p => p.id === provider) ?? providers.data?.providers.find(p => p.id === providers.data?.default) ?? providers.data?.providers[0]
   const effectiveModel = selectedProvider?.models.includes(model) ? model : ""
@@ -46,10 +47,11 @@ export function ApplyPage() {
   const missingTools = sources.data?.dependencies.some(d => !d.available) ?? true
   const messages = useMemo(() => preparationMessages(run?.events ?? [], run?.status), [run?.events, run?.status])
   async function action(kind: "generate" | "fill" | "cancel" | "submitted" | "description") {
-    setPending(true); setError("")
+    setPending(true); setError(""); setNotice("")
     try {
-      const body = kind === "generate" ? { jobId: search.jobId, applicationId: search.applicationId ?? run?.application_id, provider: selectedProvider?.id, model: effectiveModel || undefined, extra } : kind === "description" ? { jobId: search.jobId, description } : { runId: kind === "fill" || kind === "submitted" ? pdfRun?.id : run?.id, extra }
-      const value = await request<{ id?: string }>(`application-preparation/${kind}`, body)
+      const body = kind === "generate" ? { jobId: search.jobId, applicationId: search.applicationId ?? run?.application_id, provider: selectedProvider?.id, model: effectiveModel || undefined, extra } : kind === "description" ? { jobId: search.jobId, description } : kind === "submitted" ? { runId: pdfRun?.id, applicationId: pdfRun?.application_id ?? undefined } : { runId: kind === "fill" ? pdfRun?.id : run?.id, extra }
+      const value = await request<{ id?: string } & Partial<SubmissionConfirmation>>(`application-preparation/${kind}`, body)
+      if (kind === "submitted") setNotice(value.alreadySubmitted ? "This submission was already confirmed. The application stays on the board." : "Submission confirmed. The application is now on the board in its initial stage.")
       if (kind === "generate" && value.id) openApply(search.jobId, body && "applicationId" in body ? body.applicationId : undefined, value.id)
       if (kind === "fill" && pdfRun) openApply(search.jobId, pdfRun.application_id ?? undefined, pdfRun.id)
       if (kind === "description") setDescriptionDirty(false)
@@ -84,6 +86,7 @@ export function ApplyPage() {
       </div>}
     </Panel>
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+    {(notice || details.data?.journey?.submission_status === "submitted") && <p role="status" className="text-sm">{notice || `Submitted${details.data?.journey?.submitted_at ? ` on ${new Date(details.data.journey.submitted_at).toLocaleDateString()}` : ""}.`} <a className="underline" href="#/application-board">Open the application board</a></p>}
     {run?.error && <details open className="rounded-xl border border-destructive/30 p-4"><summary className="cursor-pointer text-sm text-destructive">Execution needs attention</summary><pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap text-xs">{run.error}</pre></details>}
     {!!details.data?.runs.length && <Field label="Execution history"><SelectControl className={controlClass} value={run?.id ?? ""} onChange={e => openApply(search.jobId, search.applicationId, e.target.value)}>{details.data.runs.map(r => <option key={r.id} value={r.id}>{new Date(r.created_at).toLocaleString()} · {r.phase} · {r.status}</option>)}</SelectControl></Field>}
     {tailored && pdfRun?.id !== run?.id && <p className="text-sm text-muted-foreground">Showing the previous validated resume. Fill application will use that PDF.</p>}

@@ -96,3 +96,61 @@ it("selects the validated PDF run when filling after a failed newer execution", 
   await waitFor(() => expect(request).toHaveBeenCalledWith("application-preparation/fill", { runId: "run-1", extra: "" }))
   await waitFor(() => expect(window.location.hash).toContain("runId=run-1"))
 })
+
+it("confirms the submission, shows feedback and refreshes the application", async () => {
+  details.applicationStatus = "filled"
+  details.uploadedRunId = "run-1"
+  render(<ApplyPage />)
+  const confirm = await screen.findByRole("button", { name: "I submitted in the browser" })
+  request.mockImplementation(async (path: string) => {
+    if (path === "application-preparation/submitted") {
+      Object.assign(details, { applicationStatus: "submitted", journey: { id: 3, submission_status: "submitted", submitted_at: "2026-10-17T10:00:00.000Z" } })
+      return { ok: true, alreadySubmitted: false, applicationId: 3, submittedAt: "2026-10-17T10:00:00.000Z" }
+    }
+    if (path === "application-preparation/details") return structuredClone(details)
+    return { ok: true }
+  })
+  fireEvent.click(confirm)
+  await waitFor(() => expect(request).toHaveBeenCalledWith("application-preparation/submitted", { runId: "run-1", applicationId: 3 }))
+  expect(await screen.findByText(/Submission confirmed/)).toBeInTheDocument()
+  expect(screen.getByRole("link", { name: "Open the application board" })).toHaveAttribute("href", "#/application-board")
+  await waitFor(() => expect(screen.queryByRole("button", { name: "I submitted in the browser" })).not.toBeInTheDocument())
+  expect(screen.getByRole("button", { name: "Fill application" })).toBeDisabled()
+})
+
+it("reports a repeated confirmation as already confirmed", async () => {
+  details.applicationStatus = "filled"
+  details.uploadedRunId = "run-1"
+  render(<ApplyPage />)
+  request.mockImplementation(async (path: string) => path === "application-preparation/submitted" ? { ok: true, alreadySubmitted: true, applicationId: 3, submittedAt: "2026-10-01" } : path === "application-preparation/details" ? structuredClone(details) : { ok: true })
+  fireEvent.click(await screen.findByRole("button", { name: "I submitted in the browser" }))
+  expect(await screen.findByText(/already confirmed/)).toBeInTheDocument()
+})
+
+it("shows a failed confirmation without false success and allows a retry", async () => {
+  details.applicationStatus = "filled"
+  details.uploadedRunId = "run-1"
+  const original = request.getMockImplementation()!
+  let failures = 1
+  request.mockImplementation(async (path: string, body?: unknown) => {
+    if (path === "application-preparation/submitted" && failures-- > 0) throw new Error("This execution belongs to another application.")
+    if (path === "application-preparation/submitted") return { ok: true, alreadySubmitted: false, applicationId: 3, submittedAt: "2026-10-17" }
+    return original(path, body)
+  })
+  render(<ApplyPage />)
+  fireEvent.click(await screen.findByRole("button", { name: "I submitted in the browser" }))
+  expect(await screen.findByRole("alert")).toHaveTextContent("belongs to another application")
+  expect(screen.queryByText(/Submission confirmed/)).not.toBeInTheDocument()
+  const retry = screen.getByRole("button", { name: "I submitted in the browser" })
+  await waitFor(() => expect(retry).toBeEnabled())
+  fireEvent.click(retry)
+  expect(await screen.findByText(/Submission confirmed/)).toBeInTheDocument()
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+})
+
+it("shows the original submission date when reopening a submitted application", async () => {
+  Object.assign(details, { applicationStatus: "submitted", journey: { id: 3, submission_status: "submitted", submitted_at: "2026-10-01T12:00:00.000Z" } })
+  render(<ApplyPage />)
+  expect(await screen.findByText(new RegExp(`Submitted on ${new Date("2026-10-01T12:00:00.000Z").toLocaleDateString()}`))).toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "I submitted in the browser" })).not.toBeInTheDocument()
+})
