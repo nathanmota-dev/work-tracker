@@ -32,9 +32,9 @@ jobs:
         run: |
           npx playwright install-deps chromium
           sudo apt-get update
-          sudo apt-get install -y xvfb libgtk-3-0t64 latexmk texlive-latex-base poppler-utils
+          sudo apt-get install -y xvfb xauth libgtk-3-0t64 latexmk texlive-latex-base poppler-utils
       - name: Build and test Electron
-        run: xvfb-run -a npm run test:e2e
+        run: npm run test:e2e
       - name: Upload report and failure evidence
         if: always()
         uses: actions/upload-artifact@v4

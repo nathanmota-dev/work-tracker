@@ -414,10 +414,19 @@ cobre as 14 telas da sidebar, funcionalidades, persistência e jornadas entre te
 Cada teste usa um workspace e um perfil Electron temporários; os dados pessoais
 em `~/.work-tracker` não são usados.
 
-Requer Node 24+, ambiente gráfico (ou `xvfb-run -a npm run test:e2e`), `latexmk`,
+Requer Node 24+, `xvfb`, `xauth`, `latexmk`,
 `pdflatex` e Poppler (`pdfinfo` e `pdftotext`). O fixture E2E usa apenas a classe
 LaTeX `article`; os smoke checks existentes continuam exigindo os pacotes do
 currículo de exemplo.
+
+No Linux, E2E e os smoke checks do Electron e Apply executam automaticamente
+em um display virtual Xvfb, inclusive em sessões Wayland. As janelas dos testes
+ficam isoladas do desktop; o terminal continua mostrando o andamento e o resultado.
+Instale o display virtual com `sudo apt-get install xvfb xauth`. A falta dessas
+ferramentas interrompe a execução com instruções de instalação.
+
+O debug abre o Electron e o inspector no desktop. Para acompanhar qualquer teste
+ou smoke de forma visível, use `WORK_TRACKER_TEST_DISPLAY=host` antes do comando.
 
 ```bash
 npm run test:e2e
@@ -425,6 +434,8 @@ npm run test:e2e:debug
 npm run test:e2e:report
 # Reutilizar um build de produção atualizado e selecionar testes:
 npm run test:e2e:run -- e2e/apply.spec.ts
+# Diagnóstico visível no desktop:
+WORK_TRACKER_TEST_DISPLAY=host npm run test:e2e:run -- e2e/apply.spec.ts
 ```
 
 O workflow **Electron E2E** executa a suíte em pull requests destinados à `main`.
