@@ -8,6 +8,12 @@ import {
   Status,
 } from "@/components/workspace-ui"
 import { MetricChart } from "@/components/metric-chart"
+import { JourneyCounts, JourneyOverlaps } from "@/components/journey-summary"
+import { Button } from "@/components/ui/button"
+import {
+  summaryStep,
+  type ApplicationSummary,
+} from "@/lib/application-journey"
 
 function OverviewStats({ data }: { data: Row }) {
   return (
@@ -19,13 +25,13 @@ function OverviewStats({ data }: { data: Row }) {
           hint: "Your next chapter starts here",
         },
         {
-          label: "Applications",
+          label: "Submitted applications",
           value: (
             <Link to="/applications">
-              {text(data.applications)}
+              {text(journey(data)?.phases.submitted ?? 0)}
             </Link>
           ),
-          hint: "Roles you’re moving forward with",
+          hint: `${text(journey(data)?.views.preparation ?? 0)} still in preparation`,
         },
         {
           label: "Recruiter connections",
@@ -49,6 +55,32 @@ function OverviewStats({ data }: { data: Row }) {
         },
       ]}
     />
+  )
+}
+
+const journey = (data: Row) => data.journey as ApplicationSummary | undefined
+
+function ApplicationJourney({ summary }: { summary: ApplicationSummary }) {
+  const step = summaryStep(summary)
+  return (
+    <Panel
+      title="Application journey"
+      action={
+        <Button asChild size="sm" variant="outline">
+          <a href={step.href}>{step.label}</a>
+        </Button>
+      }
+    >
+      <div className="space-y-3">
+        <JourneyCounts phases={summary.phases} href="#/applications" />
+        <p className="text-xs text-muted-foreground">
+          {summary.views.preparation} in preparation ·{" "}
+          {summary.views.tracking} on the board · {summary.views.archived}{" "}
+          archived
+        </p>
+        <JourneyOverlaps summary={summary} />
+      </div>
+    </Panel>
   )
 }
 
@@ -148,6 +180,9 @@ export function DashboardOverview() {
     <div className="space-y-4">
       <LoadState {...overview} retry={overview.refresh} />
       {overview.data && <OverviewStats data={overview.data} />}
+      {overview.data && journey(overview.data) && (
+        <ApplicationJourney summary={journey(overview.data)!} />
+      )}
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <Panel title="Profile visibility">
           <LoadState {...metrics} retry={metrics.refresh} />

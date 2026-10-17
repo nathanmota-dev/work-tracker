@@ -1,6 +1,7 @@
 import { db } from "../db/index.ts";
 import { now } from "../db/index.ts";
 import { dueAttempts, getBudget } from "../outreach/store.ts";
+import { applicationSummary, phaseSql, viewSql } from "../applications/journey-summary.ts";
 
 /** Parse a breakdown_json blob into a normalized array of {label, value} items. */
 function parseBreakdown(raw: string | null | undefined): Array<{ label: string; value: string }> | null {
@@ -50,6 +51,7 @@ export const queries = {
       score: latest?.score ?? null,
       breakdown: parseBreakdown(latest?.breakdown_json),
       ...(counts as object),
+      journey: applicationSummary(d),
     };
   },
 
@@ -117,12 +119,20 @@ export const queries = {
     }));
   },
 
+  /** Saved jobs with their latest application attempt, when one exists. */
   jobs() {
     return db()
       .query(`
-        SELECT id, linkedin_job_id, title, company_name, location, work_type,
-               comp, fit, status, link, scouted_at, archived_at, description
-        FROM jobs ORDER BY scouted_at DESC
+        SELECT j.id, j.linkedin_job_id, j.title, j.company_name, j.location, j.work_type,
+               j.comp, j.fit, j.status, j.link, j.scouted_at, j.archived_at, j.description,
+               a.id AS application_id, a.origin AS application_origin,
+               CASE WHEN a.id IS NULL THEN NULL ELSE ${phaseSql()} END AS application_phase,
+               CASE WHEN a.id IS NULL THEN NULL ELSE ${viewSql()} END AS application_view
+        FROM jobs j
+        LEFT JOIN applications a ON a.id = (
+          SELECT id FROM applications WHERE job_id = j.id
+          ORDER BY COALESCE(attempt, 0) DESC, id DESC LIMIT 1)
+        ORDER BY j.scouted_at DESC
       `)
       .all();
   },
@@ -155,11 +165,16 @@ export const queries = {
                a.keyword_score, a.status, a.applied_at,
                a.portal, a.external_url, a.fields_filled_json, a.unfilled_json,
                a.origin, a.attempt, a.preparation_status, a.fill_status, a.submission_status,
-               a.submitted_at, a.review_reason, j.linkedin_job_id
+               a.submitted_at, a.review_reason, a.tracking_status, j.linkedin_job_id,
+               ${phaseSql()} AS phase, ${viewSql()} AS view
         FROM applications a LEFT JOIN jobs j ON j.id = a.job_id
         ORDER BY a.id DESC
       `)
       .all();
+  },
+
+  applicationSummary() {
+    return applicationSummary(db());
   },
 
   answers() {

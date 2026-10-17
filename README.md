@@ -190,7 +190,7 @@ O app instalado mantém uma referência ao checkout usado no build e lê esses
 arquivos locais; eles não são incluídos no pacote. Configure **Settings → Resume
 sources** para usar outros arquivos ou outro compilador; caminhos salvos têm
 prioridade sobre a detecção automática. A tela **Apply** está no menu e nos
-botões de preparação de Jobs e Automatic applications. Ela mostra o
+botões de preparação de Jobs e Applications. Ela mostra o
 PDF base, gera um currículo no idioma da vaga usando o agente ACP selecionado,
 registra versões e relatórios, e preenche o portal com o PDF escolhido para
 revisão e envio manual.

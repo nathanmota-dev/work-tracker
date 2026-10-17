@@ -13,7 +13,7 @@ test('Manual application: missing job is created from its data, a failed link is
   const [application] = workspace.query('SELECT id, job_id FROM applications')
   expect(application).toEqual({ id: expect.any(Number), job_id: null })
 
-  await workspace.go('Automatic applications')
+  await workspace.go('Applications')
   await page.getByRole('button', { name: 'View Manual Engineer' }).click()
   await page.getByRole('dialog').getByRole('button', { name: 'Prepare application' }).click()
   const dialog = page.getByRole('dialog', { name: 'Prepare this application' })
@@ -43,7 +43,7 @@ test('Legacy review: safe fixes keep IDs once, and an ambiguous job is linked on
   workspace.query(`INSERT INTO applications (id, status, submission_status, submitted_at, applied_at, company_name, role_title, external_url, attempt, origin, review_reason) VALUES
     (31, 'submitted', 'submitted', '2026-09-01T12:00:00.000Z', '2026-09-01T12:00:00.000Z', 'Sent Co', 'Sent Engineer', 'https://sent.example/job', 1, 'unknown', 'missing_stage'),
     (32, 'draft', 'not_submitted', NULL, NULL, 'Legacy Co', 'Legacy Engineer', 'https://legacy.example/job', 1, 'unknown', 'missing_job')`)
-  await workspace.go('Automatic applications')
+  await workspace.go('Applications')
   const review = panel(page, 'Needs review (2)')
   await expect(review).toContainText('2 saved jobs match this link.')
   await review.getByRole('button', { name: 'Apply safe fixes (1)' }).click()

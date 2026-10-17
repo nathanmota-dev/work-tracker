@@ -10,7 +10,7 @@ export const routes = [
   ['Outreach', 'outreach', 'Connection lifecycle'],
   ['Apply', 'apply', 'Opportunity'],
   ['Jobs', 'jobs', 'Discover opportunities'],
-  ['Automatic applications', 'applications', 'Tailor a resume'],
+  ['Applications', 'applications', 'Tailor a resume'],
   ['Application board', 'application-board', 'New application'],
   ['Answers', 'answers', 'Add answer'],
   ['Interviews', 'interviews', 'Upcoming'],
@@ -72,7 +72,7 @@ test('shell: redirect, sidebar, command palette, history and narrow window', asy
 const readEndpoints = [
   ['Dashboard', 'overview'], ['Profile', 'profile'], ['Launch', 'acp/providers'],
   ['Recruiters', 'recruiters'], ['Outreach', 'outreach'], ['Apply', 'jobs'],
-  ['Jobs', 'jobs'], ['Automatic applications', 'applications'],
+  ['Jobs', 'jobs'], ['Applications', 'applications'],
   ['Application board', 'application-board'], ['Answers', 'answers'],
   ['Interviews', 'interviews'], ['Activity', 'activity'], ['Settings', 'acp/providers'],
 ] as const

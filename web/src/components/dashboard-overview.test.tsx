@@ -22,7 +22,19 @@ beforeEach(() => {
   vi.useFakeTimers()
   vi.setSystemTime(new Date("2026-10-14T12:00:00Z"))
   records = {
-    overview: { jobs: 2, applications: 3, recruiters: 4, score: 80 },
+    overview: {
+      jobs: 2,
+      applications: 9,
+      recruiters: 4,
+      score: 80,
+      journey: {
+        total: 9,
+        phases: { draft: 4, prepared: 1, filled: 1, submitted: 3 },
+        views: { preparation: 7, tracking: 1, archived: 1 },
+        origins: { preparation: 5, manual: 2, agent: 1, unknown: 1 },
+        overlaps: { ready_resumes: 2, needs_input: 0, submitted_archived: 1, submitted_untracked: 1 },
+      },
+    },
     metrics: [{ score: 80 }],
     interviews: [],
     activity: [],
@@ -47,6 +59,7 @@ it("shows counters, navigation and empty activity/calendar", () => {
     "href",
     "/applications",
   )
+  expect(screen.getByText("7 still in preparation")).toBeInTheDocument()
   expect(screen.getByText("Chart points: 1")).toBeInTheDocument()
   expect(screen.getByText("A clear calendar")).toBeInTheDocument()
   expect(screen.getByText("A fresh start")).toBeInTheDocument()
@@ -87,4 +100,32 @@ it("shows independent query errors and retries the failed section", () => {
   expect(screen.getByText("A clear calendar")).toBeInTheDocument()
   fireEvent.click(screen.getByRole("button", { name: "Try again" }))
   expect(refresh).toHaveBeenCalledOnce()
+})
+it("separates drafts from submitted applications and offers the next step", () => {
+  render(<DashboardOverview />)
+  for (const [name, href] of [
+    ["4 drafts", "#/applications"],
+    ["1 prepared", "#/applications"],
+    ["1 filled", "#/applications"],
+    ["3 submitted", "#/applications"],
+  ])
+    expect(screen.getByRole("link", { name })).toHaveAttribute("href", href)
+  expect(screen.getByText("7 in preparation · 1 on the board · 1 archived")).toBeInTheDocument()
+  expect(screen.getByText(/1 submitted and archived · 1 submitted but not on the board yet/)).toBeInTheDocument()
+  expect(screen.getByRole("link", { name: "Submit filled applications" })).toHaveAttribute("href", "#/applications")
+})
+it.each([
+  [{ draft: 0, prepared: 2, filled: 0, submitted: 0 }, { preparation: 2, tracking: 0, archived: 0 }, "Continue preparing", "#/applications"],
+  [{ draft: 0, prepared: 0, filled: 0, submitted: 1 }, { preparation: 0, tracking: 1, archived: 0 }, "Open board", "#/application-board"],
+  [{ draft: 0, prepared: 0, filled: 0, submitted: 0 }, { preparation: 0, tracking: 0, archived: 0 }, "Tailor a resume", "#/apply"],
+])("points to the next journey step %#", (phases, views, name, href) => {
+  const overview = records.overview as { journey: Record<string, unknown> }
+  overview.journey = {
+    ...overview.journey,
+    phases,
+    views,
+    overlaps: { ready_resumes: 0, needs_input: 0, submitted_archived: 0, submitted_untracked: 0 },
+  }
+  render(<DashboardOverview />)
+  expect(screen.getByRole("link", { name })).toHaveAttribute("href", href)
 })

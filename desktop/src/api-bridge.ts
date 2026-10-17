@@ -11,6 +11,7 @@ const reads = new Set([
   "metrics",
   "interviews",
   "applications",
+  "applications/summary",
   "application-board",
   "answers",
   "activity",

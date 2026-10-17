@@ -171,3 +171,34 @@ Após cada decisão, o motivo é recalculado; um registro só sai da revisão qu
 não resta nenhum problema. Cada operação roda numa transação, então uma falha
 não deixa alterações parciais.
 
+
+## Área Candidaturas e contagens da jornada
+
+A tela **Applications** (antes "Automatic applications") lista candidaturas
+manuais e preparadas pelo agente. Cada linha mostra a origem (`Apply`, `Agent`,
+`Manual` ou `Unknown`, a partir de `origin`), o passo da jornada e a próxima
+ação contextual. As colunas derivadas são calculadas no servidor por
+[journey-summary.ts](../src/applications/journey-summary.ts), que é a única
+definição usada pela lista, por Jobs, pelo quadro e pelo dashboard
+(`/api/applications/summary` e `overview.journey`).
+
+| Dimensão | Valores | Regra |
+| --- | --- | --- |
+| Passo (`phase`) | `draft`, `prepared`, `filled`, `submitted` | O passo mais avançado: enviado; senão preenchido (`filled` ou `needs_input`); senão currículo `ready`; senão rascunho. Cada candidatura tem exatamente um passo, então um rascunho nunca é contado como enviado. |
+| Visão (`view`) | `preparation`, `tracking`, `archived` | `tracking_status` `active` → Tracking (igual à aba Active do quadro); `archived` → Archived (igual à aba Archived); sem acompanhamento → Preparation. |
+| Origem | `preparation`, `agent`, `manual`, `unknown` | Coluna `origin`. |
+
+Passos, visões e origens particionam o mesmo conjunto: cada soma é igual ao
+total. As sobreposições entre dimensões são informadas à parte (`overlaps`):
+currículos prontos incluem candidaturas preenchidas e enviadas; enviadas podem
+estar arquivadas; e um envio legado fora do quadro aparece na visão Preparation
+como `submitted` até ser resolvido em "Needs review".
+
+Próxima ação: rascunho → "Prepare application"; preparado → "Fill in Apply";
+preenchido → "Submit in Apply"; no quadro → "Open board" ou "Reopen on board";
+enviado fora do quadro → "Needs review". Em Jobs, cada vaga mostra a última
+tentativa vinculada com o mesmo passo e a mesma ação. O quadro avisa quantas
+candidaturas ainda estão em preparação, e o dashboard mostra os quatro passos
+com a ação mais útil. Lista, Jobs, quadro e dashboard dependem da tabela
+`applications`, então o evento `changed` da confirmação de envio os atualiza
+sem recarregar o app.

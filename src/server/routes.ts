@@ -168,6 +168,7 @@ const readQueries: Record<string, () => unknown> = {
   "/api/metrics": queries.metrics,
   "/api/interviews": queries.interviews,
   "/api/applications": queries.applications,
+  "/api/applications/summary": queries.applicationSummary,
   "/api/answers": queries.answers,
   "/api/activity": queries.activity,
   "/api/profile": queries.profile,

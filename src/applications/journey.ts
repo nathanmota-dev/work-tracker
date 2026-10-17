@@ -20,6 +20,29 @@ export type TrackingStatus = (typeof JOURNEY_STATES.tracking)[number];
 /** Where an application record came from; never inferred from titles. */
 export const APPLICATION_ORIGINS = ["preparation", "manual", "agent", "unknown"] as const;
 export type ApplicationOrigin = (typeof APPLICATION_ORIGINS)[number];
+/** Furthest step reached, derived from the dimensions; each record has exactly one. */
+export const JOURNEY_PHASES = ["draft", "prepared", "filled", "submitted"] as const;
+export type JourneyPhase = (typeof JOURNEY_PHASES)[number];
+/** Applications views: not on the board yet, active on the board, or archived. */
+export const APPLICATION_VIEWS = ["preparation", "tracking", "archived"] as const;
+export type ApplicationView = (typeof APPLICATION_VIEWS)[number];
+/**
+ * Journey totals. `phases`, `views` and `origins` each split every application
+ * exactly once; `overlaps` counts records that sit in several dimensions, e.g.
+ * a submitted application also has a ready resume and may be archived.
+ */
+export interface ApplicationSummary {
+  total: number;
+  phases: Record<JourneyPhase, number>;
+  views: Record<ApplicationView, number>;
+  origins: Record<ApplicationOrigin, number>;
+  overlaps: {
+    ready_resumes: number;
+    needs_input: number;
+    submitted_archived: number;
+    submitted_untracked: number;
+  };
+}
 /** Who requested a transition; stored with each recorded change. */
 export type JourneyActor = "api" | "cli" | "agent" | "system";
 

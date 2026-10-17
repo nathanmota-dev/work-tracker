@@ -179,27 +179,32 @@ export function Records({
   noun,
   onSelect,
   action,
+  statusKey,
 }: {
   rows: Row[]
   columns: Column[]
   noun: string
   onSelect?: (row: Row) => void
   action?: ReactNode
+  /** Column the status filter reads; defaults to `status`, then `state`. */
+  statusKey?: string
 }) {
   const [query, setQuery] = useState("")
   const [status, setStatus] = useState("")
   const [page, setPage] = useState(0)
+  const statusOf = (row: Row) =>
+    statusKey ? row[statusKey] : (row.status ?? row.state)
   const statuses = [
     ...new Set(
       rows
-        .map((r) => r.status ?? r.state)
+        .map(statusOf)
         .filter(Boolean)
         .map(String),
     ),
   ]
   const filtered = rows.filter(
     (row) =>
-      (!status || String(row.status ?? row.state) === status) &&
+      (!status || String(statusOf(row)) === status) &&
       Object.values(row).some((v) =>
         text(v).toLowerCase().includes(query.toLowerCase()),
       ),
