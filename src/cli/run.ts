@@ -48,6 +48,12 @@ Write API (used by skills):
       --resume-path --cover-path --report-path --keyword-score --status --portal --external-url]
       Reuses the job's latest application; --new-attempt explicitly applies again after a submission
   work-tracker application update --id <n> [--status --portal --external-url --fields --unfilled]
+  work-tracker application review                   List legacy applications that need reconciliation
+  work-tracker application reconcile                Apply safe fixes; ambiguous records keep their flag
+  work-tracker application resolve --id <n> --decision <track|mark_submitted|mark_not_submitted|keep_attempt>
+      [--company --external-url --applied-at]      Decide one flagged record explicitly
+  work-tracker application link --id <n> (--job-id <local> | --linkedin-job-id <external> | --create
+      [--title --company --external-url --comp --description])   Link or create the job of an application
   work-tracker answer set --key <k> [--value --category]   Set a reusable application answer
   work-tracker answer list [--category <c>]                List reusable application answers
   work-tracker match --labels '["Email",...]' [--threshold-pct N]   Map ATS form labels to stored answers

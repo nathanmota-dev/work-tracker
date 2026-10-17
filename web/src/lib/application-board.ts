@@ -3,12 +3,16 @@ import type {
   ApplicationActions,
   ApplicationDetails,
   ApplicationStage,
+  JobLinkOptions,
+  JobLinkResult,
+  ReviewItem,
   TrackedApplication,
 } from "../../../src/applications/types"
 export {
   ROLE_TYPES,
   STAGE_CATEGORIES,
   ARCHIVE_REASONS,
+  REVIEW_DECISIONS,
 } from "../../../src/applications/types"
 export type {
   ApplicationActions,
@@ -18,13 +22,29 @@ export type {
   ApplicationFields,
   ApplicationStage,
   ArchiveReason,
+  BoardField,
+  JobCandidate,
+  JobLinkOptions,
+  JobLinkResult,
+  PreparationField,
+  ReviewDecision,
+  ReviewItem,
   RoleType,
   StageCategory,
   TrackedApplication,
 } from "../../../src/applications/types"
 
+type ReviewResults = {
+  "link/options": JobLinkOptions
+  link: JobLinkResult
+  review: { items: ReviewItem[] }
+  "review/resolve": { item: ReviewItem | null }
+  "review/reconcile": { items: ReviewItem[]; fixed: number[] }
+}
 type ActionResults = {
-  [K in keyof ApplicationActions]: K extends "details"
+  [K in keyof ApplicationActions]: K extends keyof ReviewResults
+    ? ReviewResults[K]
+    : K extends "details"
     ? ApplicationDetails
     : K extends "stages/reorder"
       ? ApplicationStage[]

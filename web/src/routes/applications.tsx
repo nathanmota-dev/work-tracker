@@ -8,11 +8,20 @@ import {
   ExternalLink,
 } from "@/components/workspace-ui"
 import { Records } from "@/components/records"
+import { ApplicationReview } from "@/components/application-review"
+import { JobLinkDialog } from "@/components/job-link-dialog"
 import { useApi, text, date, type Row } from "@/lib/api"
 import { openApply } from "@/lib/preparation"
 export function ApplicationsPage() {
   const api = useApi<Row[]>("applications")
   const [selected, setSelected] = useState<Row | null>(null)
+  const [linking, setLinking] = useState<Row>()
+  // An application without a saved job is linked first, so Apply opens with usable data.
+  function prepare(row: Row) {
+    if (Number(row.job_id) > 0) return openApply(row.job_id, row.id)
+    setSelected(null)
+    setLinking(row)
+  }
   return (
     <Page
       title="Automatic applications"
@@ -24,6 +33,7 @@ export function ApplicationsPage() {
       }
     >
       <LoadState {...api} retry={api.refresh} />
+      <ApplicationReview />
       {api.data && (
         <Records
           rows={api.data}
@@ -73,16 +83,23 @@ export function ApplicationsPage() {
         </p>
         <div className="flex gap-2">
           <ExternalLink value={selected?.external_url} label="Open portal" />
-          <Button
-            disabled={!selected?.external_url && !selected?.job_id}
-            onClick={() =>
-              openApply(selected?.job_id, selected?.id)
-            }
-          >
+          <Button onClick={() => selected && prepare(selected)}>
             Prepare application
           </Button>
         </div>
       </Details>
+      {linking && (
+        <JobLinkDialog
+          applicationId={Number(linking.id)}
+          title="Prepare this application"
+          actionLabel="Link and open Apply"
+          onClose={() => setLinking(undefined)}
+          onLinked={(result) => {
+            setLinking(undefined)
+            openApply(result.job_id, result.application_id)
+          }}
+        />
+      )}
     </Page>
   )
 }

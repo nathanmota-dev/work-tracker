@@ -83,6 +83,7 @@ export function ApplyPage() {
         </div>
         {details.data?.busy && run?.status !== "running" && <p className="text-xs text-muted-foreground">Another execution is active. You can review these files while it finishes.</p>}
         {descriptionDirty && <p className="text-xs text-muted-foreground">Save your description changes before generating.</p>}
+        {!job.description && !job.linkedin_job_id && !descriptionDirty && <p role="status" className="text-xs text-muted-foreground">This job has no description yet. Paste it under Job description before generating.</p>}
       </div>}
     </Panel>
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
