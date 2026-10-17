@@ -5,6 +5,9 @@ import { join, resolve, delimiter } from 'node:path';
 import { createServer } from 'node:net';
 import { DatabaseSync } from 'node:sqlite';
 import WebSocket from 'ws';
+import { ensureTestDisplay, electronArgs, stopProcess, onTermination } from './test-display.mjs';
+
+await ensureTestDisplay();
 
 const home = mkdtempSync(join(tmpdir(), 'work-tracker-apply-smoke-'));
 const repository = join(home, 'repository');
@@ -12,6 +15,12 @@ const env = { ...process.env, WORK_TRACKER_HOME: home, WORK_TRACKER_REPO_ROOT: r
 const command = process.argv[2] ?? resolve('node_modules/.bin/electron');
 const args = process.argv.length > 2 ? process.argv.slice(3) : ['.', '--no-sandbox'];
 let child, socket;
+const cleanup = async () => {
+  socket?.terminate();
+  await stopProcess(child);
+  rmSync(home, { recursive: true, force: true });
+};
+const removeSignals = onTermination(cleanup);
 let output = '';
 const pending = new Map();
 let nextId = 0;
@@ -62,7 +71,7 @@ try {
   const port = server.address().port;
   await new Promise(resolve => server.close(resolve));
   const debugFlag = command.includes("electron-vite") ? `--remoteDebuggingPort=${port}` : `--remote-debugging-port=${port}`;
-  child = spawn(command, [...args, debugFlag], { env, detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'] });
+  child = spawn(command, electronArgs(command, args, [debugFlag]), { env, detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'] });
   for (const stream of [child.stdout, child.stderr]) stream.on('data', chunk => { output += chunk; });
   child.on('error', error => { output += error.message; });
   const page = await waitFor(async () => {
@@ -91,11 +100,6 @@ try {
   if (JSON.parse(readFileSync(join(home, 'config.json'), 'utf8')).resumeSources) throw new Error('Automatic detection unexpectedly saved resume settings');
   console.log(`PASS: Apply detects repository sources without configuration and displays two PDF canvases with selectable text (${command})`);
 } finally {
-  socket?.close();
-  if (child?.pid) {
-    try { if (process.platform !== 'win32') process.kill(-child.pid, 'SIGTERM'); else child.kill(); } catch {}
-    await Promise.race([new Promise(resolve => child.once('exit', resolve)), new Promise(resolve => setTimeout(resolve, 2000))]);
-    try { if (process.platform !== 'win32') process.kill(-child.pid, 'SIGKILL'); } catch {}
-  }
-  rmSync(home, { recursive: true, force: true });
+  removeSignals();
+  await cleanup();
 }

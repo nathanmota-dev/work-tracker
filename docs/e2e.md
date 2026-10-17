@@ -6,7 +6,34 @@ Run `npm run test:e2e` to rebuild and test. For an already current production
 build, use `npm run test:e2e:run -- <file or Playwright filters>`.
 `npm run test:e2e:debug` opens the inspector and `npm run test:e2e:report` opens
 the last HTML report. Electron includes Chromium; a separate browser download is
-not required. A graphical session or Xvfb is required.
+not required. On Linux, normal E2E runs automatically use Xvfb, even when a
+desktop session is available. Electron windows remain on the virtual display,
+so tests do not cover other applications or take their focus. The terminal still
+streams progress and waits for the test result.
+
+Install `xvfb` and `xauth` (`sudo apt-get install xvfb xauth` on Ubuntu).
+The launcher checks for `Xvfb`, `xvfb-run` and `xauth`; missing tools fail with
+installation instructions before Electron starts. Each run uses an available
+display number and a 1920×1080, 24-bit screen. The test processes use X11
+explicitly, including on Wayland desktops. The host environment is preserved.
+
+`test:e2e:debug`, `--debug`, `--ui` and an active `PWDEBUG` use the host display
+for interactive inspection. To make any E2E or smoke command visible explicitly:
+
+```bash
+WORK_TRACKER_TEST_DISPLAY=host npm run test:e2e:run -- e2e/apply.spec.ts
+WORK_TRACKER_TEST_DISPLAY=host node scripts/smoke-electron.mjs
+```
+
+`WORK_TRACKER_TEST_DISPLAY=xvfb` selects the normal Linux default;
+interactive debugging still uses the host display. Windows and macOS use
+direct launch and require their native graphical session.
+
+Both `scripts/smoke-electron.mjs` and `scripts/smoke-apply.mjs` use the same
+launcher automatically, for built Electron, electron-vite development mode and
+AppImage commands. Arguments, including paths with spaces, are forwarded intact.
+Ctrl+C and SIGTERM trigger cleanup of owned Electron processes and the virtual
+display; the supervisor allows five seconds before forcing termination.
 
 Install Node 24+, npm dependencies, latexmk, pdfLaTeX and Poppler. On Ubuntu 24.04,
 the CI workflow installs Playwright's Chromium system dependencies plus Xvfb,
@@ -77,7 +104,8 @@ assertions, not fixed sleeps. Unexpected renderer exceptions/crashes and prematu
 Electron closure fail the test. Failed tests attach screenshots, manually recorded
 Electron-context traces, application output and the mock call transcript. Reports
 and test-results are ignored by Git. The Electron E2E workflow runs on pull requests
-to main with Xvfb, and uploads HTML reports/evidence for seven days. It no longer
+to main through the same automatic Xvfb launcher, and uploads HTML reports/evidence
+for seven days. It no longer
 runs on pushes or merges to main; see `docs/ci.md` for the other PR workflows.
 
 The repository's complete mandatory verification sequence remains in AGENTS.md,

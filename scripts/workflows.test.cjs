@@ -49,6 +49,13 @@ describe("pull request triggers", () => {
     }
     assert.match(read("quality-gate.yml"), /on:\n {2}workflow_call:/);
   });
+
+  it("uses the same virtual display entrypoint locally and in Electron CI", () => {
+    const source = read("e2e.yml");
+    assert.match(source, /apt-get install -y xvfb xauth /);
+    assert.match(source, /run: npm run test:e2e\n/);
+    assert.doesNotMatch(source, /run: xvfb-run/);
+  });
 });
 
 describe("path filters", () => {

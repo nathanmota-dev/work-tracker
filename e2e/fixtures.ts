@@ -80,11 +80,16 @@ export class Workspace {
   }
   async start() {
     this.stopping = false
-    this.app = await _electron.launch({ args: ['.', '--no-sandbox', `--user-data-dir=${join(this.home, 'electron')}`], env: this.env, locale: 'en-US', timezoneId: 'UTC', timeout: 30_000 })
+    const displayArgs = this.env.WORK_TRACKER_XVFB_ACTIVE === '1' ? ['--ozone-platform=x11'] : []
+    this.app = await _electron.launch({ args: ['.', '--no-sandbox', ...displayArgs, `--user-data-dir=${join(this.home, 'electron')}`], env: this.env, locale: 'en-US', timezoneId: 'UTC', timeout: 30_000 })
     this.app.process().stdout?.on('data', data => this.logs.push(String(data)))
     this.app.process().stderr?.on('data', data => this.logs.push(String(data)))
     this.app.on('close', () => { if (!this.stopping) this.errors.push('Electron closed unexpectedly') })
     expect(await this.app.evaluate(({ app }) => app.getPath('userData'))).toContain(this.home)
+    if (displayArgs.length) {
+      expect(await this.app.evaluate(({ app }) => app.commandLine.getSwitchValue('ozone-platform'))).toBe('x11')
+      expect(await this.app.evaluate(() => process.env.DISPLAY)).toBe(this.env.DISPLAY)
+    }
     this.page = await this.app.firstWindow()
     this.page.on('crash', () => this.errors.push('Renderer crashed'))
     this.page.on('pageerror', error => this.errors.push(error.message))
