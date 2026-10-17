@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { request, subscribe, type Row } from "./api"
 import type { AgentMessage } from "./agent"
-export type { ResumeSourcesConfig, SourcesState, PdfArtifact, PreparationRun, PreparationDetails } from "../../../src/preparation/types"
+export type { ResumeSourcesConfig, SourcesState, PdfArtifact, PreparationRun, PreparationDetails, SubmissionConfirmation } from "../../../src/preparation/types"
 import type { PreparationDetails } from "../../../src/preparation/types"
 export function openApply(jobId?: unknown, applicationId?: unknown, runId?: string) {
   const params = new URLSearchParams()

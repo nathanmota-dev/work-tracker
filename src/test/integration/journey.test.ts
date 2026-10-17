@@ -106,6 +106,7 @@ test("submitting through the API and through the CLI keeps the same invariants a
     return record.id;
   })();
   db().query("UPDATE application_runs SET application_id = ? WHERE id = 'run-api'").run(apiId);
+  db().query("INSERT INTO pdf_artifacts (id, run_id, kind, path, pages, text, warnings_json) VALUES ('pdf-api', 'run-api', 'tailored', '/fixture/resume.pdf', 1, '', '[]')").run();
   // CLI: the same journey recorded by an agent skill.
   const added = await cli("application", "add", "--job-id", "2", "--resume-path", "/fixture/resume.pdf", "--status", "filled");
   const cliId = Number(/#(\d+)/.exec(added.stdout)![1]);
@@ -114,7 +115,7 @@ test("submitting through the API and through the CLI keeps the same invariants a
   for (let attempt = 0; attempt < 2; attempt++) {
     const response = await post("/api/application-preparation/submitted", { runId: "run-api" });
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ ok: true, alreadySubmitted: attempt > 0 });
+    expect(await response.json()).toMatchObject({ ok: true, alreadySubmitted: attempt > 0, applicationId: apiId });
     expect(await cli("application", "update", "--id", String(cliId), "--status", "submitted")).toMatchObject({ code: 0 });
   }
   for (const id of [apiId, cliId]) {

@@ -219,6 +219,13 @@ describe("application board", () => {
     act(() => publish({ type: "changed", table: "applications" }))
     expect(await screen.findByText("New from backend")).toBeInTheDocument()
   })
+  it("shows an application confirmed in Apply as soon as its board event arrives", async () => {
+    render(<ApplicationBoardPage />)
+    await screen.findByText("São José")
+    board.applications.push({ ...record(4, "Prepared Corp"), job_id: 7, origin: "preparation" })
+    act(() => publish({ type: "changed", table: "application_events" }))
+    expect(await screen.findByText("Prepared Corp")).toBeInTheDocument()
+  })
   it("moves to an empty column optimistically and restores a failed move", async () => {
     let reject!: (error: Error) => void
     request.mockImplementation((path, body) =>

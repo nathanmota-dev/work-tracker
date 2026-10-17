@@ -21,7 +21,7 @@ import {
   stages,
   requireTracking,
 } from "./records.ts";
-import { openApplication, transition } from "./journey-store.ts";
+import { openApplication, startTracking, transition } from "./journey-store.ts";
 import {
   ApplicationBoardError,
   choice,
@@ -68,13 +68,9 @@ function create(d: Database, body: Body): Result {
     idempotencyKey: optionalText(body.request_id),
   });
   if (!created) return { value: application(d, opened.id), changed: [] };
-  const initial = d
-    .query("SELECT * FROM application_stages WHERE key = 'applied'")
-    .get() as ApplicationStage;
   d.query(
     `UPDATE applications SET company_name = ?, external_url = ?, role_title = ?, role_type = ?,
-    stack_json = ?, comp = ?, company_url = ?, notes = ?, applied_at = ?, current_stage_id = ?,
-    tracking_status = 'active' WHERE id = ?`,
+    stack_json = ?, comp = ?, company_url = ?, notes = ?, applied_at = ? WHERE id = ?`,
   ).run(
     data.company_name,
     data.external_url,
@@ -85,14 +81,12 @@ function create(d: Database, body: Body): Result {
     data.company_url,
     data.notes,
     data.applied_at,
-    initial.id,
     opened.id,
   );
   // Registering an application sent outside the app records its submission.
   transition(d, opened.id, "submit", "api", { at: data.applied_at });
-  const record = application(d, opened.id);
-  event(d, record, initial, "created", null);
-  return { value: record, changed: [...trackedChanges] };
+  startTracking(d, opened.id);
+  return { value: application(d, opened.id), changed: [...trackedChanges] };
 }
 function saveStage(d: Database, body: Body): Result {
   const name = requiredText(body.name, "Stage name");

@@ -56,6 +56,12 @@ beforeEach(() => {
           ? [{ event_type: "created" }]
           : [record];
     }),
+    run: vi.fn((...args: unknown[]) => {
+      // The journey reads the submission back before tracking the record.
+      if (sql.includes("UPDATE applications SET submission_status"))
+        record = { ...record, submission_status: args[0] };
+      return d.statement.run(...(args as []));
+    }),
   }));
 });
 test("lists decoded records/stages and reads details without changes", () => {
@@ -89,9 +95,10 @@ test("creates a minimal application and snapshots the initial stage in history",
     null,
     null,
     "2026-10-14T12:00:00.000Z",
-    3,
     1,
   ]);
+  // Entering the board puts the record in the initial stage.
+  expect(writes()).toContainEqual([3, "2026-10-14T12:00:00.000Z", 1]);
   // A registered application is a recorded submission with a manual origin.
   expect(d.statement.get).toHaveBeenCalledWith(
     null,

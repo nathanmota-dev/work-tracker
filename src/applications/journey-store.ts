@@ -12,6 +12,8 @@ import {
   type JourneyState,
   type ReviewReason,
 } from "./journey.ts";
+import { application, event } from "./records.ts";
+import type { ApplicationStage } from "./types.ts";
 
 /** Journey view of one application record; IDs are local unless named external. */
 export interface JourneyRecord extends JourneyState {
@@ -136,6 +138,30 @@ export function transition(
   d.query(`INSERT INTO application_transitions (application_id, dimension, action, from_state, to_state, actor, run_id, occurred_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(id, dimension, action, record[column], next[column], actor, options.runId ?? null, at);
   return { record: journeyRecord(d, id), changed };
+}
+
+/**
+ * Put a submitted application on the board: initial stage, active tracking and
+ * one `created` board event. Card fields a prepared application lacks come from
+ * its job. An application already on the board is left untouched, so repeating
+ * a confirmation adds no card or event. Must run inside the caller's
+ * transaction. Returns whether the application entered the board now.
+ */
+export function startTracking(d: Database, id: number): boolean {
+  if (journeyRecord(d, id).submission_status !== "submitted")
+    throw new JourneyError("Only a submitted application can be tracked on the board.");
+  const initial = d.query("SELECT * FROM application_stages WHERE key = 'applied'").get() as ApplicationStage | undefined;
+  if (!initial) throw new JourneyError("The board's initial stage is missing.", 500);
+  const { changes } = d.query(`UPDATE applications SET
+      company_name = COALESCE(company_name, (SELECT company_name FROM jobs WHERE jobs.id = applications.job_id)),
+      role_title = COALESCE(role_title, (SELECT title FROM jobs WHERE jobs.id = applications.job_id)),
+      external_url = COALESCE(external_url, (SELECT link FROM jobs WHERE jobs.id = applications.job_id)),
+      stack_json = COALESCE(stack_json, '[]'), applied_at = COALESCE(applied_at, submitted_at),
+      current_stage_id = ?, tracking_status = 'active', updated_at = ?
+    WHERE id = ? AND current_stage_id IS NULL`).run(initial.id, now(), id);
+  if (!changes) return false;
+  event(d, application(d, id), initial, "created", null);
+  return true;
 }
 
 /**

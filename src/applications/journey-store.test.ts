@@ -9,6 +9,7 @@ import {
   openApplication,
   resolveJob,
   settleExecution,
+  startTracking,
   transition,
   type JourneyRecord,
 } from "./journey-store.ts";
@@ -18,6 +19,7 @@ let d: ReturnType<typeof databaseDouble>;
 let rows: Map<number, JourneyRecord>;
 let jobs: { id: number; linkedin_job_id: string | null }[];
 let keys: Map<string, number>;
+let initialStage: { id: number; name: string; category: string } | undefined;
 const at = "2026-10-17T10:00:00.000Z";
 const record = (fields: Partial<JourneyRecord> = {}): JourneyRecord => ({
   id: 1,
@@ -46,12 +48,14 @@ beforeEach(() => {
   rows = new Map([[1, record()]]);
   jobs = [{ id: 10, linkedin_job_id: "li-10" }, { id: 11, linkedin_job_id: null }];
   keys = new Map();
+  initialStage = { id: 5, name: "Applied", category: "applied" };
   d.query.mockImplementation((sql: string) => ({
     ...d.statement,
     get: vi.fn((...args: unknown[]) => {
       d.statement.get(sql, ...args);
       if (sql.includes("FROM jobs WHERE id")) return jobs.find((job) => job.id === args[0]);
       if (sql.includes("FROM jobs WHERE linkedin_job_id")) return jobs.find((job) => job.linkedin_job_id === args[0]);
+      if (sql.includes("FROM application_stages")) return initialStage;
       if (sql.includes("idempotency_key = ?")) return keys.has(args[0] as string) ? { id: keys.get(args[0] as string) } : undefined;
       if (sql.includes("WHERE job_id = ?"))
         return [...rows.values()].filter((row) => row.job_id === args[0]).sort((a, b) => (b.attempt ?? 0) - (a.attempt ?? 0))[0];
@@ -66,7 +70,11 @@ beforeEach(() => {
     }),
     run: vi.fn((...args: unknown[]) => {
       (d.statement.run as (...values: unknown[]) => unknown)(...args);
-      if (sql.startsWith("UPDATE applications SET")) {
+      if (sql.includes("current_stage_id IS NULL")) {
+        const row = rows.get(args[2] as number)!;
+        if (row.tracking_status) return { changes: 0, lastInsertRowid: 0 };
+        rows.set(row.id, { ...row, tracking_status: "active" });
+      } else if (sql.startsWith("UPDATE applications SET")) {
         const column = /SET (\w+) = \?/.exec(sql)![1] as keyof JourneyRecord;
         const row = rows.get(args.at(-1) as number)!;
         rows.set(row.id, { ...row, [column]: args[0], status: args[1] as string, submitted_at: args[2] as string | null });
@@ -127,6 +135,26 @@ test("a manual registration keeps its own submission date", () => {
   transition(d.asDatabase, 1, "submit", "api", { at: "2026-01-02T00:00:00.000Z" });
   expect(rows.get(1)?.submitted_at).toBe("2026-01-02T00:00:00.000Z");
   expect(writes()[0]).toEqual(["submitted", "submitted", "2026-01-02T00:00:00.000Z", 1, "2026-01-02T00:00:00.000Z", at, 1]);
+});
+
+test("tracks a submitted application once, in the initial stage with one created event", () => {
+  rows.set(1, record({ submission_status: "submitted", submitted_at: at }));
+  expect(startTracking(d.asDatabase, 1)).toBe(true);
+  expect(rows.get(1)?.tracking_status).toBe("active");
+  expect(writes()).toEqual([
+    [5, at, 1],
+    [1, "created", null, 5, "Applied", "applied", at, null, null],
+  ]);
+  expect(startTracking(d.asDatabase, 1)).toBe(false);
+  expect(writes()).toHaveLength(3);
+});
+
+test("refuses to track an unsubmitted application or a board without its initial stage", () => {
+  expect(() => startTracking(d.asDatabase, 1)).toThrow("Only a submitted application");
+  rows.set(1, record({ submission_status: "submitted" }));
+  initialStage = undefined;
+  expect(() => startTracking(d.asDatabase, 1)).toThrow("initial stage is missing");
+  expect(writes()).toEqual([]);
 });
 
 test("validates without writing and keeps tracking changes on the board", () => {

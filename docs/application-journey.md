@@ -63,6 +63,30 @@ Regras gerais:
   em andamento a um estado de repouso sem apagar o currículo ou o preenchimento
   válidos anteriores.
 
+## Confirmação de envio e entrada no quadro
+
+O envio no portal é sempre manual. Ao clicar em "I submitted in the browser" no
+Apply, uma única transação (`PreparationService.submitted` com
+`startTracking`, em [journey-store.ts](../src/applications/journey-store.ts)):
+
+- valida o vínculo: a execução precisa ter o PDF ajustado, pertencer à mesma
+  vaga e à mesma candidatura (`applicationId`, quando enviado) e ser a execução
+  cujo documento foi preenchido (`preparation_run_id`); caso contrário a
+  confirmação é recusada sem nenhuma escrita;
+- aplica `submit` (data em `submitted_at`, preservando um `applied_at` anterior);
+- coloca o **mesmo registro** no quadro: etapa inicial (`applied`),
+  `tracking_status = active`, empresa, cargo e link copiados da vaga quando
+  ausentes, e um único evento `created` em `application_events`.
+
+Repetir a confirmação, inclusive em paralelo, devolve `alreadySubmitted: true`
+com o mesmo ID e a data original, sem novo card, evento ou transição. Um
+registro já enviado que ainda não estava no quadro entra nele nessa
+confirmação. Uma falha desfaz tudo e o Apply mostra o erro, mantendo a ação
+disponível para nova tentativa. O registro manual pelo quadro usa a mesma
+função `startTracking`. As telas são avisadas pelos eventos `changed` de
+`applications` e `application_events`, então o quadro se atualiza sem reiniciar
+o app.
+
 ## Nova candidatura e republicação
 
 Sem decisão explícita, a mesma vaga reutiliza sempre a sua última tentativa:
