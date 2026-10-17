@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { LoadState, Page } from "@/components/workspace-ui"
+import { useApi } from "@/lib/api"
+import type { ApplicationSummary } from "@/lib/application-journey"
 import { useApplicationBoard } from "@/hooks/use-application-board"
 import {
   matchesApplication,
@@ -48,6 +50,22 @@ function BoardToolbar({
         />
       </div>
     </div>
+  )
+}
+
+/** Applications not on the board yet; the same total as the Preparation view. */
+function PreparationNotice() {
+  const summary = useApi<ApplicationSummary>("applications/summary")
+  const count = summary.data?.views.preparation ?? 0
+  if (!count) return null
+  return (
+    <p className="text-sm text-muted-foreground">
+      {count} {count === 1 ? "application is" : "applications are"} still in
+      preparation and not on the board.{" "}
+      <a href="#/applications" className="text-foreground underline">
+        Continue in Applications
+      </a>
+    </p>
   )
 }
 
@@ -201,6 +219,7 @@ export function ApplicationBoardPage() {
       <p role="status" aria-live="polite" className="sr-only">
         {board.notice}
       </p>
+      <PreparationNotice />
       {api.data && (
         <Tabs value={view} onValueChange={setView}>
           <BoardToolbar

@@ -79,10 +79,10 @@ test.describe('saved records', () => {
   })
 
   test('Applications: zero scores, details, portal and preparation IDs', async ({ workspace, page }) => {
-    await workspace.go('Automatic applications')
-    await page.getByLabel('Search Automatic applications').fill('Engineer 01')
+    await workspace.go('Applications')
+    await page.getByLabel('Search Applications').fill('Engineer 01')
     await expect(page.getByRole('cell', { name: '0%', exact: true })).toBeVisible()
-    await expect(page.getByRole('cell', { name: 'draft', exact: true })).toBeVisible()
+    await expect(page.getByRole('cell', { name: 'Draft', exact: true })).toBeVisible()
     await page.getByRole('button', { name: 'View Engineer 01' }).click()
     await page.getByRole('button', { name: 'Open portal' }).click()
     expect(await workspace.external()).toContain('https://example.com/jobs/1')

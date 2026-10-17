@@ -27,6 +27,7 @@ test("missing profile scans and score return explicit empty states", () => {
     breakdown: null,
     recruiters: 0,
     jobs: 0,
+    journey: expect.objectContaining({ total: 0 }),
   });
   expect(queries.profile()).toBeNull();
 });
@@ -84,6 +85,7 @@ test("overview merges counts with the latest scored breakdown", () => {
     breakdown: [{ label: "headline", value: "missing" }],
     recruiters: 5,
     accepted: 2,
+    journey: expect.objectContaining({ total: 0 }),
   });
 });
 test("due recruiter actions use username and URN fallbacks", () => {

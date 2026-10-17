@@ -114,3 +114,25 @@ it("refreshes archive state in an open details dialog after a backend event", as
   await waitFor(() => expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Prepare application" })).toBeDisabled())
   expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Restore Engineer" })).toBeInTheDocument()
 })
+
+it("shows the linked application with its step and contextual next action", async () => {
+  jobs = [
+    { id: 1, title: "Engineer", company_name: "Acme", archived_at: null, application_id: 9, application_phase: "prepared", application_view: "preparation", application_origin: "preparation" },
+    { id: 3, title: "Tracked role", company_name: "Beta", archived_at: null, application_id: 11, application_phase: "submitted", application_view: "tracking", application_origin: "manual" },
+  ]
+  window.location.hash = ""
+  render(<JobsPage />)
+  const row = async (title: string) => within((await screen.findByText(title)).closest("tr")!)
+  expect((await row("Engineer")).getByText("Prepared")).toBeInTheDocument()
+  expect((await row("Tracked role")).getByText("Submitted")).toBeInTheDocument()
+  expect((await row("Tracked role")).getByRole("button", { name: "Prepare application" })).toBeInTheDocument()
+  fireEvent.click((await row("Engineer")).getByRole("button", { name: "Fill in Apply" }))
+  expect(window.location.hash).toBe("#/apply?jobId=1&applicationId=9")
+  fireEvent.click(screen.getByRole("button", { name: "View Tracked role" }))
+  const details = within(screen.getByRole("dialog"))
+  expect(details.getByText("Application #11 · Manual · Submitted")).toBeInTheDocument()
+  fireEvent.click(details.getByRole("button", { name: "Prepare application" }))
+  expect(window.location.hash).toBe("#/apply?jobId=3&applicationId=11")
+  expect(details.getByRole("link", { name: "Open board" })).toHaveAttribute("href", "#/application-board")
+  expect(details.getByRole("link", { name: "View in Applications" })).toHaveAttribute("href", "#/applications")
+})

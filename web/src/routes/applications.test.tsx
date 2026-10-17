@@ -15,6 +15,13 @@ vi.mock("@/lib/api", async (original) => ({
   useApi: vi.fn(),
 }))
 vi.mock("@/lib/preparation", () => ({ openApply: vi.fn() }))
+// Radix Select measures and scrolls its listbox; jsdom implements neither.
+Element.prototype.scrollIntoView = vi.fn()
+Element.prototype.hasPointerCapture = vi.fn(() => false)
+function choose(label: string, option: string) {
+  fireEvent.keyDown(screen.getByRole("combobox", { name: label }), { key: "Enter" })
+  fireEvent.keyDown(screen.getByRole("option", { name: option }), { key: "Enter" })
+}
 let rows: Row[]
 const refresh = vi.fn()
 beforeEach(() => {
@@ -99,7 +106,7 @@ it("links the job of a manual application before opening Apply and hides unsafe 
 it("shows empty/error states and retries", () => {
   rows = []
   const instance = render(<ApplicationsPage />)
-  expect(screen.getByText("No automatic applications yet")).toBeInTheDocument()
+  expect(screen.getByText("No applications yet")).toBeInTheDocument()
   vi.mocked(useApi).mockReturnValue({
     data: undefined,
     loading: false,
@@ -109,4 +116,54 @@ it("shows empty/error states and retries", () => {
   instance.rerender(<ApplicationsPage />)
   fireEvent.click(screen.getByRole("button", { name: "Try again" }))
   expect(refresh).toHaveBeenCalledOnce()
+})
+it("splits manual and generated records into views with origin, step and next action", () => {
+  rows = [
+    { id: 10, job_id: 1, job_title: "Draft role", origin: "preparation", phase: "draft", view: "preparation" },
+    { id: 11, job_id: 2, job_title: "Filled role", origin: "agent", phase: "filled", view: "preparation" },
+    { id: 12, job_title: "Manual role", origin: "manual", phase: "submitted", view: "tracking", applied_at: "2026-10-01T12:00:00Z" },
+    { id: 13, job_title: "Closed role", origin: "manual", phase: "submitted", view: "archived" },
+    { id: 14, job_title: "Legacy role", origin: "unknown", phase: "submitted", view: "preparation" },
+  ]
+  render(<ApplicationsPage />)
+  expect(screen.getByRole("heading", { name: "Applications", level: 1 })).toBeInTheDocument()
+  expect(screen.getByRole("tab", { name: "All (5)" })).toBeInTheDocument()
+  expect(screen.getByRole("tab", { name: "Preparation (3)" })).toBeInTheDocument()
+  expect(screen.getByRole("tab", { name: "Tracking (1)" })).toBeInTheDocument()
+  expect(screen.getByRole("tab", { name: "Archived (1)" })).toBeInTheDocument()
+  const stat = (label: string) => screen.getAllByText(label)[0].closest("[data-slot=card]")!
+  expect(stat("Drafts")).toHaveTextContent("1")
+  expect(stat("Filled")).toHaveTextContent("1")
+  expect(stat("Submitted")).toHaveTextContent("3")
+  const row = (title: string) => within(screen.getByText(title).closest("tr")!)
+  expect(row("Draft role").getByText("Apply")).toBeInTheDocument()
+  expect(row("Filled role").getByText("Agent")).toBeInTheDocument()
+  expect(row("Manual role").getByText("Manual")).toBeInTheDocument()
+  fireEvent.click(row("Filled role").getByRole("button", { name: "Submit in Apply" }))
+  expect(openApply).toHaveBeenCalledWith(2, 11)
+  expect(row("Manual role").getByRole("link", { name: "Open board" })).toHaveAttribute("href", "#/application-board")
+  expect(row("Closed role").getByRole("link", { name: "Reopen on board" })).toHaveAttribute("href", "#/application-board")
+  expect(row("Legacy role").getByText("Resolve in Needs review")).toBeInTheDocument()
+  choose("Filter by origin", "Manual")
+  expect(screen.queryByText("Draft role")).not.toBeInTheDocument()
+  expect(screen.getByText("Manual role")).toBeInTheDocument()
+  expect(screen.getByText("Closed role")).toBeInTheDocument()
+  choose("Filter by status", "submitted")
+  expect(screen.getByText("Closed role")).toBeInTheDocument()
+  choose("Filter by origin", "All origins")
+  expect(screen.getByText("Legacy role")).toBeInTheDocument()
+  expect(screen.queryByText("Filled role")).not.toBeInTheDocument()
+})
+it("keeps view tabs keyboard reachable and explains each view", () => {
+  rows = [
+    { id: 12, job_title: "Manual role", origin: "manual", phase: "submitted", view: "tracking" },
+    { id: 10, job_id: 1, job_title: "Draft role", origin: "preparation", phase: "draft", view: "preparation" },
+  ]
+  render(<ApplicationsPage />)
+  fireEvent.mouseDown(screen.getByRole("tab", { name: "Tracking (1)" }))
+  fireEvent.keyDown(screen.getByRole("tab", { name: "Tracking (1)" }), { key: "Enter" })
+  expect(screen.getByText("Active on the application board.")).toBeInTheDocument()
+  expect(screen.queryByText("Draft role")).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole("button", { name: "View Manual role" }))
+  expect(screen.getByRole("dialog")).toHaveTextContent("Manual · Submitted · Tracking")
 })

@@ -44,6 +44,8 @@ const dependencies: Record<string, string[]> = {
   outreach: ["outreach_attempts", "outreach_budget", "recruiters"],
   "recruiters/due": ["outreach_attempts", "recruiters"],
   applications: ["applications", "jobs"],
+  "applications/summary": ["applications"],
+  jobs: ["jobs", "applications"],
   "application-board": ["applications", "application_stages", "application_events"],
   "acp/providers": [],
 }

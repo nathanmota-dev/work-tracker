@@ -13,10 +13,18 @@ import {
   Details,
   ExternalLink,
 } from "@/components/workspace-ui"
-import { JobActions, JobStats, JobTabs, jobColumns } from "@/components/job-list"
+import {
+  JobActions,
+  JobApplication,
+  JobStats,
+  JobTabs,
+  jobColumns,
+  linkedApplication,
+} from "@/components/job-list"
 import { useApi, request, text, type Row } from "@/lib/api"
 import { openApply } from "@/lib/preparation"
 import { prepareSkill } from "@/lib/agent"
+import { nextStep } from "@/lib/application-journey"
 
 function JobDetailActions({
   selected,
@@ -29,6 +37,8 @@ function JobDetailActions({
   error: string
   actions: (row: Row) => ReactNode
 }) {
+  const application = selected ? linkedApplication(selected) : undefined
+  const step = application ? nextStep(application) : undefined
   return (
     <>
       {error && (
@@ -38,11 +48,9 @@ function JobDetailActions({
         <ExternalLink value={selected?.link} label="View opportunity" />
         <Button
           disabled={busy || !!selected?.archived_at}
-          onClick={() =>
-            openApply(selected?.id)
-          }
+          onClick={() => openApply(selected?.id, application?.id)}
         >
-          Prepare application
+          {step?.kind === "prepare" ? step.label : "Prepare application"}
         </Button>
         <Button
           variant="outline"
@@ -64,6 +72,9 @@ function JobDetailActions({
         <p className="text-sm text-muted-foreground">
           Restore this role before preparing a new application.
         </p>
+      )}
+      {selected && (
+        <JobApplication job={selected} />
       )}
       {selected && actions(selected)}
     </>

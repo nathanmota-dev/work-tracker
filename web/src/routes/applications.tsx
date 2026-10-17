@@ -4,13 +4,22 @@ import {
   Page,
   Details,
   LoadState,
-  Status,
   ExternalLink,
 } from "@/components/workspace-ui"
-import { Records } from "@/components/records"
 import { ApplicationReview } from "@/components/application-review"
 import { JobLinkDialog } from "@/components/job-link-dialog"
-import { useApi, text, date, type Row } from "@/lib/api"
+import {
+  ApplicationList,
+  NextStepAction,
+  originLabel,
+  phaseLabel,
+} from "@/components/application-list"
+import { useApi, text, type Row } from "@/lib/api"
+import {
+  VIEWS,
+  nextStep,
+  type ApplicationView,
+} from "@/lib/application-journey"
 import { openApply } from "@/lib/preparation"
 export function ApplicationsPage() {
   const api = useApi<Row[]>("applications")
@@ -24,8 +33,8 @@ export function ApplicationsPage() {
   }
   return (
     <Page
-      title="Automatic applications"
-      description="Every application, from first draft to next steps."
+      title="Applications"
+      description="Manual and agent-prepared applications, from first draft to next steps."
       actions={
         <Button size="sm" onClick={() => openApply()}>
           Tailor a resume
@@ -35,42 +44,10 @@ export function ApplicationsPage() {
       <LoadState {...api} retry={api.refresh} />
       <ApplicationReview />
       {api.data && (
-        <Records
+        <ApplicationList
           rows={api.data}
-          noun="Automatic applications"
           onSelect={setSelected}
-          columns={[
-            {
-              key: "job_title",
-              label: "Role",
-              render: (r) => (
-                <div className="font-medium">
-                  {text(r.job_title)}
-                  <p className="mt-1 text-xs font-normal text-muted-foreground">
-                    {text(r.company_name)}
-                  </p>
-                </div>
-              ),
-            },
-            {
-              key: "status",
-              label: "Status",
-              render: (r) => <Status value={r.status} />,
-            },
-            {
-              key: "keyword_score",
-              label: "Keyword score",
-              render: (r) =>
-                r.keyword_score == null ? "—" : `${r.keyword_score}%`,
-            },
-            { key: "portal", label: "Portal" },
-            {
-              key: "applied_at",
-              label: "Applied",
-              render: (r) =>
-                r.applied_at ? date(r.applied_at) : "Not submitted",
-            },
-          ]}
+          onPrepare={prepare}
         />
       )}
       <Details
@@ -78,6 +55,12 @@ export function ApplicationsPage() {
         title={text(selected?.job_title ?? "Application details")}
         onClose={() => setSelected(null)}
       >
+        {selected && (
+          <p className="text-sm text-muted-foreground">
+            {originLabel(selected)} · {phaseLabel(selected.phase)} ·{" "}
+            {(VIEWS[selected.view as ApplicationView] ?? VIEWS.preparation).label}
+          </p>
+        )}
         <p className="text-xs text-muted-foreground">
           Artifact paths refer to files in your local workspace.
         </p>
@@ -86,6 +69,9 @@ export function ApplicationsPage() {
           <Button onClick={() => selected && prepare(selected)}>
             Prepare application
           </Button>
+          {selected && nextStep(selected).kind === "board" && (
+            <NextStepAction row={selected} onPrepare={prepare} />
+          )}
         </div>
       </Details>
       {linking && (
