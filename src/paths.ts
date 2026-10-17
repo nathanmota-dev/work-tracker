@@ -11,6 +11,7 @@ export const WORK_TRACKER_HOME = resolve(process.env.WORK_TRACKER_HOME ?? join(h
 /**
  * @property serverLock Lockfile used by the CLI to notify the backend of database changes.
  * @property artifacts Default location for tailored resume artifacts.
+ * @property backups Consistent database snapshots taken before incompatible migrations.
  */
 export const paths = {
   home: WORK_TRACKER_HOME,
@@ -18,6 +19,7 @@ export const paths = {
   config: join(WORK_TRACKER_HOME, "config.json"),
   serverLock: join(WORK_TRACKER_HOME, "backend.lock"),
   artifacts: join(WORK_TRACKER_HOME, "artifacts"),
+  backups: join(WORK_TRACKER_HOME, "backups"),
   workspace: join(WORK_TRACKER_HOME, "workspace"),
   bin: join(WORK_TRACKER_HOME, "bin"),
   linkedinProfile: join(WORK_TRACKER_HOME, "browsers", "linkedin", "profile"),
