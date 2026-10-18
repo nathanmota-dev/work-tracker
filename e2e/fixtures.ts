@@ -7,7 +7,7 @@ import { DatabaseSync } from 'node:sqlite'
 
 export { expect }
 export type Call = { kind: string; [key: string]: unknown }
-export type Scenario = { agent?: 'error' | 'hold' | 'login' | 'invalid-latex'; mcp?: 'error' | 'empty' | 'text'; chrome?: 'error' }
+export type Scenario = { agent?: 'error' | 'hold' | 'login' | 'invalid-latex'; mcp?: 'error' | 'empty' | 'text' | 'login'; chrome?: 'error' }
 export class Workspace {
   readonly home = mkdtempSync(join(tmpdir(), 'work tracker e2e '))
   readonly repository = join(this.home, 'repository')
@@ -39,6 +39,7 @@ export class Workspace {
     chmodSync(fakeChrome, 0o700)
     const protocol = resolve('e2e/fixtures/protocol.cjs')
     const config = {
+      username: "synthetic-candidate",
       acp: Object.fromEntries(['opencode', 'claude-code'].map(provider => [provider, { command: process.execPath, args: [protocol], env: { E2E_PROVIDER: provider } }])),
       mcp: { linkedin: { command: process.execPath, args: [protocol] }, chrome: { command: process.execPath, args: [protocol, '--executable-path', fakeChrome] } },
     }

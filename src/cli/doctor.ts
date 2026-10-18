@@ -1,9 +1,9 @@
 import { accessSync, constants } from "node:fs";
-import { delimiter, join, isAbsolute } from "node:path";
+import { delimiter, join, isAbsolute, resolve } from "node:path";
 import { mcpServers } from "../mcp/config.ts";
 import { paths } from "../paths.ts";
-export function executableExists(command: string): boolean {
-  const candidates = isAbsolute(command) ? [command] : (process.env.PATH ?? "").split(delimiter).flatMap(dir => process.platform === "win32" ? [join(dir, command), join(dir, command + ".cmd"), join(dir, command + ".exe")] : [join(dir, command)]);
+export function executableExists(command: string, env: NodeJS.ProcessEnv = process.env, cwd = process.cwd()): boolean {
+  const candidates = isAbsolute(command) || /[/\\]/.test(command) ? [resolve(cwd, command)] : (env.PATH ?? "").split(delimiter).flatMap(dir => process.platform === "win32" ? [join(dir, command), join(dir, command + ".cmd"), join(dir, command + ".exe")] : [join(dir, command)]);
   return candidates.some(path => { try { accessSync(path, constants.X_OK); return true; } catch { return false; } });
 }
 export function doctor() {

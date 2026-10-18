@@ -119,3 +119,12 @@ it("shows loading/error and retries provider discovery", () => {
   fireEvent.click(screen.getByRole("button", { name: "Try again" }))
   expect(refresh).toHaveBeenCalledOnce()
 })
+it("rejects stale provider or model preferences without reporting success", () => {
+  localStorage.setItem("work-tracker-provider", "one")
+  localStorage.setItem("work-tracker-model", "missing-model")
+  view()
+  fireEvent.click(screen.getByRole("button", { name: "Save preferences" }))
+  expect(screen.getByRole("alert")).toHaveTextContent("Choose an available agent and model")
+  expect(screen.queryByText("Preferences saved.")).not.toBeInTheDocument()
+  expect(localStorage.getItem("work-tracker-model")).toBe("missing-model")
+})

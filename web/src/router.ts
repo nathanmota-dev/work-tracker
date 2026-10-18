@@ -46,6 +46,7 @@ export function createAppRouter(sidebarLayout: RouteComponent) {
     getParentRoute: () => sidebarRoute,
     path: "settings",
     component: SettingsPage,
+    validateSearch: (search: Record<string, unknown>): { section?: string; target?: string } => ({ section: typeof search.section === "string" ? search.section : undefined, target: typeof search.target === "string" ? search.target : undefined }),
     staticData: { title: "Settings" },
   })
 

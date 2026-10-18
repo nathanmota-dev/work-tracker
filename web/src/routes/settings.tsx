@@ -1,6 +1,7 @@
 import { ResumeSources } from "@/components/resume-sources"
 import { SettingsProfile } from "@/components/settings-profile"
 import { BrowserSignIn } from "@/components/browser-sign-in"
+import { IntegrationSettingsPanel } from "@/components/integration-settings"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { SelectControl } from "@/components/ui/select-control"
 import { useState } from "react"
@@ -83,11 +84,12 @@ function useAgentPreferences() {
     localStorage.getItem("work-tracker-model") ?? "",
   )
   const [saved, setSaved] = useState(false)
-  return { api, provider, setProvider, model, setModel, saved, setSaved }
+  const [error, setError] = useState("")
+  return { api, provider, setProvider, model, setModel, saved, setSaved, error, setError }
 }
 
 function AgentPreferences({ preferences }: { preferences: ReturnType<typeof useAgentPreferences> }) {
-  const { api, provider, setProvider, model, setModel, saved, setSaved } = preferences
+  const { api, provider, setProvider, model, setModel, saved, setSaved, error, setError } = preferences
   const selected = api.data?.providers.find((p) => p.id === provider)
   return (
     <Panel title="Agent preferences">
@@ -100,6 +102,9 @@ function AgentPreferences({ preferences }: { preferences: ReturnType<typeof useA
           className="space-y-4"
           onSubmit={(e) => {
             e.preventDefault()
+            setSaved(false)
+            if ((provider && !selected) || (model && !selected?.models.includes(model))) { setError("Choose an available agent and model before saving preferences."); return }
+            setError("")
             localStorage.setItem("work-tracker-provider", provider)
             localStorage.setItem("work-tracker-model", model)
             setSaved(true)
@@ -141,6 +146,7 @@ function AgentPreferences({ preferences }: { preferences: ReturnType<typeof useA
             </SelectControl>
           </Field>
           <Button size="sm">Save preferences</Button>
+          {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
           {saved && (
             <p role="status" className="text-sm text-muted-foreground">
               Preferences saved.
@@ -156,11 +162,12 @@ export function SettingsPage() {
   const preferences = useAgentPreferences()
   return (
     <Page title="Settings" description="A workspace that feels like yours.">
-      <Tabs defaultValue="general">
+      <Tabs defaultValue={new URLSearchParams(window.location.hash.split("?")[1]).get("section") ?? "general"}>
         <TabsList aria-label="Settings views">
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="resume">Resume sources</TabsTrigger>
           <TabsTrigger value="profile">Profile</TabsTrigger>
+          <TabsTrigger value="integrations">Integrations</TabsTrigger>
         </TabsList>
         <TabsContent value="general">
           <div className="grid gap-4 lg:grid-cols-2">
@@ -174,6 +181,7 @@ export function SettingsPage() {
         <TabsContent value="profile">
           <SettingsProfile />
         </TabsContent>
+        <TabsContent value="integrations"><IntegrationSettingsPanel /><BrowserSignIn /></TabsContent>
       </Tabs>
     </Page>
   )
