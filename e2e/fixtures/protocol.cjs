@@ -47,12 +47,18 @@ require('node:readline').createInterface({ input: process.stdin }).on('line', as
       let result;
       switch (m.params.name) {
         case 'list_pages': result = [{ url: 'https://example.com', title: 'Synthetic portal' }]; break;
-        case 'search_jobs': result = state.mcp === 'empty' ? [] : [job]; break;
+        case 'search_jobs': result = state.mcp === 'empty' ? [] : state.mcp === 'mixed' ? [job,
+          { ...job, id: '9002', job_id: '9002', title: 'New Engineer', url: 'https://example.com/jobs/9002' },
+          { ...job, id: '9003', job_id: '9003', title: 'Write failure', url: 'https://example.com/jobs/9003' },
+          { title: 'Incomplete role', url: 'https://example.com/jobs/9004' },
+        ] : [job]; break;
         case 'search_people': result = m.params.arguments.network ? { references: { search_results: [{ url: person.profile_url, text: person.name }] } } : state.mcp === 'empty' ? [] : [person]; break;
         case 'get_job_details': result = { description: 'React developer with TypeScript and Node.js.' }; break;
         case 'get_company_profile': result = { references: { about: [{ kind: 'company_urn', value: '1234' }] } }; break;
         case 'get_person_profile': result = { name: 'Synthetic Candidate', headline: 'React Engineer' }; break;
       }
+      if (state.mcp === 'prose') return send({ id: m.id, result: { content: [{ type: 'text', text: 'React Engineer at Example Company https://example.com/jobs/9001' }] } });
+      if (state.mcp === 'structured') return send({ id: m.id, result: { content: [], structuredContent: { results: result } } });
       return send({ id: m.id, result: state.mcp === 'text' ? { content: [{ type: 'text', text: JSON.stringify(result) }] } : { content: [{ type: 'text', text: JSON.stringify(result) }], structuredContent: Array.isArray(result) ? { results: result } : result } });
     }
     if (m.method === 'session/new') {

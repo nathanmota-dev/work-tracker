@@ -40,6 +40,7 @@ export async function callTool(name: string, args: Record<string, unknown>): Pro
   const content = (result.content ?? []) as Array<{ type: string; text?: string }>;
   const text = content.filter(c => c.type === "text").map(c => c.text).join("\n");
   if (result.isError) throw new Error(text || `MCP tool failed: ${name}`);
+  if (result.structuredContent) return result.structuredContent;
   try { return JSON.parse(text); } catch { return { raw: text }; }
 }
 export async function closeMcp(): Promise<void> {

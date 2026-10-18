@@ -10,6 +10,8 @@ on:
       # Backend contracts imported by the frontend.
       - "src/applications/types.ts"
       - "src/preparation/types.ts"
+      - "src/jobs/search-results.ts"
+      - "src/jobs/identity.ts"
       # Shared manifests, tooling and gates.
       - "package.json"
       - "package-lock.json"
@@ -60,7 +62,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .cache/work-tracker/frontend
-          key: tools-frontend-${{ runner.os }}-${{ runner.arch }}-node${{ steps.node.outputs.node-version }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('eslint.config.mjs', 'web/tsconfig.json', 'web/vitest.config.ts', 'scripts/ci/layers.json') }}-${{ hashFiles('web/**', 'src/applications/types.ts', 'src/preparation/types.ts') }}
+          key: tools-frontend-${{ runner.os }}-${{ runner.arch }}-node${{ steps.node.outputs.node-version }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('eslint.config.mjs', 'web/tsconfig.json', 'web/vitest.config.ts', 'scripts/ci/layers.json') }}-${{ hashFiles('web/**', 'src/applications/types.ts', 'src/preparation/types.ts', 'src/jobs/search-results.ts', 'src/jobs/identity.ts') }}
           restore-keys: |
             tools-frontend-${{ runner.os }}-${{ runner.arch }}-node${{ steps.node.outputs.node-version }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('eslint.config.mjs', 'web/tsconfig.json', 'web/vitest.config.ts', 'scripts/ci/layers.json') }}-
 

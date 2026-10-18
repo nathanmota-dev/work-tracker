@@ -70,7 +70,7 @@ describe("SearchPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Full details" }))
     await waitFor(() => expect(request).toHaveBeenCalledWith("search/job-details", { jobId: "8" }))
     expect(await screen.findByRole("dialog")).toHaveTextContent("Details unavailable")
-    fireEvent.click(screen.getByRole("button", { name: "Assess & save with agent" }))
+    fireEvent.click(screen.getByRole("button", { name: "Assess fit with agent" }))
     expect(prepareSkill).toHaveBeenCalledWith("deep-scout", { query: "https://jobs.example/8" })
   })
 
@@ -87,7 +87,7 @@ describe("SearchPage", () => {
   })
 
   it("displays empty results and omits detail actions without a job ID", async () => {
-    request.mockResolvedValueOnce([])
+    request.mockResolvedValueOnce({ structuredContent: { jobs: [] } })
     render(<SearchPage />)
     fireEvent.change(screen.getByLabelText("Keywords"), { target: { value: "Anything" } })
     fireEvent.click(screen.getByRole("button", { name: "Search LinkedIn" }))
@@ -96,6 +96,6 @@ describe("SearchPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Search LinkedIn" }))
     fireEvent.click(await screen.findByRole("button", { name: "View Unidentified role" }))
     expect(screen.getByRole("button", { name: "Full details" })).toBeDisabled()
-    expect(screen.getByRole("button", { name: "Assess & save with agent" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Assess fit with agent" })).toBeInTheDocument()
   })
 })

@@ -3,8 +3,10 @@ import { db } from "../db/index.ts";
 import { databaseDouble } from "../test/doubles.ts";
 import { saveJob, JobError } from "./store.ts";
 import { handleJobAction } from "./http.ts";
+import { saveSearchResults } from "./search-save.ts";
 vi.mock("../db/index.ts", () => ({ db: vi.fn(), now: () => "now" }));
 vi.mock("./store.ts", async (original) => ({ ...await original<typeof import("./store.ts")>(), saveJob: vi.fn() }));
+vi.mock("./search-save.ts", () => ({ saveSearchResults: vi.fn() }));
 let d: ReturnType<typeof databaseDouble>;
 const broadcast = vi.fn();
 beforeEach(() => {
@@ -22,6 +24,13 @@ const call = (action: string, body: unknown = { id: 1 }, method = "POST") =>
     }),
     broadcast,
   );
+test("dispatches direct search batches through the job action endpoint", async () => {
+  const response = Response.json({ results: [] });
+  vi.mocked(saveSearchResults).mockReturnValue(response);
+  const body = { items: [{ key: "0", result: { title: "Role" } }] };
+  expect(await call("save-search", body)).toBe(response);
+  expect(saveSearchResults).toHaveBeenCalledWith(body, broadcast);
+});
 test.each([
   null,
   [],

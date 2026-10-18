@@ -1,5 +1,6 @@
 import { JobError, saveJob } from "./store.ts";
 import { db, now } from "../db/index.ts";
+import { saveSearchResults } from "./search-save.ts";
 
 /** Job lifecycle actions preserve linked application and interview history. */
 export async function handleJobAction(
@@ -8,11 +9,12 @@ export async function handleJobAction(
   broadcast: (event: unknown) => void,
 ): Promise<Response> {
   const action = path.slice("/api/jobs/".length);
-  if (!["create", "update", "archive", "restore", "delete"].includes(action))
+  if (!["save-search", "create", "update", "archive", "restore", "delete"].includes(action))
     return Response.json({ error: "Not found." }, { status: 404 });
   if (req.method !== "POST")
     return Response.json({ error: "Method not allowed." }, { status: 405 });
   const body: unknown = await req.json().catch(() => null);
+  if (action === "save-search") return saveSearchResults(body, broadcast);
   if (action === "create" || action === "update") {
     try {
       if (action === "update" && (!body || typeof body !== "object" || !("id" in body)

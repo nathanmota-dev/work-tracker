@@ -7,7 +7,7 @@ import { DatabaseSync } from 'node:sqlite'
 
 export { expect }
 export type Call = { kind: string; [key: string]: unknown }
-export type Scenario = { agent?: 'error' | 'hold' | 'login' | 'invalid-latex' | 'permission'; mcp?: 'error' | 'empty' | 'text' | 'login'; chrome?: 'error' }
+export type Scenario = { agent?: 'error' | 'hold' | 'login' | 'invalid-latex' | 'permission'; mcp?: 'error' | 'empty' | 'text' | 'login' | 'mixed' | 'prose' | 'structured'; chrome?: 'error' }
 export class Workspace {
   readonly home = mkdtempSync(join(tmpdir(), 'work tracker e2e '))
   readonly repository = join(this.home, 'repository')

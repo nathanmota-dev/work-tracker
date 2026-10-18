@@ -109,6 +109,16 @@ test("connection failures close transport and retry; a closed client reconnects"
   expect(Client).toHaveBeenCalledTimes(3);
   await closeMcp();
 });
+test("preserves structured MCP output even without text and still propagates tool errors", async () => {
+  const { callTool, closeMcp } = await import("./linkedin.ts");
+  c.callTool.mockResolvedValueOnce({ structuredContent: { jobs: [{ title: "Structured" }] } });
+  expect(await callTool("search_jobs", {})).toEqual({ jobs: [{ title: "Structured" }] });
+  c.callTool.mockResolvedValueOnce({ structuredContent: { jobs: [] }, content: [{ type: "text", text: "old prose" }] });
+  expect(await callTool("search_jobs", {})).toEqual({ jobs: [] });
+  c.callTool.mockResolvedValueOnce({ isError: true, structuredContent: { jobs: [] } });
+  await expect(callTool("search_jobs", {})).rejects.toThrow("MCP tool failed");
+  await closeMcp();
+});
 test("shutdown cancels a pending connection and permits a fresh attempt", async () => {
   const pending = deferred();
   c.connect.mockReturnValueOnce(pending.promise);
