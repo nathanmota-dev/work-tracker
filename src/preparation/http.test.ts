@@ -16,6 +16,7 @@ const service = {
   description: vi.fn(),
   generate: vi.fn(),
   fill: vi.fn(),
+  retry: vi.fn(),
   submitted: vi.fn(),
   cancel: vi.fn(),
 };
@@ -39,6 +40,7 @@ test.each([
   ["application-preparation/description", "description", 200],
   ["application-preparation/generate", "generate", 202],
   ["application-preparation/fill", "fill", 202],
+  ["application-preparation/retry", "retry", 202],
   ["application-preparation/submitted", "submitted", 200],
 ] as const)("dispatches %s", async (path, method, status) => {
   expect((await call(path, '{"jobId":1}')).status).toBe(status);

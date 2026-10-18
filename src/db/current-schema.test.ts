@@ -5,7 +5,7 @@ import { APPLICATION_BOARD_INDEX_SQL, COLUMN_MIGRATIONS, DEFAULT_APPLICATION_STA
 
 test("creates the schema, adds only missing columns, then board indexes, stages and the budget seed", () => {
   const d = databaseDouble();
-  const existing = [...Object.keys(COLUMN_MIGRATIONS.applications!), ...Object.keys(COLUMN_MIGRATIONS.jobs!)];
+  const existing = Object.values(COLUMN_MIGRATIONS).flatMap((columns) => Object.keys(columns));
   d.statement.all.mockReturnValue(existing.filter((c) => c !== "external_url").map((name) => ({ name })));
   d.statement.get.mockReturnValue(undefined);
   ensureCurrentSchema(d.asDatabase);

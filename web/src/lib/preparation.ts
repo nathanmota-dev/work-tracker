@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react"
 import { request, subscribe, type Row } from "./api"
 import type { AgentMessage } from "./agent"
 import { permissionDecision, type PermissionRequest } from "./permissions"
-export type { ResumeSourcesConfig, SourcesState, PdfArtifact, PreparationRun, PreparationDetails, SubmissionConfirmation } from "../../../src/preparation/types"
+export type { ResumeSourcesConfig, SourcesState, PdfArtifact, PreparationRun, PreparationDetails, SubmissionConfirmation, RecoveryCheckpoint, RunRecovery } from "../../../src/preparation/types"
 import type { PreparationDetails } from "../../../src/preparation/types"
 export function openApply(jobId?: unknown, applicationId?: unknown, runId?: string) {
   const params = new URLSearchParams()

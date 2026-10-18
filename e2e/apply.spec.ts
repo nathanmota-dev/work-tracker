@@ -132,6 +132,9 @@ test('Apply: failed regeneration preserves PDF; cancel and sign-in retry keep ap
   workspace.setScenario({ agent: 'invalid-latex' })
   await page.getByRole('button', { name: 'Regenerate', exact: true }).click()
   await expect(page.getByText('Execution needs attention', { exact: true })).toBeVisible({ timeout: 90_000 })
+  // The failed run keeps its tailored sources and offers to continue from compilation.
+  await expect(page.getByRole('region', { name: 'Execution recovery' })).toContainText('Retrying continues from compilation with the tailored sources.')
+  await expect(page.getByRole('button', { name: 'Continue from compilation', exact: true })).toBeEnabled()
   expect(workspace.query('SELECT id, resume_path FROM applications')[0]).toEqual(saved)
   await expect(panel(page, 'Tailored PDF').locator('.react-pdf__Page__textContent')).toContainText('Tailored resume.')
   workspace.setScenario({ agent: 'hold' })

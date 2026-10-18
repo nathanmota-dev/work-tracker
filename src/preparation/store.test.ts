@@ -9,6 +9,7 @@ import {
   cachedPreview,
   pdfBytes,
   runManifest,
+  runOptions,
   runRecord,
   updateRun,
 } from "./store.ts";
@@ -40,13 +41,17 @@ test("decodes runs and manifests without exposing internal JSON fields", () => {
     id: "r",
     events: [{ type: "log" }],
     artifacts: [expect.objectContaining({ warnings: ["warning"] })],
+    recovery: { checkpoints: ["sources"], retryFrom: null, reviewRequired: false, summary: null },
   });
   expect(runManifest("r")).toEqual({ project: "p" });
+  d.statement.get.mockReturnValue({ options_json: '{"extra":"context"}' });
+  expect(runOptions("r")).toEqual({ extra: "context" });
 });
 test("missing runs and artifacts report domain errors", () => {
   for (const action of [
     () => runRecord("missing"),
     () => runManifest("missing"),
+    () => runOptions("missing"),
     () => artifactFile("missing"),
   ])
     expect(action).toThrow(expect.objectContaining({ status: 404 }));

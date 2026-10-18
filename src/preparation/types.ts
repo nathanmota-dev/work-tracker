@@ -11,19 +11,38 @@ export interface PdfArtifact {
   pages: number;
   warnings: string[];
 }
+export type PreparationPhase = "preparing" | "tailoring" | "compiling" | "review" | "filling";
+/** Phase output that was validated and persisted, so a retry can skip it. */
+export type RecoveryCheckpoint = "sources" | "tailored" | "compiled" | "filled";
+/**
+ * What a stopped execution kept and how it can continue. Derived from the run's
+ * status, phase and persisted checkpoints; the desktop reads it after a restart.
+ *
+ * @property retryFrom Phase a retry continues from; null when nothing is pending.
+ * @property reviewRequired The portal agent stopped without a result, so the
+ *   portal may hold a partial fill. Filling again needs the candidate's review.
+ * @property summary What stopped and what a retry does, for display.
+ */
+export interface RunRecovery {
+  checkpoints: RecoveryCheckpoint[];
+  retryFrom: Exclude<PreparationPhase, "review"> | null;
+  reviewRequired: boolean;
+  summary: string | null;
+}
 export interface PreparationRun {
   id: string;
   job_id: number;
   application_id: number | null;
   status: "running" | "completed" | "failed" | "cancelled" | "waiting_for_sign_in" | "interrupted";
   decisionStatus?: "waiting_for_permission";
-  phase: "preparing" | "tailoring" | "compiling" | "review" | "filling";
+  phase: PreparationPhase;
   provider: string;
   model: string | null;
   error: string | null;
   report: string | null;
   events: Record<string, unknown>[];
   artifacts: PdfArtifact[];
+  recovery: RunRecovery;
   created_at: string;
   updated_at: string;
 }

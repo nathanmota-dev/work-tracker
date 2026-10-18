@@ -87,6 +87,32 @@ função `startTracking`. As telas são avisadas pelos eventos `changed` de
 `applications` e `application_events`, então o quadro se atualiza sem reiniciar
 o app.
 
+## Recuperação por fase das execuções
+
+Cada execução do Apply (`application_runs`) grava em `recovery_json` os
+checkpoints validados (`sources`, `tailored`, `compiled`, `filled`; ver
+[recovery.ts](../src/preparation/recovery.ts)). `runRecord` expõe o campo
+derivado `recovery` (`checkpoints`, `retryFrom`, `reviewRequired`, `summary`),
+que o desktop lê também após reiniciar ou reconectar.
+
+- `POST /api/application-preparation/retry` continua a **mesma execução e a
+  mesma candidatura** a partir da fase necessária: sem snapshot salvo, refaz a
+  preparação; com snapshot, restaura o projeto e repete só o ajuste; com fontes
+  ajustadas, repete só a compilação; com PDF validado, repete só o
+  preenchimento. O currículo validado nunca é regenerado para preencher.
+- O PDF ajustado, a atualização da candidatura e as transições são gravados na
+  mesma transação, então uma falha não deixa alteração parcial.
+- Falha, cancelamento, interrupção (app fechado) e login pendente são estados
+  distintos. Ao abrir o app, execuções `running` e `waiting_for_sign_in` ficam
+  `interrupted`; uma sessão ACP aguardando login não é restaurada, e a mensagem
+  diz que a nova tentativa inicia outra sessão.
+- O preenchimento é a única ação externa. Enquanto o agente pode agir no portal,
+  a execução fica marcada; se ela parar sem resultado, o app verifica o
+  `fill-result.json`: um resultado válido salvo antes do fechamento conclui o
+  preenchimento sem repeti-lo; sem resultado, `reviewRequired` exige que o
+  candidato revise o portal e confirme (`reviewed: true`) antes de preencher de
+  novo. Login pendente informado pelo agente não exige revisão.
+
 ## Nova candidatura e republicação
 
 Sem decisão explícita, a mesma vaga reutiliza sempre a sua última tentativa:

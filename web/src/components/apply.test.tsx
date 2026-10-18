@@ -172,3 +172,15 @@ it("updates Apply after a diagnostic retry and opens the matching correction", a
   await waitFor(() => expect(screen.getByRole("button", { name: "Regenerate" })).toBeEnabled())
   expect(screen.getByText("pdf-1")).toBeInTheDocument()
 })
+it("continues an interrupted fill in the same run only after the portal was reviewed", async () => {
+  details.runs[0].status = "interrupted"
+  details.runs[0].phase = "filling"
+  details.runs[0].recovery = { checkpoints: ["sources", "compiled"], retryFrom: "filling", reviewRequired: true, summary: "The app closed during portal filling." }
+  render(<ApplyPage />)
+  expect(await screen.findByText("The app closed during portal filling.")).toBeInTheDocument()
+  fireEvent.click(screen.getByRole("checkbox", { name: "I reviewed the portal in the browser" }))
+  await waitFor(() => expect(screen.getByRole("button", { name: "Fill again" })).toBeEnabled())
+  fireEvent.click(screen.getByRole("button", { name: "Fill again" }))
+  await waitFor(() => expect(request).toHaveBeenCalledWith("application-preparation/retry", { runId: "run-1", extra: "", reviewed: true }))
+  expect(window.location.hash).toContain("runId=run-1")
+})

@@ -1,15 +1,18 @@
 import { randomUUID } from "node:crypto";
-import { copyFileSync, existsSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import { copyFileSync, existsSync, writeFileSync, rmSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { db, now } from "../db/index.ts";
 import { paths } from "../paths.ts";
 import type { SessionManager, AcpRunResult } from "../acp/session.ts";
-import { jobDetails } from "../mcp/search.ts";
 import { openChromePortal } from "../mcp/chrome.ts";
 import { compileLatex, dependencyStatus, inspectPdf } from "./latex.ts";
 import { PreparationError, snapshotSources, sourcesConfig, writeSnapshot, type SourcesSnapshot } from "./sources.ts";
-import { addArtifact, artifactFile, cachedPreview, runManifest, runRecord, updateRun } from "./store.ts";
+import { addArtifact, artifactFile, cachedPreview, runManifest, runOptions, runRecord, updateRun } from "./store.ts";
 import type { PdfArtifact, PreparationDetails, PreparationRun, SourcesState, SubmissionConfirmation } from "./types.ts";
+import { addCheckpoint, dropCheckpoints, markPortal } from "./recovery.ts";
+import { applyFillResult, fillManifestPath, interruptStaleRuns, readFillResult, webLink, type FillManifest } from "./portal-fill.ts";
+import { ensureDescription, readTailoringOutput, resetProject, restoreSources, validateTailoredSources, type GenerationManifest, type GenerationSources } from "./generation.ts";
+export { readableJobDetails } from "./generation.ts";
 import { journeyRecord, latestForJob, openApplication, settleExecution, startTracking, transition } from "../applications/journey-store.ts";
 import { missingForPreparation } from "../jobs/preparation.ts";
 import { planTransition } from "../applications/journey.ts";
@@ -25,31 +28,13 @@ function jobId(value: unknown): number {
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1) throw new PreparationError("Select a saved job.");
   return value;
 }
-function webLink(value: unknown): string {
-  try { const url = new URL(String(value)); if (["https:", "http:"].includes(url.protocol)) return url.href; } catch { /* invalid */ }
-  throw new PreparationError("This application needs an HTTP or HTTPS portal URL.");
-}
-export function readableJobDetails(value: unknown): string {
-  if (typeof value === "string") { try { return readableJobDetails(JSON.parse(value)); } catch { return value; } }
-  if (!value || typeof value !== "object") return "";
-  const row = value as Record<string, unknown>;
-  if (row.structuredContent) return readableJobDetails(row.structuredContent);
-  for (const key of ["description", "job_description", "jobDescription", "details"]) if (row[key] !== undefined && row[key] !== null) return readableJobDetails(row[key]);
-  if (Array.isArray(row.content)) return row.content.map(item => readableJobDetails((item as { text?: string }).text)).join("\n\n");
-  return JSON.stringify(row, null, 2);
-}
 export class PreparationService {
   private active: { id: string; controller: AbortController } | null = null;
   private task: Promise<void> | null = null;
   private unsubscribe?: () => void;
   constructor(private acp: PreparationAgent, private broadcast: (event: unknown) => void) {
-    // A process restart cannot resume an in-flight agent or compiler automatically.
     const d = db();
-    d.transaction(() => {
-      const running = d.query("SELECT id, application_id, phase FROM application_runs WHERE status = 'running'").all() as { id: string; application_id: number | null; phase: PreparationRun["phase"] }[];
-      d.query("UPDATE application_runs SET status = 'interrupted', error = 'The app closed during this execution. Retry to continue.', updated_at = ? WHERE status = 'running'").run(now());
-      for (const run of running) if (run.application_id) settleExecution(d, run.application_id, run.phase === "filling" ? "fill" : "preparation", "failed", run.id);
-    })();
+    d.transaction(() => interruptStaleRuns(d))();
     this.unsubscribe = acp.subscribe?.(event => {
       if (!event.runId || this.active?.id !== event.runId) return;
       const run = runRecord(String(event.runId));
@@ -135,9 +120,35 @@ export class PreparationService {
       d.query("INSERT INTO application_runs (id, job_id, application_id, status, phase, provider, model, options_json, created_at, updated_at) VALUES (?, ?, ?, 'running', 'preparing', ?, ?, ?, ?, ?)").run(id, job.id, applicationId, input.provider as string, typeof input.model === "string" ? input.model : null, JSON.stringify(input), at, at);
       if (applicationId) transition(d, applicationId, "prepare.start", "api", { runId: id });
     })();
+    return this.start(id, signal => this.performGeneration(id, job, "preparing", String(input.extra ?? ""), signal, snapshot));
+  }
+  /**
+   * Continue a stopped execution from the phase it needs, in the same run and
+   * application: validated sources, tailored files and PDFs are reused, and a
+   * portal fill that stopped without a result needs `reviewed: true`.
+   */
+  retry(input: Record<string, unknown>): PreparationRun {
+    this.assertIdle();
+    const run = runRecord(String(input.runId ?? ""));
+    const from = run.recovery.retryFrom;
+    if (!from) throw new PreparationError("This execution has nothing to retry.", 409);
+    if (from === "filling") return this.fill({ ...input, runId: run.id });
+    const job = jobRecord(run.job_id);
+    if (job.archived_at) throw new PreparationError("Restore this job before preparing an application.", 409);
+    const d = db();
+    if (run.application_id) planTransition(journeyRecord(d, run.application_id), "prepare.start");
+    const snapshot = from === "preparing" ? snapshotSources() : undefined;
+    const extra = typeof input.extra === "string" && input.extra.trim() ? input.extra : String(runOptions(run.id).extra ?? "");
+    d.transaction(() => {
+      updateRun(run.id, { status: "running", phase: from, error: null });
+      if (run.application_id) transition(d, run.application_id, "prepare.start", "api", { runId: run.id });
+    })();
+    return this.start(run.id, signal => this.performGeneration(run.id, job, from, extra, signal, snapshot));
+  }
+  private start(id: string, work: (signal: AbortSignal) => Promise<void>): PreparationRun {
     const controller = new AbortController();
     this.active = { id, controller };
-    this.task = this.performGeneration(id, job, snapshot, input, controller.signal).catch(error => this.fail(id, error)).finally(() => { this.active = null; this.task = null; this.changed(id); });
+    this.task = work(controller.signal).catch(error => this.fail(id, error)).finally(() => { this.active = null; this.task = null; this.changed(id); });
     this.changed(id);
     return runRecord(id);
   }
@@ -163,14 +174,21 @@ export class PreparationService {
     if (result?.status === "error") throw new Error(result.message ?? "Agent execution failed.");
     return true;
   }
-  private async performGeneration(id: string, job: Job, snapshot: SourcesSnapshot, input: Record<string, unknown>, signal: AbortSignal): Promise<void> {
-    if (!job.description) {
-      if (!job.linkedin_job_id) throw new PreparationError("Add the job description before generating a resume.");
-      const description = readableJobDetails(await jobDetails(job.linkedin_job_id));
-      if (!description.trim() || /login (?:is still in|in) progress|sign-in[^\n]*pending/i.test(description)) throw new PreparationError("The job description is unavailable. Complete LinkedIn sign-in or paste the description, then retry.");
-      job.description = description;
-      db().query("UPDATE jobs SET description = ? WHERE id = ?").run(description, job.id);
+  /** Run generation from `from`, skipping phases whose checkpoints a retry reuses. */
+  private async performGeneration(id: string, job: Job, from: Exclude<PreparationRun["phase"], "review" | "filling">, extra: string, signal: AbortSignal, snapshot?: SourcesSnapshot): Promise<void> {
+    const sources = snapshot ? await this.prepareSources(id, job, snapshot, signal)
+      : restoreSources({ ...runManifest(id) } as unknown as GenerationManifest, runRecord(id).artifacts.find(item => item.kind === "base")?.pages);
+    if (from !== "compiling") {
+      if (!snapshot) { resetProject(sources.manifest); dropCheckpoints(id, "tailored"); }
+      this.phase(id, "tailoring");
+      if (!await this.agent(id, sources.manifest.manifestPath, "resume-tailor", extra)) return;
+      addCheckpoint(id, "tailored");
     }
+    const compiled = await this.compile(id, sources, signal);
+    if (compiled) this.complete(id, job, sources, compiled);
+  }
+  private async prepareSources(id: string, job: Job, snapshot: SourcesSnapshot, signal: AbortSignal): Promise<GenerationSources> {
+    await ensureDescription(job);
     signal.throwIfAborted();
     const root = join(paths.artifacts, "applications", String(job.id), id);
     const baseProject = join(root, "base-project");
@@ -193,53 +211,47 @@ export class PreparationService {
     const basePath = join(root, "base.pdf");
     copyFileSync(baseline.path, basePath);
     addArtifact(id, "base", basePath, { pages: preview.pages, text: baseline.text, warnings: snapshot.warnings });
-    this.phase(id, "tailoring");
-    if (!await this.agent(id, manifestPath, "resume-tailor", String(input.extra ?? ""))) return;
-    let compiled: Awaited<ReturnType<typeof compileLatex>> | undefined;
-    for (let attempt = 0; attempt < 2; attempt++) {
+    addCheckpoint(id, "sources");
+    const texFiles = snapshot.files.filter(file => file.name.endsWith(".tex")).map(file => ({ name: file.name, text: file.bytes.toString("utf8").replaceAll("\r\n", "\n") }));
+    return { manifest: { ...manifest, manifestPath }, texFiles, basePages: preview.pages };
+  }
+  /** Compile the tailored project, allowing one bounded agent correction. Undefined while waiting for sign-in. */
+  private async compile(id: string, sources: GenerationSources, signal: AbortSignal): Promise<{ compiled: Awaited<ReturnType<typeof compileLatex>>; report: string } | undefined> {
+    const { manifest } = sources;
+    for (let attempt = 0; ; attempt++) {
       this.phase(id, "compiling");
       try {
-        for (const file of snapshot.files.filter(file => file.name.endsWith(".tex"))) {
-          const original = file.bytes.toString("utf8").replaceAll("\r\n", "\n");
-          const generated = readFileSync(join(project, file.name), "utf8").replaceAll("\r\n", "\n");
-          const comments = original.split("\n").filter(line => line.trimStart().startsWith("%"));
-          if (comments.some(line => !generated.split("\n").includes(line))) throw new Error(`Restore the original comments in ${file.name}; commented certifications are not active content.`);
-          const boundary = original.indexOf("\\begin{document}");
-          if (boundary >= 0 && generated.slice(0, generated.indexOf("\\begin{document}")) !== original.slice(0, boundary)) throw new Error(`Preserve the original preamble, formatting and fonts in ${file.name}.`);
-        }
-        compiled = await compileLatex(project, manifest.mainFile, manifest.engine, signal);
-        writeFileSync(join(root, "compile.log"), compiled.log);
-        if (!existsSync(manifest.reportPath) || !existsSync(manifest.selectionPath)) throw new Error("The agent must produce report.md and selection.json before review.");
-        const selection: unknown = JSON.parse(readFileSync(manifest.selectionPath, "utf8"));
-        if (!selection || typeof selection !== "object" || Array.isArray(selection)) throw new Error("The selection report must be a JSON object.");
-        if (!readFileSync(manifest.reportPath, "utf8").trim()) throw new Error("The tailoring report is empty.");
-        break;
+        validateTailoredSources(sources);
+        const compiled = await compileLatex(manifest.project, manifest.mainFile, manifest.engine, signal);
+        writeFileSync(join(dirname(manifest.manifestPath), "compile.log"), compiled.log);
+        return { compiled, report: readTailoringOutput(manifest) };
       } catch (error) {
         signal.throwIfAborted();
         if (attempt === 1) throw error;
         this.phase(id, "tailoring");
-        if (!await this.agent(id, manifestPath, "resume-tailor", `Correct the compilation or output errors below without inventing information.\n${error instanceof Error ? error.message : String(error)}`)) return;
+        if (!await this.agent(id, manifest.manifestPath, "resume-tailor", `Correct the compilation or output errors below without inventing information.\n${error instanceof Error ? error.message : String(error)}`)) return undefined;
       }
     }
-    if (!compiled) throw new Error("No compiled PDF was produced.");
-    if (compiled.check.pages > preview.pages) compiled.check.warnings.push(`The tailored resume has ${compiled.check.pages} pages; the base has ${preview.pages}. Review its length.`);
-    const pdfPath = join(root, "resume.pdf");
+  }
+  /** Register the validated PDF and its application together, so a failure leaves no partial change. */
+  private complete(id: string, job: Job, { manifest, basePages }: GenerationSources, { compiled, report }: { compiled: Awaited<ReturnType<typeof compileLatex>>; report: string }): void {
+    if (compiled.check.pages > basePages) compiled.check.warnings.push(`The tailored resume has ${compiled.check.pages} pages; the base has ${basePages}. Review its length.`);
+    const pdfPath = join(dirname(manifest.manifestPath), "resume.pdf");
     copyFileSync(compiled.path, pdfPath);
-    addArtifact(id, "tailored", pdfPath, compiled.check);
-    const report = readFileSync(manifest.reportPath, "utf8");
     const current = runRecord(id);
     const d = db();
-    const applicationId = d.transaction(() => {
+    d.transaction(() => {
       // Reuses the job's latest attempt, so a retried generation never adds an application.
       const app = current.application_id ? journeyRecord(d, current.application_id) : openApplication(d, { jobId: job.id, origin: "preparation" }).record;
       if (app.submission_status === "submitted") throw new PreparationError("The application was submitted during generation. Its previous PDF is preserved.", 409);
+      addArtifact(id, "tailored", pdfPath, compiled.check);
       d.query("UPDATE applications SET external_url = COALESCE(external_url, ?), fields_filled_json = NULL, unfilled_json = NULL, resume_path = ?, report_path = ?, cover_letter_path = ?, preparation_run_id = ? WHERE id = ?").run(job.link, pdfPath, manifest.reportPath, existsSync(manifest.coverPath) ? manifest.coverPath : null, id, app.id);
       transition(d, app.id, "prepare.complete", "agent", { runId: id });
       // A new resume needs a new portal fill; the submission is untouched.
       transition(d, app.id, "fill.reset", "system", { runId: id });
-      return app.id;
+      addCheckpoint(id, "compiled");
+      updateRun(id, { status: "completed", phase: "review", application_id: app.id, report, error: null });
     })();
-    updateRun(id, { status: "completed", phase: "review", application_id: applicationId, report, error: null });
     db().query("INSERT INTO activity_log (kind, skill, summary) VALUES ('resume', 'work-tracker-resume-tailor', ?)").run(`Prepared ${job.company_name} ${job.title}`);
     this.broadcast({ type: "changed", table: "applications" });
     this.broadcast({ type: "changed", table: "activity_log" });
@@ -252,41 +264,35 @@ export class PreparationService {
     const job = jobRecord(run.job_id);
     if (job.archived_at) throw new PreparationError("Restore this job before filling its portal.", 409);
     const pdf = run.artifacts.find(item => item.kind === "tailored");
-    if (!pdf || !run.application_id || !["completed", "waiting_for_sign_in", "failed", "cancelled"].includes(run.status)) throw new PreparationError("Generate a validated PDF before filling the application.");
+    if (!pdf || !run.application_id || !["completed", "waiting_for_sign_in", "failed", "cancelled", "interrupted"].includes(run.status)) throw new PreparationError("Generate a validated PDF before filling the application.");
+    // Never repeat a portal action whose outcome is unknown without the candidate's review.
+    if (run.recovery.reviewRequired && input.reviewed !== true) throw new PreparationError("The previous portal fill stopped without a result, so the portal may hold a partial fill. Review it in the browser, then confirm before filling again.", 409);
     const file = artifactFile(pdf.id);
     const d = db();
     const application = journeyRecord(d, run.application_id);
     planTransition(application, "fill.start");
     const url = webLink(application.external_url || job.link);
     const manifest = runManifest(id);
-    const manifestPath = join(dirname(manifest.manifestPath), "fill-manifest.json");
-    const resultPath = join(dirname(manifest.manifestPath), "fill-result.json");
-    rmSync(resultPath, { force: true });
-    writeFileSync(manifestPath, JSON.stringify({ runId: id, job, applicationId: run.application_id, pdfPath: file.path, url, resultPath }, null, 2), { mode: 0o600 });
+    const manifestPath = fillManifestPath(manifest.manifestPath);
+    const fill: FillManifest = { runId: id, job, applicationId: run.application_id, pdfPath: file.path, url, resultPath: join(dirname(manifest.manifestPath), "fill-result.json"), reportPath: manifest.reportPath, coverPath: manifest.coverPath ?? null };
+    rmSync(fill.resultPath, { force: true });
+    writeFileSync(manifestPath, JSON.stringify(fill, null, 2), { mode: 0o600 });
     d.transaction(() => {
       transition(d, application.id, "fill.start", "api", { runId: id });
+      markPortal(id, false);
       updateRun(id, { status: "running", phase: "filling", error: null });
     })();
-    const controller = new AbortController();
-    this.active = { id, controller };
-    this.task = (async () => {
-      await inspectPdf(file.path, controller.signal);
+    return this.start(id, async signal => {
+      await inspectPdf(file.path, signal);
       await openChromePortal(url);
-      controller.signal.throwIfAborted();
-      if (!await this.agent(id, manifestPath, "portal-filler", String(input.extra ?? ""))) return;
-      const result = JSON.parse(readFileSync(resultPath, "utf8")) as Record<string, unknown>;
-      if (!result.fields || typeof result.fields !== "object" || Array.isArray(result.fields) || !Array.isArray(result.unfilled)) throw new Error("The agent did not produce a valid fill result. Review the browser and retry.");
-      const finalUrl = result.externalUrl ? webLink(result.externalUrl) : url;
-      d.transaction(() => {
-        d.query("UPDATE applications SET fields_filled_json = ?, unfilled_json = ?, external_url = ?, portal = ?, resume_path = ?, preparation_run_id = ?, report_path = ?, cover_letter_path = ? WHERE id = ?").run(JSON.stringify(result.fields), JSON.stringify(result.unfilled), finalUrl, String(result.portal ?? "generic"), file.path, id, manifest.reportPath, manifest.coverPath && existsSync(manifest.coverPath) ? manifest.coverPath : null, application.id);
-        // Filling never submits: the candidate confirms the submission separately.
-        transition(d, application.id, "fill.complete", "agent", { runId: id });
-        updateRun(id, { status: "completed", phase: "review" });
-      })();
+      signal.throwIfAborted();
+      // From here the agent may act on the portal; a stop without a result needs review.
+      markPortal(id, true);
+      if (!await this.agent(id, manifestPath, "portal-filler", String(input.extra ?? ""))) { markPortal(id, false); return; }
+      const result = readFillResult(fill);
+      d.transaction(() => applyFillResult(d, fill, result))();
       this.broadcast({ type: "changed", table: "applications" });
-    })().catch(error => this.fail(id, error)).finally(() => { this.active = null; this.task = null; this.changed(id); });
-    this.changed(id);
-    return runRecord(id);
+    });
   }
   /**
    * Record the candidate's confirmation for the application filled by this
