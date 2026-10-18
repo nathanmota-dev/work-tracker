@@ -1,10 +1,12 @@
-import { useState, type ReactNode } from "react"
+import { useEffect, type ReactNode } from "react"
 import { Button } from "@/components/ui/button"
 import { Records, type Column } from "@/components/records"
+import { useWorkspaceState } from "@/lib/workspace-state"
 import type { Row } from "@/lib/api"
 
 /** Selection is keyed independently of database IDs and survives filtering/paging. */
-export function MultiSelectRecords({ rows, columns, noun, rowKey, rowLabel, canSelect, busy, action, onSelect, selectAllLabel = "Select all eligible results" }: {
+export function MultiSelectRecords({ rows, columns, noun, rowKey, rowLabel, canSelect, busy, action, onSelect, workspace = "", selectAllLabel = "Select all eligible results" }: {
+  workspace?: string
   rows: Row[]
   columns: Column[]
   noun: string
@@ -16,17 +18,24 @@ export function MultiSelectRecords({ rows, columns, noun, rowKey, rowLabel, canS
   onSelect: (row: Row) => void
   selectAllLabel?: string
 }) {
-  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const { search, update } = useWorkspaceState(workspace || "jobs")
+  const selected = new Set(search.selection ?? [])
+  const setSelected = (next: Set<string>) => update({ selection: [...next] })
   const eligible = rows.filter(canSelect)
   const chosen = eligible.filter(row => selected.has(rowKey(row)))
-  const toggle = (key: string) => setSelected(previous => {
-    const next = new Set(previous)
+  const toggle = (key: string) => {
+    const next = new Set(selected)
     if (next.has(key)) next.delete(key)
     else next.add(key)
-    return next
-  })
+    setSelected(next)
+  }
+  useEffect(() => {
+    const valid = (search.selection ?? []).filter(key => eligible.some(row => rowKey(row) === key))
+    if (valid.length !== search.selection?.length) update({ selection: valid })
+  }, [eligible, rowKey, search.selection, update])
   return (
     <Records
+      workspace={workspace}
       noun={noun}
       rows={rows}
       rowKey={rowKey}

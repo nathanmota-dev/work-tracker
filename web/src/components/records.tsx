@@ -7,12 +7,13 @@ import {
   TableCell,
 } from "@/components/ui/table"
 import { SelectControl } from "@/components/ui/select-control"
-import { useState, type ReactNode } from "react"
+import { useEffect, type ReactNode } from "react"
 import { ArrowUpRight, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Empty, Panel, controlClass } from "@/components/workspace-ui"
+import { useWorkspaceState } from "@/lib/workspace-state"
 import { text, type Row } from "@/lib/api"
 
 export interface Column {
@@ -183,19 +184,22 @@ export function Records({
   action,
   statusKey,
   rowKey,
+  workspace = "",
 }: {
   rows: Row[]
   columns: Column[]
   noun: string
+  workspace?: string
   onSelect?: (row: Row) => void
   action?: ReactNode
   /** Column the status filter reads; defaults to `status`, then `state`. */
   statusKey?: string
   rowKey?: (row: Row) => string
 }) {
-  const [query, setQuery] = useState("")
-  const [status, setStatus] = useState("")
-  const [page, setPage] = useState(0)
+  const { search, update } = useWorkspaceState(workspace)
+  const query = search.q ?? ""
+  const status = search.status ?? ""
+  const page = search.page ?? 0
   const statusOf = (row: Row) =>
     statusKey ? row[statusKey] : (row.status ?? row.state)
   const statuses = [
@@ -215,6 +219,10 @@ export function Records({
   )
   const lastPage = Math.max(0, Math.ceil(filtered.length / PAGE_SIZE) - 1)
   const current = Math.min(page, lastPage)
+  const validStatus = !status || statuses.includes(status)
+  useEffect(() => {
+    if (page !== current || !validStatus) update({ page: current, status: validStatus ? status : "" })
+  }, [page, current, status, validStatus, update])
   return (
     <Panel
       title={noun}
@@ -227,12 +235,10 @@ export function Records({
         statuses={statuses}
         action={action}
         onQuery={(value) => {
-          setQuery(value)
-          setPage(0)
+          update({ q: value, page: 0 })
         }}
         onStatus={(value) => {
-          setStatus(value)
-          setPage(0)
+          update({ status: value, page: 0 })
         }}
       />
       {!filtered.length ? (
@@ -258,7 +264,7 @@ export function Records({
             total={filtered.length}
             current={current}
             lastPage={lastPage}
-            onPage={setPage}
+            onPage={page => update({ page })}
           />
         </>
       )}

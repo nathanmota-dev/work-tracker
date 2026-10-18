@@ -1,5 +1,4 @@
 import { SelectControl } from "@/components/ui/select-control"
-import { useState } from "react"
 import { Search as SearchIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,11 +13,11 @@ import {
 import {
   ResultActions,
   SearchResults,
-  initialValues,
   type SearchKind,
   type SearchValues,
 } from "@/components/search-results"
-import { request, text, type Row } from "@/lib/api"
+import { useSearchWorkspace } from "@/lib/use-search-workspace"
+import { text } from "@/lib/api"
 
 export { searchRows } from "@/components/search-results"
 
@@ -125,33 +124,7 @@ function KindToggle({
 }
 
 export function SearchPage() {
-  const [kind, setKind] = useState<SearchKind>("jobs")
-  const [values, setValues] = useState(initialValues)
-  const [result, setResult] = useState<unknown>()
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState("")
-  const [selected, setSelected] = useState<Row | null>(null)
-  const [detailBusy, setDetailBusy] = useState(false)
-  async function search() {
-    setBusy(true)
-    setError("")
-    setResult(undefined)
-    try {
-      setResult(
-        await request(`search/${kind}`, {
-          keywords: values.keywords.trim(),
-          location: values.location,
-          ...(kind === "jobs"
-            ? { workType: values.workType, maxPages: values.maxPages }
-            : { company: values.company }),
-        }),
-      )
-    } catch (e) {
-      setError((e as Error).message)
-    } finally {
-      setBusy(false)
-    }
-  }
+  const { kind, values, result, selected, setSelected, busy, error, detailBusy, setDetailBusy, search, update, setError } = useSearchWorkspace()
   return (
     <Page
       title="Search"
@@ -162,8 +135,7 @@ export function SearchPage() {
           kind={kind}
           busy={busy}
           onKind={(key) => {
-            setKind(key)
-            setResult(undefined)
+            update({ kind: key, resultId: "", savedJobId: undefined, selected: "", selection: [], page: 0 })
             setError("")
           }}
         />
@@ -178,7 +150,7 @@ export function SearchPage() {
             kind={kind}
             values={values}
             busy={busy}
-            set={(key, value) => setValues((previous) => ({ ...previous, [key]: value }))}
+            set={(key, value) => update({ [key]: value })}
           />
           <Button disabled={busy || !values.keywords.trim()}>
             <SearchIcon className="size-4" />
@@ -204,7 +176,7 @@ export function SearchPage() {
           />
         </Panel>
       )}
-      {result !== undefined && (
+      {result !== undefined && !busy && (
         <SearchResults kind={kind} result={result} onSelect={setSelected} />
       )}
       <Details

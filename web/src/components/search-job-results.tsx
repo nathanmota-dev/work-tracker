@@ -2,12 +2,15 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Details, ExternalLink } from "@/components/workspace-ui"
 import { MultiSelectRecords } from "@/components/multi-select-records"
+import { useWorkspaceState } from "@/lib/workspace-state"
+import { useSearchSession } from "@/lib/search-session"
 import { request, text, type Row } from "@/lib/api"
 import { normalizeSearchJob, type SearchSaveResult } from "../../../src/jobs/search-results"
 
 function useSearchSave() {
   const [busy, setBusy] = useState(false)
-  const [outcomes, setOutcomes] = useState<Record<string, SearchSaveResult>>({})
+  const { search } = useWorkspaceState("search")
+  const [outcomes, setOutcomes] = useSearchSession<Record<string, SearchSaveResult>>(search.resultId ? `outcomes:${search.resultId}` : undefined, {})
   async function save(rows: Row[]) {
     setBusy(true)
     const items = rows.map(row => ({ key: String(row.search_key), result: row.search_result }))
@@ -38,7 +41,8 @@ function SaveOutcome({ outcome, onView }: { outcome?: SearchSaveResult; onView: 
 
 export function SearchJobResults({ results, onSelect }: { results: unknown[]; onSelect: (row: Row) => void }) {
   const { busy, outcomes, save } = useSearchSave()
-  const [savedJob, setSavedJob] = useState<Row | null>(null)
+  const { search, update } = useWorkspaceState("search")
+  const setSavedJob = (job: Row | null) => update({ savedJobId: job ? Number(job.id) : undefined, selected: "" })
   const rows: Row[] = results.map((result, index) => {
     const raw = result && typeof result === "object" && !Array.isArray(result) ? result as Row : { raw: result }
     const normalized = normalizeSearchJob(result)
@@ -46,17 +50,18 @@ export function SearchJobResults({ results, onSelect }: { results: unknown[]; on
       search_key: String(index), search_result: result, savable: !!normalized.job, save_error: normalized.error }
   })
   const all = Object.values(outcomes)
+  const savedJob = all.find(outcome => Number(outcome.job?.id) === search.savedJobId)?.job ?? null
   return <>
     {all.length > 0 && <p role="status" className="text-sm">
       {all.filter(r => r.status === "saved").length} saved · {all.filter(r => r.status === "existing").length} already saved · {all.filter(r => r.status === "failed").length} failed
     </p>}
     <MultiSelectRecords
-      noun="Search results" rows={rows} busy={busy} rowKey={row => String(row.search_key)}
+      workspace="search" noun="Search results" rows={rows} busy={busy} rowKey={row => String(row.search_key)}
       selectAllLabel="Select all savable results"
       rowLabel={row => text(row.title)} canSelect={row => row.savable === true}
       onSelect={row => {
         const raw = row.search_result && typeof row.search_result === "object" ? row.search_result as Row : { raw: row.search_result }
-        onSelect({ ...raw, ...normalizeSearchJob(row.search_result).job })
+        onSelect({ ...raw, ...normalizeSearchJob(row.search_result).job, search_key: row.search_key })
       }}
       action={selected => <Button size="sm" disabled={busy || !selected.length}
         onClick={() => void save(selected)}>{busy ? "Saving…" : "Save selected"}</Button>}

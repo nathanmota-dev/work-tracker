@@ -45,7 +45,7 @@ export function MainLayout() {
           <SidebarInset className="min-h-0 min-w-0 overflow-hidden border border-border shadow-xs">
             <WorkspaceHeader />
             <AgentPermissions />
-            <div className="flex min-h-0 flex-1 overflow-auto">
+            <div data-workspace-scroll className="flex min-h-0 flex-1 overflow-auto">
               <Outlet />
             </div>
           </SidebarInset>

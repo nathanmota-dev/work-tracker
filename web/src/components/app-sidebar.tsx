@@ -1,3 +1,4 @@
+import { useWorkspaceLinks } from "@/lib/workspace-state"
 import { Link, useMatchRoute } from "@tanstack/react-router"
 import { Search, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -21,6 +22,7 @@ import {
 const mainNavigationItems = navigationItems.filter((item) => item.to !== "/settings")
 
 export function AppSidebar() {
+  const remembered = useWorkspaceLinks()
   const matchRoute = useMatchRoute()
   const { setOpenMobile } = useSidebar()
   const { openSearch, shortcut } = useCommandPalette()
@@ -64,6 +66,7 @@ export function AppSidebar() {
                   >
                     <Link
                       to={item.to}
+                      search={remembered[item.to] ?? {}}
                       aria-label={item.title}
                       className="cursor-pointer"
                       activeProps={{ "aria-current": "page" }}

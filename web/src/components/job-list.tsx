@@ -1,9 +1,10 @@
-import { useState, type ReactNode } from "react"
+import { type ReactNode } from "react"
 import { Archive, ArchiveRestore, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Stats, Status } from "@/components/workspace-ui"
 import { Records, type Column } from "@/components/records"
+import { useWorkspaceState } from "@/lib/workspace-state"
 import { text, date, type Row } from "@/lib/api"
 import { openApply } from "@/lib/preparation"
 import { nextStep } from "@/lib/application-journey"
@@ -185,9 +186,10 @@ export function JobTabs({
   columns: Column[]
   onSelect: (row: Row) => void
 }) {
-  const [view, setView] = useState("active")
+  const { search, update } = useWorkspaceState("jobs")
+  const view = search.view ?? "active"
   return (
-    <Tabs value={view} onValueChange={setView}>
+    <Tabs value={view} onValueChange={view => update({ view, page: 0, q: "", status: "", selected: "" })}>
       <TabsList aria-label="Job archive filter">
         <TabsTrigger value="active">Active ({active.length})</TabsTrigger>
         <TabsTrigger value="archived">
@@ -202,7 +204,7 @@ export function JobTabs({
           </p>
         )}
         <Records
-          key={view}
+          workspace="jobs"
           rows={view === "archived" ? archived : active}
           noun={view === "archived" ? "Archived opportunities" : "Opportunities"}
           onSelect={onSelect}

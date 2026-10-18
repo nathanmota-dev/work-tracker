@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -25,6 +25,7 @@ import { useApi, request, text, type Row } from "@/lib/api"
 import { openApply } from "@/lib/preparation"
 import { prepareSkill } from "@/lib/agent"
 import { JobForm, type JobSaveResult } from "@/components/job-form"
+import { useWorkspaceState } from "@/lib/workspace-state"
 import { nextStep } from "@/lib/application-journey"
 
 function JobDetailActions({
@@ -138,7 +139,18 @@ function DeleteJobDialog({
 
 function useJobs() {
   const api = useApi<Row[]>("jobs")
-  const [selectedId, setSelectedId] = useState<number | null>(null)
+  const { search, update } = useWorkspaceState("jobs")
+  const selectedId = Number(search.selected) || null
+  const setSelectedId = (id: number | null) => update({ selected: id ? String(id) : "" })
+  useEffect(() => {
+    if (!api.data || api.loading) return
+    const visible = api.data.filter(row => search.view === "archived" ? !!row.archived_at : !row.archived_at)
+    const ids = new Set(visible.map(row => String(row.id)))
+    const selection = (search.selection ?? []).filter(id => ids.has(id))
+    const exists = api.data.some(row => String(row.id) === search.selected)
+    if (selection.length !== search.selection?.length || search.selected && !exists)
+      update({ selection, selected: exists ? search.selected : "" })
+  }, [api.data, api.loading, search, update])
   const selected = api.data?.find((row) => row.id === selectedId) ?? null
   const [editing, setEditing] = useState<Row | "new" | null>(null)
   const [notice, setNotice] = useState("")
@@ -154,7 +166,7 @@ function useJobs() {
     setError("")
     try {
       await request(`jobs/${action}`, { id: row.id })
-      setSelectedId(null)
+      if (selectedId === Number(row.id)) setSelectedId(null)
       setDeleting(null)
       api.refresh()
     } catch (e) {

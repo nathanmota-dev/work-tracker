@@ -64,7 +64,8 @@ export function SearchResults({
   return (
     rows.length ? (
       <Records
-        rows={rows}
+        workspace="search"
+        rows={rows.map((row, index) => ({ ...row, search_key: String(index) }))}
         noun="Search results"
         onSelect={onSelect}
         columns={peopleColumns}
@@ -133,11 +134,11 @@ export function ResultActions({
                   ),
                 })
                 setSelected((r) =>
-                  r ? { ...r, description: readable(details) } : null,
+                  r?.search_key === selected?.search_key ? { ...r, description: readable(details) } : r,
                 )
               } catch (e) {
                 setSelected((r) =>
-                  r ? { ...r, error: (e as Error).message } : null,
+                  r?.search_key === selected?.search_key ? { ...r, error: (e as Error).message } : r,
                 )
               } finally {
                 setDetailBusy(false)

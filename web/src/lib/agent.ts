@@ -218,7 +218,9 @@ export function prepareSkill(
 ) {
   if (skill === "resume-tailor") { openApply(params.jobIds); return }
   update({ draft: { skill, params } })
-  window.location.hash = "/launch"
+  const criteria = new URLSearchParams({ skill, ...params, target: params.query ?? params.jobIds ?? params.url ?? params.company ?? params.username ?? "" })
+  criteria.delete("extra")
+  window.location.hash = `/launch?${criteria}`
 }
 export async function runAgent(
   provider: string,

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, lazy, Suspense } from "react"
 import { useSearch } from "@tanstack/react-router"
+import { useApplyContext } from "@/lib/apply-context"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { SelectControl } from "@/components/ui/select-control"
@@ -16,28 +17,26 @@ import { openApply, preparationMessages, usePreparation, type SourcesState, type
 const PdfViewer = lazy(() => import("@/components/pdf-viewer").then(module => ({ default: module.PdfViewer })))
 export function ApplyPage() {
   const search = useSearch({ strict: false }) as { jobId?: number; applicationId?: number; runId?: string }
+  return <ApplyWorkspace key={`${search.jobId ?? "none"}:${search.applicationId ?? "job"}`} search={search} />
+}
+function ApplyWorkspace({ search }: { search: { jobId?: number; applicationId?: number; runId?: string } }) {
   const jobs = useApi<Row[]>("jobs")
   const providers = useApi<Providers>("acp/providers")
   const sources = useApi<SourcesState>("resume-sources")
   const details = usePreparation(search.jobId, search.applicationId)
   const live = useConnection()
   const integrations = useIntegrations()
-  const [provider, setProvider] = useState(localStorage.getItem("work-tracker-provider") ?? "")
-  const [model, setModel] = useState(localStorage.getItem("work-tracker-model") ?? "")
-  const [extra, setExtra] = useState("")
-  const [description, setDescription] = useState("")
-  const [descriptionDirty, setDescriptionDirty] = useState(false)
+  const { route, update, context, provider, model, setProvider, setModel, extra, descriptionDirty, description, setExtra, setDescription } = useApplyContext(search, details.data?.job.description, details.data?.runs)
   const [error, setError] = useState("")
   const [notice, setNotice] = useState("")
   const [pending, setPending] = useState(false)
   const [preview, setPreview] = useState<PdfArtifact>()
   const [wide, setWide] = useState(window.innerWidth >= 1100)
   useEffect(() => { const resize = () => setWide(window.innerWidth >= 1100); window.addEventListener("resize", resize); return () => window.removeEventListener("resize", resize) }, [])
-  const [pdfTab, setPdfTab] = useState("base")
+  const pdfTab = route.pdfTab ?? "base"
+  const setPdfTab = (pdfTab: string) => update({ pdfTab })
   const refreshSources = sources.refresh
   useEffect(() => subscribe(event => { if (event.type === "resume-sources-changed") refreshSources() }), [refreshSources])
-  useEffect(() => { setDescriptionDirty(false); setError(""); setNotice("") }, [search.jobId])
-  useEffect(() => { if (!descriptionDirty) setDescription(details.data?.job.description ?? "") }, [details.data?.job.description, descriptionDirty])
   const selectedProvider = providers.data?.providers.find(p => p.id === provider) ?? providers.data?.providers.find(p => p.id === providers.data?.default) ?? providers.data?.providers[0]
   const effectiveModel = selectedProvider?.models.includes(model) ? model : ""
   const run = details.data?.runs.find(r => r.id === search.runId) ?? details.data?.runs[0]
@@ -46,7 +45,7 @@ export function ApplyPage() {
   useEffect(() => { setPreview(undefined) }, [search.jobId, search.runId, run?.id])
   const base = preview ?? run?.artifacts.find(a => a.kind === "base") ?? sources.data?.preview
   const tailored = pdfRun?.artifacts.find(a => a.kind === "tailored")
-  const busy = pending || !!details.data?.busy
+  const busy = pending || details.loading || !details.data || !!details.data.busy
   const archived = !!details.data?.job.archived_at
   const missingTools = sources.data?.dependencies.some(d => !d.available) ?? true
   const readiness = { live, busy: busy || integrations.testing, archived, submitted: details.data?.applicationStatus === "submitted", sources: !!sources.data?.config.projectDir, tools: !missingTools, descriptionDirty, linkedinNeeded: !details.data?.job.description && !!details.data?.job.linkedin_job_id, descriptionMissing: !details.data?.job.description && !details.data?.job.linkedin_job_id, tailored: !!tailored, provider: selectedProvider?.id, model, invalidModel: !!model && !selectedProvider?.models.includes(model), integrations: integrations.data }
@@ -67,10 +66,10 @@ export function ApplyPage() {
       const body = kind === "generate" ? { jobId: search.jobId, applicationId: search.applicationId ?? run?.application_id, provider: selectedProvider?.id, model: effectiveModel || undefined, extra } : kind === "description" ? { jobId: search.jobId, description } : kind === "submitted" ? { runId: pdfRun?.id, applicationId: pdfRun?.application_id ?? undefined } : kind === "retry" ? { runId: run?.id, extra, reviewed } : { runId: kind === "fill" ? pdfRun?.id : run?.id, extra }
       const value = await request<{ id?: string } & Partial<SubmissionConfirmation>>(`application-preparation/${kind}`, body)
       if (kind === "submitted") setNotice(value.alreadySubmitted ? "This submission was already confirmed. The application stays on the board." : "Submission confirmed. The application is now on the board in its initial stage.")
-      if (kind === "generate" && value.id) openApply(search.jobId, body && "applicationId" in body ? body.applicationId : undefined, value.id)
+      if (kind === "generate" && value.id) { context.update(previous => ({ ...previous, runId: value.id })); openApply(search.jobId, body && "applicationId" in body ? body.applicationId : undefined, value.id) }
       if (kind === "retry" && run) openApply(search.jobId, search.applicationId, run.id)
       if (kind === "fill" && pdfRun) openApply(search.jobId, pdfRun.application_id ?? undefined, pdfRun.id)
-      if (kind === "description") setDescriptionDirty(false)
+      if (kind === "description") context.update(previous => ({ ...previous, descriptionDirty: false }))
       details.refresh()
     } catch (e) { setError((e as Error).message) }
     finally { setPending(false) }
@@ -88,7 +87,7 @@ export function ApplyPage() {
       <LoadState loading={providers.loading && !providers.data} error={providers.error || details.error} retry={() => { providers.refresh(); details.refresh() }} />
       {job && <div className="mt-4 space-y-4">
         <div className="flex flex-wrap items-center gap-3"><p className="text-sm font-medium">{job.company_name} · {job.title}</p><ExternalLink value={job.link} label="View opportunity" /></div>
-        <details><summary className="cursor-pointer text-sm">Job description</summary><div className="mt-3 space-y-3"><Textarea aria-label="Job description" className="min-h-40" value={description} disabled={busy} onChange={e => { setDescription(e.target.value); setDescriptionDirty(true) }} placeholder="Paste the description, or leave it empty to fetch it from LinkedIn when generating." /><Button variant="outline" size="sm" disabled={busy || !descriptionDirty || !description.trim()} onClick={() => void action("description")}>Save description</Button></div></details>
+        <details><summary className="cursor-pointer text-sm">Job description</summary><div className="mt-3 space-y-3"><Textarea aria-label="Job description" className="min-h-40" value={description} disabled={busy} onChange={e => { setDescription(e.target.value) }} placeholder="Paste the description, or leave it empty to fetch it from LinkedIn when generating." /><Button variant="outline" size="sm" disabled={busy || !descriptionDirty || !description.trim()} onClick={() => void action("description")}>Save description</Button></div></details>
         <Field label="Additional context"><Textarea value={extra} disabled={busy} onChange={e => setExtra(e.target.value)} placeholder="What should the agent emphasize? The resume follows the job description’s language." /></Field>
         {archived && <p className="text-sm text-muted-foreground">Restore this job in Jobs before preparing an application.</p>}
         <div className="flex flex-wrap gap-2">
@@ -103,14 +102,14 @@ export function ApplyPage() {
         {!job.description && !job.linkedin_job_id && !descriptionDirty && <p role="status" className="text-xs text-muted-foreground">This job has no description yet. Paste it under Job description before generating.</p>}
       </div>}
     </Panel>
-    {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+    {(error || context.error) && <p role="alert" className="text-sm text-destructive">{error || context.error}</p>}
     {(notice || details.data?.journey?.submission_status === "submitted") && <p role="status" className="text-sm">{notice || `Submitted${details.data?.journey?.submitted_at ? ` on ${new Date(details.data.journey.submitted_at).toLocaleDateString()}` : ""}.`} <a className="underline" href="#/application-board">Open the application board</a></p>}
     <RunRecovery run={run} disabled={busy || archived || !live || details.data?.applicationStatus === "submitted" || (run?.recovery?.retryFrom === "filling" && fillBlocks.length > 0)} onRetry={reviewed => void action("retry", reviewed)} />
     {run?.error && <details open className="rounded-xl border border-destructive/30 p-4"><summary className="cursor-pointer text-sm text-destructive">Execution needs attention</summary><pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap text-xs">{run.error}</pre></details>}
     {!!details.data?.runs.length && <Field label="Execution history"><SelectControl className={controlClass} value={run?.id ?? ""} onChange={e => openApply(search.jobId, search.applicationId, e.target.value)}>{details.data.runs.map(r => <option key={r.id} value={r.id}>{new Date(r.created_at).toLocaleString()} · {r.phase} · {r.status}</option>)}</SelectControl></Field>}
     {tailored && pdfRun?.id !== run?.id && <p className="text-sm text-muted-foreground">Showing the previous validated resume. Fill application will use that PDF.</p>}
     <Suspense fallback={<p role="status">Loading PDF viewer…</p>}>{wide ? <div className="grid min-w-0 grid-cols-2 gap-4"><PdfViewer title="Base PDF" artifact={base} /><PdfViewer title="Tailored PDF" artifact={tailored} /></div> : <Tabs value={pdfTab} onValueChange={setPdfTab}><TabsList><TabsTrigger value="base">Base PDF</TabsTrigger><TabsTrigger value="tailored">Tailored PDF</TabsTrigger></TabsList><TabsContent value="base"><PdfViewer title="Base PDF" artifact={base} /></TabsContent><TabsContent value="tailored"><PdfViewer title="Tailored PDF" artifact={tailored} /></TabsContent></Tabs>}</Suspense>
-    <Panel title="Application workspace"><Tabs defaultValue="activity"><TabsList><TabsTrigger value="activity">Agent activity</TabsTrigger><TabsTrigger value="report">Report</TabsTrigger></TabsList><TabsContent value="activity"><AgentConversation messages={messages} /></TabsContent><TabsContent value="report"><div className="max-h-[420px] overflow-auto whitespace-pre-wrap text-sm">{run?.report ?? "The tailoring report will appear after generation."}</div></TabsContent></Tabs></Panel>
+    <Panel title="Application workspace"><Tabs value={route.workspaceTab ?? "activity"} onValueChange={workspaceTab => update({ workspaceTab })}><TabsList><TabsTrigger value="activity">Agent activity</TabsTrigger><TabsTrigger value="report">Report</TabsTrigger></TabsList><TabsContent value="activity"><AgentConversation messages={messages} /></TabsContent><TabsContent value="report"><div className="max-h-[420px] overflow-auto whitespace-pre-wrap text-sm">{run?.report ?? "The tailoring report will appear after generation."}</div></TabsContent></Tabs></Panel>
     {tailored && <p className="text-xs text-muted-foreground">Review the PDF and portal fields before submitting in the browser.</p>}
   </Page>
 }
