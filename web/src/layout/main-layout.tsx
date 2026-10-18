@@ -1,4 +1,5 @@
 import { Outlet } from "@tanstack/react-router"
+import { AgentPermissions } from "@/components/agent-permissions"
 import { AppSidebar } from "@/components/app-sidebar"
 import { CommandPaletteProvider } from "@/components/command-palette"
 import { ModeToggle } from "@/components/mode-toggle"
@@ -43,6 +44,7 @@ export function MainLayout() {
           <AppSidebar />
           <SidebarInset className="min-h-0 min-w-0 overflow-hidden border border-border shadow-xs">
             <WorkspaceHeader />
+            <AgentPermissions />
             <div className="flex min-h-0 flex-1 overflow-auto">
               <Outlet />
             </div>

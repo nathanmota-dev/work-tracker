@@ -1,4 +1,5 @@
 import { ResumeSources } from "@/components/resume-sources"
+import { PermissionSettings } from "@/components/permission-settings"
 import { SettingsProfile } from "@/components/settings-profile"
 import { BrowserSignIn } from "@/components/browser-sign-in"
 import { IntegrationSettingsPanel } from "@/components/integration-settings"
@@ -168,6 +169,7 @@ export function SettingsPage() {
           <TabsTrigger value="resume">Resume sources</TabsTrigger>
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
+          <TabsTrigger value="permissions">Permissions</TabsTrigger>
         </TabsList>
         <TabsContent value="general">
           <div className="grid gap-4 lg:grid-cols-2">
@@ -182,6 +184,7 @@ export function SettingsPage() {
           <SettingsProfile />
         </TabsContent>
         <TabsContent value="integrations"><IntegrationSettingsPanel /><BrowserSignIn /></TabsContent>
+        <TabsContent value="permissions"><PermissionSettings /></TabsContent>
       </Tabs>
     </Page>
   )

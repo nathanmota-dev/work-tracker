@@ -163,4 +163,23 @@ describe("agent session", () => {
     expect(view.result.current.messages.find(message => message.tool)?.tool?.status).toBe("interrupted")
     expect(view.result.current.running).toBe(false)
   })
+  it("recovers terminal execution state after a disconnected permission wait", async () => {
+    const view = renderHook(useAgent)
+    await act(async () => { await runAgent("opencode", "job-scout", {}) })
+    act(() => publish({ type: "acp-status", status: "waiting_for_permission" }))
+    expect(view.result.current.status).toBe("Waiting for decision")
+    act(() => publish({ type: "connection", live: false }))
+    expect(view.result.current.status).toBe("Connection lost — run status unknown")
+    request.mockResolvedValue({ execution: { runId: "run", status: "cancelled" }, pending: [] })
+    await act(async () => publish({ type: "connection", live: true }))
+    expect(view.result.current.status).toBe("cancelled")
+    expect(view.result.current.running).toBe(false)
+  })
+  it("keeps permission decisions in the conversation without authorizing application submission", () => {
+    const view = renderHook(useAgent)
+    const permission = { title: "read_file", options: [{ optionId: "no", name: "Refuse", kind: "reject_once" }], status: "selected", optionId: "no" }
+    act(() => { publish({ type: "acp-permission", request: permission }); publish({ type: "acp-permission-decision", request: permission }) })
+    expect(view.result.current.messages.map(message => message.text)).toEqual(["Waiting for decision: read_file", "read_file: Refused · Refuse"])
+    expect(request).not.toHaveBeenCalled()
+  })
 })

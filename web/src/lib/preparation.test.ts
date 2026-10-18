@@ -171,3 +171,9 @@ it("debounces events, polls only while busy and removes timers/listeners", async
   expect(stop).toHaveBeenCalledOnce()
   expect(vi.getTimerCount()).toBe(0)
 })
+
+it("shows pending and completed tool decisions in Apply history", () => {
+  const permission = { title: "get_jobs", status: "selected", optionId: "refuse", options: [{ optionId: "refuse", name: "Refuse", kind: "reject_once" }] }
+  const messages = preparationMessages([{ type: "acp-permission", request: permission }, { type: "acp-permission-decision", request: permission }])
+  expect(messages.map(message => message.text)).toEqual(["Waiting for decision: get_jobs", "get_jobs: Refused · Refuse"])
+})

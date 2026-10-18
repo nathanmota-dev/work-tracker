@@ -12,7 +12,9 @@ export function runRecord(id: string): PreparationRun {
   const row = db().query("SELECT * FROM application_runs WHERE id = ?").get(id) as StoredRun | undefined;
   if (!row) throw new PreparationError("Preparation run not found.", 404);
   const { events_json, manifest_json: _manifest, options_json: _options, ...run } = row;
-  return { ...run, events: JSON.parse(events_json), artifacts: artifactsForRun(id) };
+  const events: Record<string, unknown>[] = JSON.parse(events_json);
+  const decision = [...events].reverse().find(event => event.type === "acp-status");
+  return { ...run, ...(run.status === "running" && decision?.status === "waiting_for_permission" ? { decisionStatus: "waiting_for_permission" as const } : {}), events, artifacts: artifactsForRun(id) };
 }
 export type RunManifest = { manifestPath: string; reportPath: string; coverPath: string; [key: string]: string };
 export function runManifest(id: string): RunManifest {

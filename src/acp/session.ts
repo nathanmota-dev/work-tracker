@@ -1,6 +1,8 @@
 import { AcpClient } from "./client.ts";
 import { prepareWorkspace } from "../cli/skills.ts";
 import { loadConfig } from "../paths.ts";
+import { randomUUID } from "node:crypto";
+import { AgentPermissions } from "./permissions.ts";
 
 /**
  * Builds templated prompts for each Work Tracker skill so the dashboard can launch
@@ -75,6 +77,7 @@ function appendExtra(prompt: string, extra: string | undefined): string {
 export interface AcpRunResult { status: "done" | "cancelled" | "waiting_for_sign_in" | "error"; message?: string }
 
 export class SessionManager {
+  readonly permissions = new AgentPermissions(event => this.emit(event));
   private listeners = new Set<(event: Record<string, unknown>) => void>();
   private context: Record<string, string> = {};
   subscribe(listener: (event: Record<string, unknown>) => void): () => void { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; }
@@ -84,7 +87,8 @@ export class SessionManager {
   private cancelled = false;
   private clientKey = "";
   private waitingForSignIn = false;
-  private tools = new Map<string, { title: string; output: string; status: string }>();
+  private tools = new Map<string, { title: string; output: string; status: string; context: Record<string, unknown> }>();
+  private executionId = "";
 
   constructor(
     private cwd: string,
@@ -101,6 +105,8 @@ export class SessionManager {
       return { status: "error", message: "A skill run is already in progress." };
     }
     this.context = params.runId ? { runId: params.runId, source: "apply" } : {};
+    this.executionId = params.runId || randomUUID();
+    this.permissions.setExecution({ runId: this.executionId, status: "starting" });
     this.running = true;
     this.cancelled = false;
     const prompt = buildSkillPrompt(skill, withSavedProfile(params));
@@ -116,22 +122,25 @@ export class SessionManager {
         this.emit({ type: "acp-update", update: u });
       },
       onLog: (line) => this.emit({ type: "acp-log", line }),
-      onPermission: async (p) => {
-        // The desktop UI has no permission prompt, so accept the agent's request.
-        this.emit({ type: "acp-permission", params: p });
-        const opts = (p as { options?: Array<{ optionId: string; kind?: string }> }).options ?? [];
-        const allow = opts.find((o) => o.kind?.includes("allow")) ?? opts[0];
-        return allow?.optionId ?? "allow";
+      onPermission: async (p): Promise<string | null> => {
+        if (!client || this.client !== client || !this.running || !client.activeSessionId) return null;
+        const request = p as { toolCall?: Record<string, unknown> } | null;
+        // ACP v1 may supply only a toolCallId in a permission request.
+        const call = request?.toolCall;
+        const known = this.tools.get(String(call?.toolCallId))?.context;
+        const params = call ? { ...request, toolCall: { ...known, ...Object.fromEntries(Object.entries(call).filter(([, value]) => value != null)) } } : p;
+        return this.permissions.request(params, { runId: this.executionId, sessionId: client.activeSessionId, provider: providerId });
       },
       onExit: (code) => {
         if (this.client !== client) return;
+        this.permissions.endSession();
         this.emit({ type: "acp-exit", code });
         if (!this.running) this.stop();
         this.waitingForSignIn = false;
         this.tools.clear();
       },
     }, model);
-    const client = this.client;
+    const client: AcpClient | null = this.client;
     this.clientKey = clientKey;
 
     let completed = false;
@@ -139,13 +148,17 @@ export class SessionManager {
       prepareWorkspace();
       this.emit({ type: "acp-status", status: "starting", provider: providerId, skill });
       if (!resuming) await client.start();
+      this.permissions.setExecution({ runId: this.executionId, sessionId: client.activeSessionId ?? undefined, status: "running" });
       this.emit({ type: "acp-status", status: "running", skill });
       await client.prompt(prompt);
+      this.permissions.close("Turn ended");
       completed = true;
       const status = this.cancelled ? "cancelled" : this.waitingForSignIn ? "waiting_for_sign_in" : "done";
+      this.permissions.setExecution({ runId: this.executionId, sessionId: client.activeSessionId ?? undefined, status });
       this.emit({ type: "acp-status", status, skill });
       return { status };
     } catch (e) {
+      this.permissions.setExecution({ runId: this.executionId, status: this.cancelled ? "cancelled" : "error" });
       if (this.cancelled) this.emit({ type: "acp-status", status: "cancelled", skill });
       else this.emit({ type: "acp-error", message: e instanceof Error ? e.message : String(e) });
       return { status: this.cancelled ? "cancelled" : "error", message: e instanceof Error ? e.message : String(e) };
@@ -165,6 +178,7 @@ export class SessionManager {
     const key = String(value.toolCallId ?? value.title ?? "auth");
     const previous = this.tools.get(key);
     const tool = {
+      context: { ...previous?.context, ...Object.fromEntries(Object.entries(value).filter(([, item]) => item != null)) },
       title: String(value.title ?? previous?.title ?? ""),
       status: String(value.status ?? previous?.status ?? ""),
       output: Array.isArray(value.content) ? value.content.map(item => item?.content?.type === "text" ? item.content.text : "").join("\n") : previous?.output ?? "",
@@ -175,7 +189,8 @@ export class SessionManager {
   }
 
   stop(): void {
-    const client = this.client;
+    this.permissions.endSession();
+    const client: AcpClient | null = this.client;
     this.client = null;
     this.waitingForSignIn = false;
     this.tools.clear();
@@ -184,9 +199,15 @@ export class SessionManager {
 
   cancel(): void {
     this.cancelled = true;
+    this.permissions.setExecution({ runId: this.executionId, status: "cancelled" });
+    this.permissions.close("Cancelled");
     void this.client?.cancel().catch(() => {});
     this.stop();
     if (!this.running) this.emit({ type: "acp-status", status: "cancelled" });
+  }
+
+  disconnect(): void {
+    if (this.permissions.waiting) { this.permissions.close("Disconnected"); this.cancel(); }
   }
 }
 

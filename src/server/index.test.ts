@@ -67,6 +67,7 @@ let acp: {
     run: ReturnType<typeof vi.fn<SessionManager["run"]>>;
     cancel: ReturnType<typeof vi.fn<SessionManager["cancel"]>>;
     stop: ReturnType<typeof vi.fn<SessionManager["stop"]>>;
+    disconnect: ReturnType<typeof vi.fn<SessionManager["disconnect"]>>;
   },
   broadcast: ReturnType<typeof vi.fn<(event: unknown) => void>>,
   handle: ReturnType<typeof createRequestHandler>;
@@ -88,6 +89,7 @@ beforeEach(() => {
     run: vi.fn().mockResolvedValue(undefined),
     cancel: vi.fn(),
     stop: vi.fn(),
+    disconnect: vi.fn(),
   };
   broadcast = vi.fn();
   handle = createRequestHandler({ token: "secret", acp, broadcast });
@@ -347,6 +349,9 @@ test("backend authenticates upgrades, broadcasts to open sockets and closes ever
   vi.mocked(writeFileSync).mockReturnValue(undefined);
   vi.mocked(unlinkSync).mockReturnValue(undefined);
   const backend = await startBackend({ port: "3333" });
+  sink({ type: "acp-permission" });
+  await Promise.resolve();
+  expect(acp.disconnect).toHaveBeenCalledOnce();
   expect(server.listen).toHaveBeenCalledWith(
     3333,
     "127.0.0.1",
@@ -379,6 +384,8 @@ test("backend authenticates upgrades, broadcasts to open sockets and closes ever
   sink({ type: "ignored" });
   expect(ws.send).toHaveBeenCalledTimes(2);
   ws.emit("error", new Error("gone"));
+  ws.emit("close");
+  expect(acp.disconnect).toHaveBeenCalledTimes(2);
   vi.mocked(readFileSync).mockReturnValue(
     JSON.stringify({ token: backend.token }),
   );

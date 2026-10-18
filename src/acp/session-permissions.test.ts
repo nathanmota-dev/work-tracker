@@ -1,0 +1,41 @@
+import { beforeEach, expect, test, vi } from "vitest";
+import { SessionManager } from "./session.ts";
+import { AcpClient, type AcpEvents } from "./client.ts";
+import { deferred } from "../test/doubles.ts";
+vi.mock("./client.ts", () => ({ AcpClient: vi.fn() }));
+vi.mock("../paths.ts", () => ({ loadConfig: () => ({}) }));
+vi.mock("../cli/skills.ts", () => ({ prepareWorkspace: vi.fn() }));
+vi.mock("./permission-store.ts", () => ({ permissionStore: { rules: () => [], history: () => [], save: vi.fn() } }));
+let callbacks: AcpEvents;
+let turn: ReturnType<typeof deferred>;
+const input = { sessionId: "session", toolCall: { title: "get_jobs", kind: "fetch" }, options: [{ optionId: "exact", name: "Approve", kind: "allow_once" }] };
+beforeEach(() => {
+  turn = deferred();
+  vi.mocked(AcpClient).mockImplementation(function (_provider, _cwd, events) {
+    callbacks = events!;
+    return { activeSessionId: "session", start: async () => {}, prompt: () => turn.promise, cancel: async () => {}, stop: vi.fn() } as unknown as AcpClient;
+  });
+});
+test.each(["cancel", "disconnect", "exit", "complete"])("%s closes the permission without implicit authorization", async action => {
+  const events = vi.fn(), manager = new SessionManager("/synthetic", events);
+  const listener = vi.fn();
+  const unsubscribe = manager.subscribe(listener);
+  const run = manager.run("opencode", "synthetic", { runId: "apply-run" });
+  await Promise.resolve();
+  callbacks.onUpdate!({ update: { sessionUpdate: "tool_call", toolCallId: "known", title: "get_jobs", kind: "fetch", rawInput: { query: "synthetic" } } });
+  const decision = callbacks.onPermission!({ ...input, toolCall: { toolCallId: "known" } });
+  expect(manager.permissions.waiting).toBe(true);
+  expect(manager.permissions.snapshot().pending[0]).toMatchObject({ title: "get_jobs", rememberable: true, context: expect.stringContaining("synthetic") });
+  if (action === "cancel") manager.cancel();
+  if (action === "disconnect") manager.disconnect();
+  if (action === "exit") callbacks.onExit!(1);
+  turn.resolve(undefined);
+  await run;
+  expect(await decision).toBeNull();
+  expect(manager.permissions.waiting).toBe(false);
+  expect(await callbacks.onPermission!(input)).toBeNull();
+  expect(events).toHaveBeenCalledWith(expect.objectContaining({ type: "acp-permission", runId: "apply-run", source: "apply" }));
+  expect(listener).toHaveBeenCalledWith(expect.objectContaining({ type: "acp-permission" }));
+  unsubscribe(); listener.mockClear(); manager.cancel();
+  expect(listener).not.toHaveBeenCalled();
+});

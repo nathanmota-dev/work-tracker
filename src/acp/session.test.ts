@@ -181,18 +181,6 @@ test("SessionManager forwards events, uses saved profile and selected model, pre
   });
   callbacks.onUpdate!({ text: "chunk" });
   callbacks.onLog!("line");
-  expect(
-    await callbacks.onPermission!({
-      options: [
-        { kind: "deny", optionId: "no" },
-        { kind: "allow_once", optionId: "yes" },
-      ],
-    }),
-  ).toBe("yes");
-  expect(await callbacks.onPermission!({})).toBe("allow");
-  expect(
-    await callbacks.onPermission!({ options: [{ optionId: "fallback" }] }),
-  ).toBe("fallback");
   manager.cancel();
   expect(cancel).toHaveBeenCalledOnce();
   expect(stop).toHaveBeenCalledOnce();

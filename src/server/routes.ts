@@ -9,8 +9,9 @@ import { handleJobAction } from "../jobs/http.ts";
 import { PreparationService } from "../preparation/service.ts";
 import { handlePreparation } from "../preparation/http.ts";
 import { handleIntegrations, integrationTesting } from "../integrations/http.ts";
+import { handlePermissions } from "../acp/permission-http.ts";
 
-type Acp = Pick<SessionManager, "run" | "cancel"> & Partial<Pick<SessionManager, "isRunning">>;
+type Acp = Pick<SessionManager, "run" | "cancel"> & Partial<Pick<SessionManager, "isRunning" | "permissions">>;
 type Broadcast = (event: unknown) => void;
 type Context = { acp: Acp; broadcast: Broadcast; preparation?: PreparationService };
 type Route = (req: Request, context: Context) => Promise<Response> | Response;
@@ -141,6 +142,7 @@ const postRoutes: Record<string, Route> = {
 
 export async function routeApi(path: string, req: Request, context: Context): Promise<Response> {
   if (path === "/api/integrations" || path.startsWith("/api/integrations/")) return handleIntegrations(path, req, () => !!context.acp.isRunning || !!context.preparation?.isBusy || chromeLoginOpening(), context.broadcast);
+  if (path === "/api/acp/permissions" || path.startsWith("/api/acp/permissions/")) return handlePermissions(path, req, context.acp.permissions);
   if (path.startsWith("/api/resume-sources") || path.startsWith("/api/application-preparation/")) {
     if (req.method === "POST" && integrationTesting()) return Response.json({ error: "Wait for the integration diagnostic to finish." }, { status: 409 });
     context.preparation ??= new PreparationService(context.acp, context.broadcast);
