@@ -13,7 +13,7 @@ test('Search: job filters, details, agent assessment and saved opportunity', asy
   expect(workspace.calls('mcp').find(call => call.name === 'search_jobs')?.arguments).toEqual({ keywords: 'React', max_pages: 2, location: 'Brazil', work_type: 'remote' })
   await page.getByRole('button', { name: 'Full details' }).click()
   await expect(page.getByRole('dialog')).toContainText('React developer with TypeScript')
-  await page.getByRole('button', { name: 'Assess & save with agent' }).click()
+  await page.getByRole('button', { name: 'Assess fit with agent' }).click()
   await workspace.ready('Launch')
   await expect(page.getByLabel('Role, keywords or job URL')).toHaveValue('https://example.com/jobs/9001')
   await page.getByRole('button', { name: 'Run agent' }).click()

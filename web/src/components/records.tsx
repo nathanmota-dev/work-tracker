@@ -75,10 +75,12 @@ function RecordTable({
   rows,
   columns,
   onSelect,
+  rowKey,
 }: {
   rows: Row[]
   columns: Column[]
   onSelect?: (row: Row) => void
+  rowKey?: (row: Row) => string
 }) {
   return (
     <div className="overflow-x-auto">
@@ -103,7 +105,7 @@ function RecordTable({
         <TableBody>
           {rows.map((row, i) => (
             <TableRow
-              key={text(row.id ?? row.key ?? i)}
+              key={rowKey ? rowKey(row) : text(row.id ?? row.key ?? i)}
               className="border-b last:border-0 hover:bg-muted/30"
             >
               {columns.map((col) => (
@@ -180,6 +182,7 @@ export function Records({
   onSelect,
   action,
   statusKey,
+  rowKey,
 }: {
   rows: Row[]
   columns: Column[]
@@ -188,6 +191,7 @@ export function Records({
   action?: ReactNode
   /** Column the status filter reads; defaults to `status`, then `state`. */
   statusKey?: string
+  rowKey?: (row: Row) => string
 }) {
   const [query, setQuery] = useState("")
   const [status, setStatus] = useState("")
@@ -248,6 +252,7 @@ export function Records({
             rows={filtered.slice(current * PAGE_SIZE, (current + 1) * PAGE_SIZE)}
             columns={columns}
             onSelect={onSelect}
+            rowKey={rowKey}
           />
           <Pagination
             total={filtered.length}

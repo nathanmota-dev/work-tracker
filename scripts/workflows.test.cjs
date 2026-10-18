@@ -64,6 +64,8 @@ describe("path filters", () => {
     ["Electron main process", ["desktop/src/main.ts"], { backend: true, frontend: false }],
     ["frontend-only change", ["web/src/routes/jobs.tsx"], { backend: false, frontend: true }],
     ["shared application contract", ["src/applications/types.ts"], { backend: true, frontend: true }],
+    ["shared search normalization", ["src/jobs/search-results.ts"], { backend: true, frontend: true }],
+    ["shared job identity", ["src/jobs/identity.ts"], { backend: true, frontend: true }],
     ["shared preparation contract", ["src/preparation/types.ts"], { backend: true, frontend: true }],
     ["lockfile", ["package-lock.json"], { backend: true, frontend: true }],
     ["shared lint configuration", ["eslint.config.mjs"], { backend: true, frontend: true }],

@@ -49,7 +49,7 @@ jobs:
           frontend=false
           while IFS= read -r file; do
             case "$file" in
-              src/applications/types.ts|src/preparation/types.ts) backend=true; frontend=true ;;
+              src/applications/types.ts|src/preparation/types.ts|src/jobs/search-results.ts|src/jobs/identity.ts) backend=true; frontend=true ;;
               web/*) frontend=true ;;
               src/*|desktop/*|benchmarks/*|vitest.benchmark.config.mts) backend=true ;;
               package.json|package-lock.json|scripts/benchmark-gate*|scripts/ci/*|.github/workflows/performance.yml)

@@ -29,6 +29,7 @@ const writes = new Set([
   "browser/login",
   "jobs/create",
   "jobs/update",
+  "jobs/save-search",
   "jobs/archive",
   "jobs/restore",
   "jobs/delete",

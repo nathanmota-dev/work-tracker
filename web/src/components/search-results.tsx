@@ -4,41 +4,16 @@ import { Empty, ExternalLink, Panel } from "@/components/workspace-ui"
 import { Records, type Column } from "@/components/records"
 import { request, text, type Row } from "@/lib/api"
 import { prepareSkill } from "@/lib/agent"
+import { extractSearchRows, structuredSearchRows } from "../../../src/jobs/search-results"
+import { SearchJobResults } from "@/components/search-job-results"
 
 // MCP servers may return structuredContent, text content blocks, or raw arrays.
 export function searchRows(raw: unknown): Row[] {
-  if (Array.isArray(raw))
-    return raw.filter((x): x is Row => !!x && typeof x === "object")
-  if (!raw || typeof raw !== "object") return []
-  const data = raw as Row
-  for (const key of [
-    "structuredContent",
-    "jobs",
-    "people",
-    "results",
-    "data",
-    "items",
-    "elements",
-  ]) {
-    if (data[key]) {
-      const rows = searchRows(data[key])
-      if (rows.length) return rows
-    }
-  }
-  if (Array.isArray(data.content))
-    for (const item of data.content as Row[]) {
-      if (typeof item.text === "string") {
-        try {
-          const rows = searchRows(JSON.parse(item.text))
-          if (rows.length) return rows
-        } catch {
-          /* display readable raw output below */
-        }
-      }
-    }
-  return []
+  return structuredSearchRows(raw).filter((row): row is Row =>
+    !!row && typeof row === "object" && !Array.isArray(row))
 }
 function readable(raw: unknown): string {
+  if (raw && typeof raw === "object" && typeof (raw as Row).raw === "string") return (raw as Row).raw as string
   if (raw && typeof raw === "object" && Array.isArray((raw as Row).content))
     return ((raw as Row).content as Row[]).map((r) => text(r.text)).join("\n\n")
   return typeof raw === "string" ? raw : JSON.stringify(raw, null, 2)
@@ -58,22 +33,7 @@ export const initialValues: SearchValues = {
   workType: "",
   maxPages: 1,
 }
-const searchColumns: Record<SearchKind, Column[]> = {
-  jobs: [
-  {
-    key: "title",
-    label: "Role",
-    render: (r) => text(r.title ?? r.job_title),
-  },
-  {
-    key: "company",
-    label: "Company",
-    render: (r) => text(r.company_name ?? r.company),
-  },
-  { key: "location", label: "Location" },
-  
-  ],
-  people: [
+const peopleColumns: Column[] = [
   {
     key: "name",
     label: "Name",
@@ -86,8 +46,7 @@ const searchColumns: Record<SearchKind, Column[]> = {
   },
   { key: "location", label: "Location" },
   
-  ],
-}
+]
 
 export function SearchResults({
   kind,
@@ -99,20 +58,23 @@ export function SearchResults({
   onSelect: (row: Row) => void
 }) {
   const rows = searchRows(result)
+  const jobRows = kind === "jobs" ? structuredSearchRows(result) : []
+  const output = extractSearchRows(result) ? "" : readable(result)
+  if (jobRows.length) return <SearchJobResults results={jobRows} onSelect={onSelect} />
   return (
     rows.length ? (
       <Records
         rows={rows}
         noun="Search results"
         onSelect={onSelect}
-        columns={searchColumns[kind]}
+        columns={peopleColumns}
       />
     ) : (
       <Panel title="Search results">
-        {readable(result) &&
-        !["[]", "{}", "null"].includes(readable(result)) ? (
+        {output && !["[]", "{}", "null"].includes(output) ? (
           <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-            {readable(result)}
+            {kind === "jobs" && <p className="mb-3 font-medium">Not savable — open manually. Search returned text without structured job fields.</p>}
+            <div>{output}</div>
           </div>
         ) : (
           <Empty
@@ -196,7 +158,7 @@ export function ResultActions({
               })
             }
           >
-            Assess & save with agent
+            Assess fit with agent
           </Button>
         </>
       )}
