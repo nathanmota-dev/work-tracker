@@ -28,10 +28,13 @@ export function snapshotDatabase(d: Database, destination: string): string {
   return destination;
 }
 
+/** Throw unless SQLite's `quick_check` reports the open database as intact. */
+export function assertIntact(d: Database, label: string): void {
+  const result = d.query("PRAGMA quick_check").get() as { quick_check: string } | undefined;
+  if (result?.quick_check !== "ok") throw new Error(`${label}: ${result?.quick_check ?? "no result"}`);
+}
+
 function verifySnapshot(path: string): void {
   const copy = new Database(path);
-  try {
-    const result = copy.query("PRAGMA quick_check").get() as { quick_check: string } | undefined;
-    if (result?.quick_check !== "ok") throw new Error(`Snapshot failed integrity check: ${result?.quick_check ?? "no result"}`);
-  } finally { copy.close(); }
+  try { assertIntact(copy, "Snapshot failed integrity check"); } finally { copy.close(); }
 }

@@ -86,7 +86,7 @@ breadcrumb, view-specific content and reload. New sidebar entries require tests.
 | Answers | Add/edit, required/duplicate keys, failure/retry, cancel and realtime updates |
 | Interviews | Upcoming/past/closed, details/search, live updates and Dashboard link |
 | Activity | Pagination/search/reset, real CLI notifications and reload persistence |
-| Settings | Tabs, theme/preferences persistence, profile validation/save/discard, source pickers/preview/download and browser sign-in error/retry |
+| Settings | Tabs, theme/preferences persistence, profile validation/save/discard, source pickers/preview/download, browser sign-in error/retry and workspace backup/review/restore (missing folder, copy changed after review, preserved previous workspace) |
 
 All data-backed views also exercise failed loading and retry. Search errors are
 exercised through MCP. Shell tests cover the root redirect, collapsed sidebar,

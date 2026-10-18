@@ -64,6 +64,9 @@ const writes = new Set([
   "application-board/stages/save",
   "application-board/stages/reorder",
   "application-board/stages/set-archived",
+  "workspace-backup/create",
+  "workspace-backup/inspect",
+  "workspace-backup/restore",
 ])
 let connection: { address: string; token: string } | undefined
 let socket: WebSocket | undefined
@@ -112,7 +115,7 @@ export function registerApiBridge() {
               headers: { "content-type": "application/json" },
               body: JSON.stringify(body),
             }),
-        signal: AbortSignal.timeout(["acp/providers", "resume-sources/preview"].includes(path) ? 120000 : 60000),
+        signal: AbortSignal.timeout(["acp/providers", "resume-sources/preview"].includes(path) || path.startsWith("workspace-backup/") ? 120000 : 60000),
       })
       const text = await response.text()
       if (!response.ok) {
