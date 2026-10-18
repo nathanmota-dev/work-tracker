@@ -13,9 +13,10 @@ let prompts = 0;
 readline.createInterface({ input: process.stdin }).on('line', line => {
   const m = JSON.parse(line);
   if (mode === 'hang') return;
+  if (mode === 'auth' && m.id !== undefined) return send({ id: m.id, error: { code: -32000, message: 'authentication required synthetic-secret' } });
   if (m.method === 'initialize') send({ id: m.id, result: m.params.protocolVersion === 1 ? { protocolVersion: 1, agentCapabilities: {} } : { protocolVersion: m.params.protocolVersion, capabilities: { tools: {} }, serverInfo: { name: 'fixture', version: '1' } } });
-  if (m.method === 'tools/list') send({ id: m.id, result: { tools: [{ name: 'echo', description: 'Synthetic echo', inputSchema: { type: 'object' } }] } });
-  if (m.method === 'tools/call') send({ id: m.id, result: { isError: m.params.name === 'fail', content: [{ type: 'text', text: JSON.stringify(m.params.arguments) }] } });
+  if (m.method === 'tools/list') send({ id: m.id, result: { tools: (process.env.FIXTURE_DIAGNOSTIC ? ['echo', 'list_pages', 'get_person_profile'] : ['echo']).map(name => ({ name, description: name, inputSchema: { type: 'object' } })) } });
+  if (m.method === 'tools/call') send({ id: m.id, result: { isError: m.params.name === 'fail', content: [{ type: 'text', text: mode === 'pending-login' && m.params.name === 'get_person_profile' ? 'LinkedIn login is still in progress synthetic-secret' : JSON.stringify(m.params.arguments) }] } });
   if (m.method === 'session/new') {
     if (process.env.FIXTURE_RECORD) fs.writeFileSync(process.env.FIXTURE_RECORD, JSON.stringify({
       params: m.params, home: process.env.WORK_TRACKER_HOME, path: process.env.PATH,

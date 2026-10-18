@@ -39,3 +39,7 @@ test("doctor reports optional dependency availability without starting any execu
     ],
   });
 });
+test("executable checks use the configured environment and resolve relative paths from the process workspace", () => {
+  expect(executableExists("opencode", { PATH: "/second" })).toBe(true);
+  expect(executableExists("./linkedin", {}, "/local")).toBe(true);
+});

@@ -15,7 +15,7 @@ const cli = args => {
 };
 const job = { id: '9001', job_id: '9001', title: 'React Engineer', company_name: 'Example Company', location: 'Remote', url: 'https://example.com/jobs/9001' };
 const person = { name: 'Alex Recruiter', username: 'alex-recruiter', headline: 'Technical recruiter', location: 'Remote', profile_url: 'https://www.linkedin.com/in/alex-recruiter/' };
-const tools = ['search_jobs', 'search_people', 'get_job_details', 'get_company_profile', 'get_person_profile'];
+const tools = ['search_jobs', 'search_people', 'get_job_details', 'get_company_profile', 'get_person_profile', 'list_pages'];
 log({ kind: 'start', provider: process.env.E2E_PROVIDER });
 require('node:readline').createInterface({ input: process.stdin }).on('line', async line => {
   const m = JSON.parse(line);
@@ -25,10 +25,12 @@ require('node:readline').createInterface({ input: process.stdin }).on('line', as
     if (m.method === 'tools/call') {
       log({ kind: 'mcp', ...m.params });
       const state = scenario();
+      if (state.mcp === 'login' && m.params.name === 'get_person_profile') throw Error('LinkedIn login required synthetic-secret');
       if (state.mcp === 'error') throw Error('Synthetic LinkedIn failure');
       if (!tools.includes(m.params.name)) throw Error(`Unexpected MCP tool: ${m.params.name}`);
       let result;
       switch (m.params.name) {
+        case 'list_pages': result = [{ url: 'https://example.com', title: 'Synthetic portal' }]; break;
         case 'search_jobs': result = state.mcp === 'empty' ? [] : [job]; break;
         case 'search_people': result = m.params.arguments.network ? { references: { search_results: [{ url: person.profile_url, text: person.name }] } } : state.mcp === 'empty' ? [] : [person]; break;
         case 'get_job_details': result = { description: 'React developer with TypeScript and Node.js.' }; break;

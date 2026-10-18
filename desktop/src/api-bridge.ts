@@ -3,6 +3,8 @@ import { writeFile } from "node:fs/promises"
 import WebSocket from "ws"
 
 const reads = new Set([
+  "integrations",
+  "integrations/status",
   "overview",
   "recruiters",
   "recruiters/due",
@@ -21,6 +23,8 @@ const reads = new Set([
   "resume-sources",
 ])
 const writes = new Set([
+  "integrations",
+  "integrations/test",
   "browser/login",
   "jobs/archive",
   "jobs/restore",

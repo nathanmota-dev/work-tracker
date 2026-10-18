@@ -6,6 +6,8 @@ import { SelectControl } from "@/components/ui/select-control"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Page, Panel, Field, LoadState, Status, ExternalLink, controlClass } from "@/components/workspace-ui"
 import { ResumeSources } from "@/components/resume-sources"
+import { ApplyReadiness, applyBlocks } from "@/components/apply-readiness"
+import { useIntegrations, type Target } from "@/lib/integrations"
 import { AgentConversation } from "@/components/agent-conversation"
 import { request, useApi, useConnection, subscribe, type Row } from "@/lib/api"
 import type { Providers } from "@/lib/agent"
@@ -18,6 +20,7 @@ export function ApplyPage() {
   const sources = useApi<SourcesState>("resume-sources")
   const details = usePreparation(search.jobId, search.applicationId)
   const live = useConnection()
+  const integrations = useIntegrations()
   const [provider, setProvider] = useState(localStorage.getItem("work-tracker-provider") ?? "")
   const [model, setModel] = useState(localStorage.getItem("work-tracker-model") ?? "")
   const [extra, setExtra] = useState("")
@@ -45,6 +48,17 @@ export function ApplyPage() {
   const busy = pending || !!details.data?.busy
   const archived = !!details.data?.job.archived_at
   const missingTools = sources.data?.dependencies.some(d => !d.available) ?? true
+  const readiness = { live, busy: busy || integrations.testing, archived, submitted: details.data?.applicationStatus === "submitted", sources: !!sources.data?.config.projectDir, tools: !missingTools, descriptionDirty, linkedinNeeded: !details.data?.job.description && !!details.data?.job.linkedin_job_id, descriptionMissing: !details.data?.job.description && !details.data?.job.linkedin_job_id, tailored: !!tailored, provider: selectedProvider?.id, model, invalidModel: !!model && !selectedProvider?.models.includes(model), integrations: integrations.data }
+  const generateBlocks = applyBlocks(readiness, "generate")
+  const fillBlocks = applyBlocks({ ...readiness, provider: pdfRun?.provider ?? selectedProvider?.id, model: pdfRun?.model ?? "", invalidModel: false }, "fill")
+  function correct(action: "description" | "model") {
+    if (action === "description") { const textarea = document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Job description"]'); if (textarea?.parentElement?.parentElement instanceof HTMLDetailsElement) textarea.parentElement.parentElement.open = true; textarea?.focus() }
+    else { setModel(""); document.querySelector<HTMLElement>('[aria-label="Model"]')?.focus() }
+  }
+  function testAvailability() {
+    const targets: Target[] = [...(selectedProvider ? [`acp/${selectedProvider.id}` as Target] : []), "mcp/chrome", ...(!details.data?.job.description && details.data?.job.linkedin_job_id ? ["mcp/linkedin" as const] : [])]
+    void integrations.test(targets, model); sources.refresh(); providers.refresh()
+  }
   const messages = useMemo(() => preparationMessages(run?.events ?? [], run?.status), [run?.events, run?.status])
   async function action(kind: "generate" | "fill" | "cancel" | "submitted" | "description") {
     setPending(true); setError(""); setNotice("")
@@ -76,13 +90,14 @@ export function ApplyPage() {
         <Field label="Additional context"><Textarea value={extra} disabled={busy} onChange={e => setExtra(e.target.value)} placeholder="What should the agent emphasize? The resume follows the job description’s language." /></Field>
         {archived && <p className="text-sm text-muted-foreground">Restore this job in Jobs before preparing an application.</p>}
         <div className="flex flex-wrap gap-2">
-          <Button disabled={busy || archived || !selectedProvider || !live || !sources.data?.config.projectDir || missingTools || descriptionDirty || details.data?.applicationStatus === "submitted"} onClick={() => void action("generate")}>{run ? "Regenerate" : "Generate resume"}</Button>
-          <Button variant="outline" disabled={busy || archived || !tailored || !live || details.data?.applicationStatus === "submitted"} onClick={() => void action("fill")}>{run?.status === "waiting_for_sign_in" && run.phase === "filling" ? "Retry after sign-in" : "Fill application"}</Button>
+          <Button disabled={generateBlocks.length > 0} onClick={() => void action("generate")}>{run ? "Regenerate" : "Generate resume"}</Button>
+          <Button variant="outline" disabled={fillBlocks.length > 0} onClick={() => void action("fill")}>{run?.status === "waiting_for_sign_in" && run.phase === "filling" ? "Retry after sign-in" : "Fill application"}</Button>
           {(run?.status === "running" || run?.status === "waiting_for_sign_in") && <Button variant="outline" disabled={pending} onClick={() => void action("cancel")}>Cancel</Button>}
           {details.data?.applicationStatus === "filled" && details.data.uploadedRunId === pdfRun?.id && <Button variant="outline" disabled={busy} onClick={() => void action("submitted")}>I submitted in the browser</Button>}
         </div>
+        <ApplyReadiness generate={generateBlocks} fill={fillBlocks} testing={integrations.testing} error={integrations.testError || integrations.error} test={testAvailability} correct={correct} />
         {details.data?.busy && run?.status !== "running" && <p className="text-xs text-muted-foreground">Another execution is active. You can review these files while it finishes.</p>}
-        {descriptionDirty && <p className="text-xs text-muted-foreground">Save your description changes before generating.</p>}
+
         {!job.description && !job.linkedin_job_id && !descriptionDirty && <p role="status" className="text-xs text-muted-foreground">This job has no description yet. Paste it under Job description before generating.</p>}
       </div>}
     </Panel>

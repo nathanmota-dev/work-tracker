@@ -17,6 +17,7 @@ beforeEach(() => {
   details = { job: { id: 7, title: "React Engineer", company_name: "Example", description: "React role", archived_at: null, link: "https://example.com" }, runs: [{ id: "run-1", job_id: 7, application_id: 3, status: "completed", phase: "review", artifacts, events: [], report: "Emphasized React", created_at: "2026-01-01" }], busy: false, applicationStatus: "draft" }
   source = { config: { projectDir: "/sources", mainFile: "resume.tex", dataFile: "", engine: "pdflatex" }, dependencies: [{ command: "latexmk", available: true }], preview: artifacts[0], warnings: [], busy: false }
   request.mockReset().mockImplementation(async (path: string) => {
+    if (path === "integrations/status") return { entries: [], dependencies: [], backend: true }
     if (path === "jobs") return [{ id: 7, title: "React Engineer", company_name: "Example" }]
     if (path === "answers") return []
     if (path === "acp/providers") return { providers: [{ id: "opencode", displayName: "OpenCode", models: [] }], default: "opencode" }
@@ -153,4 +154,21 @@ it("shows the original submission date when reopening a submitted application", 
   render(<ApplyPage />)
   expect(await screen.findByText(new RegExp(`Submitted on ${new Date("2026-10-01T12:00:00.000Z").toLocaleDateString()}`))).toBeInTheDocument()
   expect(screen.queryByRole("button", { name: "I submitted in the browser" })).not.toBeInTheDocument()
+})
+
+it("updates Apply after a diagnostic retry and opens the matching correction", async () => {
+  const original = request.getMockImplementation()!
+  let blocked = true
+  request.mockImplementation(async (path: string, body?: unknown) => {
+    if (path === "integrations/status") return { entries: [{ target: "acp/opencode", executable: true, diagnostic: { model: "", checks: blocked ? [{ stage: "authentication", state: "authentication_required", message: "Sign in to this integration, then test again." }] : [] } }], dependencies: [] }
+    if (path === "integrations/test") { blocked = false; return { checks: [] } }
+    return original(path, body)
+  })
+  render(<ApplyPage />)
+  const correction = await screen.findAllByRole("link", { name: "Correct opencode ACP" })
+  expect(correction[0]).toHaveAttribute("href", "#/settings?section=integrations&target=acp%2Fopencode")
+  expect(screen.getByRole("button", { name: "Regenerate" })).toBeDisabled()
+  fireEvent.click(screen.getByRole("button", { name: "Test availability again" }))
+  await waitFor(() => expect(screen.getByRole("button", { name: "Regenerate" })).toBeEnabled())
+  expect(screen.getByText("pdf-1")).toBeInTheDocument()
 })

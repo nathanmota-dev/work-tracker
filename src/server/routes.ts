@@ -8,6 +8,7 @@ import { handleApplicationBoard } from "../applications/http.ts";
 import { handleJobAction } from "../jobs/http.ts";
 import { PreparationService } from "../preparation/service.ts";
 import { handlePreparation } from "../preparation/http.ts";
+import { handleIntegrations, integrationTesting } from "../integrations/http.ts";
 
 type Acp = Pick<SessionManager, "run" | "cancel"> & Partial<Pick<SessionManager, "isRunning">>;
 type Broadcast = (event: unknown) => void;
@@ -19,7 +20,7 @@ function errorMessage(error: unknown): string {
 }
 
 async function openBrowserLogin(_req: Request, { acp, preparation }: Context): Promise<Response> {
-  if (acp.isRunning || preparation?.isBusy) return Response.json({ error: "Finish or cancel the active agent run before opening browser sign-in." }, { status: 409 });
+  if (acp.isRunning || preparation?.isBusy || integrationTesting()) return Response.json({ error: "Finish or cancel the active agent run or diagnostic before opening browser sign-in." }, { status: 409 });
   try {
     await openChromeLogin();
     return Response.json({ ok: true });
@@ -74,7 +75,7 @@ async function listProviders(): Promise<Response> {
 }
 
 async function runAgent(req: Request, { acp, preparation }: Context): Promise<Response> {
-  if (preparation?.isBusy || acp.isRunning) return Response.json({ error: "Finish or cancel the active execution first." }, { status: 409 });
+  if (preparation?.isBusy || acp.isRunning || integrationTesting()) return Response.json({ error: "Finish or cancel the active execution or diagnostic first." }, { status: 409 });
   if (chromeLoginOpening()) return Response.json({ error: "Wait for the sign-in browser to open before starting your agent." }, { status: 409 });
   const body = (await req.json().catch(() => ({}))) as {
     provider?: string;
@@ -139,7 +140,9 @@ const postRoutes: Record<string, Route> = {
 };
 
 export async function routeApi(path: string, req: Request, context: Context): Promise<Response> {
+  if (path === "/api/integrations" || path.startsWith("/api/integrations/")) return handleIntegrations(path, req, () => !!context.acp.isRunning || !!context.preparation?.isBusy || chromeLoginOpening(), context.broadcast);
   if (path.startsWith("/api/resume-sources") || path.startsWith("/api/application-preparation/")) {
+    if (req.method === "POST" && integrationTesting()) return Response.json({ error: "Wait for the integration diagnostic to finish." }, { status: 409 });
     context.preparation ??= new PreparationService(context.acp, context.broadcast);
     return handlePreparation(path, req, context.preparation);
   }
