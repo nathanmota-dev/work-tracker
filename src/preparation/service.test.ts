@@ -16,9 +16,11 @@ import {
   artifactFile,
   cachedPreview,
   runManifest,
+  runOptions,
   runRecord,
   updateRun,
 } from "./store.ts";
+import { addCheckpoint, dropCheckpoints, markPortal } from "./recovery.ts";
 import { PreparationService, readableJobDetails } from "./service.ts";
 import type { PreparationRun, PdfArtifact } from "./types.ts";
 import {
@@ -60,8 +62,15 @@ vi.mock("./store.ts", () => ({
   artifactFile: vi.fn(),
   cachedPreview: vi.fn(),
   runManifest: vi.fn(),
+  runOptions: vi.fn(() => ({})),
   runRecord: vi.fn(),
   updateRun: vi.fn(),
+}));
+vi.mock("./recovery.ts", async (original) => ({
+  ...(await original<typeof import("./recovery.ts")>()),
+  addCheckpoint: vi.fn(),
+  dropCheckpoints: vi.fn(),
+  markPortal: vi.fn(),
 }));
 let d: ReturnType<typeof databaseDouble>;
 let service: PreparationService;
@@ -162,6 +171,7 @@ beforeEach(() => {
     report: null,
     events: [],
     artifacts: [{ ...pdf, id: "tailored", kind: "tailored" }],
+    recovery: { checkpoints: ["compiled"], retryFrom: null, reviewRequired: false, summary: null },
     created_at: "now",
     updated_at: "now",
   };
@@ -268,7 +278,7 @@ test.each([
   expect(readableJobDetails(input)).toBe(expected);
 });
 test("marks running records interrupted on startup and removes event subscription on close", async () => {
-  expect(d.query.mock.calls.some(([sql]) => sql.includes("status = 'interrupted'"))).toBe(true);
+  expect(d.query.mock.calls.some(([sql]) => sql.includes("status IN ('running', 'waiting_for_sign_in')"))).toBe(true);
   await service.close();
   expect(unsubscribe).toHaveBeenCalled();
 });
@@ -636,4 +646,99 @@ test("closing during execution aborts work and unsubscribes", async () => {
   expect(run.status).toBe("cancelled");
   expect(service.isBusy).toBe(false);
   expect(unsubscribe).toHaveBeenCalled();
+});
+
+const stopped = (status: PreparationRun["status"], phase: PreparationRun["phase"], retryFrom: PreparationRun["recovery"]["retryFrom"], reviewRequired = false) => {
+  Object.assign(run, { status, phase, artifacts: retryFrom === "filling" ? run.artifacts : [pdf], recovery: { checkpoints: [], retryFrom, reviewRequired, summary: "stopped" } });
+  vi.mocked(runManifest).mockReturnValue({ manifestPath: "/artifacts/r/manifest.json", reportPath: "/artifacts/r/report.md", coverPath: "/artifacts/r/cover.md", project: "/artifacts/r/project", baseProject: "/artifacts/r/base-project", mainFile: "resume.tex", engine: "pdflatex", selectionPath: "/artifacts/r/selection.json" });
+  vi.mocked(fs.readdirSync).mockReturnValue([]);
+  vi.mocked(fs.cpSync).mockReturnValue(undefined);
+};
+test("retry rejects runs with nothing pending and archived jobs", () => {
+  run.recovery.retryFrom = null;
+  expect(() => service.retry({ runId: "r" })).toThrow("nothing to retry");
+  stopped("failed", "compiling", "compiling");
+  job.archived_at = "now";
+  expect(() => service.retry({ runId: "r" })).toThrow("Restore");
+  expect(transition).not.toHaveBeenCalled();
+});
+test("retrying compilation reuses the tailored sources without running the agent again", async () => {
+  stopped("failed", "compiling", "compiling");
+  journey.preparation_status = "failed";
+  service.retry({ runId: "r" });
+  await settle();
+  expect(acp.run).not.toHaveBeenCalled();
+  expect(snapshotSources).not.toHaveBeenCalled();
+  expect(fs.cpSync).not.toHaveBeenCalled();
+  expect(compileLatex).toHaveBeenCalledWith("/artifacts/r/project", "resume.tex", "pdflatex", expect.any(AbortSignal));
+  expect(run.status).toBe("completed");
+  expect(addCheckpoint).toHaveBeenCalledWith("r", "compiled");
+  expect(openApplication).not.toHaveBeenCalled();
+  expect(actions()).toEqual(["prepare.start", "prepare.complete", "fill.reset"]);
+});
+test("retrying tailoring restores the snapshot and reuses the original context", async () => {
+  stopped("interrupted", "tailoring", "tailoring");
+  vi.mocked(runOptions).mockReturnValue({ extra: "original context" });
+  service.retry({ runId: "r", extra: " " });
+  await settle();
+  expect(fs.cpSync).toHaveBeenCalledWith("/artifacts/r/base-project", "/artifacts/r/project", { recursive: true });
+  expect(dropCheckpoints).toHaveBeenCalledWith("r", "tailored");
+  expect(acp.run).toHaveBeenCalledWith("agent", "resume-tailor", expect.objectContaining({ extra: "original context", manifestPath: "/artifacts/r/manifest.json" }), "model");
+  expect(addCheckpoint).toHaveBeenCalledWith("r", "tailored");
+  expect(run.status).toBe("completed");
+});
+test("retrying after a sign-in wait in tailoring keeps the run waiting without regenerating sources", async () => {
+  stopped("waiting_for_sign_in", "tailoring", "tailoring");
+  acp.run.mockResolvedValue({ status: "waiting_for_sign_in" });
+  service.retry({ runId: "r", extra: "new context" });
+  await settle();
+  expect(acp.run).toHaveBeenCalledWith("agent", "resume-tailor", expect.objectContaining({ extra: "new context" }), "model");
+  expect(run.status).toBe("waiting_for_sign_in");
+  expect(snapshotSources).not.toHaveBeenCalled();
+  expect(compileLatex).not.toHaveBeenCalled();
+});
+test("retrying before sources were saved prepares them again in the same run", async () => {
+  stopped("failed", "preparing", "preparing");
+  run.application_id = null;
+  service.retry({ runId: "r" });
+  await settle();
+  expect(snapshotSources).toHaveBeenCalled();
+  expect(writeSnapshot).toHaveBeenCalledTimes(2);
+  expect(addCheckpoint).toHaveBeenCalledWith("r", "sources");
+  expect(run.status).toBe("completed");
+});
+test("a fill stopped without a result is repeated only after review, with the same resume and application", async () => {
+  stopped("interrupted", "filling", "filling", true);
+  expect(() => service.retry({ runId: "r" })).toThrow("Review it in the browser");
+  expect(() => service.fill({ runId: "r", reviewed: "yes" })).toThrow("partial fill");
+  expect(transition).not.toHaveBeenCalled();
+  journey.fill_status = "failed";
+  service.retry({ runId: "r", reviewed: true });
+  await settle();
+  expect(acp.run).toHaveBeenCalledWith("agent", "portal-filler", expect.anything(), "model");
+  expect(compileLatex).not.toHaveBeenCalled();
+  expect(openApplication).not.toHaveBeenCalled();
+  expect(vi.mocked(markPortal).mock.calls).toEqual([["r", false], ["r", true], ["r", false]]);
+  expect(addCheckpoint).toHaveBeenCalledWith("r", "filled");
+  expect(run.status).toBe("completed");
+  expect(journey.fill_status).toBe("filled");
+});
+test("a sign-in wait during filling clears the portal marker; an agent error keeps it for review", async () => {
+  acp.run.mockResolvedValue({ status: "waiting_for_sign_in" });
+  service.fill({ runId: "r" });
+  await settle();
+  expect(vi.mocked(markPortal).mock.calls.at(-1)).toEqual(["r", false]);
+  vi.mocked(markPortal).mockClear();
+  acp.run.mockResolvedValue({ status: "error", message: "Browser closed" });
+  service.fill({ runId: "r" });
+  await settle();
+  expect(run.status).toBe("failed");
+  expect(vi.mocked(markPortal).mock.calls.at(-1)).toEqual(["r", true]);
+});
+test("a fill that fails before the agent starts does not require review", async () => {
+  vi.mocked(openChromePortal).mockRejectedValue(new Error("Chrome unavailable"));
+  service.fill({ runId: "r" });
+  await settle();
+  expect(run.status).toBe("failed");
+  expect(vi.mocked(markPortal).mock.calls).toEqual([["r", false]]);
 });

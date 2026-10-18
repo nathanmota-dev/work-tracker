@@ -9,6 +9,7 @@ import { ResumeSources } from "@/components/resume-sources"
 import { ApplyReadiness, applyBlocks } from "@/components/apply-readiness"
 import { useIntegrations, type Target } from "@/lib/integrations"
 import { AgentConversation } from "@/components/agent-conversation"
+import { RunRecovery } from "@/components/run-recovery"
 import { request, useApi, useConnection, subscribe, type Row } from "@/lib/api"
 import type { Providers } from "@/lib/agent"
 import { openApply, preparationMessages, usePreparation, type SourcesState, type PdfArtifact, type SubmissionConfirmation } from "@/lib/preparation"
@@ -60,13 +61,14 @@ export function ApplyPage() {
     void integrations.test(targets, model); sources.refresh(); providers.refresh()
   }
   const messages = useMemo(() => preparationMessages(run?.events ?? [], run?.status), [run?.events, run?.status])
-  async function action(kind: "generate" | "fill" | "cancel" | "submitted" | "description") {
+  async function action(kind: "generate" | "fill" | "retry" | "cancel" | "submitted" | "description", reviewed = false) {
     setPending(true); setError(""); setNotice("")
     try {
-      const body = kind === "generate" ? { jobId: search.jobId, applicationId: search.applicationId ?? run?.application_id, provider: selectedProvider?.id, model: effectiveModel || undefined, extra } : kind === "description" ? { jobId: search.jobId, description } : kind === "submitted" ? { runId: pdfRun?.id, applicationId: pdfRun?.application_id ?? undefined } : { runId: kind === "fill" ? pdfRun?.id : run?.id, extra }
+      const body = kind === "generate" ? { jobId: search.jobId, applicationId: search.applicationId ?? run?.application_id, provider: selectedProvider?.id, model: effectiveModel || undefined, extra } : kind === "description" ? { jobId: search.jobId, description } : kind === "submitted" ? { runId: pdfRun?.id, applicationId: pdfRun?.application_id ?? undefined } : kind === "retry" ? { runId: run?.id, extra, reviewed } : { runId: kind === "fill" ? pdfRun?.id : run?.id, extra }
       const value = await request<{ id?: string } & Partial<SubmissionConfirmation>>(`application-preparation/${kind}`, body)
       if (kind === "submitted") setNotice(value.alreadySubmitted ? "This submission was already confirmed. The application stays on the board." : "Submission confirmed. The application is now on the board in its initial stage.")
       if (kind === "generate" && value.id) openApply(search.jobId, body && "applicationId" in body ? body.applicationId : undefined, value.id)
+      if (kind === "retry" && run) openApply(search.jobId, search.applicationId, run.id)
       if (kind === "fill" && pdfRun) openApply(search.jobId, pdfRun.application_id ?? undefined, pdfRun.id)
       if (kind === "description") setDescriptionDirty(false)
       details.refresh()
@@ -91,7 +93,7 @@ export function ApplyPage() {
         {archived && <p className="text-sm text-muted-foreground">Restore this job in Jobs before preparing an application.</p>}
         <div className="flex flex-wrap gap-2">
           <Button disabled={generateBlocks.length > 0} onClick={() => void action("generate")}>{run ? "Regenerate" : "Generate resume"}</Button>
-          <Button variant="outline" disabled={fillBlocks.length > 0} onClick={() => void action("fill")}>{run?.status === "waiting_for_sign_in" && run.phase === "filling" ? "Retry after sign-in" : "Fill application"}</Button>
+          <Button variant="outline" disabled={fillBlocks.length > 0} onClick={() => void action("fill")}>Fill application</Button>
           {(run?.status === "running" || run?.status === "waiting_for_sign_in") && <Button variant="outline" disabled={pending} onClick={() => void action("cancel")}>Cancel</Button>}
           {details.data?.applicationStatus === "filled" && details.data.uploadedRunId === pdfRun?.id && <Button variant="outline" disabled={busy} onClick={() => void action("submitted")}>I submitted in the browser</Button>}
         </div>
@@ -103,6 +105,7 @@ export function ApplyPage() {
     </Panel>
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     {(notice || details.data?.journey?.submission_status === "submitted") && <p role="status" className="text-sm">{notice || `Submitted${details.data?.journey?.submitted_at ? ` on ${new Date(details.data.journey.submitted_at).toLocaleDateString()}` : ""}.`} <a className="underline" href="#/application-board">Open the application board</a></p>}
+    <RunRecovery run={run} disabled={busy || archived || !live || details.data?.applicationStatus === "submitted" || (run?.recovery?.retryFrom === "filling" && fillBlocks.length > 0)} onRetry={reviewed => void action("retry", reviewed)} />
     {run?.error && <details open className="rounded-xl border border-destructive/30 p-4"><summary className="cursor-pointer text-sm text-destructive">Execution needs attention</summary><pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap text-xs">{run.error}</pre></details>}
     {!!details.data?.runs.length && <Field label="Execution history"><SelectControl className={controlClass} value={run?.id ?? ""} onChange={e => openApply(search.jobId, search.applicationId, e.target.value)}>{details.data.runs.map(r => <option key={r.id} value={r.id}>{new Date(r.created_at).toLocaleString()} · {r.phase} · {r.status}</option>)}</SelectControl></Field>}
     {tailored && pdfRun?.id !== run?.id && <p className="text-sm text-muted-foreground">Showing the previous validated resume. Fill application will use that PDF.</p>}

@@ -119,6 +119,7 @@ CREATE TABLE IF NOT EXISTS application_runs (
   events_json TEXT NOT NULL DEFAULT '[]',
   options_json TEXT NOT NULL DEFAULT '{}',
   manifest_json TEXT NOT NULL DEFAULT '{}',
+  recovery_json TEXT NOT NULL DEFAULT '{}',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -278,6 +279,10 @@ CREATE INDEX IF NOT EXISTS idx_attempts_company   ON outreach_attempts(company_u
  *
  */
 export const COLUMN_MIGRATIONS: Record<string, Record<string, string>> = {
+  application_runs: {
+    // Phase checkpoints for retries; see src/preparation/recovery.ts.
+    recovery_json: "TEXT NOT NULL DEFAULT '{}'",
+  },
   jobs: {
     archived_at: "TEXT",
     description: "TEXT",

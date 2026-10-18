@@ -18,6 +18,7 @@ export async function handlePreparation(path: string, req: Request, service: Pre
       case "/api/application-preparation/description": service.description(body); return Response.json({ ok: true });
       case "/api/application-preparation/generate": return Response.json(service.generate(body), { status: 202 });
       case "/api/application-preparation/fill": return Response.json(service.fill(body), { status: 202 });
+      case "/api/application-preparation/retry": return Response.json(service.retry(body), { status: 202 });
       case "/api/application-preparation/submitted": return Response.json({ ok: true, ...service.submitted(body) });
       case "/api/application-preparation/cancel": await service.cancel(body.runId ? String(body.runId) : undefined); return Response.json({ ok: true });
       case "/api/application-preparation/pdf": return new Response(new Uint8Array(pdfBytes(String(body.artifactId ?? ""))), { headers: { "content-type": "application/pdf", "cache-control": "no-store" } });

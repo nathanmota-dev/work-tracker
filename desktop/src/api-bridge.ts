@@ -43,6 +43,7 @@ const writes = new Set([
   "application-preparation/description",
   "application-preparation/cancel",
   "application-preparation/fill",
+  "application-preparation/retry",
   "application-preparation/submitted",
   "acp/cancel",
   "recruiters/sync",
