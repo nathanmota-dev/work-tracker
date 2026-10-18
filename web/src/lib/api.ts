@@ -56,7 +56,7 @@ export function useApi<T>(path: string) {
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(true)
   const [revision, setRevision] = useState(0)
-  const refresh = useCallback(() => setRevision((v) => v + 1), [])
+  const refresh = useCallback(() => { setLoading(true); setRevision((v) => v + 1) }, [])
   useEffect(
     () =>
       subscribe((event) => {

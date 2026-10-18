@@ -5,14 +5,17 @@ import {
   createRouter,
   Outlet,
   redirect,
+  stripSearchParams,
   type RouteComponent,
 } from "@tanstack/react-router"
+import { WorkspaceRoute } from "@/lib/workspace-state"
+import { validateWorkspaceSearch } from "@/lib/workspace-search"
 import { Dashboard } from "@/routes/dashboard"
 import { SettingsPage } from "@/routes/settings"
 import { workspacePages } from "@/routes/workspace-pages"
 
 export function createAppRouter(sidebarLayout: RouteComponent) {
-  const rootRoute = createRootRoute({ component: Outlet })
+  const rootRoute = createRootRoute({ component: WorkspaceRoute })
 
   const indexRoute = createRoute({
     getParentRoute: () => rootRoute,
@@ -60,11 +63,8 @@ export function createAppRouter(sidebarLayout: RouteComponent) {
           getParentRoute: () => sidebarRoute,
           path: page.path,
           component: page.component,
-          validateSearch: (search: Record<string, unknown>) => {
-            if (page.path !== "apply") return {}
-            const number = (value: unknown) => { const n = Number(value); return Number.isSafeInteger(n) && n > 0 ? n : undefined }
-            return { jobId: number(search.jobId), applicationId: number(search.applicationId), runId: typeof search.runId === "string" ? search.runId : undefined }
-          },
+          validateSearch: (search: Record<string, unknown>) => validateWorkspaceSearch(page.path, search),
+          search: { middlewares: [stripSearchParams(validateWorkspaceSearch(page.path, {}))] },
           staticData: { title: page.title },
         }),
       ),

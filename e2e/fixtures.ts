@@ -108,13 +108,18 @@ export class Workspace {
     await this.ready('Dashboard')
   }
   async ready(title: string) {
-    await expect(this.page.getByRole('heading', { name: title, exact: true, level: 1 })).toBeVisible()
+    // Restored record dialogs hide the page heading from the accessibility tree.
+    await expect(this.page.getByRole('heading', { name: title, exact: true, level: 1, includeHidden: true })).toBeVisible()
     await expect(this.page.getByLabel('Loading workspace')).toHaveCount(0)
   }
   async go(title: string) {
-    const open = this.page.getByRole('button', { name: 'Abrir sidebar', exact: true })
-    if (await open.isVisible() && !await this.page.getByRole('link', { name: title, exact: true }).first().isVisible()) await open.click()
-    await this.page.locator('[data-sidebar="sidebar"]').getByRole('link', { name: title, exact: true }).click()
+    const link = this.page.locator('[data-sidebar="sidebar"]').getByRole('link', { name: title, exact: true })
+    await expect(async () => {
+      const open = this.page.getByRole('button', { name: 'Abrir sidebar', exact: true })
+      if (!await link.isVisible() && await open.isVisible()) await open.click()
+      // Resizing can replace the desktop sidebar with its mobile dialog mid-action.
+      await link.click({ timeout: 1000 })
+    }).toPass({ timeout: 10_000 })
     await this.ready(title)
   }
   async restart() { await this.stop(); await this.start() }

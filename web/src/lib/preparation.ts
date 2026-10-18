@@ -5,7 +5,9 @@ import { permissionDecision, type PermissionRequest } from "./permissions"
 export type { ResumeSourcesConfig, SourcesState, PdfArtifact, PreparationRun, PreparationDetails, SubmissionConfirmation, RecoveryCheckpoint, RunRecovery } from "../../../src/preparation/types"
 import type { PreparationDetails } from "../../../src/preparation/types"
 export function openApply(jobId?: unknown, applicationId?: unknown, runId?: string) {
-  const params = new URLSearchParams()
+  const current = new URLSearchParams(window.location.hash.split("?")[1])
+  const params = window.location.hash.startsWith("#/apply") && Number(current.get("jobId")) === Number(jobId) ? current : new URLSearchParams()
+  for (const key of ["jobId", "applicationId", "runId"]) params.delete(key)
   if (Number(jobId) > 0) params.set("jobId", String(jobId))
   if (Number(applicationId) > 0) params.set("applicationId", String(applicationId))
   if (runId) params.set("runId", runId)
@@ -45,7 +47,9 @@ export function preparationMessages(events: Row[], status?: string): AgentMessag
   return messages
 }
 export function usePreparation(jobId?: number, applicationId?: number) {
-  const [data, setData] = useState<PreparationDetails>()
+  const key = `${jobId}:${applicationId}`
+  const [result, setResult] = useState<{ key: string; data: PreparationDetails }>()
+  const data = result?.key === key ? result.data : undefined
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
   const [revision, setRevision] = useState(0)
@@ -59,14 +63,14 @@ export function usePreparation(jobId?: number, applicationId?: number) {
   }, [refresh])
   useEffect(() => {
     let active = true
-    if (!jobId) { setData(undefined); setError(""); setLoading(false); return }
+    if (!jobId) { setResult(undefined); setError(""); setLoading(false); return }
     setLoading(true)
     request<PreparationDetails>("application-preparation/details", { jobId, applicationId })
-      .then(value => { if (active) { setData(value); setError("") } })
+      .then(value => { if (active) { setResult({ key, data: value }); setError("") } })
       .catch(e => { if (active) setError(e.message) })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
-  }, [jobId, applicationId, revision])
+  }, [jobId, applicationId, revision, key])
   useEffect(() => { if (!data?.busy) return; const timer = setInterval(refresh, 1500); return () => clearInterval(timer) }, [data?.busy, refresh])
   return { data, error, loading, refresh }
 }

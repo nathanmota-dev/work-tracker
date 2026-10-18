@@ -97,6 +97,16 @@ accessible locators and real pointer events for drag and drop. Read database sta
 only to verify persistence; perform the action under test through the UI. Existing
 unit/integration suites continue to cover exhaustive validation and backend rules.
 
+`workspace-context.spec.ts` covers Jobs → Apply → back with URL filters, page,
+selection and navigation scroll, isolated context/description drafts after a real
+Electron restart, and Search → Launch → Search with retained results and selection.
+The manual-job journey also checks that the first generated application's draft
+keeps the context entered for its job. Router-backed Vitest tests cover invalid
+parameters, removed/archived selection reconciliation, and application attempts;
+draft-storage tests cover failed writes without overwriting previous content.
+Scroll positions and search output stay in memory for navigation; context drafts
+persist in the renderer's local storage, separately from saved job descriptions.
+
 ## Failure evidence and CI
 
 One worker and zero retries keep failures visible. Tests use condition-based

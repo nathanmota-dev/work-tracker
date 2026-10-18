@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react"
+import { useWorkspaceLinks } from "@/lib/workspace-state"
 import { useNavigate } from "@tanstack/react-router"
 import { ArrowDown, ArrowUp, CornerDownLeft } from "lucide-react"
 import {
@@ -97,6 +98,7 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false)
   const openerRef = useRef<HTMLElement | null>(null)
   const navigate = useNavigate()
+  const remembered = useWorkspaceLinks()
   const { setOpenMobile } = useSidebar()
   const shortcut = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K"
 
@@ -144,7 +146,7 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
           </DialogDescription>
           <PageCommands
             onSelect={(to) => {
-              void navigate({ to })
+              void navigate({ to, search: remembered[to] ?? {} })
               setOpen(false)
             }}
           />

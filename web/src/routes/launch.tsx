@@ -1,3 +1,5 @@
+import { useWorkspaceState } from "@/lib/workspace-state"
+import { useContextDraft } from "@/lib/context-draft"
 import { candidateFromAnswers } from "@/lib/candidate-profile"
 import { AgentConversation } from "@/components/agent-conversation"
 import {
@@ -24,24 +26,26 @@ function useLaunchState() {
   const api = useApi<Providers>("acp/providers")
   const agent = useAgent()
   const live = useConnection()
-  const [skill, setSkill] = useState(agent.draft?.skill ?? "job-scout")
-  const [params, setParams] = useState<Record<string, string>>(
-    agent.draft?.params ?? {},
-  )
-  const [provider, setProvider] = useState(
-    localStorage.getItem("work-tracker-provider") ?? "",
-  )
-  const [model, setModel] = useState(
-    localStorage.getItem("work-tracker-model") ?? "",
-  )
+  const { search, update } = useWorkspaceState("launch")
+  const skill = search.skill ?? "job-scout"
+  const setSkill = (skill: string) => update({ skill, target: "", query: "", location: "", company: "", username: "", url: "", jobIds: "" })
+  const context = useContextDraft(`launch:${skill}:${search.target ?? ""}`)
+  const params: Record<string, string> = Object.fromEntries(["query", "location", "company", "username", "url", "jobIds"].flatMap(key => {
+    const value = search[key as keyof typeof search]
+    return typeof value === "string" && value ? [[key, value]] : []
+  }))
+  if (context.draft.extra) params.extra = context.draft.extra
+  const setParams: React.Dispatch<React.SetStateAction<Record<string, string>>> = change => {
+    const next = typeof change === "function" ? change(params) : change
+    if (next.extra !== params.extra) context.update({ extra: next.extra ?? "" })
+    update(Object.fromEntries(Object.entries(next).filter(([key]) => key !== "extra")))
+  }
+  const provider = search.provider ?? localStorage.getItem("work-tracker-provider") ?? ""
+  const model = search.model ?? localStorage.getItem("work-tracker-model") ?? ""
+  const setProvider = (provider: string) => update({ provider })
+  const setModel = (model: string) => update({ model })
   const [error, setError] = useState("")
   const end = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (agent.draft) {
-      setSkill(agent.draft.skill)
-      setParams(agent.draft.params)
-    }
-  }, [agent.draft])
   useEffect(() => {
     end.current?.scrollIntoView?.({ block: "nearest" })
   }, [agent.messages])
@@ -80,7 +84,7 @@ function useLaunchState() {
     setParams,
     setProvider,
     setModel,
-    error,
+    error: error || context.error,
     setError,
     selectedProvider,
     effectiveModel,
@@ -142,7 +146,6 @@ export function LaunchPage() {
                 disabled={agent.running}
                 onSkill={(value) => {
                   setSkill(value)
-                  setParams({})
                 }}
               />
               <SkillFields
