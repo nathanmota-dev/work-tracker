@@ -160,7 +160,7 @@ test("agent callbacks reply to reads, writes, permissions and unknown requests w
     {
       jsonrpc: "2.0",
       id: "permission",
-      result: { outcome: { outcome: "selected", optionId: "yes" } },
+      result: { outcome: { outcome: "cancelled" } },
     },
     { jsonrpc: "2.0", id: "unknown", result: null },
   ]);
@@ -173,10 +173,10 @@ test("custom permission resolver and callback failures return protocol errors", 
     .mockResolvedValueOnce("chosen")
     .mockRejectedValueOnce(new Error("permission failed"));
   const client = await started({ onPermission });
-  deliver({ id: 10, method: "session/request_permission", params: {} });
+  deliver({ id: 10, method: "session/request_permission", params: { sessionId: "session-1", options: [{ optionId: "chosen" }] } });
   await flush();
   expect(writes().at(-1).result.outcome.optionId).toBe("chosen");
-  deliver({ id: 11, method: "session/request_permission", params: {} });
+  deliver({ id: 11, method: "session/request_permission", params: { sessionId: "session-1" } });
   vi.mocked(readFileSync).mockImplementation(() => {
     throw new Error("read denied");
   });
@@ -205,17 +205,36 @@ test("custom permission resolver and callback failures return protocol errors", 
   client.stop();
 });
 test.each([{}, { options: [{ optionId: "first" }] }])(
-  "default permissions use fallback options %j",
+  "permissions without a UI handler are cancelled %j",
   async (params) => {
     const client = await started();
     deliver({ id: 10, method: "session/request_permission", params });
     await flush();
-    expect(writes().at(-1).result.outcome.optionId).toBe(
-      "options" in params ? "first" : "allow",
-    );
+    expect(writes().at(-1).result.outcome).toEqual({ outcome: "cancelled" });
     client.stop();
   },
 );
+test("permission RPC waits for the UI, returns the exact option and cancels stale or invalid answers", async () => {
+  let choose!: (id: string | null) => void;
+  const onPermission = vi.fn(() => new Promise<string | null>(resolve => { choose = resolve; }));
+  const client = await started({ onPermission });
+  const params = { sessionId: "session-1", options: [{ optionId: "exact-refusal" }] };
+  deliver({ id: "decision", method: "session/request_permission", params });
+  await flush();
+  expect(writes()).toHaveLength(2);
+  choose("exact-refusal"); await flush();
+  expect(writes().at(-1).result.outcome).toEqual({ outcome: "selected", optionId: "exact-refusal" });
+  deliver({ id: "stale", method: "session/request_permission", params: { ...params, sessionId: "old" } });
+  await flush();
+  expect(writes().at(-1).result.outcome).toEqual({ outcome: "cancelled" });
+  expect(onPermission).toHaveBeenCalledOnce();
+  deliver({ id: "invalid-choice", method: "session/request_permission", params });
+  await flush(); choose("invented"); await flush();
+  expect(writes().at(-1).result.outcome).toEqual({ outcome: "cancelled" });
+  deliver({ id: "stopped", method: "session/request_permission", params });
+  await flush(); client.stop(); choose("exact-refusal"); await flush();
+  expect(writes().some(message => message.id === "stopped")).toBe(false);
+});
 test.each(["error", "exit", "stdin", "timeout", "oversized"])(
   "%s settles pending handshake and allows cleanup",
   async (mode) => {

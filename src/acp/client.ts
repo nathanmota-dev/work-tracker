@@ -34,7 +34,7 @@ interface RpcMessage {
  */
 export interface AcpEvents {
   onUpdate?: (update: Json) => void;
-  onPermission?: (params: Json) => Promise<string>;
+  onPermission?: (params: Json) => Promise<string | null>;
   onLog?: (line: string) => void;
   onExit?: (code: number | null) => void;
 }
@@ -64,6 +64,7 @@ export class AcpClient {
   ) {}
 
   get availableModels(): string[] { return [...this.models]; }
+  get activeSessionId(): string | null { return this.sessionId; }
 
   /** Spawn the agent and run the initialize handshake + create a session. */
   async start(options: AcpStartOptions = {}): Promise<void> {
@@ -208,10 +209,13 @@ export class AcpClient {
 
       case "session/request_permission": {
         try {
-          const optionId = this.events.onPermission
-            ? await this.events.onPermission(params)
-            : firstAllowOption(params);
-          respond({ outcome: { outcome: "selected", optionId } });
+          const request = params as { sessionId?: unknown; options?: { optionId: string }[] } | null;
+          const sessionId = this.sessionId;
+          const optionId = request?.sessionId === sessionId && sessionId && this.events.onPermission
+            ? await this.events.onPermission(params) : null;
+          if (this.sessionId !== sessionId || !this.proc || this.proc.stdin.destroyed) break;
+          const valid = optionId !== null && request?.options?.some(o => o.optionId === optionId);
+          respond({ outcome: valid ? { outcome: "selected", optionId } : { outcome: "cancelled" } });
         } catch (e) {
           fail(e instanceof Error ? e.message : String(e));
         }
@@ -244,12 +248,4 @@ export class AcpClient {
         if (id !== undefined) respond(null);
     }
   }
-}
-
-/** Default permission resolver: pick the first allow-ish option. */
-function firstAllowOption(params: Json): string {
-  const p = params as { options?: Array<{ optionId: string; kind?: string }> };
-  const opts = p.options ?? [];
-  const allow = opts.find((o) => o.kind?.includes("allow")) ?? opts[0];
-  return allow?.optionId ?? "allow";
 }

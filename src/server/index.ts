@@ -12,6 +12,7 @@ import { stopAllOwned } from "../acp/process.ts";
 import { PreparationService } from "../preparation/service.ts";
 import { nodeRequestListener } from "./http-adapter.ts";
 import { routeApi } from "./routes.ts";
+import { permissionStore } from "../acp/permission-store.ts";
 
 /** Internal HTTP boundary, shared by the server adapter and unit tests. */
 export function createRequestHandler({
@@ -21,7 +22,7 @@ export function createRequestHandler({
   preparation,
 }: {
   token: string;
-  acp: Pick<SessionManager, "run" | "cancel"> & Partial<Pick<SessionManager, "isRunning">>;
+  acp: Pick<SessionManager, "run" | "cancel"> & Partial<Pick<SessionManager, "isRunning" | "permissions">>;
   broadcast: (event: unknown) => void;
   preparation?: PreparationService;
 }): (req: Request) => Promise<Response> {
@@ -54,14 +55,16 @@ export function createRequestHandler({
 export async function startBackend(flags: Flags = {}) {
   ensureHome();
   db(); // ensure schema
+  permissionStore.recover();
 
   const port = int(flags, "port") ?? 0; // 0 = OS-assigned
   const token = randomUUID();
   const sockets = new Set<WebSocket>();
   const workspace = paths.workspace;
-  const acp = new SessionManager(workspace, (event) =>
-    broadcast(sockets, event),
-  );
+  const acp = new SessionManager(workspace, (event) => {
+    broadcast(sockets, event);
+    if ((event as { type?: string }).type === "acp-permission" && !sockets.size) queueMicrotask(() => acp.disconnect());
+  });
 
   const preparation = new PreparationService(acp, event => broadcast(sockets, event));
   const handleRequest = createRequestHandler({
@@ -81,7 +84,7 @@ export async function startBackend(flags: Flags = {}) {
     wss.handleUpgrade(req, socket, head, (ws) => {
       sockets.add(ws);
       ws.on("error", () => ws.terminate());
-      ws.on("close", () => sockets.delete(ws));
+      ws.on("close", () => { sockets.delete(ws); if (!sockets.size) acp.disconnect(); });
       ws.send(JSON.stringify({ type: "hello" }));
     });
   });

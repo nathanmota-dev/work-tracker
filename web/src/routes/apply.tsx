@@ -74,7 +74,7 @@ export function ApplyPage() {
     finally { setPending(false) }
   }
   const job = details.data?.job
-  return <Page title="Apply" description="Prepare a resume for one role, review both PDFs and fill its application." actions={<Status value={run ? `${run.phase} · ${run.status}` : "Ready"} />}>
+  return <Page title="Apply" description="Prepare a resume for one role, review both PDFs and fill its application." actions={<Status value={run?.decisionStatus ? "Waiting for decision" : run ? `${run.phase} · ${run.status}` : "Ready"} />}>
     <LoadState {...jobs} retry={jobs.refresh} />
     <details className="rounded-xl border p-4" open={!sources.data?.config.projectDir || undefined}><summary className="cursor-pointer text-sm font-medium">Resume sources</summary><div className="mt-4"><ResumeSources onPreview={artifact => { setPreview(artifact); sources.refresh() }} /></div></details>
     <Panel title="Opportunity">

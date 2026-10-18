@@ -16,6 +16,7 @@ export interface PreparationRun {
   job_id: number;
   application_id: number | null;
   status: "running" | "completed" | "failed" | "cancelled" | "waiting_for_sign_in" | "interrupted";
+  decisionStatus?: "waiting_for_permission";
   phase: "preparing" | "tailoring" | "compiling" | "review" | "filling";
   provider: string;
   model: string | null;

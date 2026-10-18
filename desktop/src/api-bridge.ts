@@ -20,6 +20,7 @@ const reads = new Set([
   "profile",
   "profile-snapshot",
   "acp/providers",
+  "acp/permissions",
   "resume-sources",
 ])
 const writes = new Set([
@@ -33,6 +34,8 @@ const writes = new Set([
   "jobs/delete",
   "answer",
   "acp/run",
+  "acp/permissions/answer",
+  "acp/permissions/rule",
   "resume-sources",
   "resume-sources/preview",
   "application-preparation/details",

@@ -17,9 +17,25 @@ const job = { id: '9001', job_id: '9001', title: 'React Engineer', company_name:
 const person = { name: 'Alex Recruiter', username: 'alex-recruiter', headline: 'Technical recruiter', location: 'Remote', profile_url: 'https://www.linkedin.com/in/alex-recruiter/' };
 const tools = ['search_jobs', 'search_people', 'get_job_details', 'get_company_profile', 'get_person_profile', 'list_pages'];
 log({ kind: 'start', provider: process.env.E2E_PROVIDER });
+const permissionWaits = new Map();
+let permissionId = 0;
+const permission = () => new Promise(resolve => {
+  const id = `decision-${++permissionId}`;
+  permissionWaits.set(id, resolve);
+  send({ id, method: 'session/request_permission', params: {
+    sessionId: 'e2e-session', toolCall: { title: 'linkedin_get_person_profile', kind: 'fetch', rawInput: { username: 'synthetic' } },
+    options: [{ optionId: 'deny-exact', name: 'Refuse', kind: 'reject_once' }, { optionId: 'approve-exact', name: 'Allow once', kind: 'allow_once' }],
+  } });
+});
 require('node:readline').createInterface({ input: process.stdin }).on('line', async line => {
   const m = JSON.parse(line);
   try {
+    if (permissionWaits.has(m.id)) {
+      log({ kind: 'permission-result', result: m.result });
+      permissionWaits.get(m.id)(m.result);
+      permissionWaits.delete(m.id);
+      return;
+    }
     if (m.method === 'initialize') return send({ id: m.id, result: m.params.protocolVersion === 1 ? { protocolVersion: 1, agentCapabilities: {} } : { protocolVersion: m.params.protocolVersion, capabilities: { tools: {} }, serverInfo: { name: 'work-tracker-e2e', version: '1' } } });
     if (m.method === 'tools/list') return send({ id: m.id, result: { tools: tools.map(name => ({ name, description: name, inputSchema: { type: 'object' } })) } });
     if (m.method === 'tools/call') {
@@ -48,6 +64,11 @@ require('node:readline').createInterface({ input: process.stdin }).on('line', as
       const state = scenario();
       log({ kind: 'prompt', text, provider: process.env.E2E_PROVIDER, model: process.env.ANTHROPIC_MODEL ?? process.env.OPENCODE_CONFIG_CONTENT });
       if (state.agent === 'error') throw Error('Synthetic agent failure');
+      if (state.agent === 'permission') {
+        const result = await permission();
+        if (result?.outcome.optionId !== 'approve-exact') return send({ id: m.id, result: { stopReason: 'end_turn' } });
+        await permission();
+      }
       const pendingLogin = state.agent === 'login';
       update({ sessionUpdate: 'tool_call', toolCallId: 'tool-1', title: 'linkedin_get_person_profile', kind: 'fetch', status: pendingLogin ? 'failed' : 'in_progress', rawInput: { query: 'synthetic' }, content: [{ content: { type: 'text', text: pendingLogin ? 'LinkedIn login is still in progress' : 'Searching synthetic results' } }] });
       update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'Synthetic agent is working. ' } });

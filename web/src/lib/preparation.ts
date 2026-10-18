@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { request, subscribe, type Row } from "./api"
 import type { AgentMessage } from "./agent"
+import { permissionDecision, type PermissionRequest } from "./permissions"
 export type { ResumeSourcesConfig, SourcesState, PdfArtifact, PreparationRun, PreparationDetails, SubmissionConfirmation } from "../../../src/preparation/types"
 import type { PreparationDetails } from "../../../src/preparation/types"
 export function openApply(jobId?: unknown, applicationId?: unknown, runId?: string) {
@@ -33,6 +34,9 @@ export function preparationMessages(events: Row[], status?: string): AgentMessag
         if (update?.rawInput !== undefined) tool.input = update.rawInput
         if (Array.isArray(update?.content)) tool.output = (update.content as Row[]).map(item => { const c = item.content as Row; return c?.type === "text" ? String(c.text) : "" }).join("\n")
       }
+    } else if (event.type === "acp-permission" || event.type === "acp-permission-decision") {
+      const permission = event.request as PermissionRequest
+      messages.push({ id: String(index), role: "system", text: event.type === "acp-permission" ? `Waiting for decision: ${permission.title}` : permissionDecision(permission) })
     } else if (event.type === "acp-log" || event.type === "acp-error") messages.push({ id: String(index), role: "system", text: String(event.line ?? event.message), diagnostic: event.type === "acp-log" })
   }
   if (status && ["cancelled", "failed", "interrupted", "completed"].includes(status)) for (const message of messages) {

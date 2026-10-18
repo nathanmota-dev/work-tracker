@@ -49,6 +49,7 @@ const dependencies: Record<string, string[]> = {
   "application-board": ["applications", "application_stages", "application_events"],
   "acp/providers": ["integrations"],
   "integrations/status": ["integrations", "applicant_answers", "profile"],
+  "acp/permissions": ["agent_permissions"],
 }
 export function useApi<T>(path: string) {
   const [data, setData] = useState<T>()
@@ -60,7 +61,7 @@ export function useApi<T>(path: string) {
     () =>
       subscribe((event) => {
         if (
-          event.type === "changed" &&
+          (path === "acp/permissions" && (event.type === "hello" || event.type === "connection" && event.live === true)) || event.type === "changed" &&
           (!event.table ||
             event.table === "unknown" ||
             (dependencies[path] ?? [path]).includes(String(event.table)))

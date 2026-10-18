@@ -2,6 +2,7 @@ import { openApply } from "./preparation"
 import { candidateFromAnswers, withCandidateProfile } from "./candidate-profile"
 import { useSyncExternalStore } from "react"
 import { request, subscribe, type Row } from "./api"
+import { permissionDecision, type PermissionRequest, type PermissionSnapshot } from "./permissions"
 export const skills = [
   {
     id: "job-scout",
@@ -136,12 +137,20 @@ function listen() {
   listening = true
   subscribe((event) => {
     if (event.source === "apply") return;
+    if ((event.type === "hello" || event.type === "connection" && event.live === true) && state.status === "Connection lost — run status unknown") {
+      const currentRun = runId
+      void request<PermissionSnapshot>("acp/permissions").then(snapshot => {
+        if (currentRun !== runId || state.status !== "Connection lost — run status unknown") return
+        const status = snapshot.execution?.status
+        update({ running: status ? ["starting", "running", "waiting_for_permission"].includes(status) : false, status: status === "waiting_for_permission" ? "Waiting for decision" : status === "waiting_for_sign_in" ? "Waiting for sign-in" : status ?? "Interrupted", ...(!status || ["cancelled", "error"].includes(status) ? { messages: interruptedMessages() } : {}) })
+      }).catch(() => {})
+    }
     if (event.type === "connection" && !event.live && state.running)
       update({ status: "Connection lost — run status unknown" })
     if (event.type === "acp-status")
       update({
-        status: event.status === "waiting_for_sign_in" ? "Waiting for sign-in" : String(event.status),
-        running: ["starting", "running"].includes(String(event.status)),
+        status: event.status === "waiting_for_permission" ? "Waiting for decision" : event.status === "waiting_for_sign_in" ? "Waiting for sign-in" : String(event.status),
+        running: ["starting", "running", "waiting_for_permission"].includes(String(event.status)),
         ...(event.status === "cancelled" ? { messages: interruptedMessages() } : {}),
       })
     if (event.type === "acp-error") {
@@ -158,8 +167,9 @@ function listen() {
     if (event.type === "acp-permission")
       append(
         "system",
-        "The agent requested a permission handled by the backend.",
+        `Waiting for decision: ${(event.request as PermissionRequest).title}`,
       )
+    if (event.type === "acp-permission-decision") append("system", permissionDecision(event.request as PermissionRequest))
     if (event.type === "acp-update") {
       const outer = event.update as Row | undefined
       const value = (outer?.update ?? outer) as Row | undefined
