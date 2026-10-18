@@ -10,6 +10,7 @@ import { PreparationService } from "../preparation/service.ts";
 import { handlePreparation } from "../preparation/http.ts";
 import { handleIntegrations, integrationTesting } from "../integrations/http.ts";
 import { handlePermissions } from "../acp/permission-http.ts";
+import { handleWorkspaceBackup } from "../backup/http.ts";
 
 type Acp = Pick<SessionManager, "run" | "cancel"> & Partial<Pick<SessionManager, "isRunning" | "permissions">>;
 type Broadcast = (event: unknown) => void;
@@ -147,6 +148,10 @@ export async function routeApi(path: string, req: Request, context: Context): Pr
     if (req.method === "POST" && integrationTesting()) return Response.json({ error: "Wait for the integration diagnostic to finish." }, { status: 409 });
     context.preparation ??= new PreparationService(context.acp, context.broadcast);
     return handlePreparation(path, req, context.preparation);
+  }
+  if (path.startsWith("/api/workspace-backup/")) {
+    const busy = () => !!(context.acp.isRunning || context.preparation?.isBusy || integrationTesting() || chromeLoginOpening());
+    return handleWorkspaceBackup(path, req, { busy, broadcast: context.broadcast });
   }
   if (path.startsWith("/api/jobs/")) {
     return handleJobAction(path, req, context.broadcast);

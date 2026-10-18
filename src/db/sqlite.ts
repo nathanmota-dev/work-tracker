@@ -5,8 +5,8 @@ type Binding = SQLInputValue | Record<string, SQLInputValue>;
 export class Database {
   private connection: DatabaseSync;
   private depth = 0;
-  constructor(path: string, _options?: { create?: boolean }) {
-    this.connection = new DatabaseSync(path);
+  constructor(path: string, options?: { create?: boolean; readOnly?: boolean }) {
+    this.connection = options?.readOnly ? new DatabaseSync(path, { readOnly: true }) : new DatabaseSync(path);
   }
   exec(sql: string): void { this.connection.exec(sql); }
   query(sql: string) {

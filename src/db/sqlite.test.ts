@@ -76,3 +76,7 @@ test("outer failure and async callbacks rollback; a failed BEGIN restores nestin
     "COMMIT",
   ]);
 });
+test("opens read-only connections when asked", () => {
+  new Database("/mock/db", { readOnly: true });
+  expect(DatabaseSync).toHaveBeenCalledWith("/mock/db", { readOnly: true });
+});

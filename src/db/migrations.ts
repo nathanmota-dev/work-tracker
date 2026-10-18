@@ -168,7 +168,7 @@ function assertMigrationPlan(migrations: readonly Migration[], target: number): 
 }
 
 /** Null for an empty database; 0 for a legacy workspace that never stamped a version. */
-function readVersion(d: Database): number | null {
+export function readVersion(d: Database): number | null {
   const tables = userTables(d);
   if (!tables.length) return null;
   if (!tables.includes("meta")) return 0;
@@ -206,7 +206,7 @@ function foreignKeyViolations(d: Database): Set<string> {
   return new Set(rows.map((row) => `${row.table} row ${row.rowid} -> ${row.parent} (fk ${row.fkid})`));
 }
 
-function rowCounts(d: Database): Map<string, number> {
+export function rowCounts(d: Database): Map<string, number> {
   return new Map(userTables(d).map((table) => {
     const row = d.query(`SELECT COUNT(*) AS n FROM "${table.replaceAll('"', '""')}"`).get() as { n: number };
     return [table, Number(row.n)];
