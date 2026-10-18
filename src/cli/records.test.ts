@@ -19,6 +19,7 @@ import {
   transition,
   type JourneyRecord,
 } from "../applications/journey-store.ts";
+import { saveJob } from "../jobs/store.ts";
 import { JourneyError } from "../applications/journey.ts";
 vi.mock("../db/index.ts", () => ({
   db: vi.fn(),
@@ -32,8 +33,10 @@ vi.mock("../applications/journey-store.ts", () => ({
   resolveJob: vi.fn(),
   transition: vi.fn(),
 }));
+vi.mock("../jobs/store.ts", () => ({ saveJob: vi.fn() }));
 let d: ReturnType<typeof databaseDouble>, output: ReturnType<typeof cliSpies>;
 beforeEach(() => {
+  vi.mocked(saveJob).mockReset().mockReturnValue({ job: { id: 4 } as any, created: true, existing: false, missing: [] });
   d = databaseDouble();
   d.statement.get.mockReturnValue({ id: 4 });
   vi.mocked(db).mockReturnValue(d.asDatabase);
@@ -45,46 +48,21 @@ beforeEach(() => {
   vi.mocked(transition).mockReset().mockReturnValue({ record: {} as JourneyRecord, changed: true });
   vi.mocked(notifyChange).mockClear();
 });
-test("job saves map flags and default status before notification", async () => {
-  await jobCmd("save", {
-    "linkedin-id": "job-one",
-    title: "Backend",
-    company: "Acme",
-  });
-  expect(d.statement.get).toHaveBeenCalledWith({
-    $jid: "job-one",
-    $title: "Backend",
-    $company: "Acme",
-    $location: null,
-    $work: null,
-    $comp: null,
-    $fit: null,
-    $reqs: null,
-    $status: "saved",
-    $link: null,
-  });
+test("job commands map fields through shared validation and report existing records", async () => {
+  await jobCmd("save", { "linkedin-id": "job-one", title: "Backend", company: "Acme", description: "Build" });
+  expect(saveJob).toHaveBeenCalledWith(d.asDatabase, { linkedin_job_id: "job-one", title: "Backend", company_name: "Acme", description: "Build" }, undefined, true);
   expect(notifyChange).toHaveBeenCalledWith("jobs");
   expect(output.log).toHaveBeenCalledWith("job #4 saved");
-  await jobCmd("save", {
-    location: "Brazil",
-    "work-type": "remote",
-    comp: "100",
-    fit: "high",
-    requirements: "[]",
-    status: "applied",
-    link: "https://fixture.invalid",
-  });
-  expect(d.statement.get).toHaveBeenLastCalledWith(
-    expect.objectContaining({
-      $jid: null,
-      $work: "remote",
-      $fit: "high",
-      $status: "applied",
-      $reqs: "[]",
-      $comp: "100",
-      $link: "https://fixture.invalid",
-    }),
-  );
+  await jobCmd("update", { id: "4", "source-id": "42", source: "ats", requirements: "[]", "work-type": "remote" });
+  expect(saveJob).toHaveBeenLastCalledWith(d.asDatabase, { source_job_id: "42", source: "ats", requirements_json: "[]", work_type: "remote" }, 4, false);
+  expect(output.log).toHaveBeenLastCalledWith("job #4 updated");
+  vi.mocked(saveJob).mockReturnValue({ job: { id: 4 } as any, created: false, existing: true, missing: [] });
+  vi.mocked(notifyChange).mockClear();
+  await jobCmd("save", { "linkedin-id": "job-one" });
+  expect(output.log).toHaveBeenLastCalledWith("job #4 already exists");
+  expect(notifyChange).not.toHaveBeenCalled();
+  for (const id of [undefined, "0", "-1", "1.5", "9007199254740992", "bad"])
+    await expect(jobCmd("update", id ? { id } : {})).rejects.toThrow("positive job id");
 });
 test("metrics and scores preserve zero, optional dates and nulls", async () => {
   await metricCmd({
@@ -259,9 +237,7 @@ test("validations stop before writes and report unknown subcommands", async () =
   expect(notifyChange).not.toHaveBeenCalled();
 });
 test("database failures never notify a successful write", async () => {
-  d.statement.get.mockImplementation(() => {
-    throw new Error("db failed");
-  });
+  vi.mocked(saveJob).mockImplementation(() => { throw new Error("db failed"); });
   await expect(jobCmd("save", {})).rejects.toThrow("db failed");
   expect(notifyChange).not.toHaveBeenCalled();
 });

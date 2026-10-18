@@ -1,0 +1,94 @@
+import { afterAll, beforeAll, beforeEach, expect, test, vi } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+const home = mkdtempSync(join(tmpdir(), "work-tracker-manual-jobs-"));
+const previousHome = process.env.WORK_TRACKER_HOME;
+process.env.WORK_TRACKER_HOME = home;
+let db: typeof import("../../db/index.ts").db;
+let closeDb: typeof import("../../db/index.ts").closeDb;
+let jobCmd: typeof import("../../cli/records.ts").jobCmd;
+let handle: (req: Request) => Promise<Response>;
+let service: import("../../preparation/service.ts").PreparationService;
+const acp = { run: vi.fn(async () => {}), cancel: vi.fn() };
+const broadcast = vi.fn();
+const draft = { title: "External Engineer", company_name: "Synthetic Corp", source: "careers", source_job_id: "42", link: "https://careers.test/jobs?id=42" };
+const call = async (action: string, body: unknown) => {
+  const response = await handle(new Request(`http://localhost/api/${action}?token=secret`, { method: "POST", body: JSON.stringify(body) }));
+  return { status: response.status, body: await response.json() as any };
+};
+const state = () => ["jobs", "applications", "application_runs", "pdf_artifacts"].map(table => db().query(`SELECT * FROM ${table}`).all());
+beforeAll(async () => {
+  ({ db, closeDb } = await import("../../db/index.ts"));
+  ({ jobCmd } = await import("../../cli/records.ts"));
+  const { PreparationService } = await import("../../preparation/service.ts");
+  const { createRequestHandler } = await import("../../server/index.ts");
+  service = new PreparationService(acp, broadcast);
+  handle = createRequestHandler({ token: "secret", acp, broadcast, preparation: service });
+});
+beforeEach(() => {
+  db().exec("DROP TRIGGER IF EXISTS fail_edit; DELETE FROM pdf_artifacts; DELETE FROM application_runs; DELETE FROM applications; DELETE FROM jobs;");
+  broadcast.mockClear();
+});
+afterAll(async () => {
+  await service.close(); closeDb(); rmSync(home, { recursive: true, force: true });
+  if (previousHome === undefined) delete process.env.WORK_TRACKER_HOME;
+  else process.env.WORK_TRACKER_HOME = previousHome;
+});
+
+test("external job creation, editing and preparation details need no agent and keep associated snapshots", async () => {
+  const saved = await call("jobs/create", draft);
+  expect(saved).toMatchObject({ status: 201, body: { created: true, missing: ["description"] } });
+  const id = saved.body.job.id;
+  db().query("INSERT INTO applications (job_id, role_title, company_name, external_url, resume_path) VALUES (?, 'Original title', 'Original company', 'https://original.test', '/fixture.pdf')").run(id);
+  db().query("INSERT INTO application_runs (id, job_id, application_id, status, phase, provider, created_at, updated_at, manifest_json) VALUES ('prior', ?, 1, 'completed', 'review', 'fake', 'then', 'then', '{\"title\":\"Original\"}')").run(id);
+  db().query("INSERT INTO pdf_artifacts (id, run_id, kind, path, pages, text, warnings_json) VALUES ('pdf', 'prior', 'tailored', '/fixture.pdf', 1, 'Original PDF', '[]')").run();
+  const [, ...before] = state();
+  const updated = await call("jobs/update", { id, title: "Updated Engineer", description: "Build synthetic systems.", location: "Remote", work_type: "remote", comp: "USD 100k", requirements_json: '["TypeScript"]' });
+  expect(updated).toMatchObject({ status: 200, body: { missing: [], job: { id, title: "Updated Engineer", company_name: "Synthetic Corp" } } });
+  expect(state().slice(1)).toEqual(before);
+  const details = await call("application-preparation/details", { jobId: id, applicationId: 1 });
+  expect(details.body).toMatchObject({ job: { id, title: "Updated Engineer", description: "Build synthetic systems." }, journey: { id: 1 } });
+  expect(acp.run).not.toHaveBeenCalled();
+  closeDb();
+  expect(db().query("SELECT source, source_job_id FROM jobs WHERE id = ?").get(id)).toEqual({ source: "careers", source_job_id: "42" });
+});
+
+test("API and CLI use the same source and normalized URL deduplication", async () => {
+  const first = await call("jobs/create", draft);
+  const id = first.body.job.id;
+  const duplicate = await call("jobs/create", { ...draft, source: "CAREERS", link: "https://different.test/42" });
+  expect(duplicate).toMatchObject({ status: 200, body: { existing: true, job: { id, link: draft.link } } });
+  const output = vi.spyOn(console, "log").mockImplementation(() => {});
+  try {
+    await jobCmd("save", { title: "Changed", company: "Different", link: "http://www.careers.test/jobs/?utm_source=x&id=42#top" });
+    expect(output).toHaveBeenCalledWith(`job #${id} already exists`);
+    await jobCmd("update", { id: String(id), description: "CLI description" });
+    expect(db().query("SELECT description FROM jobs WHERE id = ?").get(id)).toEqual({ description: "CLI description" });
+    await expect(jobCmd("update", { id: String(id), link: "javascript:bad" })).rejects.toThrow("HTTP or HTTPS");
+  } finally { output.mockRestore(); }
+  const other = await call("jobs/create", { ...draft, source_job_id: "43", link: "https://careers.test/jobs?id=43" });
+  expect(other.status).toBe(201);
+  expect(other.body.job.id).not.toBe(id);
+  expect(db().query("SELECT COUNT(*) AS n FROM jobs").get()).toEqual({ n: 2 });
+});
+
+test("invalid drafts, preparation requirements, collisions and failed writes never change prior data", async () => {
+  const first = await call("jobs/create", draft);
+  const second = await call("jobs/create", { title: "Other", company_name: "Other" });
+  const before = state();
+  broadcast.mockClear();
+  for (const fields of [{ title: "" }, { company_name: null }, { link: "bad" }, { requirements_json: "{" }, { source_job_id: 12 }])
+    expect((await call("jobs/update", { id: first.body.job.id, ...fields })).status).toBe(400);
+  expect((await call("jobs/update", { id: second.body.job.id, link: draft.link })).status).toBe(409);
+  expect((await call("jobs/update", { id: 0 })).status).toBe(400);
+  expect((await call("jobs/update", { id: 999 })).status).toBe(404);
+  expect((await call("jobs/create", { company_name: "Only company" })).status).toBe(400);
+  expect((await call("application-preparation/generate", { jobId: first.body.job.id, provider: "fake" })).status).toBe(400);
+  db().exec("CREATE TRIGGER fail_edit AFTER UPDATE ON jobs BEGIN SELECT RAISE(ABORT, 'write failed'); END");
+  await expect(call("jobs/update", { id: first.body.job.id, title: "Failed update" })).rejects.toThrow("write failed");
+  expect(state()).toEqual(before);
+  expect(broadcast).not.toHaveBeenCalled();
+  expect(acp.run).not.toHaveBeenCalled();
+});

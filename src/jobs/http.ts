@@ -1,3 +1,4 @@
+import { JobError, saveJob } from "./store.ts";
 import { db, now } from "../db/index.ts";
 
 /** Job lifecycle actions preserve linked application and interview history. */
@@ -7,11 +8,24 @@ export async function handleJobAction(
   broadcast: (event: unknown) => void,
 ): Promise<Response> {
   const action = path.slice("/api/jobs/".length);
-  if (!["archive", "restore", "delete"].includes(action))
+  if (!["create", "update", "archive", "restore", "delete"].includes(action))
     return Response.json({ error: "Not found." }, { status: 404 });
   if (req.method !== "POST")
     return Response.json({ error: "Method not allowed." }, { status: 405 });
   const body: unknown = await req.json().catch(() => null);
+  if (action === "create" || action === "update") {
+    try {
+      if (action === "update" && (!body || typeof body !== "object" || !("id" in body)
+        || typeof body.id !== "number" || !Number.isSafeInteger(body.id) || body.id <= 0))
+        throw new JobError("Expected a positive job id.");
+      const result = saveJob(db(), body, action === "update" ? (body as { id: number }).id : undefined);
+      if (!result.existing) broadcast({ type: "changed", table: "jobs" });
+      return Response.json(result, { status: result.created ? 201 : 200 });
+    } catch (error) {
+      if (!(error instanceof JobError)) throw error;
+      return Response.json({ error: error.message, existing_id: error.existingId }, { status: error.status });
+    }
+  }
   if (
     !body ||
     typeof body !== "object" ||

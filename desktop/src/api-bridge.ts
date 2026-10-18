@@ -22,6 +22,8 @@ const reads = new Set([
 ])
 const writes = new Set([
   "browser/login",
+  "jobs/create",
+  "jobs/update",
   "jobs/archive",
   "jobs/restore",
   "jobs/delete",

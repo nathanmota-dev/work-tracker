@@ -42,6 +42,10 @@ test("matches saved jobs only by link or LinkedIn ID and reports linked applicat
   ]);
   expect(jobCandidates(d, "https://jobs.example.test/role", byLink)).toEqual([]);
   expect(jobCandidates(d, "Example Corp")).toEqual([]);
+  const legacyUrl = insertJob(d, { link: "https://linkedin.com/jobs/view/title-7788" });
+  expect(jobCandidates(d, "https://linkedin.com/jobs/search?currentJobId=7788")).toEqual([
+    expect.objectContaining({ id: legacyUrl, match: "linkedin_id" }),
+  ]);
 });
 
 test("lists what preparation still needs", () => {

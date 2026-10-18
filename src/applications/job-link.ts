@@ -1,8 +1,14 @@
 import { now } from "../db/index.ts";
 import type { Database } from "../db/sqlite.ts";
 import { journeyRecord, type JourneyRecord } from "./journey-store.ts";
-import type { JobCandidate, JobLinkOptions, JobLinkResult, PreparationField } from "./types.ts";
+import type { JobCandidate, JobLinkOptions, JobLinkResult } from "./types.ts";
 import { ApplicationBoardError, id, optionalText, type Body } from "./validation.ts";
+
+export { normalizeLink, linkedinJobId } from "../jobs/identity.ts";
+import { normalizeLink, linkedinJobId } from "../jobs/identity.ts";
+import { saveJob } from "../jobs/store.ts";
+export { missingForPreparation } from "../jobs/preparation.ts";
+import { missingForPreparation } from "../jobs/preparation.ts";
 
 interface LinkContext extends JourneyRecord {
   role_title: string | null;
@@ -22,31 +28,6 @@ interface JobRow {
 }
 const jobColumns = "id, title, company_name, link, linkedin_job_id, description, comp, archived_at";
 
-/** Comparable form of a web link; null when the text is not an HTTP(S) URL. */
-export function normalizeLink(value: string | null): string | null {
-  if (!value) return null;
-  try {
-    const url = new URL(value);
-    if (!["http:", "https:"].includes(url.protocol) || !url.hostname) return null;
-    url.hash = "";
-    return `${url.hostname.toLowerCase().replace(/^www\./, "")}${url.pathname.replace(/\/+$/, "")}${url.search}`;
-  } catch {
-    return null;
-  }
-}
-
-/** External LinkedIn job ID in a job URL (`/jobs/view/<id>` or `currentJobId=<id>`). */
-export function linkedinJobId(value: string | null): string | null {
-  if (!value) return null;
-  try {
-    const url = new URL(value);
-    if (!/(^|\.)linkedin\.com$/i.test(url.hostname)) return null;
-    return url.pathname.match(/\/jobs\/view\/(?:[^/]*-)?(\d+)/)?.[1] ?? url.searchParams.get("currentJobId")?.match(/^\d+$/)?.[0] ?? null;
-  } catch {
-    return null;
-  }
-}
-
 function linkContext(d: Database, applicationId: number): LinkContext {
   journeyRecord(d, applicationId);
   return d.query(`SELECT a.id, a.job_id, a.origin, a.attempt, a.previous_application_id, a.submission_status, a.tracking_status,
@@ -65,22 +46,12 @@ export function jobCandidates(d: Database, url: string | null, exclude: number |
   if (!link && !external) return [];
   const rows = d.query(`SELECT ${jobColumns} FROM jobs ORDER BY id`).all() as JobRow[];
   return rows.flatMap((job) => {
-    const match = external && job.linkedin_job_id === external ? "linkedin_id" as const
+    const match = external && (job.linkedin_job_id ?? linkedinJobId(job.link)) === external ? "linkedin_id" as const
       : link && normalizeLink(job.link) === link ? "link" as const : null;
     if (!match || job.id === exclude) return [];
     const { id: jobId, title, company_name, link: jobLink, archived_at } = job;
     return [{ id: jobId, title, company_name, link: jobLink, archived_at, match, application_id: applicationFor(d, job.id) }];
   });
-}
-
-/** Data a job lacks for resume preparation; a LinkedIn ID lets Apply fetch the description. */
-export function missingForPreparation(job: Pick<JobRow, "title" | "company_name" | "link" | "linkedin_job_id" | "description">): PreparationField[] {
-  const missing: PreparationField[] = [];
-  if (!job.title?.trim()) missing.push("role_title");
-  if (!job.company_name?.trim()) missing.push("company_name");
-  if (!normalizeLink(job.link)) missing.push("external_url");
-  if (!job.description?.trim() && !job.linkedin_job_id) missing.push("description");
-  return missing;
 }
 
 function requireUnlinked(record: LinkContext): void {
@@ -112,10 +83,8 @@ function createJob(d: Database, record: LinkContext, body: Body): number {
   const existing = jobCandidates(d, link);
   if (existing.length)
     throw new ApplicationBoardError(`Job #${existing[0]!.id} already has this link. Link that job instead of creating another one.`, 409);
-  const row = d.query(`INSERT INTO jobs (linkedin_job_id, title, company_name, comp, link, description)
-    VALUES (?, ?, ?, ?, ?, ?) RETURNING id`).get(linkedinJobId(link), title, company, optionalText(body.comp) ?? record.comp,
-    new URL(link!).href, optionalText(body.description)) as { id: number };
-  return row.id;
+  return saveJob(d, { title, company_name: company, comp: optionalText(body.comp) ?? record.comp,
+    link, description: optionalText(body.description) }).job.id;
 }
 
 /**

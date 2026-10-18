@@ -609,10 +609,8 @@ test("rejects a confirmation whose execution belongs to another application, job
 
 test("fails a generation with no description or LinkedIn reference before starting the agent", async () => {
   job.description = null;
-  service.generate({ jobId: 1, provider: "agent" });
-  await settle();
-  expect(run.status).toBe("failed");
-  expect(run.error).toContain("Add the job description");
+  expect(() => service.generate({ jobId: 1, provider: "agent" })).toThrow("Missing for preparation: description");
+  expect(d.query.mock.calls.some(([sql]) => sql.includes("INSERT INTO application_runs"))).toBe(false);
   expect(acp.run).not.toHaveBeenCalled();
 });
 test("records agent execution failures and releases the execution lock", async () => {

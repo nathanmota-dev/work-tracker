@@ -3,7 +3,7 @@
  * it; existing workspaces reach it through the ordered migrations in
  * `migrations.ts`, whose last version must equal SCHEMA_VERSION.
  */
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 /** Bookkeeping tables the migration runner needs before any migration runs. */
 export const MIGRATION_TABLES_SQL = /* sql */ `
@@ -281,6 +281,8 @@ export const COLUMN_MIGRATIONS: Record<string, Record<string, string>> = {
   jobs: {
     archived_at: "TEXT",
     description: "TEXT",
+    source: "TEXT",
+    source_job_id: "TEXT",
   },
   applications: {
     preparation_run_id: "TEXT REFERENCES application_runs(id)",

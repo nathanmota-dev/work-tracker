@@ -24,6 +24,7 @@ import {
 import { useApi, request, text, type Row } from "@/lib/api"
 import { openApply } from "@/lib/preparation"
 import { prepareSkill } from "@/lib/agent"
+import { JobForm, type JobSaveResult } from "@/components/job-form"
 import { nextStep } from "@/lib/application-journey"
 
 function JobDetailActions({
@@ -135,10 +136,12 @@ function DeleteJobDialog({
   )
 }
 
-export function JobsPage() {
+function useJobs() {
   const api = useApi<Row[]>("jobs")
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const selected = api.data?.find((row) => row.id === selectedId) ?? null
+  const [editing, setEditing] = useState<Row | "new" | null>(null)
+  const [notice, setNotice] = useState("")
   const [deleting, setDeleting] = useState<Row | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
@@ -147,6 +150,7 @@ export function JobsPage() {
 
   async function mutate(action: "archive" | "restore" | "delete", row: Row) {
     setBusy(true)
+    setNotice("")
     setError("")
     try {
       await request(`jobs/${action}`, { id: row.id })
@@ -175,17 +179,39 @@ export function JobsPage() {
       />
     )
   }
+  function edit(job: Row | "new" | null) {
+    setNotice("")
+    setError("")
+    setSelectedId(null)
+    setEditing(job)
+  }
+  function saved(result: JobSaveResult) {
+    setEditing(null)
+    setNotice(result.existing ? `Job #${result.job.id} already exists. Its saved content was preserved.` : "Job saved.")
+    api.refresh()
+    setSelectedId(Number(result.job.id))
+  }
+  return { api, selected, deleting, busy, error, active, archived, editing, notice,
+    setSelectedId, edit, setDeleting, setError, actions, saved, mutate }
+}
+
+export function JobsPage() {
+  const { api, selected, deleting, busy, error, active, archived, editing, notice,
+    setSelectedId, edit, setDeleting, setError, actions, saved, mutate } = useJobs()
   return (
     <Page
       title="Jobs"
       description="A considered shortlist for your next chapter."
       actions={
-        <Button size="sm" onClick={() => prepareSkill("job-scout")}>
-          Discover opportunities
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => edit("new")}>Add job</Button>
+          <Button size="sm" onClick={() => prepareSkill("job-scout")}>Discover opportunities</Button>
+        </div>
       }
     >
       <LoadState {...api} retry={api.refresh} />
+      {notice && <p role="status" className="text-sm">{notice}</p>}
+      {editing && <JobForm job={editing === "new" ? undefined : editing} onClose={() => edit(null)} onSaved={saved} />}
       {error && !deleting && !selected && (
         <p role="alert" className="text-sm text-destructive">
           {error}
@@ -207,6 +233,7 @@ export function JobsPage() {
         title={text(selected?.title)}
         onClose={() => setSelectedId(null)}
       >
+        <Button variant="outline" disabled={busy} onClick={() => selected && edit(selected)}>Edit job</Button>
         <JobDetailActions
           selected={selected}
           busy={busy}
