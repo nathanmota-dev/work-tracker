@@ -39,7 +39,8 @@ Write API (used by skills):
   work-tracker outreach blocked --company-urn <n>                List people blocked for a company
   work-tracker outreach budget [set: --plan --remaining --allotment --rollover-cap --reserve-floor]
   work-tracker outreach withdraw --id <n>                        Withdraw pending invite (browser) + block
-  work-tracker job save [--linkedin-id --title --company --location --work-type --comp --fit --link --status]
+  work-tracker job save --title <t> --company <c> [--linkedin-id --source --source-id --location --work-type --comp --fit --link --status --requirements --description]
+  work-tracker job update --id <n> [same job fields]
   work-tracker job list                     List jobs, including archived_at
   work-tracker metric record [--search-appearances --profile-views --post-impressions --connections --score]
   work-tracker score record --value <n> [--signals <json>]

@@ -1,14 +1,17 @@
 import { beforeEach, expect, test, vi } from "vitest";
 import { db } from "../db/index.ts";
 import { databaseDouble } from "../test/doubles.ts";
+import { saveJob, JobError } from "./store.ts";
 import { handleJobAction } from "./http.ts";
 vi.mock("../db/index.ts", () => ({ db: vi.fn(), now: () => "now" }));
+vi.mock("./store.ts", async (original) => ({ ...await original<typeof import("./store.ts")>(), saveJob: vi.fn() }));
 let d: ReturnType<typeof databaseDouble>;
 const broadcast = vi.fn();
 beforeEach(() => {
   d = databaseDouble();
   vi.mocked(db).mockReturnValue(d.asDatabase);
   broadcast.mockClear();
+  vi.mocked(saveJob).mockReset();
 });
 const call = (action: string, body: unknown = { id: 1 }, method = "POST") =>
   handleJobAction(
@@ -77,4 +80,31 @@ test("deletes only unlinked jobs and checks all three kinds of history", async (
   d.statement.get.mockReturnValueOnce({ id: 1 }).mockReturnValueOnce(undefined);
   expect((await call("delete")).status).toBe(200);
   expect(d.statement.run).toHaveBeenCalledWith(1);
+});
+
+test("create and update return shared validation results and notify only after a write", async () => {
+  const result = { job: { id: 1, title: "Engineer" } as any, created: true, existing: false, missing: [] };
+  vi.mocked(saveJob).mockReturnValue(result);
+  expect((await call("create", { title: "Engineer", company_name: "Corp" })).status).toBe(201);
+  expect(saveJob).toHaveBeenCalledWith(d.asDatabase, { title: "Engineer", company_name: "Corp" }, undefined);
+  expect(broadcast).toHaveBeenCalledOnce();
+  broadcast.mockClear();
+  vi.mocked(saveJob).mockReturnValue({ ...result, created: false, existing: true });
+  expect((await call("create", {})).status).toBe(200);
+  expect(broadcast).not.toHaveBeenCalled();
+  vi.mocked(saveJob).mockReturnValue({ ...result, created: false });
+  expect((await call("update", { id: 1, description: "Build" })).status).toBe(200);
+  expect(saveJob).toHaveBeenLastCalledWith(d.asDatabase, { id: 1, description: "Build" }, 1);
+});
+test("invalid updates and identity conflicts report errors, unexpected failures propagate", async () => {
+  for (const body of [null, [], {}, { id: "1" }, { id: 0 }, { id: 1.5 }])
+    expect((await call("update", body)).status).toBe(400);
+  expect(saveJob).not.toHaveBeenCalled();
+  vi.mocked(saveJob).mockImplementation(() => { throw new JobError("Existing job", 409, 4); });
+  const response = await call("create", {});
+  expect(response.status).toBe(409);
+  expect(await response.json()).toEqual({ error: "Existing job", existing_id: 4 });
+  vi.mocked(saveJob).mockImplementation(() => { throw new Error("disk full"); });
+  await expect(call("create", {})).rejects.toThrow("disk full");
+  expect(broadcast).not.toHaveBeenCalled();
 });

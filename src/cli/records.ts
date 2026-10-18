@@ -6,41 +6,7 @@ import { applyStatus, journeyRecord, openApplication, resolveJob, transition } f
 import { JourneyError } from "../applications/journey.ts";
 import { applicationReviewCmd, REVIEW_SUBCOMMANDS } from "./application-review.ts";
 
-/** work-tracker job save | list */
-export async function jobCmd(sub: string, flags: Flags): Promise<void> {
-  const d = db();
-  if (sub === "list") {
-    console.log(JSON.stringify(d.query("SELECT * FROM jobs ORDER BY scouted_at DESC, id DESC").all(), null, 2));
-    return;
-  }
-  if (sub === "save") {
-    const row = d.query(`
-      INSERT INTO jobs (linkedin_job_id, title, company_name, location, work_type, comp, fit, requirements_json, status, link)
-      VALUES ($jid, $title, $company, $location, $work, $comp, $fit, $reqs, $status, $link)
-      ON CONFLICT(linkedin_job_id) DO UPDATE SET
-        fit = COALESCE(excluded.fit, jobs.fit),
-        status = CASE WHEN jobs.archived_at IS NULL
-          THEN COALESCE(excluded.status, jobs.status) ELSE jobs.status END
-      RETURNING id, archived_at
-    `).get({
-      $jid: str(flags, "linkedin-id") ?? null,
-      $title: str(flags, "title") ?? null,
-      $company: str(flags, "company") ?? null,
-      $location: str(flags, "location") ?? null,
-      $work: str(flags, "work-type") ?? null,
-      $comp: str(flags, "comp") ?? null,
-      $fit: str(flags, "fit") ?? null,
-      $reqs: str(flags, "requirements") ?? null,
-      $status: str(flags, "status") ?? "saved",
-      $link: str(flags, "link") ?? null,
-    }) as { id: number; archived_at: string | null };
-    await notifyChange("jobs");
-    console.log(row.archived_at ? `job #${row.id} remains archived` : `job #${row.id} saved`);
-    return;
-  }
-  console.error(`unknown job subcommand: ${sub}`);
-  process.exit(1);
-}
+export { jobCmd } from "./jobs.ts";
 
 /** work-tracker metric record */
 export async function metricCmd(flags: Flags): Promise<void> {

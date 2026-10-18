@@ -26,6 +26,8 @@ const writes = new Set([
   "integrations",
   "integrations/test",
   "browser/login",
+  "jobs/create",
+  "jobs/update",
   "jobs/archive",
   "jobs/restore",
   "jobs/delete",

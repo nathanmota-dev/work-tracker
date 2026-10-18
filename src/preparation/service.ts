@@ -11,6 +11,7 @@ import { PreparationError, snapshotSources, sourcesConfig, writeSnapshot, type S
 import { addArtifact, artifactFile, cachedPreview, runManifest, runRecord, updateRun } from "./store.ts";
 import type { PdfArtifact, PreparationDetails, PreparationRun, SourcesState, SubmissionConfirmation } from "./types.ts";
 import { journeyRecord, latestForJob, openApplication, settleExecution, startTracking, transition } from "../applications/journey-store.ts";
+import { missingForPreparation } from "../jobs/preparation.ts";
 import { planTransition } from "../applications/journey.ts";
 
 export type PreparationAgent = Pick<SessionManager, "run" | "cancel"> & Partial<Pick<SessionManager, "subscribe" | "isRunning">>;
@@ -124,6 +125,8 @@ export class PreparationService {
     if (applicationId && !d.query("SELECT id FROM applications WHERE id = ? AND job_id = ?").get(applicationId, job.id)) throw new PreparationError("This application belongs to another job.");
     // Generating a resume never changes the submission; a submitted attempt keeps its documents.
     if (applicationId) planTransition(journeyRecord(d, applicationId), "prepare.start");
+    const missing = missingForPreparation(job);
+    if (missing.length) throw new PreparationError(`Missing for preparation: ${missing.join(", ")}.`);
     const snapshot = snapshotSources();
     if (typeof input.provider !== "string" || !input.provider) throw new PreparationError("Select an agent.");
     const id = randomUUID();
