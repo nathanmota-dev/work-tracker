@@ -1,3 +1,5 @@
+import { answerLanguage } from "../answers/catalog.ts";
+import { saveAnswer, deleteAnswer, listAnswerVariants } from "../answers/store.ts";
 import { db, now } from "../db/index.ts";
 import { notifyChange } from "../db/notify.ts";
 import type { Database } from "../db/sqlite.ts";
@@ -162,22 +164,21 @@ export async function answerCmd(sub: string, flags: Flags): Promise<void> {
   const d = db();
   if (sub === "set") {
     const key = reqStr(flags, "key");
-    const value = str(flags, "value") ?? null;
-    d.query(`
-      INSERT INTO applicant_answers (key, value, category, updated_at)
-      VALUES ($key, $value, $cat, $at)
-      ON CONFLICT(key) DO UPDATE SET
-        value = excluded.value,
-        category = COALESCE(excluded.category, applicant_answers.category),
-        updated_at = excluded.updated_at
-    `).run({
-      $key: key,
-      $value: value,
-      $cat: str(flags, "category") ?? "custom",
-      $at: now(),
-    });
+    saveAnswer({ key, value: str(flags, "value") ?? null, category: str(flags, "category"), language: str(flags, "language") }, d);
     await notifyChange("applicant_answers");
     console.log(`answer '${key}' set`);
+    return;
+  }
+  if (sub === "delete") {
+    deleteAnswer({ key: reqStr(flags, "key"), language: str(flags, "language") }, d);
+    await notifyChange("applicant_answers");
+    console.log("Answer deleted.");
+    return;
+  }
+  if (sub === "list" && str(flags, "language")) {
+    const language = answerLanguage(str(flags, "language"));
+    const category = str(flags, "category");
+    console.log(JSON.stringify(listAnswerVariants(d).filter((row) => row.language === language && (!category || row.category === category)), null, 2));
     return;
   }
   if (sub === "list") {

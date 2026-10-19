@@ -1,3 +1,4 @@
+import { validateAnswer } from "../answers/catalog.ts";
 import { KEY_SPECS, type Category, type KeySpec } from "./synonyms.ts";
 
 /**
@@ -19,6 +20,7 @@ export type MatchReason = "exact" | "synonym" | "fuzzy";
 export type SkipReason =
   | "eeo-human-only" // recognized EEO field — never auto-filled
   | "no-stored-answer" // matched a key, but user has no value for it
+  | "invalid-answer" // legacy invalid answer needs correction
   | "no-match" // no confident key for this label
   | "ambiguous"; // top two candidates too close to call
 
@@ -187,8 +189,13 @@ export function matchLabels(labels: string[], opts: MatchOptions): MatchResult {
     }
 
     const value = opts.answers[top.spec.key];
-    if (value === undefined || value === "") {
+    if (value === undefined || !value.trim()) {
       unfilled.push({ label, skip: "no-stored-answer", key: top.spec.key });
+      continue;
+    }
+
+    if (validateAnswer(top.spec.key, value)) {
+      unfilled.push({ label, skip: "invalid-answer", key: top.spec.key });
       continue;
     }
 

@@ -73,7 +73,7 @@ const readEndpoints = [
   ['Dashboard', 'overview'], ['Profile', 'profile'], ['Launch', 'acp/providers'],
   ['Recruiters', 'recruiters'], ['Outreach', 'outreach'], ['Apply', 'jobs'],
   ['Jobs', 'jobs'], ['Applications', 'applications'],
-  ['Application board', 'application-board'], ['Answers', 'answers'],
+  ['Application board', 'application-board'], ['Answers', 'answers/variants'],
   ['Interviews', 'interviews'], ['Activity', 'activity'], ['Settings', 'acp/providers'],
 ] as const
 for (const [title, endpoint] of readEndpoints) {

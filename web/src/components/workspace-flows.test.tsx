@@ -45,7 +45,7 @@ describe("workspace API flows", () => {
   })
   it("keeps failed answer edits open and persists a successful retry", async () => {
     request.mockImplementation(async (path: string, body?: unknown) => {
-      if (path === "answers")
+      if (path === "answers/variants")
         return [{ key: "name", value: "Old", category: "personal" }]
       if ((body as { value: string }).value === "Fail")
         throw new Error("Save failed")
@@ -70,6 +70,7 @@ describe("workspace API flows", () => {
       key: "name",
       value: "New",
       category: "personal",
+      language: "default",
     })
   })
   it("refreshes data on backend change events", async () => {

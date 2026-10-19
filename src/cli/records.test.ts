@@ -178,8 +178,9 @@ test("answers preserve null values, list category filters and activity supplies 
   expect(d.statement.run).toHaveBeenLastCalledWith({
     $key: "email",
     $value: null,
-    $cat: "custom",
+    $cat: "contact",
     $at: "2026-10-10T12:00:00Z",
+    $default: 1,
   });
   await answerCmd("set", {
     key: "email",
@@ -240,4 +241,24 @@ test("database failures never notify a successful write", async () => {
   vi.mocked(saveJob).mockImplementation(() => { throw new Error("db failed"); });
   await expect(jobCmd("save", {})).rejects.toThrow("db failed");
   expect(notifyChange).not.toHaveBeenCalled();
+});
+
+test("answer language commands canonicalize tags, filter category and delete only the selected version", async () => {
+  await answerCmd("set", { key: "notice_period", value: "Duas semanas", language: "pt-br" });
+  expect(d.statement.run).toHaveBeenLastCalledWith("notice_period", "pt-BR", "Duas semanas", "2026-10-10T12:00:00Z");
+  d.statement.all.mockReturnValue([
+    { key: "notice_period", language: "pt-BR", category: "eligibility", value: "Duas semanas" },
+    { key: "custom", language: "en", category: "custom", value: "Custom text" },
+    { key: "other", language: "pt-BR", category: "custom", value: "Outro texto" },
+  ]);
+  await answerCmd("list", { language: "pt-br", category: "eligibility" });
+  expect(JSON.parse(String(output.log.mock.calls.at(-1)![0]))).toEqual([
+    { key: "notice_period", language: "pt-BR", category: "eligibility", value: "Duas semanas" },
+  ]);
+  await answerCmd("list", { language: "en" });
+  expect(JSON.parse(String(output.log.mock.calls.at(-1)![0]))).toHaveLength(1);
+  await answerCmd("delete", { key: "notice_period", language: "pt-br" });
+  expect(d.statement.run).toHaveBeenCalledWith("notice_period", "pt-BR");
+  expect(notifyChange).toHaveBeenCalledWith("applicant_answers");
+  expect(output.log).toHaveBeenLastCalledWith("Answer deleted.");
 });

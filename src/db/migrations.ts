@@ -59,6 +59,7 @@ export const MIGRATIONS: readonly Migration[] = [
     verify: verifyJourney,
   },
   { version: 5, name: "external job identity", up: ensureCurrentSchema },
+  { version: 6, name: "reusable answer languages", up: ensureCurrentSchema },
 ];
 
 /**
