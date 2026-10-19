@@ -1,6 +1,7 @@
 import { BrowserWindow, ipcMain, shell, dialog } from "electron"
 import { writeFile } from "node:fs/promises"
 import WebSocket from "ws"
+import type { BackendConnection, BackendState } from "./backend-supervisor"
 
 const reads = new Set([
   "integrations",
@@ -73,10 +74,11 @@ const writes = new Set([
   "workspace-backup/inspect",
   "workspace-backup/restore",
 ])
-let connection: { address: string; token: string } | undefined
+let connection: BackendConnection | undefined
 let socket: WebSocket | undefined
 let retry: ReturnType<typeof setTimeout> | undefined
 let live = false
+let unavailable: string | undefined
 function emit(event: unknown) {
   for (const window of BrowserWindow.getAllWindows())
     window.webContents.send("api:event", event)
@@ -89,7 +91,13 @@ async function pdfBuffer(artifactId: string): Promise<ArrayBuffer> {
   if (!response.ok) throw new Error(((await response.json()) as { error?: string }).error ?? "PDF unavailable.")
   return response.arrayBuffer()
 }
-export function registerApiBridge() {
+export type BackendControl = { state(): BackendState; restart(): boolean }
+export function emitBackendState(state: BackendState) {
+  emit({ type: "backend", state })
+}
+export function registerApiBridge(backend: BackendControl) {
+  ipcMain.handle("backend:status", () => backend.state())
+  ipcMain.handle("backend:restart", () => backend.restart())
   ipcMain.handle("api:pdf", (_event, artifactId: string) => pdfBuffer(artifactId))
   ipcMain.handle("api:save-pdf", async (_event, artifactId: string) => {
     const bytes = await pdfBuffer(artifactId)
@@ -109,7 +117,7 @@ export function registerApiBridge() {
       if (!(body === undefined ? reads : writes).has(path))
         throw new Error("Unsupported API request")
       if (!connection)
-        throw new Error("Backend is starting. Please retry in a moment.")
+        throw new Error(unavailable ?? "Backend is starting. Please retry in a moment.")
       const url = new URL(`/api/${path}`, connection.address)
       url.searchParams.set("token", connection.token)
       const response = await fetch(url, {
@@ -142,38 +150,52 @@ export function registerApiBridge() {
     await shell.openExternal(url.toString())
   })
 }
-export function connectApiBridge(value: { address: string; token: string }) {
+/** Connect to a backend process; sockets of a previous connection can no longer emit or reconnect. */
+export function connectApiBridge(value: BackendConnection) {
+  closeApiBridge()
   connection = value
   const connect = () => {
-    if (!connection) return
-    const url = new URL("/ws", connection.address)
+    if (connection !== value) return
+    const url = new URL("/ws", value.address)
     url.protocol = "ws:"
-    url.searchParams.set("token", connection.token)
-    socket = new WebSocket(url)
-    socket.on("open", () => {
-      live = true
-      emit({ type: "connection", live: true })
+    url.searchParams.set("token", value.token)
+    const current = new WebSocket(url)
+    socket = current
+    current.on("open", () => {
+      if (socket !== current) return
+      setLive(true)
       emit({ type: "changed" })
     })
-    socket.on("message", (data) => {
+    current.on("message", (data) => {
+      if (socket !== current) return
       try {
         emit(JSON.parse(data.toString()))
       } catch {
         /* invalid frame */
       }
     })
-    socket.on("error", () => socket?.close())
-    socket.on("close", () => {
-      live = false
-      emit({ type: "connection", live: false })
-      if (connection) retry = setTimeout(connect, 2000)
+    current.on("error", () => current.close())
+    current.on("close", () => {
+      if (socket !== current) return
+      socket = undefined
+      setLive(false)
+      if (connection === value) retry = setTimeout(connect, 2000)
     })
   }
   connect()
 }
-export function closeApiBridge() {
+function setLive(value: boolean) {
+  if (live === value) return
+  live = value
+  emit({ type: "connection", live: value })
+}
+/** Stop using the backend; requests fail with `reason` until the next connection. */
+export function closeApiBridge(reason?: string) {
+  unavailable = reason
   connection = undefined
   clearTimeout(retry)
-  socket?.close()
-  live = false
+  const current = socket
+  socket = undefined
+  current?.close()
+  setLive(false)
 }

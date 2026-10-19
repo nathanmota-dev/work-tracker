@@ -1,0 +1,91 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+const electron = vi.hoisted(() => ({
+  handlers: new Map<string, (...args: unknown[]) => unknown>(),
+  send: vi.fn(),
+}))
+const sockets = vi.hoisted(() => [] as { url: string; emit(event: string, ...args: unknown[]): boolean; close: () => void }[])
+vi.mock("electron", () => ({
+  BrowserWindow: { getAllWindows: () => [{ webContents: { send: electron.send } }] },
+  ipcMain: { handle: (channel: string, handler: (...args: unknown[]) => unknown) => electron.handlers.set(channel, handler) },
+  shell: { openExternal: vi.fn() },
+  dialog: {},
+}))
+vi.mock("ws", async () => {
+  const { EventEmitter } = await import("node:events")
+  class FakeSocket extends EventEmitter {
+    readonly close = vi.fn(() => { this.emit("close") })
+    readonly url: string
+    constructor(url: URL) {
+      super()
+      this.url = url.href
+      sockets.push(this)
+    }
+  }
+  return { default: FakeSocket }
+})
+const { closeApiBridge, connectApiBridge, emitBackendState, registerApiBridge } = await import("./api-bridge")
+const events = () => electron.send.mock.calls.map(call => call[1])
+const backend = { state: vi.fn(() => ({ status: "ready" as const, restarts: 0, failures: 0, logPath: "/logs/backend.log" })), restart: vi.fn(() => true) }
+registerApiBridge(backend)
+
+describe("api bridge", () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    sockets.length = 0
+  })
+  afterEach(() => {
+    closeApiBridge()
+    electron.send.mockClear()
+  })
+
+  it("exposes the backend state and restart action", async () => {
+    expect(electron.handlers.get("backend:status")!()).toMatchObject({ status: "ready" })
+    expect(electron.handlers.get("backend:restart")!()).toBe(true)
+    expect(backend.restart).toHaveBeenCalledOnce()
+    emitBackendState({ status: "unavailable", restarts: 0, failures: 1, logPath: "/logs/backend.log" })
+    expect(events()).toEqual([{ type: "backend", state: expect.objectContaining({ status: "unavailable" }) }])
+  })
+
+  it("reconnects to a new backend without duplicated sockets or events", async () => {
+    connectApiBridge({ address: "http://127.0.0.1:4000", token: "old" })
+    const old = sockets[0]!
+    old.emit("open")
+    expect(await electron.handlers.get("api:status")!()).toBe(true)
+    closeApiBridge("The backend stopped unexpectedly (exit code 9). Restart the backend to continue.")
+    expect(old.close).toHaveBeenCalledOnce()
+    await expect(electron.handlers.get("api:request")!({}, "jobs")).rejects.toThrow("Restart the backend to continue.")
+    // A closed connection does not keep retrying the old port.
+    vi.advanceTimersByTime(10_000)
+    expect(sockets).toHaveLength(1)
+
+    connectApiBridge({ address: "http://127.0.0.1:4001", token: "new" })
+    expect(sockets).toHaveLength(2)
+    expect(sockets[1]!.url).toBe("ws://127.0.0.1:4001/ws?token=new")
+    const current = sockets[1]!
+    current.emit("open")
+    old.emit("message", Buffer.from(JSON.stringify({ type: "changed", table: "stale" })))
+    current.emit("message", Buffer.from(JSON.stringify({ type: "changed", table: "jobs" })))
+    current.emit("message", Buffer.from("not json"))
+    expect(events()).toEqual([
+      { type: "connection", live: true },
+      { type: "changed" },
+      { type: "connection", live: false },
+      { type: "connection", live: true },
+      { type: "changed" },
+      { type: "changed", table: "jobs" },
+    ])
+  })
+
+  it("retries only the current socket after a transient close", () => {
+    connectApiBridge({ address: "http://127.0.0.1:4000", token: "first" })
+    connectApiBridge({ address: "http://127.0.0.1:4001", token: "second" })
+    const [first, second] = sockets
+    first!.emit("close")
+    second!.emit("error")
+    expect(second!.close).toHaveBeenCalledOnce()
+    vi.advanceTimersByTime(2000)
+    expect(sockets).toHaveLength(3)
+    expect(sockets[2]!.url).toContain("token=second")
+  })
+})

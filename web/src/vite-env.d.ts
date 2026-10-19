@@ -7,6 +7,8 @@ interface Window {
     getVersion: () => Promise<string>
     request: (path: string, body?: unknown) => Promise<unknown>
     connectionStatus: () => Promise<boolean>
+    backendStatus?: () => Promise<unknown>
+    restartBackend?: () => Promise<boolean>
     openExternal: (url: string) => Promise<void>
     onEvent: (listener: (event: unknown) => void) => () => void
   }

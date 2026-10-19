@@ -91,6 +91,10 @@ breadcrumb, view-specific content and reload. New sidebar entries require tests.
 All data-backed views also exercise failed loading and retry. Search errors are
 exercised through MCP. Shell tests cover the root redirect, collapsed sidebar,
 command palette, keyboard selection, history and a narrow window/PDF tabs.
+`backend-recovery.spec.ts` kills the backend process during an agent run, checks
+the unavailable state, restarts it from the interface, and verifies that the run
+is shown as interrupted without a second prompt while navigation, live CLI
+updates and the backend log keep working.
 
 Keep journeys independent; do not rely on test ordering or share databases. Use
 accessible locators and real pointer events for drag and drop. Read database state

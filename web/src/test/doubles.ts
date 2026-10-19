@@ -15,6 +15,8 @@ export function desktopDouble() {
       .mockResolvedValue(null),
     getVersion: vi.fn().mockResolvedValue("1.0.0"),
     connectionStatus: vi.fn().mockResolvedValue(false),
+    backendStatus: vi.fn().mockResolvedValue(undefined),
+    restartBackend: vi.fn().mockResolvedValue(true),
     openExternal: vi
       .fn<NonNullable<Window["desktop"]>["openExternal"]>()
       .mockResolvedValue(undefined),

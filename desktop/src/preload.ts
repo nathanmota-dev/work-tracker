@@ -3,6 +3,8 @@ import { contextBridge, ipcRenderer } from "electron"
 contextBridge.exposeInMainWorld("desktop", {
   request: (path: string, body?: unknown): Promise<unknown> => ipcRenderer.invoke("api:request", path, body),
   connectionStatus: (): Promise<boolean> => ipcRenderer.invoke("api:status"),
+  backendStatus: (): Promise<unknown> => ipcRenderer.invoke("backend:status"),
+  restartBackend: (): Promise<boolean> => ipcRenderer.invoke("backend:restart"),
   openExternal: (url: string): Promise<void> => ipcRenderer.invoke("app:open-external", url),
   onEvent: (listener: (event: unknown) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, data: unknown) => listener(data)
