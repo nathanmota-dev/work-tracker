@@ -135,3 +135,57 @@ export interface FillReview {
   pending: number;
   instruction: string;
 }
+
+/** Where a batch item is in its pipeline. Pausing the batch or stopping the item keeps it. */
+export type BatchItemPhase = "queued" | "preparing" | "tailoring" | "compiling" | "ready_for_review" | "waiting_for_fill" | "filling" | "in_review" | "submitted";
+/**
+ * What a batch item is doing in its phase: `pending` waits for the executor,
+ * `waiting_for_user` for an approval or a manual submission in the browser.
+ */
+export type BatchItemStatus = "pending" | "running" | "waiting_for_decision" | "waiting_for_sign_in" | "waiting_for_user" | "failed" | "interrupted" | "cancelled" | "completed";
+/**
+ * One job of a batch, processed in position order by a single agent.
+ *
+ * @property holdsPortal Its form is waiting in the browser (or may hold a partial
+ *   fill), so no other application is filled until it is submitted or cancelled.
+ * @property reviewRequired The last fill stopped without a result; retrying it needs the candidate's review.
+ */
+export interface PreparationBatchItem {
+  id: string;
+  batchId: string;
+  position: number;
+  jobId: number;
+  company: string;
+  title: string;
+  applicationId: number | null;
+  runId: string | null;
+  phase: BatchItemPhase;
+  status: BatchItemStatus;
+  attempts: number;
+  holdsPortal: boolean;
+  reviewRequired: boolean;
+  retryable: boolean;
+  extra: string;
+  error: string | null;
+  updatedAt: string;
+}
+/** A persisted batch; `completed` is derived when every item is submitted or cancelled. */
+export interface PreparationBatch {
+  id: string;
+  status: "active" | "paused" | "cancelled" | "completed";
+  pauseReason: "user" | "restart" | null;
+  provider: string;
+  model: string | null;
+  extra: string;
+  sourceVersion: string;
+  createdAt: string;
+  updatedAt: string;
+  items: PreparationBatchItem[];
+  counts: Partial<Record<BatchItemStatus, number>>;
+}
+export interface PreparationQueueState {
+  batches: PreparationBatch[];
+  /** The item whose form currently reserves the browser portal. */
+  portal: { batchId: string; itemId: string; applicationId: number | null; jobId: number; label: string } | null;
+  busy: boolean;
+}

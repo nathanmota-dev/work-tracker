@@ -54,6 +54,7 @@ test("creates an empty database at the latest version and records the whole hist
     [5, "external job identity", "2026-10-16T12:00:00.000Z"],
     [6, "reusable answer languages", "2026-10-16T12:00:00.000Z"],
     [7, "document review versions", "2026-10-16T12:00:00.000Z"],
+    [8, "preparation batch queue", "2026-10-16T12:00:00.000Z"],
     [String(SCHEMA_VERSION)],
   ]);
   expect(d.transaction).toHaveBeenCalledOnce();
@@ -154,8 +155,8 @@ test("the journey step snapshots a v3 workspace, completes its schema, backfills
   vi.mocked(backfillJourney).mockImplementation(() => log.push("backfill"));
   vi.mocked(verifyJourney).mockImplementation(() => log.push("verify"));
   expect(migrateDatabase(d.asDatabase, { backupDir: "/home/backups", clock })).toEqual({
-    mode: "migrated", from: 3, to: 7, applied: [4, 5, 6, 7], backup: "/home/backups/work-tracker-v3-to-v7-2026-10-16T12-00-00-000Z.db",
+    mode: "migrated", from: 3, to: 8, applied: [4, 5, 6, 7, 8], backup: "/home/backups/work-tracker-v3-to-v8-2026-10-16T12-00-00-000Z.db",
   });
-  expect(log).toEqual(["snapshot", "PRAGMA foreign_keys = OFF;", MIGRATION_TABLES_SQL, "ensure", "backfill", "ensure", "ensure", "ensure", "ensure", "verify", "PRAGMA foreign_keys = ON;"]);
-  expect(writes().map((args) => args[0])).toEqual([4, 5, 6, 7, "7"]);
+  expect(log).toEqual(["snapshot", "PRAGMA foreign_keys = OFF;", MIGRATION_TABLES_SQL, "ensure", "backfill", "ensure", "ensure", "ensure", "ensure", "ensure", "verify", "PRAGMA foreign_keys = ON;"]);
+  expect(writes().map((args) => args[0])).toEqual([4, 5, 6, 7, 8, "8"]);
 });

@@ -10,6 +10,9 @@ import { randomUUID } from "node:crypto";
 import { closeMcp } from "../mcp/linkedin.ts";
 import { stopAllOwned } from "../acp/process.ts";
 import { PreparationService } from "../preparation/service.ts";
+import { PreparationQueue } from "../preparation/batch-queue.ts";
+import { integrationTesting } from "../integrations/http.ts";
+import { chromeLoginOpening } from "../mcp/chrome.ts";
 import { nodeRequestListener } from "./http-adapter.ts";
 import { routeApi } from "./routes.ts";
 import { permissionStore } from "../acp/permission-store.ts";
@@ -20,13 +23,15 @@ export function createRequestHandler({
   acp,
   broadcast,
   preparation,
+  queue,
 }: {
   token: string;
   acp: Pick<SessionManager, "run" | "cancel"> & Partial<Pick<SessionManager, "isRunning" | "permissions">>;
   broadcast: (event: unknown) => void;
   preparation?: PreparationService;
+  queue?: PreparationQueue;
 }): (req: Request) => Promise<Response> {
-  const context = { acp, broadcast, preparation };
+  const context = { acp, broadcast, preparation, queue };
   return async (req: Request): Promise<Response> => {
     const url = new URL(req.url);
     const path = url.pathname;
@@ -61,16 +66,23 @@ export async function startBackend(flags: Flags = {}) {
   const token = randomUUID();
   const sockets = new Set<WebSocket>();
   const workspace = paths.workspace;
+  // The batch queue follows runs and agent sessions to start its next item. Both
+  // emit only after startup, once the queue below exists.
+  const observe = (event: unknown) => queue.observe(event);
   const acp = new SessionManager(workspace, (event) => {
     broadcast(sockets, event);
+    observe(event);
     if ((event as { type?: string }).type === "acp-permission" && !sockets.size) queueMicrotask(() => acp.disconnect());
   });
 
-  const preparation = new PreparationService(acp, event => broadcast(sockets, event));
+  const preparation = new PreparationService(acp, event => { broadcast(sockets, event); observe(event); });
+  const queue = new PreparationQueue(preparation, () => acp.isRunning || integrationTesting() || chromeLoginOpening(), event => broadcast(sockets, event));
+  queue.schedule();
   const handleRequest = createRequestHandler({
     token,
     acp,
     preparation,
+    queue,
     broadcast: (event) => broadcast(sockets, event),
   });
   const server = createServer(nodeRequestListener(handleRequest));
@@ -108,6 +120,7 @@ export async function startBackend(flags: Flags = {}) {
     address: `http://127.0.0.1:${address.port}`,
     close(): Promise<void> {
       return (closing ??= (async () => {
+        queue.close();
         await preparation.close();
         acp.stop();
         for (const ws of sockets) ws.terminate();

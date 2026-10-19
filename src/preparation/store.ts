@@ -14,9 +14,12 @@ export function runRecord(id: string): PreparationRun {
   if (!row) throw new PreparationError("Preparation run not found.", 404);
   const { events_json, manifest_json: _manifest, options_json: _options, recovery_json, ...run } = row;
   const events: Record<string, unknown>[] = JSON.parse(events_json);
-  const decision = [...events].reverse().find(event => event.type === "acp-status");
   const artifacts = artifactsForRun(id);
-  return { ...run, ...(run.status === "running" && decision?.status === "waiting_for_permission" ? { decisionStatus: "waiting_for_permission" as const } : {}), events, artifacts, recovery: deriveRecovery({ ...run, artifacts }, parseRecovery(recovery_json)) };
+  return { ...run, ...(run.status === "running" && awaitingDecision(events) ? { decisionStatus: "waiting_for_permission" as const } : {}), events, artifacts, recovery: deriveRecovery({ ...run, artifacts }, parseRecovery(recovery_json)) };
+}
+/** The run's latest ACP status is a pending tool-permission decision. */
+export function awaitingDecision(events: Record<string, unknown>[]): boolean {
+  return [...events].reverse().find(event => event.type === "acp-status")?.status === "waiting_for_permission";
 }
 /** The request that started a run (provider, model, additional context). */
 export function runOptions(id: string): Record<string, unknown> {
