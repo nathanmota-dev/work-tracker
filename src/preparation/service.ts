@@ -14,6 +14,7 @@ import { applyFillResult, fillManifestPath, interruptStaleRuns, readFillResult, 
 import { ensureDescription, readTailoringOutput, resetProject, restoreSources, validateTailoredSources, type GenerationManifest, type GenerationSources } from "./generation.ts";
 export { readableJobDetails } from "./generation.ts";
 import { journeyRecord, latestForJob, openApplication, settleExecution, startTracking, transition } from "../applications/journey-store.ts";
+import { saveDocument, documentsForJob, approvedDocument, approveDocument, freezeDocumentUse } from "./documents.ts";
 import { missingForPreparation } from "../jobs/preparation.ts";
 import { planTransition } from "../applications/journey.ts";
 
@@ -89,10 +90,11 @@ export class PreparationService {
     const application = applicationId ? db().query("SELECT id FROM applications WHERE id = ? AND job_id = ?").get(applicationId, job.id) as { id: number } | undefined : undefined;
     const record = application ? journeyRecord(db(), application.id) : null;
     return {
-      job, runs, busy: this.isBusy, applicationStatus: record?.status ?? null, uploadedRunId: record?.preparation_run_id ?? null,
+      job, runs, documents: documentsForJob(job.id, requestedApplication), busy: this.isBusy, applicationStatus: record?.status ?? null, uploadedRunId: record?.preparation_run_id ?? null,
       journey: record && { id: record.id, origin: record.origin, attempt: record.attempt, preparation_status: record.preparation_status, fill_status: record.fill_status, submission_status: record.submission_status, submitted_at: record.submitted_at, review_reason: record.review_reason },
     };
   }
+  approve(input: Record<string, unknown>) { this.assertIdle(); const version = approveDocument(input); this.changed(version.runId); return version; }
   description(input: Record<string, unknown>): void {
     this.assertIdle();
     const job = jobRecord(jobId(input.jobId));
@@ -122,11 +124,7 @@ export class PreparationService {
     })();
     return this.start(id, signal => this.performGeneration(id, job, "preparing", String(input.extra ?? ""), signal, snapshot));
   }
-  /**
-   * Continue a stopped execution from the phase it needs, in the same run and
-   * application: validated sources, tailored files and PDFs are reused, and a
-   * portal fill that stopped without a result needs `reviewed: true`.
-   */
+  /** Retry from the persisted checkpoint; an unknown portal outcome needs review. */
   retry(input: Record<string, unknown>): PreparationRun {
     this.assertIdle();
     const run = runRecord(String(input.runId ?? ""));
@@ -179,6 +177,7 @@ export class PreparationService {
     const sources = snapshot ? await this.prepareSources(id, job, snapshot, signal)
       : restoreSources({ ...runManifest(id) } as unknown as GenerationManifest, runRecord(id).artifacts.find(item => item.kind === "base")?.pages);
     if (from !== "compiling") {
+      sources.manifest.extra = extra; updateRun(id, { manifest_json: JSON.stringify(sources.manifest) });
       if (!snapshot) { resetProject(sources.manifest); dropCheckpoints(id, "tailored"); }
       this.phase(id, "tailoring");
       if (!await this.agent(id, sources.manifest.manifestPath, "resume-tailor", extra)) return;
@@ -244,7 +243,8 @@ export class PreparationService {
       // Reuses the job's latest attempt, so a retried generation never adds an application.
       const app = current.application_id ? journeyRecord(d, current.application_id) : openApplication(d, { jobId: job.id, origin: "preparation" }).record;
       if (app.submission_status === "submitted") throw new PreparationError("The application was submitted during generation. Its previous PDF is preserved.", 409);
-      addArtifact(id, "tailored", pdfPath, compiled.check);
+      const pdf = addArtifact(id, "tailored", pdfPath, compiled.check);
+      saveDocument(d, id, app.id, pdf, manifest);
       d.query("UPDATE applications SET external_url = COALESCE(external_url, ?), fields_filled_json = NULL, unfilled_json = NULL, resume_path = ?, report_path = ?, cover_letter_path = ?, preparation_run_id = ? WHERE id = ?").run(job.link, pdfPath, manifest.reportPath, existsSync(manifest.coverPath) ? manifest.coverPath : null, id, app.id);
       transition(d, app.id, "prepare.complete", "agent", { runId: id });
       // A new resume needs a new portal fill; the submission is untouched.
@@ -267,14 +267,15 @@ export class PreparationService {
     if (!pdf || !run.application_id || !["completed", "waiting_for_sign_in", "failed", "cancelled", "interrupted"].includes(run.status)) throw new PreparationError("Generate a validated PDF before filling the application.");
     // Never repeat a portal action whose outcome is unknown without the candidate's review.
     if (run.recovery.reviewRequired && input.reviewed !== true) throw new PreparationError("The previous portal fill stopped without a result, so the portal may hold a partial fill. Review it in the browser, then confirm before filling again.", 409);
-    const file = artifactFile(pdf.id);
+    const version = approvedDocument(id, input.versionId);
+    const file = artifactFile(version.id);
     const d = db();
     const application = journeyRecord(d, run.application_id);
     planTransition(application, "fill.start");
     const url = webLink(application.external_url || job.link);
     const manifest = runManifest(id);
     const manifestPath = fillManifestPath(manifest.manifestPath);
-    const fill: FillManifest = { runId: id, job, applicationId: run.application_id, pdfPath: file.path, url, resultPath: join(dirname(manifest.manifestPath), "fill-result.json"), reportPath: manifest.reportPath, coverPath: manifest.coverPath ?? null };
+    const fill: FillManifest = { versionId: version.id, pdfHash: version.pdfHash, runId: id, job: { ...job, description: version.description }, applicationId: run.application_id, pdfPath: file.path, url, resultPath: join(dirname(manifest.manifestPath), "fill-result.json"), reportPath: manifest.reportPath, coverPath: manifest.coverPath ?? null };
     rmSync(fill.resultPath, { force: true });
     writeFileSync(manifestPath, JSON.stringify(fill, null, 2), { mode: 0o600 });
     d.transaction(() => {
@@ -310,6 +311,7 @@ export class PreparationService {
         throw new PreparationError("Fill and submit this application in the browser first.");
       const requested = input.applicationId === undefined || input.applicationId === null ? record.id : jobId(input.applicationId);
       if (record.job_id !== run.job_id || requested !== record.id) throw new PreparationError("This execution belongs to another application.", 409);
+      freezeDocumentUse(d, record.id, run.id);
       const submitted = transition(d, record.id, "submit", "api", { runId: run.id }).changed;
       const tracked = startTracking(d, record.id);
       return { submitted, tracked, record: journeyRecord(d, record.id) };

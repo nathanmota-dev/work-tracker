@@ -1,9 +1,9 @@
 import { Button } from "@/components/ui/button"
 import { correctionLink, diagnosticBlocks, integrationLabels, type Target, type IntegrationStatus } from "@/lib/integrations"
-export type ApplyBlock = { message: string; label: string; href?: string; action?: "description" | "model" }
+export type ApplyBlock = { message: string; label: string; href?: string; action?: "description" | "model" | "review" }
 export type ReadinessInput = {
   live: boolean; busy: boolean; archived: boolean; submitted: boolean; sources: boolean; tools: boolean;
-  descriptionDirty: boolean; descriptionMissing: boolean; linkedinNeeded?: boolean; tailored: boolean; provider?: string; model: string; invalidModel: boolean;
+  descriptionDirty: boolean; descriptionMissing: boolean; linkedinNeeded?: boolean; tailored: boolean; approved?: boolean; provider?: string; model: string; invalidModel: boolean;
   integrations?: IntegrationStatus
 }
 export function applyBlocks(input: ReadinessInput, operation: "generate" | "fill"): ApplyBlock[] {
@@ -19,6 +19,7 @@ export function applyBlocks(input: ReadinessInput, operation: "generate" | "fill
     if (!input.tools) blocks.push({ message: "Required LaTeX or PDF tools are unavailable.", label: "Check installed tools", href: correctionLink() })
     if (input.descriptionDirty || input.descriptionMissing) blocks.push({ message: input.descriptionDirty ? "Save your description changes before generating." : "This job needs a description.", label: "Edit job description", action: "description" })
   } else if (!input.tailored) blocks.push({ message: "Generate and review a validated PDF before filling.", label: "Configure resume sources", href: "#/settings?section=resume" })
+  if (operation === "fill" && input.tailored && input.approved === false) blocks.push({ message: "Approve the displayed document version before filling.", label: "Review document", action: "review" })
   const targets: Target[] = [...(input.provider ? [`acp/${input.provider}` as Target] : []), ...(operation === "fill" ? ["mcp/chrome" as const] : input.linkedinNeeded ? ["mcp/linkedin" as const] : [])]
   for (const target of targets) {
     const entry = input.integrations?.entries.find(entry => entry.target === target)
@@ -29,7 +30,7 @@ export function applyBlocks(input: ReadinessInput, operation: "generate" | "fill
   }
   return blocks
 }
-export function ApplyReadiness({ generate, fill, testing, error, test, correct }: { generate: ApplyBlock[]; fill: ApplyBlock[]; testing: boolean; error: string; test: () => void; correct: (action: "description" | "model") => void }) {
+export function ApplyReadiness({ generate, fill, testing, error, test, correct }: { generate: ApplyBlock[]; fill: ApplyBlock[]; testing: boolean; error: string; test: () => void; correct: (action: "description" | "model" | "review") => void }) {
   return <div className="mt-4 space-y-3 rounded-lg border p-3 text-sm" aria-label="Apply readiness">
     {([ ["Generate", generate], ["Fill", fill] ] as const).map(([label, blocks]) => blocks.length > 0 && <div key={label}><p className="font-medium">{label} is blocked</p><ul className="mt-2 space-y-2">{blocks.map((block, i) => <li key={i}>{block.message} {block.href ? <a className="underline" href={block.href}>{block.label}</a> : <button className="underline" onClick={() => block.action && correct(block.action)}>{block.label}</button>}</li>)}</ul></div>)}
     <p>Test the selected agent and Chrome before filling. LinkedIn uses a separate session when fetching a missing job description. Portal sign-in may still be needed in the browser.</p>

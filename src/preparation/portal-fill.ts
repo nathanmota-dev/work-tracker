@@ -5,10 +5,13 @@ import type { Database } from "../db/sqlite.ts";
 import { journeyRecord, settleExecution, transition } from "../applications/journey-store.ts";
 import { PreparationError } from "./sources.ts";
 import { addCheckpoint, markPortal, parseRecovery } from "./recovery.ts";
+import { verifyDocumentUse, recordDocumentUse } from "./documents.ts";
 import { updateRun } from "./store.ts";
 
 /** Written next to the run manifest for the portal agent; also read back after a restart. */
 export interface FillManifest {
+  versionId?: string;
+  pdfHash?: string;
   runId: string;
   applicationId: number;
   pdfPath: string;
@@ -27,9 +30,10 @@ export function webLink(value: unknown): string {
 export function fillManifestPath(manifestPath: string): string { return join(dirname(manifestPath), "fill-manifest.json"); }
 
 /** Validate the agent's fill result file; throws when it is missing or malformed. */
-export function readFillResult(manifest: Pick<FillManifest, "resultPath" | "url">): FillResult {
+export function readFillResult(manifest: Pick<FillManifest, "resultPath" | "url" | "versionId" | "pdfHash" | "pdfPath">): FillResult {
   const result = JSON.parse(readFileSync(manifest.resultPath, "utf8")) as Record<string, unknown>;
   if (!result.fields || typeof result.fields !== "object" || Array.isArray(result.fields) || !Array.isArray(result.unfilled)) throw new Error("The agent did not produce a valid fill result. Review the browser and retry.");
+  if (manifest.versionId && (result.versionId !== manifest.versionId || result.pdfHash !== manifest.pdfHash || result.pdfPath !== manifest.pdfPath)) throw new PreparationError("The portal result must identify the approved PDF actually used.", 409);
   return { fields: result.fields as Record<string, unknown>, unfilled: result.unfilled, externalUrl: result.externalUrl ? webLink(result.externalUrl) : manifest.url, portal: String(result.portal ?? "generic") };
 }
 
@@ -39,6 +43,8 @@ export function readFillResult(manifest: Pick<FillManifest, "resultPath" | "url"
  * inside the caller's transaction.
  */
 export function applyFillResult(d: Database, manifest: FillManifest, result: FillResult): void {
+  verifyDocumentUse(d, manifest);
+  recordDocumentUse(d, manifest);
   d.query("UPDATE applications SET fields_filled_json = ?, unfilled_json = ?, external_url = ?, portal = ?, resume_path = ?, preparation_run_id = ?, report_path = ?, cover_letter_path = ? WHERE id = ?")
     .run(JSON.stringify(result.fields), JSON.stringify(result.unfilled), result.externalUrl, result.portal, manifest.pdfPath, manifest.runId, manifest.reportPath, manifest.coverPath && existsSync(manifest.coverPath) ? manifest.coverPath : null, manifest.applicationId);
   transition(d, manifest.applicationId, "fill.complete", "agent", { runId: manifest.runId });
@@ -52,6 +58,7 @@ function savedFill(d: Database, run: StaleRun): { manifest: FillManifest; result
   try {
     const manifest = JSON.parse(readFileSync(fillManifestPath(JSON.parse(run.manifest_json).manifestPath), "utf8")) as FillManifest;
     if (manifest.runId !== run.id || manifest.applicationId !== run.application_id || journeyRecord(d, manifest.applicationId).submission_status === "submitted") return null;
+    verifyDocumentUse(d, manifest);
     return { manifest, result: readFillResult(manifest) };
   } catch { return null; }
 }

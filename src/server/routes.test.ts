@@ -68,3 +68,11 @@ test("routes workspace backups with a busy check covering agents, preparations, 
   context.acp = { ...acp, isRunning: true };
   expect(busy()).toBe(true);
 });
+
+test.each(["portal-filler", "work-tracker-portal-filler"])("rejects unmanaged %s runs that bypass document approval", async skill => {
+  const req = new Request("http://localhost/api/acp/run", { method: "POST", body: JSON.stringify({ skill }) });
+  const response = await routeApi("/api/acp/run", req, { acp, broadcast });
+  expect(response.status).toBe(409);
+  expect(await response.json()).toMatchObject({ error: expect.stringContaining("Use Apply") });
+  expect(acp.run).not.toHaveBeenCalled();
+});

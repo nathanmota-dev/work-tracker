@@ -65,17 +65,16 @@ describe("LaunchPage", () => {
     }, "a2"))
   })
 
-  it("requires a portal URL or saved job ID and then starts the portal skill", async () => {
+  it("opens Apply for document review before portal filling", async () => {
     render(<LaunchPage />)
     fireEvent.change(screen.getByLabelText("Skill"), { target: { value: "portal-filler" } })
     fireEvent.click(screen.getByRole("button", { name: "Run agent" }))
-    expect(await screen.findByRole("alert")).toHaveTextContent("Enter an application URL or a saved job ID.")
+    expect(window.location.hash).toBe("#/apply")
     expect(runAgent).not.toHaveBeenCalled()
     fireEvent.change(screen.getByLabelText("Application URL"), { target: { value: "https://jobs.example/apply" } })
     fireEvent.click(screen.getByRole("button", { name: "Run agent" }))
-    await waitFor(() => expect(runAgent).toHaveBeenCalledWith("alpha", "portal-filler", {
-      url: "https://jobs.example/apply",
-    }, undefined))
+    expect(window.location.hash).toBe("#/apply")
+    expect(runAgent).not.toHaveBeenCalled()
   })
 
   it("supports disconnected and unavailable provider states and retries loading", () => {

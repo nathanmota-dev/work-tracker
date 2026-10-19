@@ -235,3 +235,7 @@ review and submit.
 | Links | linkedin_url, github_url | — |
 | EEO | — | gender, veteran, disability (human-only) |
 | Resume | uploaded PDF | — |
+
+### Approved document receipt
+
+In managed PDF mode, use only `pdfPath` from the manifest. Preserve its bytes. Include `versionId`, `pdfHash`, and `pdfPath` from the manifest at the top level of the result JSON, only after attaching that exact PDF to the portal. If attachment fails or a different PDF is used, report failure instead of writing a successful result. Never generate or substitute a resume during filling.

@@ -10,6 +10,7 @@ import { ResumeSources } from "@/components/resume-sources"
 import { ApplyReadiness, applyBlocks } from "@/components/apply-readiness"
 import { useIntegrations, type Target } from "@/lib/integrations"
 import { AgentConversation } from "@/components/agent-conversation"
+import { DocumentReview } from "@/components/document-review"
 import { RunRecovery } from "@/components/run-recovery"
 import { request, useApi, useConnection, subscribe, type Row } from "@/lib/api"
 import type { Providers } from "@/lib/agent"
@@ -44,15 +45,17 @@ function ApplyWorkspace({ search }: { search: { jobId?: number; applicationId?: 
   const pdfRun = run?.artifacts.some(a => a.kind === "tailored") ? run : previous
   useEffect(() => { setPreview(undefined) }, [search.jobId, search.runId, run?.id])
   const base = preview ?? run?.artifacts.find(a => a.kind === "base") ?? sources.data?.preview
+  const version = details.data?.documents?.find(item => item.runId === pdfRun?.id)
   const tailored = pdfRun?.artifacts.find(a => a.kind === "tailored")
   const busy = pending || details.loading || !details.data || !!details.data.busy
   const archived = !!details.data?.job.archived_at
   const missingTools = sources.data?.dependencies.some(d => !d.available) ?? true
-  const readiness = { live, busy: busy || integrations.testing, archived, submitted: details.data?.applicationStatus === "submitted", sources: !!sources.data?.config.projectDir, tools: !missingTools, descriptionDirty, linkedinNeeded: !details.data?.job.description && !!details.data?.job.linkedin_job_id, descriptionMissing: !details.data?.job.description && !details.data?.job.linkedin_job_id, tailored: !!tailored, provider: selectedProvider?.id, model, invalidModel: !!model && !selectedProvider?.models.includes(model), integrations: integrations.data }
+  const readiness = { live, busy: busy || integrations.testing, archived, submitted: details.data?.applicationStatus === "submitted", sources: !!sources.data?.config.projectDir, tools: !missingTools, descriptionDirty, linkedinNeeded: !details.data?.job.description && !!details.data?.job.linkedin_job_id, descriptionMissing: !details.data?.job.description && !details.data?.job.linkedin_job_id, tailored: !!tailored && !!version, approved: !!version?.approvedAt, provider: selectedProvider?.id, model, invalidModel: !!model && !selectedProvider?.models.includes(model), integrations: integrations.data }
   const generateBlocks = applyBlocks(readiness, "generate")
   const fillBlocks = applyBlocks({ ...readiness, provider: pdfRun?.provider ?? selectedProvider?.id, model: pdfRun?.model ?? "", invalidModel: false }, "fill")
-  function correct(action: "description" | "model") {
-    if (action === "description") { const textarea = document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Job description"]'); if (textarea?.parentElement?.parentElement instanceof HTMLDetailsElement) textarea.parentElement.parentElement.open = true; textarea?.focus() }
+  function correct(action: "description" | "model" | "review") {
+    if (action === "review") document.getElementById("document-review")?.scrollIntoView?.()
+    else if (action === "description") { const textarea = document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Job description"]'); if (textarea?.parentElement?.parentElement instanceof HTMLDetailsElement) textarea.parentElement.parentElement.open = true; textarea?.focus() }
     else { setModel(""); document.querySelector<HTMLElement>('[aria-label="Model"]')?.focus() }
   }
   function testAvailability() {
@@ -60,10 +63,10 @@ function ApplyWorkspace({ search }: { search: { jobId?: number; applicationId?: 
     void integrations.test(targets, model); sources.refresh(); providers.refresh()
   }
   const messages = useMemo(() => preparationMessages(run?.events ?? [], run?.status), [run?.events, run?.status])
-  async function action(kind: "generate" | "fill" | "retry" | "cancel" | "submitted" | "description", reviewed = false) {
+  async function action(kind: "generate" | "fill" | "retry" | "cancel" | "submitted" | "description" | "approve", reviewed = false) {
     setPending(true); setError(""); setNotice("")
     try {
-      const body = kind === "generate" ? { jobId: search.jobId, applicationId: search.applicationId ?? run?.application_id, provider: selectedProvider?.id, model: effectiveModel || undefined, extra } : kind === "description" ? { jobId: search.jobId, description } : kind === "submitted" ? { runId: pdfRun?.id, applicationId: pdfRun?.application_id ?? undefined } : kind === "retry" ? { runId: run?.id, extra, reviewed } : { runId: kind === "fill" ? pdfRun?.id : run?.id, extra }
+      const body = kind === "generate" ? { jobId: search.jobId, applicationId: search.applicationId ?? run?.application_id, provider: selectedProvider?.id, model: effectiveModel || undefined, extra } : kind === "description" ? { jobId: search.jobId, description } : kind === "submitted" ? { runId: pdfRun?.id, applicationId: pdfRun?.application_id ?? undefined } : kind === "approve" ? { runId: pdfRun?.id, versionId: version?.id } : kind === "retry" ? { runId: run?.id, extra, reviewed } : { runId: kind === "fill" ? pdfRun?.id : run?.id, extra, ...(kind === "fill" ? { versionId: version?.id } : {}) }
       const value = await request<{ id?: string } & Partial<SubmissionConfirmation>>(`application-preparation/${kind}`, body)
       if (kind === "submitted") setNotice(value.alreadySubmitted ? "This submission was already confirmed. The application stays on the board." : "Submission confirmed. The application is now on the board in its initial stage.")
       if (kind === "generate" && value.id) { context.update(previous => ({ ...previous, runId: value.id })); openApply(search.jobId, body && "applicationId" in body ? body.applicationId : undefined, value.id) }
@@ -107,7 +110,8 @@ function ApplyWorkspace({ search }: { search: { jobId?: number; applicationId?: 
     <RunRecovery run={run} disabled={busy || archived || !live || details.data?.applicationStatus === "submitted" || (run?.recovery?.retryFrom === "filling" && fillBlocks.length > 0)} onRetry={reviewed => void action("retry", reviewed)} />
     {run?.error && <details open className="rounded-xl border border-destructive/30 p-4"><summary className="cursor-pointer text-sm text-destructive">Execution needs attention</summary><pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap text-xs">{run.error}</pre></details>}
     {!!details.data?.runs.length && <Field label="Execution history"><SelectControl className={controlClass} value={run?.id ?? ""} onChange={e => openApply(search.jobId, search.applicationId, e.target.value)}>{details.data.runs.map(r => <option key={r.id} value={r.id}>{new Date(r.created_at).toLocaleString()} · {r.phase} · {r.status}</option>)}</SelectControl></Field>}
-    {tailored && pdfRun?.id !== run?.id && <p className="text-sm text-muted-foreground">Showing the previous validated resume. Fill application will use that PDF.</p>}
+    {tailored && pdfRun?.id !== run?.id && <p className="text-sm text-muted-foreground">Showing the previous validated resume. Approve this version before filling if needed.</p>}
+    {version && <DocumentReview key={version.id} version={version} versions={details.data?.documents ?? []} disabled={busy || archived || !live || details.data?.applicationStatus === "submitted"} approve={() => void action("approve")} />}
     <Suspense fallback={<p role="status">Loading PDF viewer…</p>}>{wide ? <div className="grid min-w-0 grid-cols-2 gap-4"><PdfViewer title="Base PDF" artifact={base} /><PdfViewer title="Tailored PDF" artifact={tailored} /></div> : <Tabs value={pdfTab} onValueChange={setPdfTab}><TabsList><TabsTrigger value="base">Base PDF</TabsTrigger><TabsTrigger value="tailored">Tailored PDF</TabsTrigger></TabsList><TabsContent value="base"><PdfViewer title="Base PDF" artifact={base} /></TabsContent><TabsContent value="tailored"><PdfViewer title="Tailored PDF" artifact={tailored} /></TabsContent></Tabs>}</Suspense>
     <Panel title="Application workspace"><Tabs value={route.workspaceTab ?? "activity"} onValueChange={workspaceTab => update({ workspaceTab })}><TabsList><TabsTrigger value="activity">Agent activity</TabsTrigger><TabsTrigger value="report">Report</TabsTrigger></TabsList><TabsContent value="activity"><AgentConversation messages={messages} /></TabsContent><TabsContent value="report"><div className="max-h-[420px] overflow-auto whitespace-pre-wrap text-sm">{run?.report ?? "The tailoring report will appear after generation."}</div></TabsContent></Tabs></Panel>
     {tailored && <p className="text-xs text-muted-foreground">Review the PDF and portal fields before submitting in the browser.</p>}

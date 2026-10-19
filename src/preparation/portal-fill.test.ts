@@ -5,6 +5,7 @@ import { journeyRecord, settleExecution, transition, type JourneyRecord } from "
 import { addCheckpoint, markPortal } from "./recovery.ts";
 import { updateRun } from "./store.ts";
 import { CLOSED_MESSAGE, SIGN_IN_LOST_MESSAGE, applyFillResult, fillManifestPath, interruptStaleRuns, readFillResult, webLink, type FillManifest } from "./portal-fill.ts";
+vi.mock("./documents.ts", () => ({ verifyDocumentUse: vi.fn(), recordDocumentUse: vi.fn() }));
 vi.mock("../db/index.ts", () => ({ now: () => "now" }));
 vi.mock("../applications/journey-store.ts", () => ({ journeyRecord: vi.fn(), settleExecution: vi.fn(), transition: vi.fn() }));
 vi.mock("./recovery.ts", async (original) => ({ ...(await original<typeof import("./recovery.ts")>()), addCheckpoint: vi.fn(), markPortal: vi.fn() }));

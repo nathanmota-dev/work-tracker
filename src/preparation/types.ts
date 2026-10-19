@@ -49,6 +49,7 @@ export interface PreparationRun {
 export interface PreparationDetails {
   job: { id: number; title: string; company_name: string; description: string | null; link: string | null; archived_at: string | null; linkedin_job_id?: string | null };
   runs: PreparationRun[];
+  documents?: DocumentVersion[];
   busy: boolean;
   applicationStatus: string | null;
   uploadedRunId: string | null;
@@ -76,4 +77,22 @@ export interface SourcesState {
   preview: PdfArtifact | null;
   warnings: string[];
   busy: boolean;
+}
+
+/** One validated PDF with the inputs used to generate it and its approval history. */
+export interface DocumentVersion {
+  id: string;
+  runId: string;
+  applicationId: number;
+  pdfHash: string;
+  sourceVersion: string;
+  createdAt: string;
+  approvedAt: string | null;
+  usedAt: string | null;
+  submittedAt: string | null;
+  text: string;
+  baseText: string;
+  description: string;
+  extra: string;
+  data: unknown;
 }
