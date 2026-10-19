@@ -35,7 +35,7 @@ function agent(): PreparationAgent {
       if (mode === "login") return { status: "waiting_for_sign_in" };
       if (mode === "hold") return new Promise(() => {});
       if (skill === "portal-filler") {
-        writeFileSync(manifest.resultPath, JSON.stringify({ fields: { resume: manifest.pdfPath }, unfilled: [], externalUrl: manifest.url, portal: "generic" }));
+        writeFileSync(manifest.resultPath, JSON.stringify({ versionId: manifest.versionId, pdfHash: manifest.pdfHash, pdfPath: manifest.pdfPath, fields: { resume: manifest.pdfPath }, unfilled: [], externalUrl: manifest.url, portal: "generic" }));
         if (mode === "saved-hold") return new Promise(() => {});
       } else {
         writeFileSync(join(manifest.project, manifest.mainFile), original.replace("Generic project", "Tailored project"));
@@ -58,6 +58,7 @@ const applications = () => database.db().query("SELECT id, preparation_status, f
 async function generated(): Promise<PreparationRun> {
   const run = await settled(service.generate({ jobId, provider: "fake" }).id);
   expect(run.status).toBe("completed");
+  service.approve({ runId: run.id, versionId: service.details({ jobId }).documents!.find(v => v.runId === run.id)!.id });
   return run;
 }
 beforeAll(async () => {
@@ -176,4 +177,20 @@ test("a sign-in pending when the app closes is reported as lost, not as a restor
   expect((await settled(run.id)).status).toBe("completed");
   expect(applications()).toHaveLength(1);
   expect(existsSync(join(home, "artifacts", "applications", String(jobId), run.id, "resume.pdf"))).toBe(true);
+}, 60000);
+
+test("restart rejects a portal receipt identifying a different document", async () => {
+  const prepared = await generated();
+  modes["portal-filler"] = "saved-hold";
+  service.fill({ runId: prepared.id });
+  await until(prepared.id, () => calls.includes("portal-filler"));
+  const { runManifest } = await import("../../preparation/store.ts");
+  const root = join(runManifest(prepared.id).manifestPath, "..");
+  const resultPath = join(root, "fill-result.json");
+  const result = JSON.parse(readFileSync(resultPath, "utf8"));
+  writeFileSync(resultPath, JSON.stringify({ ...result, versionId: "divergent-version" }));
+  restart();
+  expect(runOf(prepared.id)).toMatchObject({ status: "interrupted", recovery: { reviewRequired: true } });
+  expect(database.db().query("SELECT * FROM application_documents WHERE application_id = ?").all(prepared.application_id)).toEqual([]);
+  expect(applications()).toEqual([expect.objectContaining({ fill_status: "failed" })]);
 }, 60000);

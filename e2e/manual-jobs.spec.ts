@@ -40,7 +40,9 @@ test('Jobs: create, correct a failed save, deduplicate, edit and prepare an exte
   await workspace.ready('Apply')
   await page.getByLabel('Additional context').fill('Synthetic context before the first application')
   await page.getByRole('button', { name: 'Generate resume', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Fill application', exact: true })).toBeEnabled({ timeout: 90_000 })
+  await expect(page.getByRole('button', { name: 'Approve this version', exact: true })).toBeEnabled({ timeout: 90_000 })
+  await page.getByRole('button', { name: 'Approve this version', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Fill application', exact: true })).toBeEnabled()
   await expect(panel(page, 'Tailored PDF').locator('.react-pdf__Page__textContent')).toContainText('Tailored resume.')
   const application = workspace.query('SELECT id, job_id, resume_path FROM applications')[0]!
   expect(application.job_id).toBe(id)

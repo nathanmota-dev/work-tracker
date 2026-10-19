@@ -20,6 +20,9 @@ After filling, write a JSON object to `resultPath`:
 
 ```json
 {
+  "versionId": "versionId from the manifest",
+  "pdfHash": "pdfHash from the manifest",
+  "pdfPath": "exact pdfPath attached to the portal",
   "fields": { "email": "actual value entered" },
   "unfilled": [{ "label": "Question", "reason": "no-stored-answer" }],
   "portal": "greenhouse",
@@ -28,5 +31,5 @@ After filling, write a JSON object to `resultPath`:
 ```
 
 `fields` describes only values verified on the form. Include a resume entry only
-after confirming the upload succeeded. The backend persists this result to the
+after confirming the upload succeeded. Record the manifest’s version and hash only after the exact approved PDF was attached. Never report success for a different PDF. The backend persists this result to the
 existing application and marks it filled. Do not mark it submitted.

@@ -58,6 +58,7 @@ async function runAgent(req: Request, { acp, preparation }: Context): Promise<Re
     params?: Record<string, string>;
     model?: string;
   };
+  if (body.skill?.replace(/^work-tracker-/, "") === "portal-filler") return Response.json({ error: "Use Apply to review and approve a document version before filling its portal." }, { status: 409 });
   // Fire and forget — progress streams over the WebSocket.
   void acp.run(
     body.provider ?? "opencode",

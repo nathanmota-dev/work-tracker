@@ -15,6 +15,7 @@ beforeEach(() => {
   Object.defineProperty(window, "innerWidth", { value: 1200, configurable: true })
   search.jobId = 7; search.applicationId = 3; search.runId = undefined
   details = { job: { id: 7, title: "React Engineer", company_name: "Example", description: "React role", archived_at: null, link: "https://example.com" }, runs: [{ id: "run-1", job_id: 7, application_id: 3, status: "completed", phase: "review", artifacts, events: [], report: "Emphasized React", created_at: "2026-01-01" }], busy: false, applicationStatus: "draft" }
+  details.documents = [{ id: "pdf-1", runId: "run-1", applicationId: 3, pdfHash: "hash", sourceVersion: "sources-1", text: "Tailored experience", baseText: "Original experience", description: "React role", extra: "", data: null, approvedAt: "2026-01-01", createdAt: "2026-01-01", usedAt: null, submittedAt: null }]
   source = { config: { projectDir: "/sources", mainFile: "resume.tex", dataFile: "", engine: "pdflatex" }, dependencies: [{ command: "latexmk", available: true }], preview: artifacts[0], warnings: [], busy: false }
   request.mockReset().mockImplementation(async (path: string) => {
     if (path === "integrations/status") return { entries: [], dependencies: [], backend: true }
@@ -43,7 +44,7 @@ it("fills using the displayed run and exposes the report", async () => {
   render(<ApplyPage />)
   await waitFor(() => expect(screen.getByRole("button", { name: "Fill application" })).toBeEnabled())
   fireEvent.click(screen.getByRole("button", { name: "Fill application" }))
-  await waitFor(() => expect(request).toHaveBeenCalledWith("application-preparation/fill", { runId: "run-1", extra: "" }))
+  await waitFor(() => expect(request).toHaveBeenCalledWith("application-preparation/fill", { runId: "run-1", extra: "", versionId: "pdf-1" }))
   fireEvent.keyDown(screen.getByRole("tab", { name: "Report" }), { key: "Enter" })
   expect(await screen.findByText("Emphasized React")).toBeInTheDocument()
 })
@@ -94,7 +95,7 @@ it("selects the validated PDF run when filling after a failed newer execution", 
   render(<ApplyPage />)
   await waitFor(() => expect(screen.getByRole("button", { name: "Fill application" })).toBeEnabled())
   fireEvent.click(screen.getByRole("button", { name: "Fill application" }))
-  await waitFor(() => expect(request).toHaveBeenCalledWith("application-preparation/fill", { runId: "run-1", extra: "" }))
+  await waitFor(() => expect(request).toHaveBeenCalledWith("application-preparation/fill", { runId: "run-1", extra: "", versionId: "pdf-1" }))
   await waitFor(() => expect(window.location.hash).toContain("runId=run-1"))
 })
 
@@ -182,5 +183,48 @@ it("continues an interrupted fill in the same run only after the portal was revi
   await waitFor(() => expect(screen.getByRole("button", { name: "Fill again" })).toBeEnabled())
   fireEvent.click(screen.getByRole("button", { name: "Fill again" }))
   await waitFor(() => expect(request).toHaveBeenCalledWith("application-preparation/retry", { runId: "run-1", extra: "", reviewed: true }))
+  expect(window.location.hash).toContain("runId=run-1")
+})
+
+it("requires explicit approval, highlights PDF text changes and reports approval failures", async () => {
+  details.documents[0].approvedAt = null
+  details.documents[0].extra = "Emphasize React"
+  const original = request.getMockImplementation()!
+  let fail = true
+  request.mockImplementation(async (path: string, body?: unknown) => {
+    if (path === "application-preparation/approve") {
+      if (fail) { fail = false; throw new Error("PDF changed. Generate again.") }
+      details.documents[0].approvedAt = "2026-01-02"
+      return details.documents[0]
+    }
+    return original(path, body)
+  })
+  render(<ApplyPage />)
+  await screen.findByRole("button", { name: "Approve this version" })
+  expect(screen.getByRole("button", { name: "Fill application" })).toBeDisabled()
+  fireEvent.click(screen.getByRole("button", { name: "Review document" }))
+  expect(screen.getByLabelText("Document text comparison").querySelector("ins")).toHaveTextContent("Tailored experience")
+  expect(screen.getByLabelText("Document text comparison").querySelector("del")).toHaveTextContent("Original experience")
+  fireEvent.click(screen.getByRole("button", { name: "Approve this version" }))
+  expect(await screen.findByRole("alert")).toHaveTextContent("PDF changed")
+  expect(screen.getByRole("button", { name: "Fill application" })).toBeDisabled()
+  fireEvent.click(screen.getByRole("button", { name: "Approve this version" }))
+  await waitFor(() => expect(request).toHaveBeenCalledWith("application-preparation/approve", { runId: "run-1", versionId: "pdf-1" }))
+  await waitFor(() => expect(screen.getByRole("button", { name: "Fill application" })).toBeEnabled())
+})
+
+it("switches version comparisons and shows approval, portal use and frozen submission", async () => {
+  details.documents[0].usedAt = "2026-01-02"
+  details.documents[0].submittedAt = "2026-01-03"
+  details.documents.push({ ...details.documents[0], id: "pdf-older", runId: "run-older", text: "Earlier experience" })
+  render(<ApplyPage />)
+  expect(await screen.findByText(/Version pdf-1 · Submitted/)).toBeInTheDocument()
+  expect(screen.getByText(/Approved on/)).toBeInTheDocument()
+  expect(screen.getByText(/Used in portal on/)).toBeInTheDocument()
+  fireEvent.change(screen.getByLabelText("Compare document with"), { target: { value: "pdf-older" } })
+  expect(screen.getByLabelText("Document text comparison").querySelector("del")).toHaveTextContent("Earlier experience")
+  fireEvent.change(screen.getByLabelText("Compare document with"), { target: { value: "base" } })
+  expect(screen.getByLabelText("Document text comparison").querySelector("del")).toHaveTextContent("Original experience")
+  fireEvent.change(screen.getByLabelText("Execution history"), { target: { value: "run-1" } })
   expect(window.location.hash).toContain("runId=run-1")
 })

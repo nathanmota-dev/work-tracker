@@ -55,7 +55,6 @@ const skills = [
   ['profile-optimizer', 'LinkedIn username', 'synthetic-candidate', 'Profile', '88 / 100'],
   ['recruiter-outreach', 'Target company', 'Example Company', 'Recruiters', 'Alex Recruiter'],
   ['outreach-tracker', '', '', 'Activity', 'Synthetic workflow completed'],
-  ['portal-filler', 'Application URL', 'https://example.com/apply', 'Activity', 'Synthetic workflow completed'],
   ['experience-bank', '', '', 'Activity', 'Synthetic workflow completed'],
 ] as const
 for (const [skill, field, input, destination, result] of skills) {
@@ -85,12 +84,10 @@ for (const [skill, field, input, destination, result] of skills) {
   })
 }
 
-test('Launch: validation, errors, cancellation and retained sign-in retry', async ({ workspace, page }) => {
+test('Launch: errors, cancellation and retained sign-in retry', async ({ workspace, page }) => {
   await workspace.go('Launch')
-  await choose(page, 'Skill', 'Prepare an application')
-  await page.getByRole('button', { name: 'Run agent' }).click()
-  await expect(page.getByRole('alert')).toContainText('Enter an application URL')
-  await page.getByLabel('Application URL').fill('https://example.com/apply')
+  await choose(page, 'Skill', 'Assess a role')
+  await page.getByLabel('Role, keywords or job URL').fill('https://example.com/jobs/synthetic')
   workspace.setScenario({ agent: 'error' })
   await page.getByRole('button', { name: 'Run agent' }).click()
   await expect(page.getByText('Synthetic agent failure', { exact: true })).toBeVisible()
@@ -102,8 +99,8 @@ test('Launch: validation, errors, cancellation and retained sign-in retry', asyn
   await workspace.go('Launch')
   await page.getByRole('button', { name: 'Cancel', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Run agent' })).toBeEnabled()
-  await choose(page, 'Skill', 'Prepare an application')
-  await page.getByLabel('Application URL').fill('https://example.com/apply')
+  await choose(page, 'Skill', 'Assess a role')
+  await page.getByLabel('Role, keywords or job URL').fill('https://example.com/jobs/synthetic')
   workspace.setScenario({ agent: 'login' })
   await page.getByRole('button', { name: 'Run agent' }).click()
   await expect(page.getByRole('button', { name: 'Retry after sign-in' })).toBeEnabled()
@@ -112,4 +109,12 @@ test('Launch: validation, errors, cancellation and retained sign-in retry', asyn
   await page.getByRole('button', { name: 'Retry after sign-in' }).click()
   await expect(page.getByRole('button', { name: 'Run agent' })).toBeEnabled()
   expect(workspace.calls('prompt').at(-1)?.pid).toBe(prompts.at(-1)?.pid)
+})
+
+test('Launch: portal preparation opens Apply before any agent fills a document', async ({ workspace, page }) => {
+  await workspace.go('Launch')
+  await choose(page, 'Skill', 'Prepare an application')
+  await page.getByRole('button', { name: 'Run agent' }).click()
+  await expect(page.getByRole('heading', { name: 'Apply', exact: true })).toBeVisible()
+  expect(workspace.calls('prompt')).toEqual([])
 })

@@ -11,7 +11,12 @@ async function selectJob(workspace: import('./fixtures').Workspace) {
 }
 async function generate(workspace: import('./fixtures').Workspace) {
   await workspace.page.getByRole('button', { name: /^(Generate resume|Regenerate)$/ }).click()
-  await expect(workspace.page.getByRole('button', { name: 'Fill application', exact: true })).toBeEnabled({ timeout: 90_000 })
+  await expect(workspace.page.getByRole('button', { name: 'Approve this version', exact: true })).toBeEnabled({ timeout: 90_000 })
+  await expect(workspace.page.getByRole('button', { name: 'Fill application', exact: true })).toBeDisabled()
+  await expect(workspace.page.getByLabel('Document text comparison').locator('ins')).toContainText('Tailored resume.')
+  await expect(workspace.page.getByLabel('Document text comparison').locator('del')).toContainText('Base resume.')
+  await workspace.page.getByRole('button', { name: 'Approve this version', exact: true }).click()
+  await expect(workspace.page.getByRole('button', { name: 'Fill application', exact: true })).toBeEnabled()
   await expect(panel(workspace.page, 'Tailored PDF').locator('.react-pdf__Page__textContent')).toContainText('Tailored resume.')
 }
 
@@ -83,6 +88,10 @@ test('Apply: real PDFs, generation/regeneration/history, filling, submission and
   await expect(page.getByRole('button', { name: 'I submitted in the browser' })).toBeVisible({ timeout: 30_000 })
   const fill = workspace.calls('fill').at(-1)!
   expect(fill.applicationId).toBe(id)
+  const approved = workspace.query(`SELECT id, pdf_hash, approved_at FROM document_versions WHERE run_id = '${first}'`)[0]!
+  expect(approved.approved_at).toBeTruthy()
+  const usage = workspace.query('SELECT version_id, pdf_hash FROM application_documents')[0]!
+  expect(usage).toMatchObject({ version_id: approved.id, pdf_hash: approved.pdf_hash })
   expect(fill.pdfPath).toContain(String(first))
   expect(workspace.query('SELECT status FROM applications')[0]?.status).toBe('filled')
   // A failed confirmation shows no success and keeps the action available for a retry.
@@ -95,6 +104,7 @@ test('Apply: real PDFs, generation/regeneration/history, filling, submission and
   await expect(page.getByText(/Submission confirmed/)).toBeVisible()
   await expect(page.getByRole('button', { name: 'Regenerate', exact: true })).toBeDisabled()
   expect(workspace.query('SELECT status FROM applications')[0]?.status).toBe('submitted')
+  expect(workspace.query('SELECT version_id, submitted_at FROM application_documents')[0]).toMatchObject({ version_id: approved.id, submitted_at: expect.any(String) })
   // The same application enters the board in its initial stage with one history event.
   expect(workspace.query("SELECT a.id, s.key, a.tracking_status FROM applications a JOIN application_stages s ON s.id = a.current_stage_id")).toEqual([{ id, key: 'applied', tracking_status: 'active' }])
   expect(workspace.query('SELECT event_type FROM application_events')).toEqual([{ event_type: 'created' }])

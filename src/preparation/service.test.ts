@@ -21,6 +21,7 @@ import {
   updateRun,
 } from "./store.ts";
 import { addCheckpoint, dropCheckpoints, markPortal } from "./recovery.ts";
+import { approveDocument } from "./documents.ts";
 import { PreparationService, readableJobDetails } from "./service.ts";
 import type { PreparationRun, PdfArtifact } from "./types.ts";
 import {
@@ -34,6 +35,7 @@ import {
 } from "../applications/journey-store.ts";
 import { planTransition, type JourneyAction } from "../applications/journey.ts";
 type ApiEvent = Record<string, unknown>;
+vi.mock("./documents.ts", () => ({ saveDocument: vi.fn(), documentsForJob: vi.fn(() => []), approvedDocument: vi.fn(() => ({ id: "tailored", pdfHash: "hash" })), approveDocument: vi.fn(), freezeDocumentUse: vi.fn(), verifyDocumentUse: vi.fn(), recordDocumentUse: vi.fn() }));
 vi.mock("../db/index.ts", () => ({ db: vi.fn(), now: () => "now" }));
 vi.mock("../paths.ts", () => ({ paths: { artifacts: "/artifacts" } }));
 vi.mock("../mcp/search.ts", () => ({ jobDetails: vi.fn() }));
@@ -257,7 +259,7 @@ beforeEach(() => {
       : String(path).endsWith("selection.json")
         ? "{}"
         : String(path).endsWith("fill-result.json")
-          ? '{"fields":{"name":"Ana"},"unfilled":[]}'
+          ? '{"versionId":"tailored","pdfHash":"hash","pdfPath":"/artifacts/validated.pdf","fields":{"name":"Ana"},"unfilled":[]}'
           : "report",
   );
   service = new PreparationService(acp, broadcast);
@@ -741,4 +743,10 @@ test("a fill that fails before the agent starts does not require review", async 
   await settle();
   expect(run.status).toBe("failed");
   expect(vi.mocked(markPortal).mock.calls).toEqual([["r", false]]);
+});
+
+test("approves a version through the service and notifies its execution", () => {
+  vi.mocked(approveDocument).mockReturnValue({ id: "tailored", runId: "r" } as ReturnType<typeof approveDocument>);
+  expect(service.approve({ runId: "r", versionId: "tailored" })).toMatchObject({ id: "tailored" });
+  expect(broadcast).toHaveBeenCalledWith({ type: "changed", table: "application_runs", runId: "r" });
 });

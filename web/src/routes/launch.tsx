@@ -1,3 +1,4 @@
+import { openApply } from "@/lib/preparation"
 import { useWorkspaceState } from "@/lib/workspace-state"
 import { useContextDraft } from "@/lib/context-draft"
 import { candidateFromAnswers } from "@/lib/candidate-profile"
@@ -58,12 +59,8 @@ function useLaunchState() {
   function submit() {
     setError("")
     if (!selectedProvider || !live) return
-    if (
-      skill === "portal-filler" &&
-      !params.url?.trim() &&
-      !params.jobIds?.trim()
-    ) {
-      setError("Enter an application URL or a saved job ID.")
+    if (skill === "portal-filler") {
+      openApply(Number(params.jobIds?.trim()))
       return
     }
     void runAgent(
@@ -120,6 +117,7 @@ export function LaunchPage() {
     >
       <div className="grid min-w-0 gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
         <Panel title="Run a skill">
+          <p className="text-sm text-muted-foreground">Preparing an application opens Apply, where you review and approve the document before filling.</p>
           <LoadState {...api} retry={api.refresh} />
           {api.data && (
             <form
