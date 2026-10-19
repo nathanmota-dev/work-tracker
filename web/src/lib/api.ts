@@ -40,6 +40,7 @@ const dependencies: Record<string, string[]> = {
   "profile-snapshot": ["profile_metrics"],
   profile: ["profile"],
   answers: ["applicant_answers"],
+  "answers/variants": ["applicant_answers"],
   activity: ["activity_log"],
   outreach: ["outreach_attempts", "outreach_budget", "recruiters"],
   "recruiters/due": ["outreach_attempts", "recruiters"],

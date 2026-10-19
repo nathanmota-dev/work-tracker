@@ -1,5 +1,6 @@
 import { text } from "node:stream/consumers";
-import { db } from "../db/index.ts";
+import { listAnswerVariants } from "../answers/store.ts";
+import { resolveAnswer } from "../answers/catalog.ts";
 import { matchLabels } from "../match/matcher.ts";
 import { str, int, type Flags } from "./flags.ts";
 
@@ -33,11 +34,15 @@ export async function matchCmd(flags: Flags): Promise<void> {
     process.exit(1);
   }
 
-  const rows = db()
-    .query(`SELECT key, value FROM applicant_answers`)
-    .all() as { key: string; value: string | null }[];
+  const rows = listAnswerVariants();
   const answers: Record<string, string> = {};
-  for (const r of rows) if (r.value != null) answers[r.key] = r.value;
+  const resolutions: Record<string, Omit<ReturnType<typeof resolveAnswer>, "value">> = {};
+  for (const key of new Set(rows.map((row) => row.key))) {
+    const resolution = resolveAnswer(rows, key, str(flags, "language"), str(flags, "fallback-language"));
+    const { value, ...provenance } = resolution;
+    resolutions[key] = provenance;
+    if (value !== undefined) answers[key] = value;
+  }
 
   const threshold = int(flags, "threshold-pct");
   const result = matchLabels(labels, {
@@ -45,7 +50,7 @@ export async function matchCmd(flags: Flags): Promise<void> {
     threshold: threshold !== undefined ? threshold / 100 : undefined,
   });
 
-  console.log(JSON.stringify(result, null, 2));
+  console.log(JSON.stringify({ ...result, resolutions }, null, 2));
 }
 
 function parseLabels(raw: string, src: string): string[] {

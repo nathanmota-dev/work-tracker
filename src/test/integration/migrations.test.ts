@@ -82,7 +82,7 @@ test("opening a v2 workspace keeps IDs, links, history and artifacts; reopening 
     { id: 34, job_id: null, current_stage_id: 1, resume_path: null },
   ]);
   expect(all(d, "PRAGMA foreign_key_check")).toEqual([]);
-  expect(all(d, "SELECT version FROM schema_migrations")).toEqual([{ version: 3 }, { version: 4 }, { version: 5 }]);
+  expect(all(d, "SELECT version FROM schema_migrations")).toEqual([{ version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }]);
   expect(all(d, "PRAGMA table_info(applications)").map((c) => c.name)).toContain("preparation_run_id");
   const migrated = dump(d, [...legacyTables, "schema_migrations", "meta"]);
   closeDb();
@@ -108,7 +108,7 @@ test("a failure in a later step rolls back the whole run; a retry applies each s
   expect(migrateDatabase(d, { backupDir, migrations: fixed, target: next + 1 })).toMatchObject({ mode: "migrated", from: SCHEMA_VERSION, applied: [next, next + 1] });
   expect(migrateDatabase(d, { backupDir, migrations: fixed, target: next + 1 })).toMatchObject({ mode: "current", applied: [] });
   expect(value(d, "SELECT COUNT(*) FROM companies WHERE name = 'Added once'")).toBe(1);
-  expect(all(d, "SELECT version FROM schema_migrations ORDER BY version")).toEqual([3, 4, 5, next, next + 1].map((version) => ({ version })));
+  expect(all(d, "SELECT version FROM schema_migrations ORDER BY version")).toEqual([3, 4, 5, 6, next, next + 1].map((version) => ({ version })));
   expect(value(d, "SELECT notes FROM applications WHERE id = 40")).toBe("migrated");
   d.close();
 });

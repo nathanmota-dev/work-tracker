@@ -180,8 +180,9 @@ test("answer writes validate a trimmed key and persist defaults before notifying
   expect(d.statement.run).toHaveBeenLastCalledWith({
     $key: "email",
     $value: null,
-    $cat: "custom",
+    $cat: "contact",
     $at: "2026-10-10T12:00:00Z",
+    $default: 1,
   });
   await handle(
     req("/api/answer", {

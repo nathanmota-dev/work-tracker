@@ -3,7 +3,7 @@
  * it; existing workspaces reach it through the ordered migrations in
  * `migrations.ts`, whose last version must equal SCHEMA_VERSION.
  */
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 /** Bookkeeping tables the migration runner needs before any migration runs. */
 export const MIGRATION_TABLES_SQL = /* sql */ `
@@ -173,6 +173,14 @@ CREATE TABLE IF NOT EXISTS applicant_answers (
   value      TEXT,
   category   TEXT NOT NULL DEFAULT 'custom',
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS applicant_answer_variants (
+  key TEXT NOT NULL REFERENCES applicant_answers(key) ON DELETE CASCADE,
+  language TEXT NOT NULL CHECK (language != 'default'),
+  value TEXT,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (key, language)
 );
 
 CREATE TABLE IF NOT EXISTS interviews (

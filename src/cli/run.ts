@@ -55,9 +55,10 @@ Write API (used by skills):
       [--company --external-url --applied-at]      Decide one flagged record explicitly
   work-tracker application link --id <n> (--job-id <local> | --linkedin-job-id <external> | --create
       [--title --company --external-url --comp --description])   Link or create the job of an application
-  work-tracker answer set --key <k> [--value --category]   Set a reusable application answer
-  work-tracker answer list [--category <c>]                List reusable application answers
-  work-tracker match --labels '["Email",...]' [--threshold-pct N]   Map ATS form labels to stored answers
+  work-tracker answer set --key <k> [--value --category --language]   Set a reusable application answer
+  work-tracker answer list [--category <c> --language <tag>]                List reusable application answers
+  work-tracker answer delete --key <k> [--language]       Delete an answer version
+  work-tracker match --labels '["Email",...]' [--threshold-pct N --language --fallback-language]   Map ATS form labels to stored answers
   work-tracker detect-portal --url <application-url>       Identify the ATS + its known field selectors
   work-tracker export --typ <file> --out <file.pdf>        Compile a Typst doc to PDF
   work-tracker activity log [--kind --skill --summary --payload]

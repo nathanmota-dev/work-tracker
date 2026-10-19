@@ -206,7 +206,7 @@ test("CLI operations, answer API and private skill setup", async () => {
     (
       await api("/api/answer", {
         method: "POST",
-        body: JSON.stringify({ key: "phone", value: "synthetic" }),
+        body: JSON.stringify({ key: "phone", value: "+1 202 555 0100" }),
       })
     ).status,
   ).toBe(200);

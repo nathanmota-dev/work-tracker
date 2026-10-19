@@ -1,4 +1,4 @@
-import { db, now } from "../db/index.ts";
+import { db } from "../db/index.ts";
 import { queries } from "./queries.ts";
 import type { SessionManager } from "../acp/session.ts";
 import { PROVIDERS, listProviderModels } from "../acp/providers.ts";
@@ -11,6 +11,8 @@ import { handlePreparation } from "../preparation/http.ts";
 import { handleIntegrations, integrationTesting } from "../integrations/http.ts";
 import { handlePermissions } from "../acp/permission-http.ts";
 import { handleWorkspaceBackup } from "../backup/http.ts";
+
+import { handleAnswer } from "../answers/http.ts";
 
 type Acp = Pick<SessionManager, "run" | "cancel"> & Partial<Pick<SessionManager, "isRunning" | "permissions">>;
 type Broadcast = (event: unknown) => void;
@@ -29,35 +31,6 @@ async function openBrowserLogin(_req: Request, { acp, preparation }: Context): P
   } catch (error) {
     return Response.json({ error: errorMessage(error) }, { status: 502 });
   }
-}
-
-async function saveAnswer(req: Request, { broadcast }: Context): Promise<Response> {
-  const body = (await req.json().catch(() => ({}))) as {
-    key?: string;
-    value?: string;
-    category?: string;
-  };
-  const key = (body.key ?? "").trim();
-  if (!key)
-    return Response.json({ error: "missing key" }, { status: 400 });
-  db()
-    .query(
-      `INSERT INTO applicant_answers (key, value, category, updated_at)
-         VALUES ($key, $value, $cat, $at)
-         ON CONFLICT(key) DO UPDATE SET
-           value = excluded.value,
-           category = COALESCE(excluded.category, applicant_answers.category),
-           updated_at = excluded.updated_at`,
-    )
-    .run({
-      $key: key,
-      $value: body.value ?? null,
-      $cat: body.category ?? "custom",
-      $at: now(),
-    });
-  // Notify all live dashboards (including this one) so tables refresh.
-  broadcast({ type: "changed", table: "applicant_answers" });
-  return Response.json({ ok: true });
 }
 
 async function listProviders(): Promise<Response> {
@@ -135,13 +108,13 @@ async function syncRecruiters(req: Request, { broadcast }: Context): Promise<Res
 
 const postRoutes: Record<string, Route> = {
   "/api/browser/login": openBrowserLogin,
-  "/api/answer": saveAnswer,
   "/api/acp/run": runAgent,
   "/api/acp/cancel": cancelAgent,
   "/api/recruiters/sync": syncRecruiters,
 };
 
 export async function routeApi(path: string, req: Request, context: Context): Promise<Response> {
+  if (path === "/api/answer" || path.startsWith("/api/answer/") || path.startsWith("/api/answers/")) return handleAnswer(path, req, context.broadcast);
   if (path === "/api/integrations" || path.startsWith("/api/integrations/")) return handleIntegrations(path, req, () => !!context.acp.isRunning || !!context.preparation?.isBusy || chromeLoginOpening(), context.broadcast);
   if (path === "/api/acp/permissions" || path.startsWith("/api/acp/permissions/")) return handlePermissions(path, req, context.acp.permissions);
   if (path.startsWith("/api/resume-sources") || path.startsWith("/api/application-preparation/")) {
