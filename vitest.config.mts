@@ -6,7 +6,7 @@ export default defineConfig({
   cacheDir: ".cache/work-tracker/backend/vite",
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "desktop/src/**/*.test.ts"],
     exclude: ["src/test/integration/**"],
     setupFiles: ["src/test/unit-setup.ts"],
     clearMocks: true,

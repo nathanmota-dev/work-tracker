@@ -175,6 +175,26 @@ describe("agent session", () => {
     expect(view.result.current.status).toBe("cancelled")
     expect(view.result.current.running).toBe(false)
   })
+  it("shows an active run as interrupted after a backend restart without running it again", async () => {
+    const view = renderHook(useAgent)
+    await act(async () => { await runAgent("opencode", "job-scout", { query: "React" }) })
+    act(() => {
+      publish({ type: "acp-status", status: "running" })
+      publish({ type: "acp-update", update: { sessionUpdate: "tool_call", toolCallId: "search", title: "search_jobs", kind: "fetch", status: "in_progress" } })
+      publish({ type: "backend", state: { status: "unavailable" } })
+      publish({ type: "connection", live: false })
+    })
+    expect(view.result.current.status).toBe("Connection lost — run status unknown")
+    // The new backend has no execution in memory: the run stopped with the old process.
+    request.mockResolvedValue({ pending: [] })
+    await act(async () => {
+      publish({ type: "connection", live: true })
+      publish({ type: "hello" })
+    })
+    expect(view.result.current).toMatchObject({ running: false, status: "Interrupted" })
+    expect(view.result.current.messages.find(message => message.tool)?.tool?.status).toBe("interrupted")
+    expect(request.mock.calls.filter(([path]) => path === "acp/run")).toHaveLength(1)
+  })
   it("keeps permission decisions in the conversation without authorizing application submission", () => {
     const view = renderHook(useAgent)
     const permission = { title: "read_file", options: [{ optionId: "no", name: "Refuse", kind: "reject_once" }], status: "selected", optionId: "no" }

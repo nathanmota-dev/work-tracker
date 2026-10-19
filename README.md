@@ -156,6 +156,7 @@ fica no perfil padrão do próprio servidor (`~/.linkedin-mcp/profile`):
 work-tracker.db             SQLite, WAL, foreign keys, migrações versionadas
 config.json                configuração própria, inicialmente {}
 backend.lock               porta, token aleatório e PID; removido ao encerrar
+logs/backend.log           saída do backend na sessão atual (a anterior fica em .previous)
 workspace/                 cwd privado dos agentes e skills work-tracker-*
 artifacts/                 artefatos gerados
 bin/                       wrapper work-tracker disponível no PATH dos agentes
@@ -339,6 +340,12 @@ rotas de busca, escrita de respostas, recruiter sync e execução/cancelamento A
 O Electron usa `utilityProcess`, recebe `ready`/`failed`/`stopped` e envia
 `shutdown` ao fechar. O backend encerra servidor, sockets, SQLite e grupos dos
 subprocessos da sessão. Há um fallback de término após cinco segundos no main.
+Se o backend encerrar inesperadamente, a janela continua aberta e mostra o estado
+`Backend unavailable` com a ação “Restart backend”, que cria um processo novo e
+reconecta a API e o WebSocket sem duplicar listeners; as telas abertas recarregam
+e as execuções ativas aparecem como interrompidas, sem repetição automática. Não
+há reinício automático: após três falhas seguidas, o app mostra o erro e o caminho
+de `logs/backend.log`. Os testes do processo principal ficam em `desktop/src`.
 Skills e CLI são distribuídas em `resources/work-tracker`, fora do ASAR; a CLI
 é um bundle Node que pode ser executado com Node 24 sem o checkout original.
 

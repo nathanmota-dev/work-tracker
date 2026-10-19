@@ -134,8 +134,10 @@ camadas em modo bootstrap e publica `reports/benchmark-candidate-baseline.json`
 `performance-<run>-<tentativa>`. Incorpore esse arquivo como
 `scripts/benchmark-baseline.json`; depois do merge, os PRs seguintes passam a ser
 comparados com ele. Localmente, sem baseline, `performance:check` também roda em
-bootstrap; com a baseline do CI, a comparação local é apenas indicativa, porque
-depende da máquina.
+bootstrap, mas isso não conta como verificação: gere a baseline a partir do
+código da `main` no próprio worktree e compare com ela, conforme o `AGENTS.md`.
+Com a baseline do CI, a comparação local é apenas indicativa, porque depende da
+máquina.
 
 ## Caches
 
