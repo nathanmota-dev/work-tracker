@@ -228,3 +228,13 @@ it("switches version comparisons and shows approval, portal use and frozen submi
   fireEvent.change(screen.getByLabelText("Execution history"), { target: { value: "run-1" } })
   expect(window.location.hash).toContain("runId=run-1")
 })
+it("approves and confirms one result while another execution, such as a batch item, is running", async () => {
+  details.busy = true
+  details.documents[0].approvedAt = null
+  render(<ApplyPage />)
+  const approve = await screen.findByRole("button", { name: "Approve this version" })
+  await waitFor(() => expect(approve).toBeEnabled())
+  expect(screen.getByRole("button", { name: "Regenerate" })).toBeDisabled()
+  fireEvent.click(approve)
+  await waitFor(() => expect(request).toHaveBeenCalledWith("application-preparation/approve", { runId: "run-1", versionId: "pdf-1" }))
+})

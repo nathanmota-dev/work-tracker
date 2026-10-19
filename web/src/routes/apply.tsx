@@ -13,6 +13,7 @@ import { AgentConversation } from "@/components/agent-conversation"
 import { DocumentReview } from "@/components/document-review"
 import { RunRecovery } from "@/components/run-recovery"
 import { FillReviewPanel } from "@/components/fill-review"
+import { PreparationQueue } from "@/components/preparation-queue"
 import { request, useApi, useConnection, subscribe, type Row } from "@/lib/api"
 import type { Providers } from "@/lib/agent"
 import { openApply, preparationMessages, usePreparation, type SourcesState, type PdfArtifact, type SubmissionConfirmation } from "@/lib/preparation"
@@ -49,6 +50,7 @@ function ApplyWorkspace({ search }: { search: { jobId?: number; applicationId?: 
   const version = details.data?.documents?.find(item => item.runId === pdfRun?.id)
   const tailored = pdfRun?.artifacts.find(a => a.kind === "tailored")
   const busy = pending || details.loading || !details.data || !!details.data.busy
+  const reviewBusy = pending || details.loading || !details.data || pdfRun?.status === "running" // Review stays possible while a batch runs another execution.
   const archived = !!details.data?.job.archived_at
   const missingTools = sources.data?.dependencies.some(d => !d.available) ?? true
   const readiness = { live, busy: busy || integrations.testing, archived, submitted: details.data?.applicationStatus === "submitted", sources: !!sources.data?.config.projectDir, tools: !missingTools, descriptionDirty, linkedinNeeded: !details.data?.job.description && !!details.data?.job.linkedin_job_id, descriptionMissing: !details.data?.job.description && !details.data?.job.linkedin_job_id, tailored: !!tailored && !!version, approved: !!version?.approvedAt, provider: selectedProvider?.id, model, invalidModel: !!model && !selectedProvider?.models.includes(model), integrations: integrations.data }
@@ -81,6 +83,7 @@ function ApplyWorkspace({ search }: { search: { jobId?: number; applicationId?: 
   const job = details.data?.job
   return <Page title="Apply" description="Prepare a resume for one role, review both PDFs and fill its application." actions={<Status value={run?.decisionStatus ? "Waiting for decision" : run ? `${run.phase} · ${run.status}` : "Ready"} />}>
     <LoadState {...jobs} retry={jobs.refresh} />
+    <PreparationQueue />
     <details className="rounded-xl border p-4" open={!sources.data?.config.projectDir || undefined}><summary className="cursor-pointer text-sm font-medium">Resume sources</summary><div className="mt-4"><ResumeSources onPreview={artifact => { setPreview(artifact); sources.refresh() }} /></div></details>
     <Panel title="Opportunity">
       <div className="grid gap-4 md:grid-cols-3">
@@ -98,7 +101,7 @@ function ApplyWorkspace({ search }: { search: { jobId?: number; applicationId?: 
           <Button disabled={generateBlocks.length > 0} onClick={() => void action("generate")}>{run ? "Regenerate" : "Generate resume"}</Button>
           <Button variant="outline" disabled={fillBlocks.length > 0} onClick={() => void action("fill")}>Fill application</Button>
           {(run?.status === "running" || run?.status === "waiting_for_sign_in") && <Button variant="outline" disabled={pending} onClick={() => void action("cancel")}>Cancel</Button>}
-          {details.data?.applicationStatus === "filled" && details.data.uploadedRunId === pdfRun?.id && <Button variant="outline" disabled={busy} onClick={() => void action("submitted")}>I submitted in the browser</Button>}
+          {details.data?.applicationStatus === "filled" && details.data.uploadedRunId === pdfRun?.id && <Button variant="outline" disabled={reviewBusy} onClick={() => void action("submitted")}>I submitted in the browser</Button>}
         </div>
         <ApplyReadiness generate={generateBlocks} fill={fillBlocks} testing={integrations.testing} error={integrations.testError || integrations.error} test={testAvailability} correct={correct} />
         {details.data?.busy && run?.status !== "running" && <p className="text-xs text-muted-foreground">Another execution is active. You can review these files while it finishes.</p>}
@@ -112,7 +115,7 @@ function ApplyWorkspace({ search }: { search: { jobId?: number; applicationId?: 
     {run?.error && <details open className="rounded-xl border border-destructive/30 p-4"><summary className="cursor-pointer text-sm text-destructive">Execution needs attention</summary><pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap text-xs">{run.error}</pre></details>}
     {!!details.data?.runs.length && <Field label="Execution history"><SelectControl className={controlClass} value={run?.id ?? ""} onChange={e => openApply(search.jobId, search.applicationId, e.target.value)}>{details.data.runs.map(r => <option key={r.id} value={r.id}>{new Date(r.created_at).toLocaleString()} · {r.phase} · {r.status}</option>)}</SelectControl></Field>}
     {tailored && pdfRun?.id !== run?.id && <p className="text-sm text-muted-foreground">Showing the previous validated resume. Approve this version before filling if needed.</p>}
-    {version && <DocumentReview key={version.id} version={version} versions={details.data?.documents ?? []} disabled={busy || archived || !live || details.data?.applicationStatus === "submitted"} approve={() => void action("approve")} />}
+    {version && <DocumentReview key={version.id} version={version} versions={details.data?.documents ?? []} disabled={reviewBusy || archived || !live || details.data?.applicationStatus === "submitted"} approve={() => void action("approve")} />}
     {details.data?.fill && <FillReviewPanel key={details.data.fill.applicationId} review={details.data.fill} run={run} fillBlocked={fillBlocks.length > 0} onFillAgain={() => void action("fill")} />}
     <Suspense fallback={<p role="status">Loading PDF viewer…</p>}>{wide ? <div className="grid min-w-0 grid-cols-2 gap-4"><PdfViewer title="Base PDF" artifact={base} /><PdfViewer title="Tailored PDF" artifact={tailored} /></div> : <Tabs value={pdfTab} onValueChange={setPdfTab}><TabsList><TabsTrigger value="base">Base PDF</TabsTrigger><TabsTrigger value="tailored">Tailored PDF</TabsTrigger></TabsList><TabsContent value="base"><PdfViewer title="Base PDF" artifact={base} /></TabsContent><TabsContent value="tailored"><PdfViewer title="Tailored PDF" artifact={tailored} /></TabsContent></Tabs>}</Suspense>
     <Panel title="Application workspace"><Tabs value={route.workspaceTab ?? "activity"} onValueChange={workspaceTab => update({ workspaceTab })}><TabsList><TabsTrigger value="activity">Agent activity</TabsTrigger><TabsTrigger value="report">Report</TabsTrigger></TabsList><TabsContent value="activity"><AgentConversation messages={messages} /></TabsContent><TabsContent value="report"><div className="max-h-[420px] overflow-auto whitespace-pre-wrap text-sm">{run?.report ?? "The tailoring report will appear after generation."}</div></TabsContent></Tabs></Panel>

@@ -25,6 +25,7 @@ const reads = new Set([
   "acp/providers",
   "acp/permissions",
   "resume-sources",
+  "preparation-batches",
 ])
 const writes = new Set([
   "integrations",
@@ -51,6 +52,12 @@ const writes = new Set([
   "application-preparation/approve",
   "application-preparation/retry",
   "application-preparation/submitted",
+  "preparation-batches/create",
+  "preparation-batches/add",
+  "preparation-batches/pause",
+  "preparation-batches/resume",
+  "preparation-batches/cancel",
+  "preparation-batches/retry",
   "acp/cancel",
   "recruiters/sync",
   "search/jobs",

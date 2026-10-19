@@ -51,6 +51,7 @@ const dependencies: Record<string, string[]> = {
   "acp/providers": ["integrations"],
   "integrations/status": ["integrations", "applicant_answers", "profile"],
   "acp/permissions": ["agent_permissions"],
+  "preparation-batches": ["preparation_batches", "jobs"],
 }
 export function useApi<T>(path: string) {
   const [data, setData] = useState<T>()

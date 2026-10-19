@@ -8,6 +8,8 @@ import { handleApplicationBoard } from "../applications/http.ts";
 import { handleJobAction } from "../jobs/http.ts";
 import { PreparationService } from "../preparation/service.ts";
 import { handlePreparation } from "../preparation/http.ts";
+import { PreparationQueue } from "../preparation/batch-queue.ts";
+import { handleBatches } from "../preparation/batch-http.ts";
 import { handleIntegrations, integrationTesting } from "../integrations/http.ts";
 import { handlePermissions } from "../acp/permission-http.ts";
 import { handleWorkspaceBackup } from "../backup/http.ts";
@@ -16,7 +18,7 @@ import { handleAnswer } from "../answers/http.ts";
 
 type Acp = Pick<SessionManager, "run" | "cancel"> & Partial<Pick<SessionManager, "isRunning" | "permissions">>;
 type Broadcast = (event: unknown) => void;
-type Context = { acp: Acp; broadcast: Broadcast; preparation?: PreparationService };
+type Context = { acp: Acp; broadcast: Broadcast; preparation?: PreparationService; queue?: PreparationQueue };
 type Route = (req: Request, context: Context) => Promise<Response> | Response;
 
 function errorMessage(error: unknown): string {
@@ -122,6 +124,11 @@ export async function routeApi(path: string, req: Request, context: Context): Pr
     if (req.method === "POST" && integrationTesting()) return Response.json({ error: "Wait for the integration diagnostic to finish." }, { status: 409 });
     context.preparation ??= new PreparationService(context.acp, context.broadcast);
     return handlePreparation(path, req, context.preparation);
+  }
+  if (path === "/api/preparation-batches" || path.startsWith("/api/preparation-batches/")) {
+    const preparation = context.preparation ??= new PreparationService(context.acp, context.broadcast);
+    context.queue ??= new PreparationQueue(preparation, () => !!context.acp.isRunning || integrationTesting() || chromeLoginOpening(), context.broadcast, 0);
+    return handleBatches(path, req, context.queue);
   }
   if (path.startsWith("/api/workspace-backup/")) {
     const busy = () => !!(context.acp.isRunning || context.preparation?.isBusy || integrationTesting() || chromeLoginOpening());

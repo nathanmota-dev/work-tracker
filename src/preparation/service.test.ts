@@ -22,6 +22,7 @@ import {
 } from "./store.ts";
 import { addCheckpoint, dropCheckpoints, markPortal } from "./recovery.ts";
 import { approveDocument } from "./documents.ts";
+import { assertPortalFree } from "./batch-store.ts";
 import { PreparationService, readableJobDetails } from "./service.ts";
 import type { PreparationRun, PdfArtifact } from "./types.ts";
 import {
@@ -37,6 +38,7 @@ import { planTransition, type JourneyAction } from "../applications/journey.ts";
 type ApiEvent = Record<string, unknown>;
 vi.mock("./documents.ts", () => ({ saveDocument: vi.fn(), documentsForJob: vi.fn(() => []), approvedDocument: vi.fn(() => ({ id: "tailored", pdfHash: "hash" })), approveDocument: vi.fn(), freezeDocumentUse: vi.fn(), verifyDocumentUse: vi.fn(), recordDocumentUse: vi.fn() }));
 vi.mock("../db/index.ts", () => ({ db: vi.fn(), now: () => "now" }));
+vi.mock("./batch-store.ts", () => ({ assertPortalFree: vi.fn() }));
 vi.mock("../paths.ts", () => ({ paths: { artifacts: "/artifacts" } }));
 vi.mock("../mcp/search.ts", () => ({ jobDetails: vi.fn() }));
 vi.mock("../mcp/chrome.ts", () => ({ openChromePortal: vi.fn() }));
@@ -749,4 +751,38 @@ test("approves a version through the service and notifies its execution", () => 
   vi.mocked(approveDocument).mockReturnValue({ id: "tailored", runId: "r" } as ReturnType<typeof approveDocument>);
   expect(service.approve({ runId: "r", versionId: "tailored" })).toMatchObject({ id: "tailored" });
   expect(broadcast).toHaveBeenCalledWith({ type: "changed", table: "application_runs", runId: "r" });
+});
+
+test("a batch generates and restarts from its recorded sources instead of the current ones", async () => {
+  const recorded = { ...snapshotSources(), version: "batch-version" };
+  vi.mocked(snapshotSources).mockClear();
+  vi.mocked(cachedPreview).mockReturnValue(null);
+  service.generate({ jobId: 1, provider: "agent" }, recorded);
+  await settle();
+  expect(snapshotSources).not.toHaveBeenCalled();
+  expect(addArtifact).toHaveBeenCalledWith(null, "base", "/compiled.pdf", expect.anything(), "batch-version");
+  Object.assign(run, { status: "failed", phase: "preparing", recovery: { checkpoints: [], retryFrom: "preparing", reviewRequired: false, summary: "Failed." } });
+  service.retry({ runId: "r" }, recorded);
+  await settle();
+  expect(snapshotSources).not.toHaveBeenCalled();
+});
+test("a form reserved in the browser blocks filling another application", () => {
+  vi.mocked(assertPortalFree).mockImplementationOnce(() => { throw new PreparationError("The Other form is waiting for your review in the browser.", 409); });
+  expect(() => service.fill({ runId: "r" })).toThrow("waiting for your review");
+  expect(assertPortalFree).toHaveBeenCalledWith(d.asDatabase, 2);
+  expect(actions()).toEqual([]);
+  expect(acp.run).not.toHaveBeenCalled();
+});
+test("approval and submission confirmation stay available while another execution runs, but not for the active one", async () => {
+  vi.mocked(approveDocument).mockReturnValue({ id: "tailored", runId: "r" } as ReturnType<typeof approveDocument>);
+  const agent = deferred<{ status: string }>();
+  acp.run.mockReturnValue(agent.promise);
+  service.fill({ runId: "r" });
+  for (let i = 0; i < 30; i++) await Promise.resolve();
+  expect(service.isBusy).toBe(true);
+  expect(service.approve({ runId: "other", versionId: "tailored" })).toMatchObject({ id: "tailored" });
+  expect(() => service.approve({ runId: "r", versionId: "tailored" })).toThrow("Wait for this execution");
+  expect(() => service.submitted({ runId: "r" })).toThrow("Wait for this execution");
+  expect(() => service.submitted({ runId: "other" })).toThrow("Fill and submit");
+  agent.resolve({ status: "cancelled" });
 });

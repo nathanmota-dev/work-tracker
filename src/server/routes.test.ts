@@ -7,6 +7,8 @@ import { PreparationService } from "../preparation/service.ts";
 import { handleWorkspaceBackup } from "../backup/http.ts";
 import { chromeLoginOpening } from "../mcp/chrome.ts";
 import { integrationTesting } from "../integrations/http.ts";
+import { handleBatches } from "../preparation/batch-http.ts";
+import { PreparationQueue } from "../preparation/batch-queue.ts";
 
 vi.mock("../applications/http.ts", () => ({ handleApplicationBoard: vi.fn() }));
 vi.mock("../jobs/http.ts", () => ({ handleJobAction: vi.fn() }));
@@ -15,6 +17,8 @@ vi.mock("../backup/http.ts", () => ({ handleWorkspaceBackup: vi.fn() }));
 vi.mock("../mcp/chrome.ts", () => ({ chromeLoginOpening: vi.fn(() => false), openChromeLogin: vi.fn() }));
 vi.mock("../integrations/http.ts", async (original) => ({ ...(await original<typeof import("../integrations/http.ts")>()), integrationTesting: vi.fn(() => false) }));
 vi.mock("../preparation/service.ts", () => ({ PreparationService: vi.fn() }));
+vi.mock("../preparation/batch-http.ts", () => ({ handleBatches: vi.fn() }));
+vi.mock("../preparation/batch-queue.ts", () => ({ PreparationQueue: vi.fn() }));
 vi.mock("./queries.ts", () => ({ queries: {} }));
 
 const acp = { run: vi.fn(), cancel: vi.fn() };
@@ -75,4 +79,23 @@ test.each(["portal-filler", "work-tracker-portal-filler"])("rejects unmanaged %s
   expect(response.status).toBe(409);
   expect(await response.json()).toMatchObject({ error: expect.stringContaining("Use Apply") });
   expect(acp.run).not.toHaveBeenCalled();
+});
+
+test("creates one batch queue on the shared preparation service, waiting while the agent is in use", async () => {
+  vi.mocked(handleBatches).mockResolvedValue(ok);
+  const context: Parameters<typeof routeApi>[2] = { acp: { ...acp, isRunning: false }, broadcast };
+  const req = new Request("http://localhost/api/preparation-batches");
+  expect(await routeApi("/api/preparation-batches", req, context)).toBe(ok);
+  expect(await routeApi("/api/preparation-batches/pause", req, context)).toBe(ok);
+  expect(PreparationQueue).toHaveBeenCalledOnce();
+  expect(handleBatches).toHaveBeenCalledWith("/api/preparation-batches/pause", req, context.queue);
+  const [service, agentBusy, notify, pollMs] = vi.mocked(PreparationQueue).mock.calls[0]!;
+  expect([service, notify, pollMs]).toEqual([context.preparation, broadcast, 0]);
+  expect(agentBusy()).toBe(false);
+  vi.mocked(chromeLoginOpening).mockReturnValueOnce(true);
+  expect(agentBusy()).toBe(true);
+  vi.mocked(integrationTesting).mockReturnValueOnce(true);
+  expect(agentBusy()).toBe(true);
+  context.acp = { ...acp, isRunning: true };
+  expect(agentBusy()).toBe(true);
 });

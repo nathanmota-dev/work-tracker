@@ -29,6 +29,10 @@ A migração 7 (`document review versions`) adiciona versões dos documentos,
 aprovações e referências do PDF usado no portal, sem modificar documentos ou
 aprovar versões antigas. Veja [document-review.md](document-review.md).
 
+A migração 8 (`preparation batch queue`) adiciona as tabelas vazias da fila de
+lotes, sem alterar execuções ou candidaturas existentes. Veja
+[preparation-batches.md](preparation-batches.md).
+
 ## Garantias de uma atualização
 
 Antes de qualquer passo:

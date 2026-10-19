@@ -18,18 +18,10 @@ import { saveDocument, documentsForJob, approvedDocument, approveDocument, freez
 import { fillReview } from "./fill-review.ts";
 import { missingForPreparation } from "../jobs/preparation.ts";
 import { planTransition } from "../applications/journey.ts";
+import { assertPortalFree } from "./batch-store.ts";
+import { jobId, jobRecord, type PreparationJob as Job } from "./jobs.ts";
 
 export type PreparationAgent = Pick<SessionManager, "run" | "cancel"> & Partial<Pick<SessionManager, "subscribe" | "isRunning">>;
-type Job = PreparationDetails["job"] & { linkedin_job_id?: string };
-function jobRecord(id: number): Job {
-  const row = db().query("SELECT id, title, company_name, description, link, archived_at, linkedin_job_id FROM jobs WHERE id = ?").get(id) as Job | undefined;
-  if (!row) throw new PreparationError("Job not found.", 404);
-  return row;
-}
-function jobId(value: unknown): number {
-  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1) throw new PreparationError("Select a saved job.");
-  return value;
-}
 export class PreparationService {
   private active: { id: string; controller: AbortController } | null = null;
   private task: Promise<void> | null = null;
@@ -47,6 +39,8 @@ export class PreparationService {
   }
   get isBusy(): boolean { return !!this.active || !!this.acp.isRunning; }
   private assertIdle(): void { if (this.isBusy) throw new PreparationError("Finish or cancel the active execution first.", 409); }
+  /** Reviewing one execution's results may continue while another execution runs. */
+  private assertInactive(runId: unknown): void { if (this.active?.id === runId) throw new PreparationError("Wait for this execution to finish first.", 409); }
   private changed(id?: string): void { this.broadcast({ type: "changed", table: "application_runs", runId: id }); }
   private phase(id: string, phase: PreparationRun["phase"]): void {
     updateRun(id, { phase }); this.broadcast({ type: "preparation-status", runId: id, phase }); this.changed(id);
@@ -95,7 +89,7 @@ export class PreparationService {
       journey: record && { id: record.id, origin: record.origin, attempt: record.attempt, preparation_status: record.preparation_status, fill_status: record.fill_status, submission_status: record.submission_status, submitted_at: record.submitted_at, review_reason: record.review_reason },
     };
   }
-  approve(input: Record<string, unknown>) { this.assertIdle(); const version = approveDocument(input); this.changed(version.runId); return version; }
+  approve(input: Record<string, unknown>) { this.assertInactive(input.runId); const version = approveDocument(input); this.changed(version.runId); return version; }
   description(input: Record<string, unknown>): void {
     this.assertIdle();
     const job = jobRecord(jobId(input.jobId));
@@ -104,7 +98,8 @@ export class PreparationService {
     db().query("UPDATE jobs SET description = ? WHERE id = ?").run(description, job.id);
     this.broadcast({ type: "changed", table: "jobs" });
   }
-  generate(input: Record<string, unknown>): PreparationRun {
+  /** `sources` lets a batch generate from the snapshot it recorded instead of the current sources. */
+  generate(input: Record<string, unknown>, sources?: SourcesSnapshot): PreparationRun {
     this.assertIdle();
     const job = jobRecord(jobId(input.jobId));
     if (job.archived_at) throw new PreparationError("Restore this job before preparing an application.", 409);
@@ -115,7 +110,7 @@ export class PreparationService {
     if (applicationId) planTransition(journeyRecord(d, applicationId), "prepare.start");
     const missing = missingForPreparation(job);
     if (missing.length) throw new PreparationError(`Missing for preparation: ${missing.join(", ")}.`);
-    const snapshot = snapshotSources();
+    const snapshot = sources ?? snapshotSources();
     if (typeof input.provider !== "string" || !input.provider) throw new PreparationError("Select an agent.");
     const id = randomUUID();
     const at = now();
@@ -126,7 +121,7 @@ export class PreparationService {
     return this.start(id, signal => this.performGeneration(id, job, "preparing", String(input.extra ?? ""), signal, snapshot));
   }
   /** Retry from the persisted checkpoint; an unknown portal outcome needs review. */
-  retry(input: Record<string, unknown>): PreparationRun {
+  retry(input: Record<string, unknown>, sources?: SourcesSnapshot): PreparationRun {
     this.assertIdle();
     const run = runRecord(String(input.runId ?? ""));
     const from = run.recovery.retryFrom;
@@ -136,7 +131,7 @@ export class PreparationService {
     if (job.archived_at) throw new PreparationError("Restore this job before preparing an application.", 409);
     const d = db();
     if (run.application_id) planTransition(journeyRecord(d, run.application_id), "prepare.start");
-    const snapshot = from === "preparing" ? snapshotSources() : undefined;
+    const snapshot = from === "preparing" ? sources ?? snapshotSources() : undefined;
     const extra = typeof input.extra === "string" && input.extra.trim() ? input.extra : String(runOptions(run.id).extra ?? "");
     d.transaction(() => {
       updateRun(run.id, { status: "running", phase: from, error: null });
@@ -273,6 +268,7 @@ export class PreparationService {
     const d = db();
     const application = journeyRecord(d, run.application_id);
     planTransition(application, "fill.start");
+    assertPortalFree(d, application.id);
     const url = webLink(application.external_url || job.link);
     const manifest = runManifest(id);
     const manifestPath = fillManifestPath(manifest.manifestPath);
@@ -302,7 +298,7 @@ export class PreparationService {
    * event change together. Repeating it returns the confirmed state unchanged.
    */
   submitted(input: Record<string, unknown>): SubmissionConfirmation {
-    this.assertIdle();
+    this.assertInactive(input.runId);
     const run = runRecord(String(input.runId ?? ""));
     const d = db();
     const result = d.transaction(() => {

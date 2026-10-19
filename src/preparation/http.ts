@@ -5,10 +5,8 @@ import { JourneyError } from "../applications/journey.ts";
 export async function handlePreparation(path: string, req: Request, service: PreparationService): Promise<Response> {
   try {
     if (path === "/api/resume-sources" && req.method === "GET") return Response.json(await service.sourcesState());
-    if (req.method !== "POST") return Response.json({ error: "Method not allowed." }, { status: 405 });
-    const raw: unknown = await req.json().catch(() => null);
-    if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new PreparationError("Expected a JSON object.");
-    const body = raw as Record<string, unknown>;
+    const body = await postBody(req);
+    if (!body) return Response.json({ error: "Method not allowed." }, { status: 405 });
     switch (path) {
       case "/api/resume-sources":
         if (service.isBusy) throw new PreparationError("Finish or cancel the active execution before changing sources.", 409);
@@ -25,7 +23,15 @@ export async function handlePreparation(path: string, req: Request, service: Pre
       case "/api/application-preparation/pdf": return new Response(new Uint8Array(pdfBytes(String(body.artifactId ?? ""))), { headers: { "content-type": "application/pdf", "cache-control": "no-store" } });
       default: return Response.json({ error: "Not found." }, { status: 404 });
     }
-  } catch (error) {
-    return Response.json({ error: error instanceof Error ? error.message : String(error) }, { status: error instanceof PreparationError || error instanceof JourneyError ? error.status : 500 });
-  }
+  } catch (error) { return failure(error); }
+}
+/** The JSON object of a POST request; null for other methods. */
+export async function postBody(req: Request): Promise<Record<string, unknown> | null> {
+  if (req.method !== "POST") return null;
+  const raw: unknown = await req.json().catch(() => null);
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new PreparationError("Expected a JSON object.");
+  return raw as Record<string, unknown>;
+}
+export function failure(error: unknown): Response {
+  return Response.json({ error: error instanceof Error ? error.message : String(error) }, { status: error instanceof PreparationError || error instanceof JourneyError ? error.status : 500 });
 }

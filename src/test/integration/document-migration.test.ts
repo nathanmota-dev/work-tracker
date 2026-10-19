@@ -31,11 +31,12 @@ test("upgrading the answer catalog's v6 keeps localized answers and submitted PD
         VALUES ('pdf-1', 'run-1', 'tailored', '/fixture/resume.pdf', 1, 'Synthetic resume', '[]');
       UPDATE applications SET preparation_run_id = 'run-1' WHERE id = 1;`);
     const before = snapshot();
-    expect(migrateDatabase(d, options)).toMatchObject({ from: 6, to: SCHEMA_VERSION, applied: [7], backup: null });
+    expect(migrateDatabase(d, options)).toMatchObject({ from: 6, to: SCHEMA_VERSION, applied: [7, 8], backup: null });
     expect(snapshot()).toEqual(before);
     expect(d.query("SELECT version, name FROM schema_migrations WHERE version >= 6 ORDER BY version").all()).toEqual([
       { version: 6, name: "reusable answer languages" },
       { version: 7, name: "document review versions" },
+      { version: 8, name: "preparation batch queue" },
     ]);
     expect(d.query("SELECT * FROM document_versions").all()).toEqual([]);
     expect(d.query("SELECT * FROM application_documents").all()).toEqual([]);

@@ -95,6 +95,11 @@ command palette, keyboard selection, history and a narrow window/PDF tabs.
 the unavailable state, restarts it from the interface, and verifies that the run
 is shown as interrupted without a second prompt while navigation, live CLI
 updates and the backend log keep working.
+`preparation-batch.spec.ts` creates a batch through the desktop API (the selection
+UI is feature 17) and checks the Apply queue: a form in review reserves the portal
+for both the queue and Apply, a pending sign-in and two restarts keep every item's
+phase, and a fill interrupted with an unknown outcome is not repeated by resume or
+"Retry failed" until the portal review is confirmed.
 
 Keep journeys independent; do not rely on test ordering or share databases. Use
 accessible locators and real pointer events for drag and drop. Read database state
