@@ -15,6 +15,7 @@ import { ensureDescription, readTailoringOutput, resetProject, restoreSources, v
 export { readableJobDetails } from "./generation.ts";
 import { journeyRecord, latestForJob, openApplication, settleExecution, startTracking, transition } from "../applications/journey-store.ts";
 import { saveDocument, documentsForJob, approvedDocument, approveDocument, freezeDocumentUse } from "./documents.ts";
+import { fillReview } from "./fill-review.ts";
 import { missingForPreparation } from "../jobs/preparation.ts";
 import { planTransition } from "../applications/journey.ts";
 
@@ -90,7 +91,7 @@ export class PreparationService {
     const application = applicationId ? db().query("SELECT id FROM applications WHERE id = ? AND job_id = ?").get(applicationId, job.id) as { id: number } | undefined : undefined;
     const record = application ? journeyRecord(db(), application.id) : null;
     return {
-      job, runs, documents: documentsForJob(job.id, requestedApplication), busy: this.isBusy, applicationStatus: record?.status ?? null, uploadedRunId: record?.preparation_run_id ?? null,
+      job, runs, documents: documentsForJob(job.id, requestedApplication), fill: record ? fillReview(db(), record.id) : null, busy: this.isBusy, applicationStatus: record?.status ?? null, uploadedRunId: record?.preparation_run_id ?? null,
       journey: record && { id: record.id, origin: record.origin, attempt: record.attempt, preparation_status: record.preparation_status, fill_status: record.fill_status, submission_status: record.submission_status, submitted_at: record.submitted_at, review_reason: record.review_reason },
     };
   }

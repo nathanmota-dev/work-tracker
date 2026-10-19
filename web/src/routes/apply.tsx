@@ -12,6 +12,7 @@ import { useIntegrations, type Target } from "@/lib/integrations"
 import { AgentConversation } from "@/components/agent-conversation"
 import { DocumentReview } from "@/components/document-review"
 import { RunRecovery } from "@/components/run-recovery"
+import { FillReviewPanel } from "@/components/fill-review"
 import { request, useApi, useConnection, subscribe, type Row } from "@/lib/api"
 import type { Providers } from "@/lib/agent"
 import { openApply, preparationMessages, usePreparation, type SourcesState, type PdfArtifact, type SubmissionConfirmation } from "@/lib/preparation"
@@ -112,6 +113,7 @@ function ApplyWorkspace({ search }: { search: { jobId?: number; applicationId?: 
     {!!details.data?.runs.length && <Field label="Execution history"><SelectControl className={controlClass} value={run?.id ?? ""} onChange={e => openApply(search.jobId, search.applicationId, e.target.value)}>{details.data.runs.map(r => <option key={r.id} value={r.id}>{new Date(r.created_at).toLocaleString()} · {r.phase} · {r.status}</option>)}</SelectControl></Field>}
     {tailored && pdfRun?.id !== run?.id && <p className="text-sm text-muted-foreground">Showing the previous validated resume. Approve this version before filling if needed.</p>}
     {version && <DocumentReview key={version.id} version={version} versions={details.data?.documents ?? []} disabled={busy || archived || !live || details.data?.applicationStatus === "submitted"} approve={() => void action("approve")} />}
+    {details.data?.fill && <FillReviewPanel key={details.data.fill.applicationId} review={details.data.fill} run={run} fillBlocked={fillBlocks.length > 0} onFillAgain={() => void action("fill")} />}
     <Suspense fallback={<p role="status">Loading PDF viewer…</p>}>{wide ? <div className="grid min-w-0 grid-cols-2 gap-4"><PdfViewer title="Base PDF" artifact={base} /><PdfViewer title="Tailored PDF" artifact={tailored} /></div> : <Tabs value={pdfTab} onValueChange={setPdfTab}><TabsList><TabsTrigger value="base">Base PDF</TabsTrigger><TabsTrigger value="tailored">Tailored PDF</TabsTrigger></TabsList><TabsContent value="base"><PdfViewer title="Base PDF" artifact={base} /></TabsContent><TabsContent value="tailored"><PdfViewer title="Tailored PDF" artifact={tailored} /></TabsContent></Tabs>}</Suspense>
     <Panel title="Application workspace"><Tabs value={route.workspaceTab ?? "activity"} onValueChange={workspaceTab => update({ workspaceTab })}><TabsList><TabsTrigger value="activity">Agent activity</TabsTrigger><TabsTrigger value="report">Report</TabsTrigger></TabsList><TabsContent value="activity"><AgentConversation messages={messages} /></TabsContent><TabsContent value="report"><div className="max-h-[420px] overflow-auto whitespace-pre-wrap text-sm">{run?.report ?? "The tailoring report will appear after generation."}</div></TabsContent></Tabs></Panel>
     {tailored && <p className="text-xs text-muted-foreground">Review the PDF and portal fields before submitting in the browser.</p>}

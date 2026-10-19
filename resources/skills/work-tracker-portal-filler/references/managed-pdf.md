@@ -24,11 +24,19 @@ After filling, write a JSON object to `resultPath`:
   "pdfHash": "pdfHash from the manifest",
   "pdfPath": "exact pdfPath attached to the portal",
   "fields": { "email": "actual value entered" },
-  "unfilled": [{ "label": "Question", "reason": "no-stored-answer" }],
+  "unfilled": [{ "label": "Phone", "key": "phone", "reason": "no-stored-answer" }],
   "portal": "greenhouse",
   "externalUrl": "https://employer.example/application"
 }
 ```
+
+Key `fields` by the answer key from `work-tracker match` when there is one, and
+by the visible label otherwise. For each `unfilled` entry, copy the matcher's
+`label`, `key` and `skip` value as `reason` (`no-stored-answer`, `invalid-answer`,
+`ambiguous`, `eeo-human-only` or `no-match`); describe any other blocker briefly
+in `reason`. Work Tracker turns this into the candidate's review checklist and
+links missing or invalid answers to Answers, so a corrected answer can be filled
+again with the same approved PDF.
 
 `fields` describes only values verified on the form. Include a resume entry only
 after confirming the upload succeeded. Record the manifest’s version and hash only after the exact approved PDF was attached. Never report success for a different PDF. The backend persists this result to the

@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Page, LoadState, Field } from "@/components/workspace-ui"
 import { Records, type Column } from "@/components/records"
 import { useApi, request, publish, date, type Row } from "@/lib/api"
+import { useWorkspaceState } from "@/lib/workspace-state"
 import { AnswerEditor, draftError, type AnswerDraft } from "@/components/answer-editor"
 import { AnswerCatalog } from "@/components/answer-catalog"
 import { ANSWER_CATALOG, CATEGORY_LABELS, answerLanguage } from "../../../src/answers/catalog"
@@ -58,11 +59,16 @@ export function AnswersPage() {
     const row = rows.find(r => r.key === key && r.language === lang)
     editor.open({ key, value: String(row?.value ?? ""), category: String(row?.category ?? ANSWER_CATALOG.find(s => s.key === key)?.category ?? "custom"), language: lang, existing: !!row })
   }
+  // A correction link from the Apply checklist opens that field's editor once.
+  const { search: route } = useWorkspaceState("answers")
+  const [requested, setRequested] = useState("")
+  if (route.field && api.data && requested !== route.field) { setRequested(route.field); open(route.field) }
   const draft = editor.draft
   let duplicate = false
   try { duplicate = !!draft && !draft.existing && rows.some(row => row.key === draft.key.trim() && row.language === answerLanguage(draft.language)) } catch { /* editor displays language validation */ }
   return <Page title="Answers" description="Your reusable details, ready for the next application."
     actions={<Button size="sm" onClick={() => open("")}>Add answer</Button>}>
+    {route.returnTo && <a className="text-sm underline" href={`#${route.returnTo}`}>Back to the application checklist</a>}
     {editor.notice && <p role="status" className="text-sm">{editor.notice}</p>}
     <LoadState {...api} retry={api.refresh} />
     <div className="flex flex-wrap items-end gap-4">

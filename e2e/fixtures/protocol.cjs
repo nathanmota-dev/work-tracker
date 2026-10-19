@@ -85,7 +85,11 @@ require('node:readline').createInterface({ input: process.stdin }).on('line', as
         const manifest = JSON.parse(fs.readFileSync(JSON.parse(manifestMatch[1]), 'utf8'));
         if (manifest.resultPath) {
           log({ kind: 'fill', pdfPath: manifest.pdfPath, applicationId: manifest.applicationId, url: manifest.url });
-          fs.writeFileSync(manifest.resultPath, JSON.stringify({ versionId: manifest.versionId, pdfHash: manifest.pdfHash, pdfPath: manifest.pdfPath, fields: { resume: manifest.pdfPath, email: 'candidate@example.com' }, unfilled: [], externalUrl: manifest.url, portal: 'generic' }));
+          // Like the skill, match the form labels against the saved answers and report pending fields with their reasons.
+          const plan = JSON.parse(cli(['match', '--labels', JSON.stringify(['Phone', 'Gender'])]));
+          const fields = { resume: manifest.pdfPath, email: 'candidate@example.com', ...Object.fromEntries(plan.matched.map(entry => [entry.key, entry.value])) };
+          const unfilled = plan.unfilled.map(({ label, key, skip }) => ({ label, key, reason: skip }));
+          fs.writeFileSync(manifest.resultPath, JSON.stringify({ versionId: manifest.versionId, pdfHash: manifest.pdfHash, pdfPath: manifest.pdfPath, fields, unfilled, externalUrl: manifest.url, portal: 'generic' }));
         } else {
           const file = join(manifest.project, manifest.mainFile);
           fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace('Base resume.', state.agent === 'invalid-latex' ? '\\undefinedE2ECommand' : 'Tailored resume.'));

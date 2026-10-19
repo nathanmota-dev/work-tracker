@@ -50,6 +50,8 @@ export interface PreparationDetails {
   job: { id: number; title: string; company_name: string; description: string | null; link: string | null; archived_at: string | null; linkedin_job_id?: string | null };
   runs: PreparationRun[];
   documents?: DocumentVersion[];
+  /** Readable review of the application's last recorded portal fill; null before the first one. */
+  fill?: FillReview | null;
   busy: boolean;
   applicationStatus: string | null;
   uploadedRunId: string | null;
@@ -95,4 +97,41 @@ export interface DocumentVersion {
   description: string;
   extra: string;
   data: unknown;
+}
+
+/** Why the portal agent left a field for the candidate; matches the matcher's skip codes. */
+export type FillPendingReason = "no-stored-answer" | "invalid-answer" | "ambiguous" | "eeo-human-only" | "no-match" | "other";
+/**
+ * One portal field from the fill result, readable without its JSON.
+ *
+ * @property answer Value the agent entered; null for pending fields.
+ * @property correctionKey Saved-answer key the candidate can add or correct in Answers.
+ */
+export interface FillChecklistItem {
+  label: string;
+  key: string | null;
+  answer: string | null;
+  result: "filled" | "pending";
+  reason: FillPendingReason | null;
+  reasonText: string | null;
+  correctionKey: string | null;
+}
+/**
+ * The last fill result stored on an application, with the portal and PDF it used.
+ * Filling never submits: `submitted` reflects only the candidate's confirmation.
+ */
+export interface FillReview {
+  applicationId: number;
+  runId: string | null;
+  portal: string;
+  portalLabel: string;
+  reviewUrl: string | null;
+  document: { versionId: string; pdfHash: string; usedAt: string } | null;
+  fillStatus: string;
+  submitted: boolean;
+  submittedAt: string | null;
+  items: FillChecklistItem[];
+  filled: number;
+  pending: number;
+  instruction: string;
 }
