@@ -102,6 +102,8 @@ test('Apply: real PDFs, generation/regeneration/history, filling, submission and
   expect(workspace.query('SELECT status FROM applications')[0]?.status).toBe('filled')
   await page.getByRole('button', { name: 'I submitted in the browser' }).click()
   await expect(page.getByText(/Submission confirmed/)).toBeVisible()
+  // The fill checklist reflects the confirmation without repeating the submission notice.
+  await expect(page.getByText(/^Marked as submitted on /)).toBeVisible()
   await expect(page.getByRole('button', { name: 'Regenerate', exact: true })).toBeDisabled()
   expect(workspace.query('SELECT status FROM applications')[0]?.status).toBe('submitted')
   expect(workspace.query('SELECT version_id, submitted_at FROM application_documents')[0]).toMatchObject({ version_id: approved.id, submitted_at: expect.any(String) })

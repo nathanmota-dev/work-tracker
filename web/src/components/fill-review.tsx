@@ -23,7 +23,7 @@ export function FillReviewPanel({ review, run, fillBlocked, onFillAgain }: { rev
   const pending = review.items.map((item, index) => ({ item, id: itemId(item, index) })).filter(entry => entry.item.result === "pending")
   const remaining = pending.filter(entry => !reviewed.has(entry.id)).length
   const stale = staleNotice(run)
-  const progress = review.submitted ? `Submission confirmed${review.submittedAt ? ` on ${new Date(review.submittedAt).toLocaleDateString()}` : ""}.`
+  const progress = review.submitted ? `Marked as submitted${review.submittedAt ? ` on ${new Date(review.submittedAt).toLocaleDateString()}` : ""}.`
     : remaining ? `${remaining} pending field${remaining === 1 ? "" : "s"} to complete in the portal.`
       : "Checklist complete. The application is not submitted yet: submit it in the portal, then choose I submitted in the browser."
   return <div id="fill-review"><Panel title="Portal fill review">
