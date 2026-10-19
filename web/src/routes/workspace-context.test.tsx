@@ -138,3 +138,29 @@ it("restores the saved-job selection and save outcome when returning to Search",
   expect(await screen.findByRole("dialog")).toHaveTextContent("Engineer 1")
   expect(screen.getByText("1 saved · 0 already saved · 0 failed")).toBeInTheDocument()
 })
+
+it("Apply checklist → Answers correction → back keeps the review, and completing it never confirms the submission", async () => {
+  const pending = (label: string, key: string, reason: string, correctionKey: string | null) => ({ label, key, answer: null, result: "pending", reason, reasonText: `${label} needs you.`, correctionKey })
+  const fill = { applicationId: 10, runId: "run-1", portal: "lever", portalLabel: "Lever", reviewUrl: null, document: null, fillStatus: "filled", submitted: false, submittedAt: null, filled: 0, pending: 2, instruction: "Work Tracker never submits.",
+    items: [pending("Phone", "phone", "no-stored-answer", "phone"), pending("Gender", "eeo_gender", "eeo-human-only", null)] }
+  const original = request.getMockImplementation()!
+  request.mockImplementation(async (path: string, body?: { jobId?: number }) => path === "application-preparation/details"
+    ? { job: jobs[0], runs: [], busy: false, applicationStatus: "filled", fill, journey: { id: 10, fill_status: "filled", submission_status: "not_submitted" } } : original(path, body))
+  const { router } = await mount("/apply?jobId=1&applicationId=10")
+  fireEvent.click(await screen.findByRole("checkbox", { name: "Completed Gender in the portal" }))
+  await go(router, screen.getByRole("link", { name: "Add answer for Phone" }).getAttribute("href")!.slice(1))
+  expect(await screen.findByRole("dialog")).toHaveTextContent("Add an answer")
+  expect(router.state.location.search).toMatchObject({ field: "phone", returnTo: "/apply?jobId=1&applicationId=10" })
+  fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" })
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
+  await go(router, screen.getByRole("link", { name: "Back to the application checklist" }).getAttribute("href")!.slice(1))
+  expect(await screen.findByRole("checkbox", { name: "Completed Gender in the portal" })).toBeChecked()
+  expect(screen.getByText("1 pending field to complete in the portal.")).toBeInTheDocument()
+  fireEvent.click(screen.getByRole("checkbox", { name: "Completed Phone in the portal" }))
+  expect(screen.getByText(/^Checklist complete\. The application is not submitted yet/)).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "I submitted in the browser" })).toBeInTheDocument()
+  expect(request).not.toHaveBeenCalledWith("application-preparation/submitted", expect.anything())
+  await go(router, "/answers?returnTo=https%3A%2F%2Fexample.com")
+  expect(await screen.findByRole("heading", { name: "Answers" })).toBeInTheDocument()
+  expect(screen.queryByRole("link", { name: "Back to the application checklist" })).not.toBeInTheDocument()
+})

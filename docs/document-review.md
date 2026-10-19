@@ -37,3 +37,5 @@ Submit no portal.
 
 Os testes usam PDFs e fontes genéricos, workspaces temporários e agentes/portais
 sintéticos; não executam candidaturas reais.
+
+O checklist do preenchimento no portal está descrito em [fill-review.md](fill-review.md).
