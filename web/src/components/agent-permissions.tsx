@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { request, useApi, useConnection } from "@/lib/api"
 import type { PermissionRequest, PermissionSnapshot } from "@/lib/permissions"
 import { Button } from "@/components/ui/button"
@@ -44,10 +44,20 @@ function PermissionDialog({ permission, close }: { permission: PermissionRequest
   </Dialog>
 }
 
+export function reviewPermission(runId: string) { window.dispatchEvent(new CustomEvent("review-agent-permission", { detail: runId })) }
+
 export function AgentPermissions() {
   const api = useApi<PermissionSnapshot>("acp/permissions")
   const live = useConnection()
   const [hidden, setHidden] = useState<string[]>([])
+  useEffect(() => {
+    const review = (event: Event) => {
+      const request = api.data?.pending.find(item => item.runId === (event as CustomEvent<string>).detail)
+      if (request) setHidden(ids => ids.filter(id => id !== request.id))
+    }
+    window.addEventListener("review-agent-permission", review)
+    return () => window.removeEventListener("review-agent-permission", review)
+  }, [api.data])
   const permission = live ? api.data?.pending?.[0] : undefined
   if (live && api.error) return <div role="alert" className="flex items-center justify-between gap-3 border-b px-4 py-2 text-sm"><span>Could not load tool permissions: {api.error}</span><Button size="sm" variant="outline" onClick={api.refresh}>Retry permissions</Button></div>
   if (!permission) return null

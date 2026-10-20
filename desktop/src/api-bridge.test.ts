@@ -37,6 +37,7 @@ describe("api bridge", () => {
   afterEach(() => {
     closeApiBridge()
     electron.send.mockClear()
+    vi.unstubAllGlobals()
   })
 
   it("exposes the backend state and restart action", async () => {
@@ -87,5 +88,19 @@ describe("api bridge", () => {
     vi.advanceTimersByTime(2000)
     expect(sockets).toHaveLength(3)
     expect(sockets[2]!.url).toContain("token=second")
+  })
+  it("allows batch review reads and adjustment writes while rejecting arbitrary paths and methods", async () => {
+    connectApiBridge({ address: "http://127.0.0.1:4000", token: "fixture" })
+    const fetch = vi.fn(async () => new Response('{"ok":true}'))
+    vi.stubGlobal("fetch", fetch)
+    const request = electron.handlers.get("api:request")!
+    const path = "preparation-batches/review/12345678-1234-1234-1234-123456789abc"
+    expect(await request({}, path)).toEqual({ ok: true })
+    expect(fetch).toHaveBeenLastCalledWith(expect.objectContaining({ pathname: `/api/${path}` }), expect.objectContaining({ method: "GET" }))
+    expect(await request({}, "preparation-batches/adjust", { adjustment: "React" })).toEqual({ ok: true })
+    expect(fetch).toHaveBeenLastCalledWith(expect.any(URL), expect.objectContaining({ method: "POST", body: '{"adjustment":"React"}' }))
+    for (const invalid of ["preparation-batches/review/../jobs", "preparation-batches/review/%2e%2e", "preparation-batches/review/", "preparation-batches/adjust"])
+      await expect(request({}, invalid)).rejects.toThrow("Unsupported API request")
+    await expect(request({}, path, {})).rejects.toThrow("Unsupported API request")
   })
 })

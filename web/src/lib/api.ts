@@ -63,10 +63,10 @@ export function useApi<T>(path: string) {
     () =>
       subscribe((event) => {
         if (
-          (path === "acp/permissions" && (event.type === "hello" || event.type === "connection" && event.live === true)) || event.type === "changed" &&
+          ((path === "acp/permissions" || path.startsWith("preparation-batches")) && (event.type === "hello" || event.type === "connection" && event.live === true)) || event.type === "changed" &&
           (!event.table ||
             event.table === "unknown" ||
-            (dependencies[path] ?? [path]).includes(String(event.table)))
+            (dependencies[path.startsWith("preparation-batches/") ? "preparation-batches" : path] ?? [path]).includes(String(event.table)))
         )
           refresh()
       }),

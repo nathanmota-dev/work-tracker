@@ -10,6 +10,7 @@ import { runRecord } from "./store.ts";
 import { newItems, previewJobs, type BatchPreview } from "./batch-selection.ts";
 import { batchRequest, recordBatchRequest } from "./batch-request.ts";
 import { FINISHED, RETRYABLE } from "./batch-state.ts";
+import { requestAdjustment } from "./batch-adjustment.ts";
 import { appendItems, batchItems, batchRow, checkJobs, insertBatch, itemOptions, itemRow, pauseAfterRestart, pendingItems, portalHolder, queueState, reconcileItems, setBatch, setItem, type RunnableItem, type StoredBatch } from "./batch-store.ts";
 import type { PreparationBatch, PreparationQueueState, ResumeSourcesConfig } from "./types.ts";
 
@@ -74,10 +75,10 @@ export class PreparationQueue {
     }
     if (changed) this.changed();
   }
-  state(): PreparationQueueState {
+  state(only?: string): PreparationQueueState {
     const d = db();
     if (this.sync(d)) this.changed();
-    return queueState(d, this.service.isBusy);
+    return queueState(d, this.service.isBusy, only);
   }
   preview(input: Record<string, unknown>): BatchPreview { return previewJobs(db(), newItems(input.items)); }
   create(input: Record<string, unknown>): PreparationBatch {
@@ -123,6 +124,13 @@ export class PreparationQueue {
     const batch = batchRow(d, input.batchId);
     if (batch.status !== "paused") throw new PreparationError("Only a paused batch can be resumed.", 409);
     setBatch(d, batch.id, { status: "active", pause_reason: null });
+    return this.updated(batch.id);
+  }
+  adjust(input: Record<string, unknown>): PreparationBatch {
+    const d = db();
+    this.sync(d);
+    const batch = this.open(d, input.batchId);
+    d.transaction(() => requestAdjustment(d, batch.id, input))();
     return this.updated(batch.id);
   }
   /** Cancel one item, or the whole batch. Finished results and the application stay as they are. */
@@ -185,11 +193,11 @@ export class PreparationQueue {
   private start(d: Database, item: RunnableItem): boolean {
     const options = itemOptions(item);
     try {
-      const run = !item.run_id
-        ? this.service.generate({ jobId: item.job_id, provider: item.provider, model: item.model ?? undefined, extra: options.extra || item.batch_extra }, batchSources(item))
+      const run = !item.run_id || options.regenerate
+        ? this.service.generate({ jobId: item.job_id, ...(options.regenerate ? { applicationId: item.application_id } : {}), provider: item.provider, model: item.model ?? undefined, extra: [options.extra || item.batch_extra, options.adjustment ? `Requested adjustment:\n${options.adjustment}` : ""].filter(Boolean).join("\n\n") }, batchSources(item))
         : item.phase === "waiting_for_fill" ? this.service.fill({ runId: item.run_id })
           : this.service.retry({ runId: item.run_id, reviewed: options.reviewed === true }, runRecord(item.run_id).recovery.retryFrom === "preparing" ? batchSources(item) : undefined);
-      setItem(d, item.id, { run_id: run.id, attempts: item.attempts + 1, error: null, options_json: JSON.stringify({ ...options, reviewed: undefined }) });
+      setItem(d, item.id, { run_id: run.id, attempts: item.attempts + 1, error: null, options_json: JSON.stringify({ ...options, reviewed: undefined, regenerate: undefined }) });
       this.sync(d);
       return true;
     } catch (error) {

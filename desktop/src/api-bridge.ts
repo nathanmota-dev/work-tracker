@@ -59,6 +59,7 @@ const writes = new Set([
   "preparation-batches/resume",
   "preparation-batches/cancel",
   "preparation-batches/retry",
+  "preparation-batches/adjust",
   "acp/cancel",
   "recruiters/sync",
   "search/jobs",
@@ -122,7 +123,8 @@ export function registerApiBridge(backend: BackendControl) {
   ipcMain.handle(
     "api:request",
     async (_event, path: string, body?: unknown) => {
-      if (!(body === undefined ? reads : writes).has(path))
+      const batchReview = body === undefined && /^preparation-batches\/review\/[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(path)
+      if (!(body === undefined ? reads : writes).has(path) && !batchReview)
         throw new Error("Unsupported API request")
       if (!connection)
         throw new Error(unavailable ?? "Backend is starting. Please retry in a moment.")

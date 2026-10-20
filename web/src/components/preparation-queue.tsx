@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Panel, Status } from "@/components/workspace-ui"
+import { batchReviewHref } from "@/lib/batch-review"
 import { request, useApi, useConnection } from "@/lib/api"
 import type { BatchItemPhase, BatchItemStatus, PreparationBatch, PreparationBatchItem, PreparationQueueState } from "@/lib/preparation"
 
@@ -62,6 +63,7 @@ function BatchView({ batch, disabled, act }: { batch: PreparationBatch; disabled
       <p className="text-sm font-medium">{label}</p>
       <Status value={restarted ? "paused after restart" : batch.status} />
       <div className="ml-auto flex flex-wrap gap-2">
+        <a className="text-sm underline" href={batchReviewHref(batch.id)}>Review batch</a>
         {batch.status === "active" && <Button size="sm" variant="outline" disabled={disabled} onClick={() => act("pause", { batchId: batch.id })}>Pause</Button>}
         {batch.status === "paused" && <Button size="sm" disabled={disabled} onClick={() => act("resume", { batchId: batch.id })}>Resume</Button>}
         {open && batch.items.some(item => item.retryable && !item.reviewRequired) && <Button size="sm" variant="outline" disabled={disabled} onClick={() => act("retry", { batchId: batch.id })}>Retry failed</Button>}

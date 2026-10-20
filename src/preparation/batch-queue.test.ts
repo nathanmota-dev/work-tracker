@@ -246,3 +246,30 @@ test("replays an identical request after progress without duplicating or freezin
   queue.add({ batchId: first.id, items: [{ jobId: jobs[1] }] });
   expect(queue.create(input).items).toHaveLength(2);
 });
+
+test("an adjustment waits for the executor, survives restart and starts a new version from the frozen sources", () => {
+  const batch = create(1);
+  queue.pause({ batchId: batch.id });
+  const selected = items(batch.id)[0]!;
+  runRow("old", jobs[0]!, "completed", "review", '{"checkpoints":["compiled"]}');
+  const app = insertApplication(d, { job_id: jobs[0]!, preparation_run_id: "old" });
+  d.query("UPDATE application_runs SET application_id = ? WHERE id = 'old'").run(app);
+  d.query("INSERT INTO document_versions (id, run_id, application_id, pdf_hash, source_version, snapshot_json, created_at) VALUES ('old-pdf', 'old', ?, 'hash', 'v1', '{}', 'now')").run(app);
+  setItem(d, selected.id, { run_id: "old", phase: "compiling", status: "running" });
+  const adjusted = queue.adjust({ batchId: batch.id, itemId: selected.id, adjustment: "Emphasize React" });
+  expect(adjusted).toMatchObject({ summary: { pending: 1, prepared: 0 }, items: [{ phase: "queued", status: "pending", adjustment: "Emphasize React", runId: "old" }] });
+  queue.pump();
+  expect(service.generate).not.toHaveBeenCalled();
+  queue.close(); queue = new PreparationQueue(service, () => busy, broadcast, 0);
+  expect(queue.state(batch.id).batches[0]!.items[0]).toMatchObject({ phase: "queued", status: "pending" });
+  queue.resume({ batchId: batch.id });
+  // A refused start keeps the request and previous PDF for a later retry.
+  service.generate.mockImplementationOnce(() => { throw Error("Synthetic unavailable agent"); });
+  queue.pump();
+  expect(queue.state(batch.id).batches[0]).toMatchObject({ summary: { failed: 1, prepared: 0 }, items: [{ runId: "old", error: "Synthetic unavailable agent" }] });
+  queue.retry({ batchId: batch.id, itemId: selected.id });
+  queue.pump();
+  expect(service.generate).toHaveBeenLastCalledWith({ jobId: jobs[0], applicationId: app, provider: "agent", model: undefined, extra: "Requested adjustment:\nEmphasize React" }, expect.objectContaining({ version: "v1" }));
+  expect(items(batch.id)[0]).toMatchObject({ run_id: `run-${jobs[0]}`, attempts: 2, status: "running", options_json: '{"adjustment":"Emphasize React"}' });
+  expect(d.query("SELECT id FROM document_versions").all()).toEqual([{ id: "old-pdf" }]);
+});
