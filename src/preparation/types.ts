@@ -168,6 +168,9 @@ export interface PreparationBatchItem {
   extra: string;
   error: string | null;
   updatedAt: string;
+  result: BatchReviewResult;
+  /** Last requested document adjustment, retained across retries and restarts. */
+  adjustment: string | null;
 }
 /** A persisted batch; `completed` is derived when every item is submitted or cancelled. */
 export interface PreparationBatch {
@@ -182,7 +185,10 @@ export interface PreparationBatch {
   updatedAt: string;
   items: PreparationBatchItem[];
   counts: Partial<Record<BatchItemStatus, number>>;
+  summary: Record<BatchReviewResult, number>;
 }
+/** Mutually exclusive results: every batch item contributes exactly once. */
+export type BatchReviewResult = "prepared" | "filled" | "submitted" | "failed" | "cancelled" | "pending";
 export interface PreparationQueueState {
   batches: PreparationBatch[];
   /** The item whose form currently reserves the browser portal. */

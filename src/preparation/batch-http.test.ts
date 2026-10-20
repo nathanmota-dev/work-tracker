@@ -3,7 +3,7 @@ import { handleBatches } from "./batch-http.ts";
 import { PreparationError } from "./sources.ts";
 import type { PreparationQueue } from "./batch-queue.ts";
 
-const queue = { state: vi.fn(), preview: vi.fn(), create: vi.fn(), add: vi.fn(), pause: vi.fn(), resume: vi.fn(), cancel: vi.fn(), retry: vi.fn() };
+const queue = { state: vi.fn(), preview: vi.fn(), create: vi.fn(), add: vi.fn(), pause: vi.fn(), resume: vi.fn(), cancel: vi.fn(), retry: vi.fn(), adjust: vi.fn() };
 const call = (path: string, body?: string, method = body === undefined ? "GET" : "POST") =>
   handleBatches(`/api/preparation-batches${path}`, new Request("http://local", { method, ...(body === undefined ? {} : { body }) }), queue as unknown as PreparationQueue);
 beforeEach(() => { for (const fn of Object.values(queue)) fn.mockReset().mockReturnValue({ id: "batch" }); });
@@ -11,9 +11,11 @@ beforeEach(() => { for (const fn of Object.values(queue)) fn.mockReset().mockRet
 test("reports the queue and dispatches each operation with its JSON body", async () => {
   const state = await call("");
   expect([state.status, await state.json()]).toEqual([200, { id: "batch" }]);
+  expect((await call("/review/batch%201")).status).toBe(200);
+  expect(queue.state).toHaveBeenLastCalledWith("batch 1");
   expect((await call("/create", '{"provider":"agent"}')).status).toBe(201);
   expect(queue.create).toHaveBeenCalledWith({ provider: "agent" });
-  for (const operation of ["preview", "add", "pause", "resume", "cancel", "retry"] as const) {
+  for (const operation of ["preview", "add", "pause", "resume", "cancel", "retry", "adjust"] as const) {
     const response = await call(`/${operation}`, '{"batchId":"batch"}');
     expect([response.status, await response.json()]).toEqual([200, { id: "batch" }]);
     expect(queue[operation]).toHaveBeenCalledWith({ batchId: "batch" });

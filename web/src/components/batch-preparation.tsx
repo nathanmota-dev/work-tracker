@@ -8,17 +8,19 @@ import { JobForm } from "@/components/job-form"
 import { ResumeSources } from "@/components/resume-sources"
 import { request, useApi, type Row } from "@/lib/api"
 import type { Providers } from "@/lib/agent"
+import { batchReviewHref } from "@/lib/batch-review"
 import type { PreparationBatch } from "@/lib/preparation"
 import type { BatchPreview } from "../../../src/preparation/types"
 
 export function BatchPreparation({ jobs, onCreated }: { jobs: Row[]; onCreated: () => void }) {
   const [reviewing, setReviewing] = useState<Row[]>()
   const [notice, setNotice] = useState("")
+  const [batchLink, setBatchLink] = useState("")
   return <>
     <Button size="sm" disabled={!jobs.length} onClick={() => { setNotice(""); setReviewing(jobs) }}>Prepare selected</Button>
-    {notice && <span role="status" className="text-sm">{notice} <a className="underline" href="#/apply">Open preparation queue</a></span>}
+    {notice && <span role="status" className="text-sm">{notice} <a className="underline" href="#/apply">Open preparation queue</a><span aria-hidden="true"> · </span><a className="underline" href={batchLink}>Review batch</a></span>}
     {reviewing && <BatchDialog jobs={reviewing} onClose={() => setReviewing(undefined)} onCreated={batch => {
-      setReviewing(undefined); setNotice(`Batch created with ${batch.items.length} jobs.`); onCreated()
+      setReviewing(undefined); setNotice(`Batch created with ${batch.items.length} jobs.`); setBatchLink(batchReviewHref(batch.id)); onCreated()
     }} />}
   </>
 }

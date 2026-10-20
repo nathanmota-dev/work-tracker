@@ -7,10 +7,10 @@ import { desktopDouble } from "@/test/doubles"
 
 const item = (position: number, fields: Partial<PreparationBatchItem>): PreparationBatchItem => ({
   id: `item-${position}`, batchId: "batch-1", position, jobId: position, company: `Company ${position}`, title: "Engineer", applicationId: null, runId: null,
-  phase: "queued", status: "pending", attempts: 0, holdsPortal: false, reviewRequired: false, retryable: false, extra: "", error: null, updatedAt: "2026-10-19T12:00:00Z", ...fields,
+  phase: "queued", status: "pending", attempts: 0, holdsPortal: false, reviewRequired: false, retryable: false, extra: "", error: null, result: "pending", adjustment: null, updatedAt: "2026-10-19T12:00:00Z", ...fields,
 })
 const batch = (fields: Partial<PreparationBatch> = {}): PreparationBatch => ({
-  id: "batch-1", status: "active", pauseReason: null, provider: "opencode", model: null, extra: "", sourceVersion: "v1", createdAt: "2026-10-19T12:00:00Z", updatedAt: "2026-10-19T12:00:00Z", counts: {},
+  id: "batch-1", status: "active", pauseReason: null, provider: "opencode", model: null, extra: "", sourceVersion: "v1", createdAt: "2026-10-19T12:00:00Z", updatedAt: "2026-10-19T12:00:00Z", counts: {}, summary: { prepared: 0, filled: 0, submitted: 0, failed: 0, cancelled: 0, pending: 5 },
   items: [
     item(1, { phase: "in_review", status: "waiting_for_user", holdsPortal: true, applicationId: 11, runId: "run-1", attempts: 2 }),
     item(2, { phase: "tailoring", status: "failed", retryable: true, error: "Synthetic agent failure", runId: "run-2" }),

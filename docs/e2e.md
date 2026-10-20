@@ -132,3 +132,26 @@ runs on pushes or merges to main; see `docs/ci.md` for the other PR workflows.
 The repository's complete mandatory verification sequence remains in AGENTS.md,
 with the E2E suite added after the existing checks. The installed app is updated
 only after all checks pass in the main worktree.
+
+### Batch application review
+
+The Application review center opens from a batch in Apply or immediately after
+creating one in Jobs. It navigates the batch's fixed item order and keeps the
+selected item and unfinished filter in the route, including returns from Answers.
+Applications and the application board remain the consultation and filtering views.
+
+Every item contributes once to the batch summary: cancelled, submitted, failed
+(including interrupted), pending adjustment, filled, prepared, or otherwise pending,
+in that priority order. Preparation and filling never imply submission. Queue and
+application events refresh the summary; reconnecting reloads the recorded state.
+Adjustments generate a new version from the batch's frozen sources. Failed changes
+keep previous documents and approvals, and interrupted fills still require a portal
+review before retrying.
+
+`application-review-center.spec.ts` selects five synthetic jobs, recovers agent and
+transport failures, requests an adjustment, restarts the app, reviews and fills each
+item, and confirms submissions individually. It uses the existing isolated
+workspace and ACP/MCP/portal doubles; no real applications are sent. Frontend tests
+cover mixed-state navigation, matching PDFs/checklists, context restoration and
+permission decisions. Backend integration tests cover summary transitions,
+cancellations, retries, preservation of previous PDFs and restart recovery.

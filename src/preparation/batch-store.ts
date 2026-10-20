@@ -5,20 +5,21 @@ import { parseRecovery } from "./recovery.ts";
 import { PreparationError } from "./sources.ts";
 import { awaitingDecision } from "./store.ts";
 import { deriveItem, FINISHED, needsReview, RETRYABLE, type ItemSignals } from "./batch-state.ts";
+import { reviewResult, reviewSummary } from "./batch-review.ts";
 import type { BatchItemPhase, BatchItemStatus, PreparationBatch, PreparationBatchItem, PreparationQueueState, ResumeSourcesConfig } from "./types.ts";
 
 export type StoredBatch = { id: string; status: "active" | "paused" | "cancelled"; pause_reason: PreparationBatch["pauseReason"]; provider: string; model: string | null; extra: string; source_version: string; sources_json: string; created_at: string; updated_at: string };
 export type StoredItem = { id: string; batch_id: string; position: number; job_id: number; application_id: number | null; run_id: string | null; phase: BatchItemPhase; status: BatchItemStatus; attempts: number; holds_portal: number; options_json: string; error: string | null; created_at: string; updated_at: string };
 export type RunnableItem = StoredItem & Pick<StoredBatch, "provider" | "model" | "sources_json" | "source_version"> & { batch_extra: string };
 /** Per-item options: context overriding the batch's and a retry confirmed after reviewing the portal. */
-export type ItemOptions = { extra?: string; reviewed?: boolean };
+export type ItemOptions = { extra?: string; reviewed?: boolean; adjustment?: string; regenerate?: boolean };
 export type NewItem = { jobId: number; extra: string };
-type SignalRow = StoredItem & { title: string; company_name: string; run_status: ItemSignals["runStatus"]; run_phase: ItemSignals["runPhase"]; run_error: string | null; recovery_json: string | null; run_application_id: number | null; running_events: string | null; submission_status: string | null; preparation_run_id: string | null; approved_at: string | null };
+type SignalRow = StoredItem & { title: string; company_name: string; run_status: ItemSignals["runStatus"]; run_phase: ItemSignals["runPhase"]; run_error: string | null; recovery_json: string | null; run_application_id: number | null; running_events: string | null; submission_status: string | null; preparation_run_id: string | null; approved_at: string | null; document_id: string | null };
 
 const UNFINISHED = "status NOT IN ('completed', 'cancelled')";
 const SIGNALS = `SELECT i.*, j.title, j.company_name, r.status AS run_status, r.phase AS run_phase, r.error AS run_error, r.recovery_json,
   r.application_id AS run_application_id, CASE WHEN r.status = 'running' THEN r.events_json END AS running_events,
-  a.submission_status, a.preparation_run_id, v.approved_at
+  a.submission_status, a.preparation_run_id, v.approved_at, v.id AS document_id
   FROM preparation_batch_items i JOIN jobs j ON j.id = i.job_id
   LEFT JOIN application_runs r ON r.id = i.run_id
   LEFT JOIN applications a ON a.id = COALESCE(r.application_id, i.application_id)
@@ -29,7 +30,7 @@ const label = (job: { company_name: string; title: string }) => `${job.company_n
 function signals(row: SignalRow): ItemSignals {
   const recovery = parseRecovery(row.recovery_json);
   return {
-    runStatus: row.run_status, runPhase: row.run_phase, runError: row.run_error,
+    runStatus: itemOptions(row).regenerate ? null : row.run_status, runPhase: row.run_phase, runError: row.run_error,
     decision: !!row.running_events && awaitingDecision(JSON.parse(row.running_events) as Record<string, unknown>[]),
     filled: !!recovery.checkpoints?.includes("filled"), portalStarted: recovery.portal === "started", approved: !!row.approved_at,
     submitted: row.submission_status === "submitted", superseded: !!row.run_id && !!row.preparation_run_id && row.preparation_run_id !== row.run_id,
@@ -109,6 +110,8 @@ function itemView(row: SignalRow): PreparationBatchItem {
     applicationId: row.application_id, runId: row.run_id, phase: row.phase, status: row.status, attempts: row.attempts, holdsPortal: !!row.holds_portal,
     reviewRequired: row.status !== "cancelled" && needsReview(signals(row)), retryable: RETRYABLE.includes(row.status),
     extra: itemOptions(row).extra ?? "", error: row.error, updatedAt: row.updated_at,
+    adjustment: itemOptions(row).adjustment ?? null,
+    result: reviewResult(row, { submitted: row.submission_status === "submitted", filled: signals(row).filled, prepared: !!row.document_id, adjustmentRequested: !!itemOptions(row).regenerate }),
   };
 }
 /** The 50 most recent batches (or only `only`) with their items and the current portal reservation. */
@@ -123,7 +126,7 @@ export function queueState(d: Database, busy: boolean, only?: string): Preparati
     for (const item of own) counts[item.status] = (counts[item.status] ?? 0) + 1;
     return {
       id: batch.id, status: batch.status !== "cancelled" && done ? "completed" : batch.status, pauseReason: batch.pause_reason, provider: batch.provider, model: batch.model,
-      extra: batch.extra, sourceVersion: batch.source_version, createdAt: batch.created_at, updatedAt: batch.updated_at, items: own, counts,
+      extra: batch.extra, sourceVersion: batch.source_version, createdAt: batch.created_at, updatedAt: batch.updated_at, items: own, counts, summary: reviewSummary(own),
     };
   });
   const holder = portalHolder(d);

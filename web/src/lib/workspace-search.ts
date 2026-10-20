@@ -20,6 +20,7 @@ export function validateWorkspaceSearch(path: string, search: Record<string, unk
     workType: choice(search.workType, ["remote", "hybrid", "on-site"], ""), maxPages: integer(search.maxPages, 1, 1, 10), resultId: string(search.resultId),
   }
   if (path === "apply") return {
+    batchId: string(search.batchId) || undefined, itemId: string(search.itemId) || undefined, pendingOnly: search.pendingOnly === true || search.pendingOnly === "true",
     jobId: integer(search.jobId, 1, 0) || undefined, applicationId: integer(search.applicationId, 1, 0) || undefined,
     runId: string(search.runId) || undefined, provider: typeof search.provider === "string" ? search.provider : undefined, model: typeof search.model === "string" ? search.model : undefined,
     pdfTab: choice(search.pdfTab, ["base", "tailored"], "base"), workspaceTab: choice(search.workspaceTab, ["activity", "report"], "activity"),
@@ -35,6 +36,7 @@ export type WorkspaceSearch = {
   q?: string; status?: string; page?: number; view?: string; selected?: string; selection?: string[]
   savedJobId?: number; kind?: string; keywords?: string; location?: string; company?: string; workType?: string; maxPages?: number; resultId?: string
   jobId?: number; applicationId?: number; runId?: string; provider?: string; model?: string; pdfTab?: string; workspaceTab?: string
+  batchId?: string; itemId?: string; pendingOnly?: boolean
   skill?: string; target?: string; query?: string; username?: string; url?: string; jobIds?: string
   field?: string; returnTo?: string
 }
