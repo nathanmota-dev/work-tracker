@@ -189,3 +189,6 @@ export interface PreparationQueueState {
   portal: { batchId: string; itemId: string; applicationId: number | null; jobId: number; label: string } | null;
   busy: boolean;
 }
+
+export type BatchEligibility = { jobId: number; title: string; company: string; eligible: boolean; reasons: string[]; missing: string[] };
+export type BatchPreview = { selected: number; eligible: number; excluded: number; items: BatchEligibility[] };

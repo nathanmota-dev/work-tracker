@@ -7,27 +7,17 @@ import { paths } from "../paths.ts";
 import type { PreparationService } from "./service.ts";
 import { PreparationError, snapshotSources, writeSnapshot, type SourcesSnapshot } from "./sources.ts";
 import { runRecord } from "./store.ts";
-import { jobId } from "./jobs.ts";
+import { newItems, previewJobs, type BatchPreview } from "./batch-selection.ts";
+import { batchRequest, recordBatchRequest } from "./batch-request.ts";
 import { FINISHED, RETRYABLE } from "./batch-state.ts";
-import { appendItems, batchItems, batchRow, checkJobs, insertBatch, itemOptions, itemRow, pauseAfterRestart, pendingItems, portalHolder, queueState, reconcileItems, setBatch, setItem, type NewItem, type RunnableItem, type StoredBatch } from "./batch-store.ts";
+import { appendItems, batchItems, batchRow, checkJobs, insertBatch, itemOptions, itemRow, pauseAfterRestart, pendingItems, portalHolder, queueState, reconcileItems, setBatch, setItem, type RunnableItem, type StoredBatch } from "./batch-store.ts";
 import type { PreparationBatch, PreparationQueueState, ResumeSourcesConfig } from "./types.ts";
 
 export type QueueService = Pick<PreparationService, "generate" | "retry" | "fill" | "cancel" | "isBusy">;
-const MAX_ITEMS = 50;
 const ACTIVE = ["running", "waiting_for_decision", "waiting_for_sign_in"];
 export const REVIEW_MESSAGE = "The last portal fill stopped without a result, so the portal may hold a partial fill. Review it in the browser, then confirm before filling again.";
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error)).slice(-24000);
 
-function newItems(value: unknown): NewItem[] {
-  if (!Array.isArray(value) || !value.length) throw new PreparationError("Select at least one job.");
-  if (value.length > MAX_ITEMS) throw new PreparationError(`A batch accepts up to ${MAX_ITEMS} jobs.`);
-  const items = value.map((entry: unknown) => {
-    const item = (entry && typeof entry === "object" ? entry : {}) as Record<string, unknown>;
-    return { jobId: jobId(item.jobId), extra: typeof item.extra === "string" ? item.extra.trim() : "" };
-  });
-  if (new Set(items.map(item => item.jobId)).size !== items.length) throw new PreparationError("Each job can appear only once in a batch.");
-  return items;
-}
 const batchRoot = (id: string) => join(paths.artifacts, "batches", id);
 /** Copy the sources under the batch, so every item uses the version recorded when it was created. */
 export function freezeSources(id: string, snapshot: SourcesSnapshot): ResumeSourcesConfig {
@@ -89,10 +79,15 @@ export class PreparationQueue {
     if (this.sync(d)) this.changed();
     return queueState(d, this.service.isBusy);
   }
+  preview(input: Record<string, unknown>): BatchPreview { return previewJobs(db(), newItems(input.items)); }
   create(input: Record<string, unknown>): PreparationBatch {
     const items = newItems(input.items);
     if (typeof input.provider !== "string" || !input.provider) throw new PreparationError("Select an agent.");
     const d = db();
+    const config = { provider: input.provider, model: typeof input.model === "string" && input.model ? input.model : null, extra: typeof input.extra === "string" ? input.extra.trim() : "" };
+    const fingerprint = JSON.stringify({ ...config, items });
+    const existing = batchRequest(d, input.requestId, fingerprint);
+    if (existing) return queueState(d, this.service.isBusy, existing).batches[0]!;
     checkJobs(d, items);
     const snapshot = snapshotSources();
     const id = randomUUID();
@@ -100,8 +95,9 @@ export class PreparationQueue {
       const sources = freezeSources(id, snapshot);
       d.transaction(() => {
         checkJobs(d, items);
-        insertBatch(d, { provider: input.provider as string, model: typeof input.model === "string" && input.model ? input.model : null, extra: typeof input.extra === "string" ? input.extra.trim() : "", source_version: snapshot.version, sources }, id);
+        insertBatch(d, { ...config, provider: config.provider as string, source_version: snapshot.version, sources }, id);
         appendItems(d, id, items);
+        recordBatchRequest(d, input.requestId, id, fingerprint);
       })();
     } catch (error) { rmSync(batchRoot(id), { recursive: true, force: true }); throw error; }
     return this.updated(id);
@@ -190,7 +186,7 @@ export class PreparationQueue {
     const options = itemOptions(item);
     try {
       const run = !item.run_id
-        ? this.service.generate({ jobId: item.job_id, provider: item.provider, model: item.model ?? undefined, extra: [item.batch_extra, options.extra].filter(Boolean).join("\n\n") }, batchSources(item))
+        ? this.service.generate({ jobId: item.job_id, provider: item.provider, model: item.model ?? undefined, extra: options.extra || item.batch_extra }, batchSources(item))
         : item.phase === "waiting_for_fill" ? this.service.fill({ runId: item.run_id })
           : this.service.retry({ runId: item.run_id, reviewed: options.reviewed === true }, runRecord(item.run_id).recovery.retryFrom === "preparing" ? batchSources(item) : undefined);
       setItem(d, item.id, { run_id: run.id, attempts: item.attempts + 1, error: null, options_json: JSON.stringify({ ...options, reviewed: undefined }) });

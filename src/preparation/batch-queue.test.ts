@@ -49,7 +49,7 @@ beforeEach(async () => {
   service.isBusy = false;
   busy = false;
   broadcast.mockClear();
-  jobs = [1, 2, 3].map(index => insertJob(d, { title: `Role ${index}`, description: "React" }));
+  jobs = [1, 2, 3].map(index => insertJob(d, { title: `Role ${index}`, description: "React", link: `https://example.test/jobs/${index}` }));
   queue = new PreparationQueue(service, () => busy, broadcast, 0);
 });
 afterEach(() => { queue.close(); vi.useRealTimers(); });
@@ -65,7 +65,6 @@ test("freezes the sources with their data so every item uses the recorded versio
 
 test("validates a new batch before recording anything", () => {
   expect(() => queue.create({ provider: "agent", items: [] })).toThrow("Select at least one job.");
-  expect(() => queue.create({ provider: "agent", items: Array.from({ length: 51 }, (_, i) => ({ jobId: i + 1 })) })).toThrow("up to 50 jobs");
   expect(() => queue.create({ provider: "agent", items: [{ jobId: jobs[0] }, { jobId: jobs[0] }] })).toThrow("only once");
   expect(() => queue.create({ provider: "agent", items: [null] })).toThrow("Select a saved job.");
   expect(() => queue.create({ items: [{ jobId: jobs[0] }] })).toThrow("Select an agent.");
@@ -83,7 +82,7 @@ test("runs pending items one at a time with the batch's sources, model and conte
   expect(broadcast).toHaveBeenCalledWith({ type: "changed", table: "preparation_batches" });
   queue.pump();
   expect(service.generate).toHaveBeenCalledOnce();
-  expect(service.generate).toHaveBeenCalledWith({ jobId: jobs[0], provider: "agent", model: "fast", extra: "Shared\n\nMention Rust" }, expect.objectContaining({ version: "v1" }));
+  expect(service.generate).toHaveBeenCalledWith({ jobId: jobs[0], provider: "agent", model: "fast", extra: "Mention Rust" }, expect.objectContaining({ version: "v1" }));
   expect(items(batch.id).map(item => [item.status, item.phase, item.attempts, item.run_id])).toEqual([["running", "preparing", 1, `run-${jobs[0]}`], ["pending", "queued", 0, null]]);
   service.isBusy = true;
   queue.pump();
@@ -232,4 +231,18 @@ test("polls for availability changes without events and stops on close", async (
   queue.pump();
   await vi.advanceTimersByTimeAsync(5000);
   expect(service.generate).toHaveBeenCalledOnce();
+});
+
+test("replays an identical request after progress without duplicating or freezing sources again", () => {
+  const input = { requestId: "retry-key", provider: "agent", items: [{ jobId: jobs[0] }] };
+  expect(queue.preview(input)).toMatchObject({ eligible: 1, excluded: 0 });
+  const first = queue.create(input);
+  queue.pump();
+  const writes = vi.mocked(writeSnapshot).mock.calls.length;
+  expect(queue.create(input).id).toBe(first.id);
+  expect(vi.mocked(writeSnapshot).mock.calls).toHaveLength(writes);
+  expect(d.query("SELECT COUNT(*) AS n FROM preparation_batches").get()).toEqual({ n: 1 });
+  expect(() => queue.create({ ...input, extra: "Changed" })).toThrow("different selection or configuration");
+  queue.add({ batchId: first.id, items: [{ jobId: jobs[1] }] });
+  expect(queue.create(input).items).toHaveLength(2);
 });

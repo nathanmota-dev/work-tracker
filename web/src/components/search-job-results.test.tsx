@@ -40,7 +40,7 @@ it("preserves selection, criteria and local filters across mixed results, retry 
   await search()
   fireEvent.click(await screen.findByRole("checkbox", { name: "Select Engineer" }))
   fireEvent.click(screen.getByRole("checkbox", { name: "Select Engineer" }))
-  fireEvent.click(screen.getByRole("button", { name: "Select all savable results" }))
+  fireEvent.click(screen.getByRole("button", { name: /Select all savable results/ }))
   expect(screen.getByRole("checkbox", { name: "Select Incomplete" })).toBeDisabled()
   request.mockResolvedValueOnce({ results: [{ key: "0", status: "existing", job: { id: 7 } }, { key: "1", status: "failed", error: "Write failed" }] })
   fireEvent.click(screen.getByRole("button", { name: "Save selected" }))

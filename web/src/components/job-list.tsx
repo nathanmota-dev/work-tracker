@@ -3,7 +3,9 @@ import { Archive, ArchiveRestore, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Stats, Status } from "@/components/workspace-ui"
-import { Records, type Column } from "@/components/records"
+import { type Column } from "@/components/records"
+import { MultiSelectRecords } from "@/components/multi-select-records"
+import { BatchPreparation } from "@/components/batch-preparation"
 import { useWorkspaceState } from "@/lib/workspace-state"
 import { text, date, type Row } from "@/lib/api"
 import { openApply } from "@/lib/preparation"
@@ -203,8 +205,12 @@ export function JobTabs({
             Restore a role before preparing a new application.
           </p>
         )}
-        <Records
+        <MultiSelectRecords
           workspace="jobs"
+          selectionRows={[...active, ...archived]}
+          rowKey={row => String(row.id)} rowLabel={row => text(row.title)}
+          canSelect={() => true} busy={false} selectAllLabel="Select all filtered results"
+          action={(jobs, clear) => <BatchPreparation jobs={jobs} onCreated={clear} />}
           rows={view === "archived" ? archived : active}
           noun={view === "archived" ? "Archived opportunities" : "Opportunities"}
           onSelect={onSelect}

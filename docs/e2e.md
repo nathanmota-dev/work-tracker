@@ -95,8 +95,10 @@ command palette, keyboard selection, history and a narrow window/PDF tabs.
 the unavailable state, restarts it from the interface, and verifies that the run
 is shown as interrupted without a second prompt while navigation, live CLI
 updates and the backend log keep working.
-`preparation-batch.spec.ts` creates a batch through the desktop API (the selection
-UI is feature 17) and checks the Apply queue: a form in review reserves the portal
+`batch-selection.spec.ts` selects a page and filtered results in Jobs, deselects
+items, reviews five jobs and creates one batch with shared and overridden context;
+it checks that all five resumes reach review without filling or submitting.
+`preparation-batch.spec.ts` creates a batch through the desktop API and checks the Apply queue: a form in review reserves the portal
 for both the queue and Apply, a pending sign-in and two restarts keep every item's
 phase, and a fill interrupted with an unknown outcome is not repeated by resume or
 "Retry failed" until the portal review is confirmed.

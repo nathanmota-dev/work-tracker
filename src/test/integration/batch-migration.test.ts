@@ -13,13 +13,13 @@ test("upgrading a v7 workspace adds empty batch tables without changing runs or 
   try {
     migrateDatabase(d, { ...options, migrations: MIGRATIONS.filter(step => step.version <= 7), target: 7 });
     // ensureCurrentSchema is additive; remove the future tables to model released v7 exactly.
-    d.exec(`DROP TABLE preparation_batch_items; DROP TABLE preparation_batches;
+    d.exec(`DROP TABLE preparation_batch_requests; DROP TABLE preparation_batch_items; DROP TABLE preparation_batches;
       INSERT INTO jobs (id, title, company_name, description) VALUES (1, 'Engineer', 'Example', 'Generic role');
       INSERT INTO applications (id, job_id, status, preparation_status) VALUES (1, 1, 'draft', 'ready');
       INSERT INTO application_runs (id, job_id, application_id, status, phase, provider, created_at, updated_at)
         VALUES ('run-1', 1, 1, 'interrupted', 'tailoring', 'fixture', 'fixture-time', 'fixture-time');`);
     const before = snapshot();
-    expect(migrateDatabase(d, options)).toMatchObject({ from: 7, to: 8, applied: [8], backup: null });
+    expect(migrateDatabase(d, options)).toMatchObject({ from: 7, to: 9, applied: [8, 9], backup: null });
     expect(snapshot()).toEqual(before);
     expect(d.query("SELECT COUNT(*) AS n FROM preparation_batches").get()).toEqual({ n: 0 });
     d.exec("INSERT INTO preparation_batches (id, status, provider, source_version, sources_json, created_at, updated_at) VALUES ('b', 'active', 'fixture', 'v', '{}', 'now', 'now')");

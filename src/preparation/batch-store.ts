@@ -1,8 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { now } from "../db/index.ts";
 import type { Database } from "../db/sqlite.ts";
-import { latestForJob } from "../applications/journey-store.ts";
-import { missingForPreparation } from "../jobs/preparation.ts";
 import { parseRecovery } from "./recovery.ts";
 import { PreparationError } from "./sources.ts";
 import { awaitingDecision } from "./store.ts";
@@ -12,11 +10,10 @@ import type { BatchItemPhase, BatchItemStatus, PreparationBatch, PreparationBatc
 export type StoredBatch = { id: string; status: "active" | "paused" | "cancelled"; pause_reason: PreparationBatch["pauseReason"]; provider: string; model: string | null; extra: string; source_version: string; sources_json: string; created_at: string; updated_at: string };
 export type StoredItem = { id: string; batch_id: string; position: number; job_id: number; application_id: number | null; run_id: string | null; phase: BatchItemPhase; status: BatchItemStatus; attempts: number; holds_portal: number; options_json: string; error: string | null; created_at: string; updated_at: string };
 export type RunnableItem = StoredItem & Pick<StoredBatch, "provider" | "model" | "sources_json" | "source_version"> & { batch_extra: string };
-/** Per-item options: context added to the batch's and a retry confirmed after reviewing the portal. */
+/** Per-item options: context overriding the batch's and a retry confirmed after reviewing the portal. */
 export type ItemOptions = { extra?: string; reviewed?: boolean };
 export type NewItem = { jobId: number; extra: string };
 type SignalRow = StoredItem & { title: string; company_name: string; run_status: ItemSignals["runStatus"]; run_phase: ItemSignals["runPhase"]; run_error: string | null; recovery_json: string | null; run_application_id: number | null; running_events: string | null; submission_status: string | null; preparation_run_id: string | null; approved_at: string | null };
-type JobRow = { id: number; title: string; company_name: string; link: string | null; description: string | null; linkedin_job_id: string | null; archived_at: string | null };
 
 const UNFINISHED = "status NOT IN ('completed', 'cancelled')";
 const SIGNALS = `SELECT i.*, j.title, j.company_name, r.status AS run_status, r.phase AS run_phase, r.error AS run_error, r.recovery_json,
@@ -39,20 +36,7 @@ function signals(row: SignalRow): ItemSignals {
   };
 }
 
-/** Reject jobs that cannot be prepared or that another unfinished item already covers. */
-export function checkJobs(d: Database, items: NewItem[]): void {
-  const problems: string[] = [];
-  for (const { jobId } of items) {
-    const job = d.query("SELECT id, title, company_name, link, description, linkedin_job_id, archived_at FROM jobs WHERE id = ?").get(jobId) as JobRow | undefined;
-    if (!job) { problems.push(`Job ${jobId} was not found`); continue; }
-    const missing = missingForPreparation(job);
-    if (job.archived_at) problems.push(`${label(job)} is archived`);
-    else if (missing.length) problems.push(`${label(job)} is missing ${missing.join(", ")}`);
-    else if (latestForJob(d, jobId)?.submission_status === "submitted") problems.push(`${label(job)} was already submitted`);
-    else if (d.query(`SELECT 1 FROM preparation_batch_items WHERE job_id = ? AND ${UNFINISHED}`).get(jobId)) problems.push(`${label(job)} is already in an unfinished batch item`);
-  }
-  if (problems.length) throw new PreparationError(`${problems.join("; ")}.`);
-}
+export { checkSelection as checkJobs } from "./batch-selection.ts";
 export function insertBatch(d: Database, batch: Pick<StoredBatch, "provider" | "model" | "extra" | "source_version"> & { sources: ResumeSourcesConfig }, id = randomUUID()): string {
   const at = now();
   d.query("INSERT INTO preparation_batches (id, status, provider, model, extra, source_version, sources_json, created_at, updated_at) VALUES (?, 'active', ?, ?, ?, ?, ?, ?, ?)")

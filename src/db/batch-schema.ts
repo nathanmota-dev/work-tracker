@@ -34,4 +34,9 @@ CREATE TABLE IF NOT EXISTS preparation_batch_items (
 );
 CREATE INDEX IF NOT EXISTS idx_batch_items_status ON preparation_batch_items(status, batch_id, position);
 CREATE INDEX IF NOT EXISTS idx_batch_items_run ON preparation_batch_items(run_id);
+CREATE TABLE IF NOT EXISTS preparation_batch_requests (
+  request_id TEXT PRIMARY KEY,
+  batch_id TEXT NOT NULL REFERENCES preparation_batches(id),
+  fingerprint TEXT NOT NULL
+);
 `;

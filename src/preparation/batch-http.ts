@@ -8,6 +8,7 @@ export async function handleBatches(path: string, req: Request, queue: Preparati
     const body = await postBody(req);
     if (!body) return Response.json({ error: "Method not allowed." }, { status: 405 });
     switch (path) {
+      case "/api/preparation-batches/preview": return Response.json(queue.preview(body));
       case "/api/preparation-batches/create": return Response.json(queue.create(body), { status: 201 });
       case "/api/preparation-batches/add": return Response.json(queue.add(body));
       case "/api/preparation-batches/pause": return Response.json(queue.pause(body));

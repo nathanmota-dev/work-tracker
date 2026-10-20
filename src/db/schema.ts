@@ -5,7 +5,7 @@
  */
 import { DOCUMENT_SCHEMA_SQL } from "./document-schema.ts";
 import { BATCH_SCHEMA_SQL } from "./batch-schema.ts";
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 9;
 
 /** Bookkeeping tables the migration runner needs before any migration runs. */
 export const MIGRATION_TABLES_SQL = /* sql */ `

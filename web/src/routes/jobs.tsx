@@ -144,8 +144,7 @@ function useJobs() {
   const setSelectedId = (id: number | null) => update({ selected: id ? String(id) : "" })
   useEffect(() => {
     if (!api.data || api.loading) return
-    const visible = api.data.filter(row => search.view === "archived" ? !!row.archived_at : !row.archived_at)
-    const ids = new Set(visible.map(row => String(row.id)))
+    const ids = new Set(api.data.map(row => String(row.id)))
     const selection = (search.selection ?? []).filter(id => ids.has(id))
     const exists = api.data.some(row => String(row.id) === search.selected)
     if (selection.length !== search.selection?.length || search.selected && !exists)
