@@ -72,7 +72,7 @@ it("restores the right draft after switching jobs, application attempts and remo
   expect(screen.getByLabelText("Job description")).toHaveValue("Unsaved first description")
 })
 
-it("reconciles deleted and archived jobs while preserving other selections and drafts", async () => {
+it("removes deleted jobs while keeping archived selections reviewable and preserving drafts", async () => {
   const draft = JSON.stringify({ extra: "Keep for archived role" })
   localStorage.setItem("work-tracker-context-v1:apply:job:2:application:job", draft)
   const { router } = await mount('/jobs?selected=1&selection=%5B%221%22%2C%222%22%2C%223%22%5D')
@@ -81,10 +81,14 @@ it("reconciles deleted and archived jobs while preserving other selections and d
   jobs.find(job => job.id === 2)!.archived_at = "2026-01-01"
   act(() => publish({ type: "changed", table: "jobs" }))
   await waitFor(() => {
-    expect(router.state.location.search.selection).toEqual(["3"])
+    expect(router.state.location.search.selection).toEqual(["2", "3"])
     expect(router.state.location.search.selected ?? "").toBe("")
   })
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+  expect(screen.getByText("2 selected · 1 outside current filter")).toBeInTheDocument()
+  fireEvent.keyDown(screen.getByRole("tab", { name: "Archived (1)" }), { key: "Enter" })
+  expect(await screen.findByRole("checkbox", { name: "Select Engineer 2" })).toBeChecked()
+  expect(router.state.location.search.selection).toEqual(["2", "3"])
   expect(localStorage.getItem("work-tracker-context-v1:apply:job:2:application:job")).toBe(draft)
 })
 

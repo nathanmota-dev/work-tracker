@@ -52,6 +52,7 @@ const writes = new Set([
   "application-preparation/approve",
   "application-preparation/retry",
   "application-preparation/submitted",
+  "preparation-batches/preview",
   "preparation-batches/create",
   "preparation-batches/add",
   "preparation-batches/pause",

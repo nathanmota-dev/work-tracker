@@ -21,6 +21,8 @@ export interface Column {
   label: string
   render?: (row: Row) => ReactNode
 }
+export type RecordScope = { filteredRows: Row[]; pageRows: Row[] }
+type RecordAction = ReactNode | ((scope: RecordScope) => ReactNode)
 const PAGE_SIZE = 15
 
 function RecordFilters({
@@ -191,7 +193,7 @@ export function Records({
   noun: string
   workspace?: string
   onSelect?: (row: Row) => void
-  action?: ReactNode
+  action?: RecordAction
   /** Column the status filter reads; defaults to `status`, then `state`. */
   statusKey?: string
   rowKey?: (row: Row) => string
@@ -223,6 +225,7 @@ export function Records({
   useEffect(() => {
     if (page !== current || !validStatus) update({ page: current, status: validStatus ? status : "" })
   }, [page, current, status, validStatus, update])
+  const pageRows = filtered.slice(current * PAGE_SIZE, (current + 1) * PAGE_SIZE)
   return (
     <Panel
       title={noun}
@@ -233,7 +236,7 @@ export function Records({
         query={query}
         status={status}
         statuses={statuses}
-        action={action}
+        action={typeof action === "function" ? action({ filteredRows: filtered, pageRows }) : action}
         onQuery={(value) => {
           update({ q: value, page: 0 })
         }}
@@ -255,7 +258,7 @@ export function Records({
       ) : (
         <>
           <RecordTable
-            rows={filtered.slice(current * PAGE_SIZE, (current + 1) * PAGE_SIZE)}
+            rows={pageRows}
             columns={columns}
             onSelect={onSelect}
             rowKey={rowKey}

@@ -62,6 +62,7 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 6, name: "reusable answer languages", up: ensureCurrentSchema },
   { version: 7, name: "document review versions", up: ensureCurrentSchema },
   { version: 8, name: "preparation batch queue", up: ensureCurrentSchema },
+  { version: 9, name: "idempotent batch requests", up: ensureCurrentSchema },
 ];
 
 /**
