@@ -28,11 +28,41 @@ jobs:
             ~/.cache/electron-builder
           key: electron-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}
       - run: npm ci --prefer-offline --no-audit
-      - name: Install system dependencies
+      - name: Resolve system dependencies
+        id: apt-packages
+        env:
+          CACHE_VERSION: electron-e2e-apt-v1-${{ runner.os }}-${{ runner.arch }}-ubuntu24.04-${{ hashFiles('package-lock.json', 'scripts/ci/install-e2e-apt.sh') }}
         run: |
-          npx playwright install-deps chromium
-          sudo apt-get update
-          sudo apt-get install -y xvfb xauth libgtk-3-0t64 latexmk texlive-latex-base poppler-utils
+          echo "packages=$(bash scripts/ci/install-e2e-apt.sh --packages)" >> "$GITHUB_OUTPUT"
+          echo "version=$CACHE_VERSION-${ImageVersion:-local}" >> "$GITHUB_OUTPUT"
+      - name: Restore TeX configuration
+        id: tex-cache
+        continue-on-error: true
+        uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: ${{ runner.temp }}/electron-e2e-apt
+          key: tex-state-${{ steps.apt-packages.outputs.version }}
+      - name: Cache system dependencies
+        id: apt-cache
+        continue-on-error: true
+        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
+        with:
+          packages: ${{ steps.apt-packages.outputs.packages }}
+          version: ${{ steps.apt-packages.outputs.version }}
+          execute_install_scripts: false
+      - name: Validate system dependencies
+        env:
+          APT_CACHE_OUTCOME: ${{ steps.apt-cache.outcome }}
+          APT_CACHE_HIT: ${{ steps.apt-cache.outputs.cache-hit }}
+          TEX_CACHE_HIT: ${{ steps.tex-cache.outputs.cache-hit }}
+        run: bash scripts/ci/install-e2e-apt.sh
+      - name: Save TeX configuration
+        if: steps.tex-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: ${{ runner.temp }}/electron-e2e-apt
+          key: ${{ steps.tex-cache.outputs.cache-primary-key }}
       - name: Build and test Electron
         run: npm run test:e2e
       - name: Upload report and failure evidence

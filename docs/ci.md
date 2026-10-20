@@ -143,6 +143,27 @@ máquina.
 
 - **CI:** cache de downloads do npm (`setup-node`) e de downloads do Electron e
   electron-builder, restaurado antes do `npm ci`.
+- **Electron E2E / apt:** `awalsh128/cache-apt-pkgs-action` v1.6.3, fixado
+  por SHA completo, instala e cacheia os arquivos dos pacotes e suas dependências.
+  A lista inclui o equivalente a `playwright install-deps chromium` no Ubuntu
+  24.04, além de Xvfb, Xauth, GTK, LaTeX e Poppler. `test:infra` compara essa lista
+  com o dry-run do Playwright instalado. A versão `electron-e2e-apt-v1` inclui
+  sistema, arquitetura, distribuição, imagem do runner, lockfile e script de
+  instalação; incremente `v1` para invalidar manualmente. Mudanças na lista ou
+  no Playwright invalidam o cache automaticamente. Somente o E2E usa esse cache.
+  A configuração gerada em `/etc/texmf`, `/var/lib/texmf`, `/var/cache/fontconfig`
+  e `/etc/fonts/conf.d` é preservada em um tar separado via `actions/cache`
+  v4.2.4 (SHA completo), com a mesma versão e sem restauração parcial. Isso mantém
+  os formatos TeX e as fontes sem repetir os triggers do dpkg em cada hit.
+  Antes do E2E, o script atualiza o linker e compila um documento real com
+  `latexmk`, verificando o PDF com `pdfinfo` e `pdftotext`. Falha de qualquer
+  cache, configuração ausente ou probe inválido aciona uma instalação apt normal
+  com `--no-install-recommends`. Erros reais de instalação/compilação bloqueiam o
+  job. `test:infra` verifica hit, miss e os fallbacks. Build e execução da suíte
+  permanecem iguais. Para medir, compare Cache + Restore + Validate + Save na
+  primeira execução e em **Re-run all jobs** no mesmo commit, confirmando os dois
+  hits na segunda. A primeira pode ser encerrada após salvar os dois caches;
+  a segunda deve concluir a suíte E2E.
 - **Ferramentas:** ESLint (cache por conteúdo), TypeScript incremental e
   transformações persistentes do Vitest ficam em `.cache/work-tracker/`, ignorado
   pelo Git, separados em `backend`, `frontend`, `integration` e `benchmarks`.

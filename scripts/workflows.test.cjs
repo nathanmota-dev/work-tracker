@@ -52,9 +52,32 @@ describe("pull request triggers", () => {
 
   it("uses the same virtual display entrypoint locally and in Electron CI", () => {
     const source = read("e2e.yml");
-    assert.match(source, /apt-get install -y xvfb xauth /);
+    assert.match(source, /run: bash scripts\/ci\/install-e2e-apt.sh/);
     assert.match(source, /run: npm run test:e2e\n/);
     assert.doesNotMatch(source, /run: xvfb-run/);
+  });
+});
+
+describe("Electron system dependency cache", () => {
+  it("versions installed packages and TeX configuration and tolerates cache service failures", () => {
+    const source = read("e2e.yml");
+    assert.match(source, /CACHE_VERSION: electron-e2e-apt-v\d+-\$\{\{ runner.os \}\}-\$\{\{ runner.arch \}\}-ubuntu24.04-\$\{\{ hashFiles\('package-lock.json', 'scripts\/ci\/install-e2e-apt.sh'\) \}\}/);
+    for (const action of ["restore", "save"]) {
+      assert.match(source, new RegExp(`continue-on-error: true\\n +uses: actions/cache/${action}@[a-f0-9]{40}`));
+    }
+    assert.match(source, /APT_CACHE_HIT: \$\{\{ steps.apt-cache.outputs.cache-hit \}\}/);
+    assert.match(source, /if: steps.tex-cache.outputs.cache-hit != 'true'/);
+    assert.match(source, /key: \$\{\{ steps.tex-cache.outputs.cache-primary-key \}\}/);
+    assert.equal(source.match(/path: \$\{\{ runner.temp \}\}\/electron-e2e-apt/g)?.length, 2);
+    assert.match(source, /continue-on-error: true\n +uses: awalsh128\/cache-apt-pkgs-action@[a-f0-9]{40}/);
+    assert.match(source, /key: tex-state-\$\{\{ steps.apt-packages.outputs.version \}\}/);
+    assert.ok(source.includes('echo "version=$CACHE_VERSION-${ImageVersion:-local}"'));
+    assert.match(source, /packages: \$\{\{ steps.apt-packages.outputs.packages \}\}/);
+    assert.match(source, /version: \$\{\{ steps.apt-packages.outputs.version \}\}/);
+    assert.match(source, /TEX_CACHE_HIT: \$\{\{ steps.tex-cache.outputs.cache-hit \}\}/);
+    assert.match(source, /APT_CACHE_OUTCOME: \$\{\{ steps.apt-cache.outcome \}\}/);
+    assert.match(source, /execute_install_scripts: false/);
+    assert.doesNotMatch(source, /npx playwright install-deps|--shard|--workers/);
   });
 });
 
