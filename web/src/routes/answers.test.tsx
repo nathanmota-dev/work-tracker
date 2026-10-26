@@ -19,8 +19,8 @@ beforeEach(() => {
   vi.mocked(useApi).mockReturnValue({ data: rows, error: "", loading: false, refresh })
   window.desktop = {
     request,
-    readPdf: vi.fn(), savePdf: vi.fn(), chooseSource: vi.fn(),
-    connectionStatus: async () => true, getVersion: async () => "1",
+    readPdf: vi.fn(), savePdf: vi.fn(),
+    connectionStatus: async () => true,
     openExternal: vi.fn(), onEvent: () => () => {},
   }
 })

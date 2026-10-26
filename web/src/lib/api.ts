@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
+import { transport } from "./transport"
 export type Row = Record<string, unknown>
 export type ApiEvent = { type: string; [key: string]: unknown }
 const listeners = new Set<(event: ApiEvent) => void>()
@@ -6,7 +7,7 @@ let started = false
 function startEvents() {
   if (started) return
   started = true
-  window.desktop?.onEvent((event) => {
+  transport().onEvent((event) => {
     if (event && typeof event === "object" && "type" in event)
       publish(event as ApiEvent)
   })
@@ -22,11 +23,7 @@ export function subscribe(listener: (event: ApiEvent) => void) {
   }
 }
 export async function request<T>(path: string, body?: unknown): Promise<T> {
-  if (!window.desktop?.request)
-    throw new Error(
-      "Open Work Tracker in the desktop app to connect to your workspace.",
-    )
-  return (await window.desktop.request(path, body)) as T
+  return (await transport().request(path, body)) as T
 }
 const dependencies: Record<string, string[]> = {
   overview: [
@@ -96,7 +93,7 @@ export function useConnection() {
   const [live, setLive] = useState(false)
   useEffect(() => {
     let active = true
-    void window.desktop?.connectionStatus().then((value) => {
+    void transport().connectionStatus().then((value) => {
       if (active) setLive(value)
     })
     const stop = subscribe((event) => {
@@ -135,6 +132,5 @@ export function webUrl(value: unknown) {
 export async function openExternal(value: unknown) {
   const url = webUrl(value)
   if (!url) return
-  if (window.desktop) await window.desktop.openExternal(url)
-  else window.open(url, "_blank", "noopener,noreferrer")
+  await transport().openExternal(url)
 }

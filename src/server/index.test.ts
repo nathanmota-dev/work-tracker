@@ -2,8 +2,9 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { EventEmitter } from "node:events";
 import { createServer, type Server } from "node:http";
 import { WebSocketServer } from "ws";
-import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { createRequestHandler, startBackend, dashboardCmd } from "./index.ts";
+import { DISCONNECT_GRACE_MS } from "./presence.ts";
 import { queries } from "./queries.ts";
 import { SessionManager } from "../acp/session.ts";
 import { listProviderModels } from "../acp/providers.ts";
@@ -42,7 +43,7 @@ vi.mock("../acp/providers.ts", () => ({
 vi.mock("../paths.ts", () => ({
   ensureHome: vi.fn(),
   loadConfig: vi.fn(),
-  paths: { workspace: "/private", serverLock: "/private/backend.lock" },
+  paths: { home: "/private", workspace: "/private", serverLock: "/private/backend.lock" },
 }));
 vi.mock("../db/index.ts", () => ({
   db: vi.fn(),
@@ -99,6 +100,7 @@ beforeEach(() => {
   vi.mocked(searchPeople).mockReset();
   vi.mocked(jobDetails).mockReset();
   vi.mocked(runSync).mockReset();
+  vi.mocked(existsSync).mockReturnValue(false);
 });
 test("browser sign-in requires authentication, reports startup failures and avoids active sessions", async () => {
   expect((await handle(req("/api/browser/login", {}, ""))).status).toBe(403);
@@ -349,9 +351,11 @@ test("backend authenticates upgrades, broadcasts to open sockets and closes ever
   });
   vi.mocked(writeFileSync).mockReturnValue(undefined);
   vi.mocked(unlinkSync).mockReturnValue(undefined);
+  vi.useFakeTimers();
   const backend = await startBackend({ port: "3333" });
+  expect(writeFileSync).toHaveBeenCalledWith("/private/session-token", `${backend.token}\n`, { mode: 0o600 });
   sink({ type: "acp-permission" });
-  await Promise.resolve();
+  await vi.advanceTimersByTimeAsync(DISCONNECT_GRACE_MS);
   expect(acp.disconnect).toHaveBeenCalledOnce();
   expect(server.listen).toHaveBeenCalledWith(
     3333,
@@ -386,9 +390,11 @@ test("backend authenticates upgrades, broadcasts to open sockets and closes ever
   expect(ws.send).toHaveBeenCalledTimes(2);
   ws.emit("error", new Error("gone"));
   ws.emit("close");
+  expect(acp.disconnect).toHaveBeenCalledOnce();
+  await vi.advanceTimersByTimeAsync(DISCONNECT_GRACE_MS);
   expect(acp.disconnect).toHaveBeenCalledTimes(2);
   vi.mocked(readFileSync).mockReturnValue(
-    JSON.stringify({ token: backend.token }),
+    JSON.stringify({ token: backend.token, pid: process.pid }),
   );
   const closing = backend.close();
   expect(backend.close()).toBe(closing);
@@ -468,8 +474,9 @@ test("listen failure propagates before lock publication", async () => {
   vi.mocked(SessionManager).mockImplementation(function () {
     return acp as unknown as SessionManager;
   });
+  vi.mocked(writeFileSync).mockReturnValue(undefined);
   await expect(startBackend()).rejects.toThrow("EADDRINUSE");
-  expect(writeFileSync).not.toHaveBeenCalled();
+  expect(writeFileSync).not.toHaveBeenCalledWith("/private/backend.lock", expect.anything(), expect.anything());
 });
 test("CLI backend publishes readiness and removes both signal handlers after shutdown", async () => {
   const server = serverDouble();
@@ -499,4 +506,37 @@ test("CLI backend publishes readiness and removes both signal handlers after shu
   expect(off).toHaveBeenCalledWith("SIGINT", stop);
   expect(off).toHaveBeenCalledWith("SIGTERM", stop);
   expect(closeDb).toHaveBeenCalledOnce();
+});
+
+test("sockets accept the session cookie only from this origin, and idleness stops the backend", async () => {
+  const server = serverDouble(),
+    wss = { handleUpgrade: vi.fn(), close: vi.fn() };
+  vi.mocked(createServer).mockReturnValue(server as unknown as Server);
+  vi.mocked(WebSocketServer).mockImplementation(function () {
+    return wss as unknown as WebSocketServer;
+  });
+  const busy = { ...acp, isRunning: true };
+  vi.mocked(SessionManager).mockImplementation(function () {
+    return busy as unknown as SessionManager;
+  });
+  vi.mocked(writeFileSync).mockReturnValue(undefined);
+  vi.useFakeTimers();
+  const onIdle = vi.fn();
+  const backend = await startBackend({ "idle-timeout": "60" }, { onIdle });
+  const socket = { end: vi.fn() };
+  const headers = { host: "127.0.0.1:1234", cookie: `wt_session=${backend.token}` };
+  server.emit("upgrade", { url: "/ws", headers: { ...headers, origin: "https://evil.example" } }, socket, Buffer.alloc(0));
+  server.emit("upgrade", { url: "/ws", headers: { ...headers, host: "rebound.example:1234" } }, socket, Buffer.alloc(0));
+  expect(socket.end).toHaveBeenCalledTimes(2);
+  expect(wss.handleUpgrade).not.toHaveBeenCalled();
+  server.emit("upgrade", { url: "/ws", headers: { ...headers, origin: "http://127.0.0.1:1234" } }, socket, Buffer.alloc(0));
+  expect(wss.handleUpgrade).toHaveBeenCalledOnce();
+  // No window was opened; an agent still running postpones the shutdown.
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(onIdle).not.toHaveBeenCalled();
+  busy.isRunning = false;
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(onIdle).toHaveBeenCalledOnce();
+  vi.mocked(readFileSync).mockReturnValue("{}");
+  await backend.close();
 });

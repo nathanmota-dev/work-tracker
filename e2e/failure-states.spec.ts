@@ -23,9 +23,6 @@ test('Settings: missing compiler is reported and preview is disabled', async ({ 
   await expect(page.getByText('Resume sources saved.', { exact: true })).toBeVisible()
   await expect(page.getByText(/Install these tools.*lualatex/)).toBeVisible()
   await expect(page.getByRole('button', { name: 'Update base PDF' })).toBeDisabled()
-  await workspace.app.evaluate(({ dialog }) => { dialog.showOpenDialog = async () => { throw new Error('Synthetic picker failure') } })
-  await page.getByRole('button', { name: 'Browse', exact: true }).first().click()
-  await expect(page.getByRole('alert')).toContainText('Synthetic picker failure')
 })
 
 test('Settings: a running preview can be cancelled without leaving a compiler process', async ({ workspace, page }) => {

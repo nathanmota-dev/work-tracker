@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "vitest";
-import { mkdtempSync, readFileSync, existsSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, existsSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { execFile } from "node:child_process";
@@ -13,6 +14,11 @@ const home = mkdtempSync(join(tmpdir(), "work tracker integration "));
 process.env.WORK_TRACKER_HOME = home;
 process.env.WORK_TRACKER_RESOURCES = resolve("resources");
 process.env.WORK_TRACKER_CLI = resolve("out/cli/work-tracker.cjs");
+const web = join(home, "web");
+mkdirSync(join(web, "assets"), { recursive: true });
+writeFileSync(join(web, "index.html"), "<!doctype html><title>Work Tracker</title>");
+writeFileSync(join(web, "assets", "index-abc.js"), "console.log('app')");
+process.env.WORK_TRACKER_WEB_ROOT = web;
 let backend: Awaited<
   ReturnType<typeof import("../../server/index.ts").startBackend>
 >;
@@ -131,7 +137,7 @@ test("HTTP and WebSocket require tokens; all query routes work without MCP execu
   ])
     expect((await api("/api/" + route)).status).toBe(200);
   expect((await api("/api/update-status")).status).toBe(404);
-  expect((await fetch(backend.address)).status).toBe(404);
+  expect((await fetch(`${backend.address}/missing-page`)).status).toBe(404);
 });
 test("CLI writes notify the WebSocket and persist after restart", async () => {
   const ws = new WebSocket(
@@ -247,4 +253,34 @@ test("missing MCP is lazy and surfaced when requested", async () => {
   expect(
     JSON.parse(readFileSync(join(home, "backend.lock"), "utf8")).token,
   ).toBe(backend.token);
+});
+
+test("the browser app is served, opens a cookie session and refuses other origins", async () => {
+  const page = await fetch(`${backend.address}/`);
+  expect(page.headers.get("cache-control")).toBe("no-cache");
+  expect(await page.text()).toContain("<title>Work Tracker</title>");
+  expect((await fetch(`${backend.address}/assets/index-abc.js`)).headers.get("cache-control")).toContain("immutable");
+  expect((await fetch(`${backend.address}/assets/missing.js`)).status).toBe(404);
+  expect((await fetch(`${backend.address}/api/jobs`)).status).toBe(403);
+  const session = await fetch(`${backend.address}/api/session`, { headers: { "sec-fetch-site": "same-origin" } });
+  const cookie = session.headers.get("set-cookie")!.split(";")[0]!;
+  expect(cookie).toBe(`wt_session=${backend.token}`);
+  expect((await fetch(`${backend.address}/api/jobs`, { headers: { cookie } })).status).toBe(200);
+  const forged = await fetch(`${backend.address}/api/answer`, { method: "POST", headers: { cookie, origin: "https://evil.example" }, body: "{}" });
+  expect(forged.status).toBe(403);
+  // A rebound DNS name reaches this port with its own Host header.
+  const rebound = await new Promise<number>((done, fail) => {
+    const req = httpRequest(`${backend.address}/`, { headers: { host: `rebound.example:${backend.port}` } }, (res) => { res.resume(); done(res.statusCode!); });
+    req.on("error", fail);
+    req.end();
+  });
+  expect(rebound).toBe(403);
+  const socket = new WebSocket(`${backend.address.replace("http", "ws")}/ws`, { headers: { cookie, origin: "https://evil.example" } });
+  await expect(new Promise((done, fail) => { socket.on("open", done); socket.on("error", fail); })).rejects.toThrow("403");
+  const live = new WebSocket(`${backend.address.replace("http", "ws")}/ws`, { headers: { cookie, origin: backend.address } });
+  expect(JSON.parse(String(await new Promise((done) => live.once("message", done))))).toEqual({ type: "hello" });
+  live.close();
+  // Every start keeps the same private token, so the installed app's cookie stays valid.
+  expect(readFileSync(join(home, "session-token"), "utf8").trim()).toBe(backend.token);
+  expect(statSync(join(home, "session-token")).mode & 0o777).toBe(0o600);
 });

@@ -65,7 +65,8 @@ test("authenticated exact decisions, duplicate/stale protection, session rules, 
   expect((await snapshot()).rules).toEqual([{ provider: "opencode", tool: "linkedin_get_person_profile" }]);
   permissionStore.save({ ...first, id: "abandoned", status: "pending" });
   await backend.close();
-  backend = await startBackend();
+  // A short grace period: the permission below is cancelled once its only window closes.
+  backend = await startBackend({}, { disconnectGraceMs: 200 });
   socket = new WebSocket(`ws://127.0.0.1:${backend.port}/ws?token=${backend.token}`);
   await new Promise<void>(resolve => socket.once("open", resolve));
   expect((await snapshot()).history.some(item => item.optionId === "allow-exact" && item.remember === "persistent")).toBe(true);

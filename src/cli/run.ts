@@ -19,6 +19,8 @@ import { closeMcp } from "../mcp/linkedin.ts";
 const HELP = `work-tracker — AI-powered job search companion
 
 Usage:
+  work-tracker [start] [--port N --repo DIR --idle-timeout SECONDS --no-open]
+                                      Open the app in the browser (default port 47830)
   work-tracker setup                  Install bundled skills in the private workspace
   work-tracker init                       Scaffold ~/.work-tracker/ + database
   work-tracker doctor                 Diagnose local optional dependencies
@@ -71,6 +73,11 @@ Options:
 /** Returns true when the command keeps running and must not close resources. */
 type Command = (positionals: string[], flags: Flags) => Promise<boolean | void> | boolean | void;
 
+async function startAppCmd(_positionals: string[], flags: Flags): Promise<void> {
+  const { startCmd } = await import("../server/launcher.ts");
+  await startCmd(flags);
+}
+
 async function serveCmd(_positionals: string[], flags: Flags): Promise<boolean> {
   const { dashboardCmd } = await import("../server/index.ts");
   await dashboardCmd(flags);
@@ -85,6 +92,13 @@ const commands: Record<string, Command> = {
   doctor: async () => {
     const { doctor } = await import("./doctor.ts");
     console.log(JSON.stringify(doctor(), null, 2));
+  },
+  start: startAppCmd,
+  // Internal: the backend process supervised by `start`.
+  __backend: async (_positionals, flags) => {
+    const { backendChild } = await import("../server/child.ts");
+    await backendChild(flags);
+    return true;
   },
   serve: serveCmd,
   backend: serveCmd,
@@ -132,7 +146,11 @@ export async function runCli(argv: string[]): Promise<void> {
   const cmd = argv[0];
   const rest = argv.slice(1);
 
-  if (!cmd || cmd === "-h" || cmd === "--help") {
+  if (!cmd || cmd.startsWith("--") && cmd !== "--help" && cmd !== "--version") {
+    await runCli(["start", ...argv]);
+    return;
+  }
+  if (cmd === "-h" || cmd === "--help") {
     console.log(HELP);
     return;
   }

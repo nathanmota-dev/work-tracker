@@ -28,7 +28,7 @@ beforeEach(() => {
     if (path === "application-preparation/generate") return { id: "run-2" }
     return { ok: true }
   })
-  window.desktop = { request, readPdf: vi.fn(), savePdf: vi.fn(), chooseSource: vi.fn(), getVersion: async () => "1", connectionStatus: async () => true, openExternal: vi.fn(), onEvent: () => () => {} }
+  window.desktop = { request, readPdf: vi.fn(), savePdf: vi.fn(), connectionStatus: async () => true, openExternal: vi.fn(), onEvent: () => () => {} }
 })
 it("shows both PDFs and starts generation for the selected job without Launch", async () => {
   render(<ApplyPage />)

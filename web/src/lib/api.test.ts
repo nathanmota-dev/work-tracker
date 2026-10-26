@@ -47,7 +47,7 @@ it("forwards request arguments and propagates missing bridge and request errors"
   desktop.request.mockRejectedValue(new Error("offline"))
   await expect(request("jobs")).rejects.toThrow("offline")
   delete window.desktop
-  await expect(request("jobs")).rejects.toThrow("desktop app")
+  await expect(request("jobs")).rejects.toThrow("Unmocked network I/O")
 })
 it("loads, refreshes, reports failures and recovers", async () => {
   const pending = deferred<unknown>()

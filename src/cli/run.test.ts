@@ -20,6 +20,8 @@ import { exportCmd } from "./export.ts";
 import { fetchProfile } from "./fetch-profile.ts";
 import { linkedinCmd } from "./linkedin.ts";
 import { dashboardCmd } from "../server/index.ts";
+import { startCmd } from "../server/launcher.ts";
+import { backendChild } from "../server/child.ts";
 import { closeDb } from "../db/index.ts";
 import { closeMcp } from "../mcp/linkedin.ts";
 import { cliSpies } from "../test/doubles.ts";
@@ -44,13 +46,15 @@ vi.mock("./fetch-profile.ts", () => ({ fetchProfile: vi.fn() }));
 vi.mock("./linkedin.ts", () => ({ linkedinCmd: vi.fn() }));
 vi.mock("./doctor.ts", () => ({ doctor: () => ({ healthy: true }) }));
 vi.mock("../server/index.ts", () => ({ dashboardCmd: vi.fn() }));
+vi.mock("../server/launcher.ts", () => ({ startCmd: vi.fn() }));
+vi.mock("../server/child.ts", () => ({ backendChild: vi.fn() }));
 vi.mock("../db/index.ts", () => ({ closeDb: vi.fn() }));
 vi.mock("../mcp/linkedin.ts", () => ({ closeMcp: vi.fn() }));
 let output: ReturnType<typeof cliSpies>;
 beforeEach(() => {
   output = cliSpies();
 });
-test.each([[], ["--help"], ["-h"], ["--version"], ["-v"]])(
+test.each([["--help"], ["-h"], ["--version"], ["-v"]])(
   "help/version %j returns before dispatch and cleanup",
   async (...argv) => {
     await runCli(argv);
@@ -91,6 +95,19 @@ test.each([
     expect(closeDb).toHaveBeenCalledOnce();
   },
 );
+test.each([[[], {}], [["--port", "5000", "--no-open"], { port: "5000", "no-open": true }], [["start", "--repo", "/repo"], { repo: "/repo" }]] as const)(
+  "%j opens the app and then releases the launcher's resources",
+  async (argv, flags) => {
+    await runCli([...argv]);
+    expect(startCmd).toHaveBeenCalledWith(flags);
+    expect(closeDb).toHaveBeenCalledOnce();
+  },
+);
+test("the supervised backend process keeps its resources", async () => {
+  await runCli(["__backend", "--port", "47830"]);
+  expect(backendChild).toHaveBeenCalledWith({ port: "47830" });
+  expect(closeDb).not.toHaveBeenCalled();
+});
 test.each(["serve", "backend", "dashboard"])(
   "%s leaves resources owned by the server",
   async (command) => {

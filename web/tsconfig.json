@@ -16,5 +16,5 @@
     "tsBuildInfoFile": "../.cache/work-tracker/frontend/typescript/tsconfig.tsbuildinfo",
     "paths": { "@/*": ["./src/*"] }
   },
-  "include": ["src", "benchmarks", "vitest.config.ts", "vitest.benchmark.config.ts"]
+  "include": ["src", "benchmarks", "vitest.config.ts", "vitest.benchmark.config.ts", "vite.config.ts", "vite.pdf-assets.ts"]
 }

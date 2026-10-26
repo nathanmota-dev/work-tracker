@@ -41,8 +41,10 @@ export function ensureHome(): void {
  * @property [provider] Default ACP provider id.
  * @property [linkedinMcpCommand] Optional explicit LinkedIn MCP connection command.
  * @property [outreach] Outreach settings. Omitted fields fall back to DEFAULT_OUTREACH_CONFIG.
+ * @property [port] Port of the local web app; changing it requires installing the app again.
  */
 export interface WorkTrackerConfig {
+  port?: number;
   resumeSources?: import("./preparation/types.ts").ResumeSourcesConfig;
   username?: string;
   displayName?: string;

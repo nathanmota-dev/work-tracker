@@ -40,7 +40,7 @@
       "root": "web",
       "reportsDirectory": "coverage/frontend/unit",
       "include": ["src/**/*.{ts,tsx}"],
-      "exclude": ["src/**/*.{test,spec}.{ts,tsx}", "src/test/**", "src/**/*.d.ts"]
+      "exclude": ["src/**/*.{test,spec}.{ts,tsx}", "src/test/**", "src/**/*.d.ts", "src/sw.ts"]
     }
   }
 }

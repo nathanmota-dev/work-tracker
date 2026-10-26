@@ -18,7 +18,7 @@ beforeEach(() => {
     if (path === "jobs/update") { excluded = false; return { job: { ...jobs[0], ...body }, missing: [] } }
     throw new Error(`Unexpected ${path}`)
   })
-  window.desktop = { request, readPdf: vi.fn(), savePdf: vi.fn(), chooseSource: vi.fn(), connectionStatus: async () => true, getVersion: async () => "1", openExternal: vi.fn(), onEvent: () => () => {} }
+  window.desktop = { request, readPdf: vi.fn(), savePdf: vi.fn(), connectionStatus: async () => true, openExternal: vi.fn(), onEvent: () => () => {} }
 })
 async function review() {
   render(<BatchPreparation jobs={jobs} onCreated={created} />)

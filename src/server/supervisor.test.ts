@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import { BackendSupervisor, MAX_FAILURES, STABLE_MS, type BackendHandlers } from "./backend-supervisor"
+import { BackendSupervisor, MAX_FAILURES, STABLE_MS, type BackendHandlers } from "./supervisor"
 
 function harness() {
   const children: { handlers: BackendHandlers; postMessage: ReturnType<typeof vi.fn>; kill: ReturnType<typeof vi.fn> }[] = []

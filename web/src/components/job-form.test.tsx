@@ -15,8 +15,8 @@ beforeEach(() => {
     if (!existing || path === "jobs/update") jobs = [...jobs.filter(row => row.id !== job.id), job]
     return { job, existing: !!existing && path !== "jobs/update", missing: [] }
   })
-  window.desktop = { request, readPdf: vi.fn(), savePdf: vi.fn(), chooseSource: vi.fn(), connectionStatus: async () => true,
-    getVersion: async () => "1", openExternal: vi.fn(), onEvent: () => () => {} }
+  window.desktop = { request, readPdf: vi.fn(), savePdf: vi.fn(), connectionStatus: async () => true,
+    openExternal: vi.fn(), onEvent: () => () => {} }
 })
 const fill = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } })
 

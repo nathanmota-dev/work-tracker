@@ -1,7 +1,7 @@
 import { BrowserWindow, ipcMain, shell, dialog } from "electron"
 import { writeFile } from "node:fs/promises"
 import WebSocket from "ws"
-import type { BackendConnection, BackendState } from "./backend-supervisor"
+import type { BackendConnection, BackendState } from "../../src/server/supervisor"
 
 const reads = new Set([
   "integrations",

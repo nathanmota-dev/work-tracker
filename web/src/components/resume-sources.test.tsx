@@ -1,9 +1,9 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
-import { afterEach, beforeEach, expect, it, vi } from "vitest"
+import { fireEvent, render, screen } from "@testing-library/react"
+import { beforeEach, expect, it, vi } from "vitest"
 import { ResumeSources } from "./resume-sources"
 import { publish, request, useApi } from "@/lib/api"
 import type { SourcesState } from "@/lib/preparation"
-import { deferred, desktopDouble } from "@/test/doubles"
+import { deferred } from "@/test/doubles"
 vi.mock("@/lib/api", () => ({
   useApi: vi.fn(),
   request: vi.fn(),
@@ -15,7 +15,6 @@ vi.mock("@/components/ui/select-control", () => ({
   ),
 }))
 let state: SourcesState
-let desktop: ReturnType<typeof desktopDouble>
 const refresh = vi.fn(),
   onPreview = vi.fn()
 const artifact = { id: "pdf", kind: "base", pages: 1, warnings: [] }
@@ -46,11 +45,6 @@ beforeEach(() => {
   vi.mocked(publish).mockClear()
   refresh.mockClear()
   onPreview.mockClear()
-  desktop = desktopDouble()
-  window.desktop = desktop
-})
-afterEach(() => {
-  delete window.desktop
 })
 it("loads settings and preserves unsaved edits across background refreshes", () => {
   const instance = render(<ResumeSources />)
@@ -64,23 +58,16 @@ it("loads settings and preserves unsaved edits across background refreshes", () 
   instance.rerender(<ResumeSources />)
   expect(screen.getByLabelText("Main .tex file")).toHaveValue("draft.tex")
 })
-it("handles source selection, cancelled picker and picker errors", async () => {
-  desktop.chooseSource
-    .mockResolvedValueOnce("/new")
-    .mockResolvedValueOnce(null)
-    .mockRejectedValueOnce(new Error("picker failed"))
+it("takes typed paths and shows the backend's rejection of a missing folder", async () => {
   render(<ResumeSources />)
-  fireEvent.click(screen.getAllByRole("button", { name: "Browse" })[0]!)
-  await waitFor(() =>
-    expect(screen.getByLabelText("LaTeX project folder")).toHaveValue("/new"),
-  )
-  fireEvent.click(screen.getAllByRole("button", { name: "Browse" })[1]!)
-  await waitFor(() => expect(desktop.chooseSource).toHaveBeenCalledWith("data"))
-  expect(
-    screen.getByLabelText("Optional data file (.ts or .json)"),
-  ).toHaveValue("")
-  fireEvent.click(screen.getAllByRole("button", { name: "Browse" })[1]!)
-  expect(await screen.findByRole("alert")).toHaveTextContent("picker failed")
+  expect(screen.queryByRole("button", { name: "Browse" })).toBeNull()
+  fireEvent.change(screen.getByLabelText("LaTeX project folder"), { target: { value: "/missing" } })
+  fireEvent.change(screen.getByLabelText("Optional data file (.ts or .json)"), { target: { value: "/data.json" } })
+  vi.mocked(request).mockRejectedValueOnce(new Error("The LaTeX project folder does not exist."))
+  fireEvent.click(screen.getByRole("button", { name: "Save sources" }))
+  expect(await screen.findByRole("alert")).toHaveTextContent("does not exist")
+  expect(request).toHaveBeenCalledWith("resume-sources", expect.objectContaining({ projectDir: "/missing", dataFile: "/data.json" }))
+  expect(screen.getByLabelText("LaTeX project folder")).toHaveValue("/missing")
 })
 it("saves a draft, generates its preview and emits refresh notifications", async () => {
   render(<ResumeSources onPreview={onPreview} />)

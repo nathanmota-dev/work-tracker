@@ -21,7 +21,7 @@ beforeEach(() => {
     if (path === "search/jobs") return jobs.map(job => ({ ...job, link: `https://example.com/${job.id}` }))
     return []
   })
-  window.desktop = { request, connectionStatus: async () => true, onEvent: () => () => {}, readPdf: vi.fn(), savePdf: vi.fn(), chooseSource: vi.fn(), getVersion: async () => "1", openExternal: vi.fn() }
+  window.desktop = { request, connectionStatus: async () => true, onEvent: () => () => {}, readPdf: vi.fn(), savePdf: vi.fn(), openExternal: vi.fn() }
 })
 async function mount(path: string) {
   window.location.hash = path

@@ -10,10 +10,6 @@ export function desktopDouble() {
     savePdf: vi
       .fn<NonNullable<Window["desktop"]>["savePdf"]>()
       .mockResolvedValue(true),
-    chooseSource: vi
-      .fn<NonNullable<Window["desktop"]>["chooseSource"]>()
-      .mockResolvedValue(null),
-    getVersion: vi.fn().mockResolvedValue("1.0.0"),
     connectionStatus: vi.fn().mockResolvedValue(false),
     backendStatus: vi.fn().mockResolvedValue(undefined),
     restartBackend: vi.fn().mockResolvedValue(true),

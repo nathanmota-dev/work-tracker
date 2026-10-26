@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
 import { WorkspaceBackup } from "./workspace-backup"
 import { request } from "@/lib/api"
@@ -32,16 +32,12 @@ afterEach(() => {
 const panel = (name: string) => screen.getByRole("heading", { name }).closest("[data-slot=card]") as HTMLElement
 
 it("creates a backup in the chosen folder and lists what was left out", async () => {
-  desktop.chooseSource.mockResolvedValueOnce("/backups").mockResolvedValueOnce(null).mockRejectedValueOnce(new Error("picker failed"))
   vi.mocked(request).mockResolvedValueOnce(summary).mockRejectedValueOnce(new Error("Finish or cancel the active execution"))
   render(<WorkspaceBackup />)
   const create = within(panel("Back up workspace"))
   expect(create.getByRole("button", { name: "Create backup" })).toBeDisabled()
-  fireEvent.click(create.getByRole("button", { name: "Browse" }))
-  await waitFor(() => expect(create.getByLabelText("Backup destination")).toHaveValue("/backups"))
-  fireEvent.click(create.getByRole("button", { name: "Browse" }))
-  await waitFor(() => expect(desktop.chooseSource).toHaveBeenCalledTimes(2))
-  expect(create.getByLabelText("Backup destination")).toHaveValue("/backups")
+  expect(create.queryByRole("button", { name: "Browse" })).toBeNull()
+  fireEvent.change(create.getByLabelText("Backup destination"), { target: { value: "/backups" } })
   fireEvent.click(create.getByRole("button", { name: "Create backup" }))
   expect(await create.findByRole("status")).toHaveTextContent("Backup created at /backups/work-tracker-backup-1.")
   expect(request).toHaveBeenCalledWith("workspace-backup/create", { destination: "/backups" })
@@ -49,8 +45,6 @@ it("creates a backup in the chosen folder and lists what was left out", async ()
   fireEvent.click(create.getByRole("button", { name: "Create backup" }))
   expect(await create.findByRole("alert")).toHaveTextContent("Finish or cancel the active execution")
   expect(create.queryByRole("status")).toBeNull()
-  fireEvent.click(create.getByRole("button", { name: "Browse" }))
-  expect(await create.findByRole("alert")).toHaveTextContent("picker failed")
 })
 
 it("shows the manifest summary and waits for confirmation before restoring", async () => {
@@ -95,15 +89,13 @@ it("reports a failed restore without claiming success and lets the user cancel",
   expect(restore.queryByRole("button", { name: "Restore this backup" })).toBeNull()
 })
 
-it("discards a reviewed summary when another folder is chosen", async () => {
-  desktop.chooseSource.mockResolvedValueOnce("/other")
+it("discards a reviewed summary when another folder is typed", async () => {
   vi.mocked(request).mockResolvedValueOnce(summary)
   render(<WorkspaceBackup />)
   const restore = within(panel("Restore workspace"))
   fireEvent.change(restore.getByLabelText("Backup folder"), { target: { value: "/b" } })
   fireEvent.click(restore.getByRole("button", { name: "Check backup" }))
   await restore.findByLabelText("Backup summary")
-  fireEvent.click(restore.getByRole("button", { name: "Browse" }))
-  await waitFor(() => expect(restore.getByLabelText("Backup folder")).toHaveValue("/other"))
+  fireEvent.change(restore.getByLabelText("Backup folder"), { target: { value: "/other" } })
   expect(restore.queryByLabelText("Backup summary")).toBeNull()
 })

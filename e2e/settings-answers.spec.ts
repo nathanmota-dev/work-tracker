@@ -99,18 +99,14 @@ test('Settings: theme, agent preferences, browser sign-in failure and retry', as
   await expect(workspace.page.locator('html')).not.toHaveClass(/dark/)
 })
 
-test('Settings: resume pickers, invalid sources, real preview and download', async ({ workspace, page }) => {
+test('Settings: typed resume paths, invalid sources, real preview and download', async ({ workspace, page }) => {
   test.setTimeout(180_000)
   await workspace.go('Settings')
   await page.getByRole('tab', { name: 'Resume sources', exact: true }).click()
   const folder = page.getByLabel('LaTeX project folder')
   await expect(folder).toHaveValue(workspace.project)
-  await page.getByRole('button', { name: 'Browse', exact: true }).first().click()
-  await expect(folder).toHaveValue(workspace.project)
-  await workspace.picker([workspace.project])
-  await page.getByRole('button', { name: 'Browse', exact: true }).first().click()
-  await workspace.picker([workspace.dataFile])
-  await page.getByRole('button', { name: 'Browse', exact: true }).last().click()
+  await expect(page.getByRole('button', { name: 'Browse', exact: true })).toHaveCount(0)
+  await page.getByLabel('Optional data file (.ts or .json)').fill(workspace.dataFile)
   await folder.fill(join(workspace.home, 'missing'))
   await page.getByRole('button', { name: 'Save sources' }).click()
   await expect(page.getByRole('alert')).toBeVisible()

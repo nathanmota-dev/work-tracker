@@ -13,7 +13,7 @@ const jobs = [
 beforeEach(() => {
   request.mockReset()
   vi.mocked(prepareSkill).mockClear()
-  window.desktop = { request, readPdf: vi.fn(), savePdf: vi.fn(), chooseSource: vi.fn(), connectionStatus: async () => true, getVersion: async () => "1", openExternal: vi.fn(), onEvent: () => () => {} }
+  window.desktop = { request, readPdf: vi.fn(), savePdf: vi.fn(), connectionStatus: async () => true, openExternal: vi.fn(), onEvent: () => () => {} }
 })
 async function search(result: unknown = jobs) {
   request.mockResolvedValueOnce(result)

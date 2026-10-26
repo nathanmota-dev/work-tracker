@@ -3,7 +3,7 @@ import { homedir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { app, BrowserWindow, ipcMain, utilityProcess } from "electron"
 import { registerApiBridge, connectApiBridge, closeApiBridge, emitBackendState } from "./api-bridge"
-import { BackendSupervisor, type BackendHandlers } from "./backend-supervisor"
+import { BackendSupervisor, type BackendHandlers } from "../../src/server/supervisor"
 import backendPath from "./backend-process?modulePath"
 
 declare const __WORK_TRACKER_REPO_ROOT__: string

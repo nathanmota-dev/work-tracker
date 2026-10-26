@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Download, Minus, Plus } from "lucide-react"
 import { Empty, Panel } from "@/components/workspace-ui"
 import type { PdfArtifact } from "@/lib/preparation"
+import { transport } from "@/lib/transport"
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
 const pdfAssets = new URL("./pdfjs/", document.baseURI).href
 const pdfOptions = { cMapUrl: `${pdfAssets}cmaps/`, cMapPacked: true, standardFontDataUrl: `${pdfAssets}standard_fonts/`, wasmUrl: `${pdfAssets}wasm/` }
@@ -28,11 +29,11 @@ export function PdfViewer({ title, artifact }: { title: string; artifact?: PdfAr
   useEffect(() => {
     let active = true
     setBytes(undefined); setError(""); setPage(1); setPages(0)
-    if (artifactId) window.desktop?.readPdf(artifactId).then(buffer => { if (active) setBytes(new Uint8Array(buffer)) }).catch(e => { if (active) setError(e.message) })
+    if (artifactId) transport().readPdf(artifactId).then(buffer => { if (active) setBytes(new Uint8Array(buffer)) }).catch(e => { if (active) setError(e.message) })
     return () => { active = false }
   }, [artifactId])
   const file = useMemo(() => bytes ? { data: bytes } : undefined, [bytes])
-  return <Panel title={title} action={artifact && <Button size="icon-sm" variant="outline" aria-label={`Download ${title}`} onClick={() => void window.desktop?.savePdf(artifact.id).catch(e => setError(e.message))}><Download /></Button>}>
+  return <Panel title={title} action={artifact && <Button size="icon-sm" variant="outline" aria-label={`Download ${title}`} onClick={() => void transport().savePdf(artifact.id).catch(e => setError(e.message))}><Download /></Button>}>
     {artifact && <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
       <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
       <span>{page} / {pages || artifact.pages}</span>

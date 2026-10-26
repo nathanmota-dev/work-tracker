@@ -132,6 +132,41 @@ A atualização é manual: só executar `npm run build` não altera a instalaç�
 Uma build em outra branch ou worktree também não a atualiza; ela continua usando
 a última versão copiada da `main`.
 
+## Modo navegador (PWA)
+
+Além do Electron, o mesmo app roda no navegador, servido pelo backend local:
+
+```bash
+npm run build
+node out/cli/work-tracker.cjs            # o mesmo que `work-tracker start`
+```
+
+O comando sobe o backend em `http://127.0.0.1:47830` e abre o navegador. Pelo Chrome
+ou Edge, “Instalar app” cria uma janela própria. Opções:
+
+- `--port N` (ou `"port"` em `config.json`): o app instalado fica preso à porta.
+  Trocar a porta exige instalar o app de novo.
+- `--repo DIR`: pasta usada para detectar `base/latex` e `base/data`. O padrão é
+  a pasta onde o comando roda.
+- `--idle-timeout SEGUNDOS` (padrão 600; `0` desativa): sem nenhuma janela aberta
+  por esse tempo e sem agente, preparação, lote, diagnóstico ou login em andamento,
+  o backend encerra.
+- `--no-open`: não abre o navegador.
+
+Rodar o comando com o app já ativo só abre o navegador. Se o backend cair, o
+comando o reinicia na mesma porta (até três falhas seguidas) e a janela
+reconecta sozinha. Com o servidor parado, o app instalado abre a partir do cache e
+mostra “Work Tracker server is not running”, com a instrução de rodar
+`work-tracker`. Para desenvolver a interface no navegador com HMR, use
+`npm run dev:web`. Ele roda o backend em 47830 e o Vite repassa `/api` e `/ws`.
+
+A interface obtém um cookie de sessão (`HttpOnly`, `SameSite=Strict`) em
+`GET /api/session`. O token fica em `~/.work-tracker/session-token` (modo 0600) e
+se mantém entre reinícios. O backend recusa `Host` e `Origin` que não sejam o
+próprio endereço, o que protege contra DNS rebinding e contra outros sites.
+Caminhos de pastas e arquivos (fontes do currículo e backup) são digitados e
+validados pelo backend.
+
 ## Execução isolada e CLI
 
 ```bash
@@ -155,7 +190,8 @@ fica no perfil padrão do próprio servidor (`~/.linkedin-mcp/profile`):
 ```text
 work-tracker.db             SQLite, WAL, foreign keys, migrações versionadas
 config.json                configuração própria, inicialmente {}
-backend.lock               porta, token aleatório e PID; removido ao encerrar
+backend.lock               porta, token e PID; removido ao encerrar
+session-token              token da API e do cookie do app no navegador
 logs/backend.log           saída do backend na sessão atual (a anterior fica em .previous)
 workspace/                 cwd privado dos agentes e skills work-tracker-*
 artifacts/                 artefatos gerados
@@ -330,8 +366,9 @@ As skills usam chamadas sequenciais às ferramentas anunciadas pelo servidor.
 ## API e ciclo de vida
 
 `src/server/index.ts` exporta `startBackend() → { address, port, token, close }`.
-O servidor usa apenas `127.0.0.1` e porta dinâmica por padrão.
-Rotas `/api/*` e `/ws` exigem `?token=...`. A CLI lê `backend.lock` e envia
+O servidor usa apenas `127.0.0.1` e porta dinâmica por padrão (`serve`; o
+`start` usa 47830). Fora de `/api/`, serve o app compilado em `out/web`.
+Rotas `/api/*` e `/ws` exigem `?token=...` ou o cookie de sessão. A CLI lê `backend.lock` e envia
 `POST /_internal/changed` com `x-work-tracker-token`; os sockets recebem `changed`.
 As consultas incluem overview, jobs, recruiters, outreach, metrics, interviews,
 applications, answers, activity, profile e profile-snapshot. Foram preservadas as
@@ -345,7 +382,8 @@ Se o backend encerrar inesperadamente, a janela continua aberta e mostra o estad
 reconecta a API e o WebSocket sem duplicar listeners; as telas abertas recarregam
 e as execuções ativas aparecem como interrompidas, sem repetição automática. Não
 há reinício automático: após três falhas seguidas, o app mostra o erro e o caminho
-de `logs/backend.log`. Os testes do processo principal ficam em `desktop/src`.
+de `logs/backend.log`. O supervisor, compartilhado com `work-tracker start`, fica em
+`src/server/supervisor.ts`; os testes do processo principal ficam em `desktop/src`.
 Skills e CLI são distribuídas em `resources/work-tracker`, fora do ASAR; a CLI
 é um bundle Node que pode ser executado com Node 24 sem o checkout original.
 

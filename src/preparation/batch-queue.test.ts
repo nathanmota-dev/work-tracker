@@ -273,3 +273,18 @@ test("an adjustment waits for the executor, survives restart and starts a new ve
   expect(items(batch.id)[0]).toMatchObject({ run_id: `run-${jobs[0]}`, attempts: 2, status: "running", options_json: '{"adjustment":"Emphasize React"}' });
   expect(d.query("SELECT id FROM document_versions").all()).toEqual([{ id: "old-pdf" }]);
 });
+
+test("reports pending work that can start without the candidate, so the idle backend waits", () => {
+  expect(queue.hasPending).toBe(false);
+  const batch = create(2);
+  expect(queue.hasPending).toBe(true);
+  queue.pause({ batchId: batch.id });
+  expect(queue.hasPending).toBe(false);
+  queue.resume({ batchId: batch.id });
+  for (const item of items(batch.id)) setItem(d, item.id, { phase: "waiting_for_fill" });
+  expect(queue.hasPending).toBe(false);
+  setItem(d, items(batch.id)[0]!.id, { phase: "queued" });
+  expect(queue.hasPending).toBe(true);
+  queue.close();
+  expect(queue.hasPending).toBe(false);
+});

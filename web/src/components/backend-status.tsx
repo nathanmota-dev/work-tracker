@@ -1,6 +1,15 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { restartBackend, useBackend } from "@/lib/backend"
+import { reconnect, restartBackend, useBackend } from "@/lib/backend"
+function ServerOffline() {
+  return <div role="alert" className="flex flex-wrap items-center justify-between gap-3 border-b bg-destructive/10 px-4 py-2 text-sm">
+    <div className="min-w-0 space-y-1">
+      <p className="font-medium">Work Tracker server is not running</p>
+      <p>Start it again by running <code>work-tracker</code> in a terminal. This window reconnects automatically.</p>
+    </div>
+    <Button size="sm" variant="outline" onClick={reconnect}>Try again</Button>
+  </div>
+}
 /**
  * Shows when the backend process stopped and offers a manual restart. Open
  * screens reload when the new backend connects; executions that were active
@@ -11,6 +20,9 @@ export function BackendStatus() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
   if (!backend || backend.status === "ready" || backend.status === "starting" && !backend.restarts) return null
+  if (backend.status === "reconnecting")
+    return <div role="status" className="border-b px-4 py-2 text-sm">Reconnecting to the server…</div>
+  if (backend.status === "offline") return <ServerOffline />
   if (backend.status === "starting")
     return <div role="status" className="border-b px-4 py-2 text-sm">Restarting backend…</div>
   const restart = async () => {

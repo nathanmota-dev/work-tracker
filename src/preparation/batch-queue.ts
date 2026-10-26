@@ -53,6 +53,10 @@ export class PreparationQueue {
     // Events drive the queue; polling only covers availability changes without events.
     if (pollMs > 0) { this.timer = setInterval(() => this.schedule(), pollMs); this.timer.unref?.(); }
   }
+  /** Whether an item can still start without the candidate (fills wait for their review). */
+  get hasPending(): boolean {
+    return !this.closed && pendingItems(db()).some(item => !["waiting_for_fill", "filling"].includes(item.phase));
+  }
   /** React to runs, applications and agent sessions changing. */
   observe(event: unknown): void {
     const { type, table } = (event ?? {}) as { type?: string; table?: string };

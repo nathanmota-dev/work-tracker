@@ -17,24 +17,13 @@ const records: [string, string][] = [
 function useFolder() {
   const [value, setValue] = useState("")
   const [error, setError] = useState("")
-  async function browse() {
-    try {
-      const selected = await window.desktop?.chooseSource("folder")
-      if (selected) setValue(selected)
-    } catch (e) {
-      setError((e as Error).message)
-    }
-  }
-  return { value, setValue, error, setError, browse }
+  return { value, setValue, error, setError }
 }
 
 function FolderField({ label, folder, disabled, onChange }: { label: string; folder: ReturnType<typeof useFolder>; disabled: boolean; onChange?: () => void }) {
   return (
     <Field label={label}>
-      <div className="flex gap-2">
-        <Input value={folder.value} onChange={(e) => { folder.setValue(e.target.value); onChange?.() }} placeholder="/path/to/folder" disabled={disabled} />
-        <Button type="button" variant="outline" disabled={disabled} onClick={() => { onChange?.(); void folder.browse() }}>Browse</Button>
-      </div>
+      <Input value={folder.value} onChange={(e) => { folder.setValue(e.target.value); onChange?.() }} placeholder="/absolute/path/to/folder" disabled={disabled} />
     </Field>
   )
 }
