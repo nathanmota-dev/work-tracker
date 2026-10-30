@@ -43,7 +43,9 @@ export const queries = {
           (SELECT COUNT(*) FROM recruiters WHERE status = 'accepted') AS accepted,
           (SELECT COUNT(*) FROM recruiters WHERE status = 'replied') AS replied,
           (SELECT COUNT(*) FROM interviews WHERE status != 'closed') AS interviews,
-          (SELECT COUNT(*) FROM jobs) AS jobs,
+          (SELECT COUNT(*) FROM jobs WHERE archived_at IS NULL) AS jobs,
+          (SELECT COUNT(*) FROM jobs WHERE archived_at IS NULL AND shortlisted_at IS NULL) AS new_jobs,
+          (SELECT COUNT(*) FROM jobs WHERE archived_at IS NULL AND shortlisted_at IS NOT NULL) AS shortlisted_jobs,
           (SELECT COUNT(*) FROM applications) AS applications
       `)
       .get();
@@ -124,7 +126,7 @@ export const queries = {
     return db()
       .query(`
         SELECT j.id, j.linkedin_job_id, j.title, j.company_name, j.location, j.work_type,
-               j.comp, j.fit, j.status, j.link, j.scouted_at, j.archived_at, j.description,
+               j.comp, j.fit, j.status, j.link, j.scouted_at, j.shortlisted_at, j.archived_at, j.description,
                j.requirements_json, j.source, j.source_job_id,
                a.id AS application_id, a.origin AS application_origin,
                CASE WHEN a.id IS NULL THEN NULL ELSE ${phaseSql()} END AS application_phase,

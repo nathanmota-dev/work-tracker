@@ -34,6 +34,7 @@ const writes = new Set([
   "jobs/create",
   "jobs/update",
   "jobs/save-search",
+  "jobs/shortlist",
   "jobs/archive",
   "jobs/restore",
   "jobs/delete",

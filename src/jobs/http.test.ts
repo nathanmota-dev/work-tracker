@@ -117,3 +117,13 @@ test("invalid updates and identity conflicts report errors, unexpected failures 
   await expect(call("create", {})).rejects.toThrow("disk full");
   expect(broadcast).not.toHaveBeenCalled();
 });
+
+test("shortlisting updates triage without restoring archived jobs", async () => {
+  d.statement.get.mockReturnValueOnce({ id: 1, archived_at: "date" });
+  expect((await call("shortlist")).status).toBe(409);
+  expect(d.statement.run).not.toHaveBeenCalled();
+  d.statement.get.mockReturnValueOnce({ id: 1, archived_at: null });
+  expect((await call("shortlist")).status).toBe(200);
+  expect(d.query).toHaveBeenCalledWith("UPDATE jobs SET shortlisted_at = COALESCE(shortlisted_at, ?) WHERE id = ?");
+  expect(d.statement.run).toHaveBeenCalledWith("now", 1);
+});

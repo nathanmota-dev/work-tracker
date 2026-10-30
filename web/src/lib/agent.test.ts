@@ -219,3 +219,17 @@ it("opens contextual drafts without changing the route and preserves a second re
   expect(view.result.current.completion?.skill).toBe("job-scout")
   expect(view.result.current.draft?.skill).toBe("profile-optimizer")
 })
+
+it("retains per-item scout outcomes through completion and resets them for the next run", async () => {
+  const hook = renderHook(useAgent)
+  await act(async () => runAgent("opencode", "job-scout", {}))
+  const outcome = { key: "1", status: "existing", job: { id: 1, title: "Engineer", archived_at: "date" } }
+  act(() => publish({ type: "changed", table: "jobs", jobSave: outcome }))
+  act(() => publish({ type: "acp-status", status: "done" }))
+  expect(hook.result.current.jobOutcomes).toEqual([outcome])
+  act(() => publish({ type: "changed", table: "jobs", jobSave: outcome }))
+  expect(hook.result.current.jobOutcomes).toEqual([outcome])
+  await act(async () => runAgent("opencode", "job-scout", {}))
+  expect(hook.result.current.jobOutcomes).toEqual([])
+  act(() => publish({ type: "acp-status", status: "done" }))
+})

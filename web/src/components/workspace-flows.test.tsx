@@ -100,7 +100,6 @@ describe("workspace API flows", () => {
       people: [{ name: "Recruiter Example", headline: "Talent" }],
     })
     render(<SearchPage />)
-    fireEvent.click(screen.getByRole("button", { name: "People & recruiters" }))
     fireEvent.change(screen.getByLabelText("Keywords"), {
       target: { value: "Engineer" },
     })

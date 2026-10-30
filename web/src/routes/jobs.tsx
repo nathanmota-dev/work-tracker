@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react"
+import { JobDiscovery } from "@/components/job-discovery"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -162,7 +163,7 @@ function useJobs() {
   const active = api.data?.filter((row) => !row.archived_at) ?? []
   const archived = api.data?.filter((row) => !!row.archived_at) ?? []
 
-  async function mutate(action: "archive" | "restore" | "delete", row: Row) {
+  async function mutate(action: "archive" | "restore" | "delete" | "shortlist", row: Row) {
     setBusy(true)
     setNotice("")
     setError("")
@@ -171,8 +172,10 @@ function useJobs() {
       if (selectedId === Number(row.id)) setSelectedId(null)
       setDeleting(null)
       api.refresh()
+      return true
     } catch (e) {
       setError((e as Error).message)
+      return false
     } finally {
       setBusy(false)
     }
@@ -212,17 +215,23 @@ function useJobs() {
 export function JobsPage() {
   const { api, selected, deleting, busy, error, active, archived, editing, notice,
     setSelectedId, edit, setDeleting, setError, actions, saved, mutate } = useJobs()
+  const { update } = useWorkspaceState("jobs")
+  const [arrived, setArrived] = useState<number[]>([])
   return (
     <Page
       title="Jobs"
-      description="A considered shortlist for your next chapter."
+      description="Discover, triage and shortlist your next opportunity."
       actions={
         <div className="flex gap-2">
           <Button size="sm" variant="outline" onClick={() => edit("new")}>Add job</Button>
-          <Button size="sm" onClick={() => prepareSkill("job-scout")}>Discover opportunities</Button>
         </div>
       }
     >
+      <JobDiscovery onResults={ids => {
+        setArrived(ids)
+        update({ view: "new", page: 0, q: "", status: "", selection: [], selected: "" })
+        api.refresh()
+      }} />
       <LoadState {...api} retry={api.refresh} />
       {notice && <p role="status" className="text-sm">{notice}</p>}
       {editing && <JobForm job={editing === "new" ? undefined : editing} onClose={() => edit(null)} onSaved={saved} />}
@@ -237,7 +246,8 @@ export function JobsPage() {
           <JobTabs
             active={active}
             archived={archived}
-            columns={jobColumns(actions)}
+            columns={jobColumns(actions, arrived)}
+            onMutate={mutate}
             onSelect={(row) => setSelectedId(Number(row.id))}
           />
         </>

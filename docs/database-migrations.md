@@ -94,3 +94,8 @@ alterados por migrações e não fazem parte dessa cópia.
 4. Use `verify(d)` para invariantes específicos do passo.
 5. Cubra o passo em `src/db/migrations.test.ts` e em
    `src/test/integration/migrations.test.ts`.
+
+A migração 10 (`job triage`) adiciona `jobs.shortlisted_at` e marca vagas
+existentes como triadas, preservando sua shortlist. Faz snapshot antes do
+backfill. Novas gravações deixam a coluna nula; somente a ação explícita de
+mover para a shortlist a preenche. Reabrir o banco não tria vagas novas.

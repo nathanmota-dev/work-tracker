@@ -51,7 +51,7 @@ beforeEach(() => {
 test("job commands map fields through shared validation and report existing records", async () => {
   await jobCmd("save", { "linkedin-id": "job-one", title: "Backend", company: "Acme", description: "Build" });
   expect(saveJob).toHaveBeenCalledWith(d.asDatabase, { linkedin_job_id: "job-one", title: "Backend", company_name: "Acme", description: "Build" }, undefined, true);
-  expect(notifyChange).toHaveBeenCalledWith("jobs");
+  expect(notifyChange).toHaveBeenCalledWith("jobs", expect.objectContaining({ status: "saved", job: expect.objectContaining({ id: 4 }) }));
   expect(output.log).toHaveBeenCalledWith("job #4 saved");
   await jobCmd("update", { id: "4", "source-id": "42", source: "ats", requirements: "[]", "work-type": "remote" });
   expect(saveJob).toHaveBeenLastCalledWith(d.asDatabase, { source_job_id: "42", source: "ats", requirements_json: "[]", work_type: "remote" }, 4, false);
@@ -60,7 +60,7 @@ test("job commands map fields through shared validation and report existing reco
   vi.mocked(notifyChange).mockClear();
   await jobCmd("save", { "linkedin-id": "job-one" });
   expect(output.log).toHaveBeenLastCalledWith("job #4 already exists");
-  expect(notifyChange).not.toHaveBeenCalled();
+  expect(notifyChange).toHaveBeenCalledWith("jobs", expect.objectContaining({ status: "existing" }));
   for (const id of [undefined, "0", "-1", "1.5", "9007199254740992", "bad"])
     await expect(jobCmd("update", id ? { id } : {})).rejects.toThrow("positive job id");
 });
@@ -240,7 +240,7 @@ test("validations stop before writes and report unknown subcommands", async () =
 test("database failures never notify a successful write", async () => {
   vi.mocked(saveJob).mockImplementation(() => { throw new Error("db failed"); });
   await expect(jobCmd("save", {})).rejects.toThrow("db failed");
-  expect(notifyChange).not.toHaveBeenCalled();
+  expect(notifyChange).toHaveBeenCalledWith("jobs", { key: "unknown", status: "failed", error: "db failed" });
 });
 
 test("answer language commands canonicalize tags, filter category and delete only the selected version", async () => {

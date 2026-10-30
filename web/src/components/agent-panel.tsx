@@ -73,7 +73,7 @@ export function AgentCompletion() {
   const destination = destinations[completion.skill as keyof typeof destinations]
   return <div role="status" className="flex items-center gap-3 border-b bg-muted px-4 py-2 text-sm">
     <span>Agent task completed.</span>
-    {destination && <Link to={destination.to} className="underline" onClick={() => { setAgentPanelOpen(false); dismissAgentCompletion() }}>{destination.label}</Link>}
+    {destination && <Link to={destination.to} search={completion.skill === "job-scout" ? { view: "new" } : {}} className="underline" onClick={() => { setAgentPanelOpen(false); dismissAgentCompletion() }}>{destination.label}</Link>}
     <Button size="sm" variant="ghost" onClick={dismissAgentCompletion}>Dismiss</Button>
   </div>
 }

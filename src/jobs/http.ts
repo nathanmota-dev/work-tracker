@@ -9,7 +9,7 @@ export async function handleJobAction(
   broadcast: (event: unknown) => void,
 ): Promise<Response> {
   const action = path.slice("/api/jobs/".length);
-  if (!["save-search", "create", "update", "archive", "restore", "delete"].includes(action))
+  if (!["save-search", "create", "update", "shortlist", "archive", "restore", "delete"].includes(action))
     return Response.json({ error: "Not found." }, { status: 404 });
   if (req.method !== "POST")
     return Response.json({ error: "Method not allowed." }, { status: 405 });
@@ -55,6 +55,9 @@ export async function handleJobAction(
           status: 409,
         };
       d.query("DELETE FROM jobs WHERE id = ?").run(job.id);
+    } else if (action === "shortlist") {
+      if (job.archived_at) return { error: "Restore this job before moving it to the shortlist.", status: 409 };
+      d.query("UPDATE jobs SET shortlisted_at = COALESCE(shortlisted_at, ?) WHERE id = ?").run(now(), job.id);
     } else {
       d.query("UPDATE jobs SET archived_at = ? WHERE id = ?").run(
         action === "archive" ? job.archived_at ?? now() : null,

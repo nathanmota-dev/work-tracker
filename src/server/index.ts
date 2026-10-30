@@ -41,8 +41,8 @@ export function createRequestHandler({
       if (req.headers.get("x-work-tracker-token") !== token) {
         return new Response("forbidden", { status: 403 });
       }
-      const body = (await req.json().catch(() => ({}))) as { table?: string };
-      broadcast({ type: "changed", table: body.table ?? "unknown" });
+      const body = (await req.json().catch(() => ({}))) as { table?: string; jobSave?: unknown };
+      broadcast({ type: "changed", table: body.table ?? "unknown", ...(body.table === "jobs" && body.jobSave ? { jobSave: body.jobSave } : {}) });
       return Response.json({ ok: true });
     }
 

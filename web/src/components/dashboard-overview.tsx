@@ -22,7 +22,7 @@ function OverviewStats({ data }: { data: Row }) {
         {
           label: "Saved opportunities",
           value: <Link to="/jobs">{text(data.jobs)}</Link>,
-          hint: "Your next chapter starts here",
+          hint: `${text(data.new_jobs ?? 0)} new · ${text(data.shortlisted_jobs ?? 0)} shortlisted`,
         },
         {
           label: "Submitted applications",
