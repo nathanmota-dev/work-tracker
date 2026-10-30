@@ -67,7 +67,7 @@ main-process fetch response; subsequent requests use the original fetch.
 
 ## Coverage inventory
 
-All 14 sidebar links are compared with an explicit inventory. Every view runs
+All 14 sidebar links are compared with an explicit ordered inventory: Overview (Dashboard), Find (Search, Jobs), Apply & track (Applications, Application board, Apply, Interviews), People (Recruiters, Outreach), You (Profile, Answers), and the Tools footer (Agent, Activity, Settings). Agent retains the /launch path. Every view runs
 with both empty and populated workspaces, including navigation, active sidebar,
 breadcrumb, view-specific content and reload. New sidebar entries require tests.
 
@@ -76,7 +76,7 @@ breadcrumb, view-specific content and reload. New sidebar entries require tests.
 | Dashboard | Counts, upcoming calendar, activity, links and live CLI notifications |
 | Profile | Saved identity, metrics/score, audit handoff and candidate reuse |
 | Search | Jobs/people, filters, company URN, details, empty/error/retry and assessment → saved job |
-| Launch | Every selectable skill, provider/model/context, streaming/tool details, clear, errors, cancellation, sign-in retry and navigation during a run |
+| Agent | Every selectable skill, provider/model/context, streaming/tool details, clear, errors, cancellation, sign-in retry and navigation during a run |
 | Recruiters | Details/external links, preview/apply/no-change sync, agent handoffs |
 | Outreach | Due actions, cooldowns, funnel/budget rendering, filtering and follow-up handoff |
 | Apply | Sources, description, real two-page PDFs, generation/regeneration/history, report, viewer controls/export, failed output preservation, cancel, fill/sign-in/retry and explicit submission |

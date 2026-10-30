@@ -111,7 +111,7 @@ export function LaunchPage() {
   } = useLaunchState()
   return (
     <Page
-      title="Launch"
+      title="Agent"
       description="Your next move, with a little help from your agent."
       actions={<Status value={agent.status} />}
     >

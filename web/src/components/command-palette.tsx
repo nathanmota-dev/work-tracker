@@ -26,7 +26,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { useSidebar } from "@/components/ui/sidebar"
-import { navigationItems } from "@/routes/navigation-items"
+import { navigationItems, navigationGroups } from "@/routes/navigation-items"
 
 type CommandPaletteContextValue = {
   openSearch: () => void
@@ -61,8 +61,9 @@ function PageCommands({ onSelect }: { onSelect: (to: (typeof navigationItems)[nu
       </div>
       <CommandList className="max-h-[min(360px,55dvh)] p-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <CommandEmpty>No pages found.</CommandEmpty>
-        <CommandGroup heading="Go to">
-          {navigationItems.map((item) => (
+        {navigationGroups.map((group) => (
+        <CommandGroup key={group.title} heading={group.title}>
+          {group.items.map((item) => (
             <CommandItem
               key={item.to}
               value={item.title}
@@ -78,6 +79,7 @@ function PageCommands({ onSelect }: { onSelect: (to: (typeof navigationItems)[nu
             </CommandItem>
           ))}
         </CommandGroup>
+        ))}
       </CommandList>
       <div className="flex items-center gap-4 border-t bg-muted/20 px-4 py-2 text-[11px] text-muted-foreground">
         <span className="flex items-center gap-1">

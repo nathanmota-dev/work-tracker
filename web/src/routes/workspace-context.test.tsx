@@ -100,7 +100,7 @@ it("Search → Launch → back preserves results, pagination, multi-selection an
   await waitFor(() => expect(screen.getByText("32 results · Page 2 of 3")).toBeInTheDocument())
   fireEvent.click(screen.getByRole("button", { name: "View Engineer 20" }))
   fireEvent.click(await screen.findByRole("button", { name: "Assess fit with agent" }))
-  await screen.findByRole("heading", { name: "Launch" })
+  await screen.findByRole("heading", { name: "Agent" })
   fireEvent.change(await screen.findByLabelText("Additional context"), { target: { value: "Assessment context" } })
   act(() => router.history.back())
   expect(await screen.findByRole("dialog")).toHaveTextContent("Engineer 20")

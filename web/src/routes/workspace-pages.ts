@@ -28,7 +28,7 @@ import { SearchPage } from "@/routes/search"
 export const workspacePages = [
   { path: "profile", title: "Profile", icon: UserRound, component: ProfilePage },
   { path: "search", title: "Search", icon: Search, component: SearchPage },
-  { path: "launch", title: "Launch", icon: Rocket, component: LaunchPage },
+  { path: "launch", title: "Agent", icon: Rocket, component: LaunchPage },
   { path: "recruiters", title: "Recruiters", icon: UsersRound, component: RecruitersPage },
   { path: "outreach", title: "Outreach", icon: Send, component: OutreachPage },
   { path: "apply", title: "Apply", icon: FileText, component: ApplyPage },

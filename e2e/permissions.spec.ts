@@ -3,7 +3,7 @@ import { choose } from './ui'
 
 test('Permissions: keyboard choice, session memory, persistent allowlist, revocation and navigation', async ({ workspace, page }) => {
   workspace.setScenario({ agent: 'permission' })
-  await workspace.go('Launch')
+  await workspace.go('Agent')
   const start = async () => {
     await page.getByLabel('Role, keywords or job URL').fill('Synthetic')
     await page.getByRole('button', { name: 'Run agent' }).click()
@@ -21,7 +21,7 @@ test('Permissions: keyboard choice, session memory, persistent allowlist, revoca
   await expect(dialog).toHaveCount(0)
   await expect.poll(() => workspace.calls('permission-result').length).toBe(2)
   for (const value of workspace.calls('permission-result')) expect(value.result).toEqual({ outcome: { outcome: 'selected', optionId: 'approve-exact' } })
-  await workspace.go('Launch')
+  await workspace.go('Agent')
   await expect(page.getByRole('button', { name: 'Run agent' })).toBeEnabled()
   await start() // A new ACP session must ask again.
   await expect(dialog).toBeVisible()
@@ -39,7 +39,7 @@ test('Permissions: keyboard choice, session memory, persistent allowlist, revoca
   await expect(page.getByText('linkedin_get_person_profile: Refused · Refuse')).toBeVisible()
   await page.getByRole('button', { name: 'Revoke linkedin_get_person_profile' }).click()
   await expect(page.getByText('No remembered tools.')).toBeVisible()
-  await workspace.go('Launch')
+  await workspace.go('Agent')
   await start()
   await expect(dialog).toBeVisible()
   await dialog.getByRole('button', { name: 'Cancel request' }).click()

@@ -1,16 +1,17 @@
 import { useWorkspaceLinks } from "@/lib/workspace-state"
 import { Link, useMatchRoute } from "@tanstack/react-router"
-import { Search, Settings } from "lucide-react"
+import { Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useCommandPalette } from "@/components/command-palette"
 import logo from "@/public/logo.png"
-import { navigationItems } from "@/routes/navigation-items"
+import { navigationGroups } from "@/routes/navigation-items"
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -19,12 +20,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 
-const mainNavigationItems = navigationItems.filter((item) => item.to !== "/settings")
-
 export function AppSidebar() {
-  const remembered = useWorkspaceLinks()
-  const matchRoute = useMatchRoute()
-  const { setOpenMobile } = useSidebar()
   const { openSearch, shortcut } = useCommandPalette()
 
   return (
@@ -53,58 +49,52 @@ export function AppSidebar() {
         </Button>
       </SidebarHeader>
       <SidebarContent className="gap-0 pt-4">
-        <SidebarGroup className="p-0">
-          <SidebarGroupContent>
-            <SidebarMenu aria-label="Páginas">
-              {mainNavigationItems.map((item) => (
-                <SidebarMenuItem key={item.to} className="group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
-                  <SidebarMenuButton
-                    asChild
-                    isActive={Boolean(matchRoute({ to: item.to, fuzzy: true }))}
-                    tooltip={item.title}
-                    className="rounded-lg font-normal data-[active=true]:font-normal [&>svg]:stroke-[1.7]"
-                  >
-                    <Link
-                      to={item.to}
-                      search={remembered[item.to] ?? {}}
-                      aria-label={item.title}
-                      className="cursor-pointer"
-                      activeProps={{ "aria-current": "page" }}
-                      onClick={() => setOpenMobile(false)}
-                    >
-                      <item.icon />
-                      <span className="group-data-[collapsible=icon]:hidden">{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {navigationGroups.filter((group) => !group.footer).map((group) => (
+          <NavigationGroup key={group.title} group={group} />
+        ))}
       </SidebarContent>
       <SidebarFooter className="border-t px-0 pb-1 pt-2">
-        <SidebarMenu>
-          <SidebarMenuItem className="group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
-            <SidebarMenuButton
-              asChild
-              isActive={Boolean(matchRoute({ to: "/settings", fuzzy: true }))}
-              tooltip="Settings"
-              className="rounded-lg font-normal data-[active=true]:font-normal [&>svg]:stroke-[1.7]"
-            >
-              <Link
-                to="/settings"
-                aria-label="Settings"
-                className="cursor-pointer"
-                activeProps={{ "aria-current": "page" }}
-                onClick={() => setOpenMobile(false)}
-              >
-                <Settings />
-                <span className="group-data-[collapsible=icon]:hidden">Settings</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+        {navigationGroups.filter((group) => group.footer).map((group) => (
+          <NavigationGroup key={group.title} group={group} />
+        ))}
       </SidebarFooter>
     </Sidebar>
+  )
+}
+
+function NavigationGroup({ group }: { group: (typeof navigationGroups)[number] }) {
+  const remembered = useWorkspaceLinks()
+  const matchRoute = useMatchRoute()
+  const { setOpenMobile } = useSidebar()
+  return (
+    <SidebarGroup key={group.title} className="p-0" role="group" aria-label={group.title}>
+      {!group.footer && <SidebarGroupLabel>{group.title}</SidebarGroupLabel>}
+      <SidebarGroupContent>
+        <SidebarMenu aria-label={group.title}>
+          {group.items.map((item) => (
+            <SidebarMenuItem key={item.to} className="group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
+              <SidebarMenuButton
+                asChild
+                isActive={Boolean(matchRoute({ to: item.to, fuzzy: true }))}
+                tooltip={item.title}
+                className="rounded-lg font-normal data-[active=true]:font-normal [&>svg]:stroke-[1.7]"
+              >
+                <Link
+                  to={item.to}
+                  search={remembered[item.to] ?? {}}
+                  aria-label={item.title}
+                  className="cursor-pointer"
+                  activeProps={{ "aria-current": "page" }}
+                  onClick={() => setOpenMobile(false)}
+                >
+                  <item.icon />
+                  <span className="group-data-[collapsible=icon]:hidden">{item.title}</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
   )
 }

@@ -14,7 +14,7 @@ test('Search: job filters, details, agent assessment and saved opportunity', asy
   await page.getByRole('button', { name: 'Full details' }).click()
   await expect(page.getByRole('dialog')).toContainText('React developer with TypeScript')
   await page.getByRole('button', { name: 'Assess fit with agent' }).click()
-  await workspace.ready('Launch')
+  await workspace.ready('Agent')
   await expect(page.getByLabel('Role, keywords or job URL')).toHaveValue('https://example.com/jobs/9001')
   await page.getByRole('button', { name: 'Run agent' }).click()
   await expect(page.getByText('Synthetic agent is working. Synthetic workflow completed.', { exact: true })).toBeVisible()
@@ -59,7 +59,7 @@ const skills = [
 ] as const
 for (const [skill, field, input, destination, result] of skills) {
   test(`Launch: ${skill} runs through ACP and persists its result`, async ({ workspace, page }) => {
-    await workspace.go('Launch')
+    await workspace.go('Agent')
     await choose(page, 'Skill', ({ 'job-scout': 'Discover opportunities', 'deep-scout': 'Assess a role', 'profile-optimizer': 'Audit your profile', 'recruiter-outreach': 'Find recruiters', 'outreach-tracker': 'Review follow-ups', 'portal-filler': 'Prepare an application', 'experience-bank': 'Capture experience' })[skill])
     await choose(page, 'Agent', 'Claude Code')
     await choose(page, 'Model', 'e2e-careful')
@@ -78,14 +78,14 @@ for (const [skill, field, input, destination, result] of skills) {
     if (destination === 'Recruiters') await expect(page.getByRole('button', { name: 'View Alex Recruiter' })).toBeVisible()
     else await expect(page.getByText(result, { exact: true }).first()).toBeVisible()
     if (skill === 'experience-bank') expect(workspace.query('SELECT summary FROM activity_log')).toHaveLength(1)
-    await workspace.go('Launch')
+    await workspace.go('Agent')
     await page.getByRole('button', { name: 'Clear', exact: true }).click()
     await expect(page.getByText('Synthetic agent is working. Synthetic workflow completed.', { exact: true })).toHaveCount(0)
   })
 }
 
 test('Launch: errors, cancellation and retained sign-in retry', async ({ workspace, page }) => {
-  await workspace.go('Launch')
+  await workspace.go('Agent')
   await choose(page, 'Skill', 'Assess a role')
   await page.getByLabel('Role, keywords or job URL').fill('https://example.com/jobs/synthetic')
   workspace.setScenario({ agent: 'error' })
@@ -96,7 +96,7 @@ test('Launch: errors, cancellation and retained sign-in retry', async ({ workspa
   await expect(page.getByRole('button', { name: 'Run agent' })).toBeDisabled()
   await expect(page.getByText('Read LinkedIn profile', { exact: true })).toBeVisible()
   await workspace.go('Jobs')
-  await workspace.go('Launch')
+  await workspace.go('Agent')
   await page.getByRole('button', { name: 'Cancel', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Run agent' })).toBeEnabled()
   await choose(page, 'Skill', 'Assess a role')
@@ -112,7 +112,7 @@ test('Launch: errors, cancellation and retained sign-in retry', async ({ workspa
 })
 
 test('Launch: portal preparation opens Apply before any agent fills a document', async ({ workspace, page }) => {
-  await workspace.go('Launch')
+  await workspace.go('Agent')
   await choose(page, 'Skill', 'Prepare an application')
   await page.getByRole('button', { name: 'Run agent' }).click()
   await expect(page.getByRole('heading', { name: 'Apply', exact: true })).toBeVisible()
