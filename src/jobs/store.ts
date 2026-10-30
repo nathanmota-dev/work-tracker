@@ -7,7 +7,7 @@ export class JobError extends Error {
 }
 const fields = ["title", "company_name", "location", "work_type", "comp", "fit", "requirements_json", "status", "link", "description", "source", "source_job_id", "linkedin_job_id"] as const;
 type Field = typeof fields[number];
-export type Job = Record<Field, string | null> & { id: number; archived_at: string | null };
+export type Job = Record<Field, string | null> & { id: number; archived_at: string | null; shortlisted_at: string | null };
 type Input = Partial<Record<Field, string | null>>;
 
 function inputFields(body: unknown): Input {

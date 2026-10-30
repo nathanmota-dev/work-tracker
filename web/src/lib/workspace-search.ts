@@ -13,9 +13,14 @@ export function validateWorkspaceSearch(path: string, search: Record<string, unk
     page: integer(search.page, 0, 0), selected: integer(search.selected, path === "jobs" ? 1 : 0, -1) >= 0 ? String(Number(search.selected)) : "",
     selection: Array.isArray(search.selection) ? [...new Set(search.selection.filter((v): v is string => typeof v === "string"))] : [],
   }
-  if (path === "jobs") return { ...records, view: choice(search.view, ["active", "archived"], "active") }
+  if (path === "jobs") return {
+    ...records, view: choice(search.view === "active" ? "shortlist" : search.view, ["new", "shortlist", "archived"], "new"),
+    keywords: string(search.keywords), location: string(search.location),
+    workType: choice(search.workType, ["remote", "hybrid", "on-site"], ""), maxPages: integer(search.maxPages, 1, 1, 10),
+    assess: search.assess === true || search.assess === "true", focus: search.focus === true || search.focus === "true",
+  }
   if (path === "search") return {
-    ...records, savedJobId: integer(search.savedJobId, 1, 0) || undefined, kind: choice(search.kind, ["jobs", "people"], "jobs"),
+    ...records, savedJobId: integer(search.savedJobId, 1, 0) || undefined, kind: choice(search.kind, ["jobs", "people"], "people"),
     keywords: string(search.keywords), location: string(search.location), company: string(search.company),
     workType: choice(search.workType, ["remote", "hybrid", "on-site"], ""), maxPages: integer(search.maxPages, 1, 1, 10), resultId: string(search.resultId),
   }
@@ -33,6 +38,7 @@ export function validateWorkspaceSearch(path: string, search: Record<string, unk
   return {}
 }
 export type WorkspaceSearch = {
+  assess?: boolean; focus?: boolean;
   q?: string; status?: string; page?: number; view?: string; selected?: string; selection?: string[]
   savedJobId?: number; kind?: string; keywords?: string; location?: string; company?: string; workType?: string; maxPages?: number; resultId?: string
   jobId?: number; applicationId?: number; runId?: string; provider?: string; model?: string; pdfTab?: string; workspaceTab?: string

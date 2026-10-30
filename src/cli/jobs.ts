@@ -23,8 +23,13 @@ export async function jobCmd(sub: string, flags: Flags): Promise<void> {
       const value = str(flags, flag);
       return value === undefined ? [] : [[column, value]];
     }));
-    const result = saveJob(db(), body, sub === "update" ? Number(id) : undefined, sub === "save");
-    if (!result.existing || body.fit !== undefined || body.status !== undefined) await notifyChange("jobs");
+    let result;
+    try { result = saveJob(db(), body, sub === "update" ? Number(id) : undefined, sub === "save"); }
+    catch (error) {
+      if (sub === "save") await notifyChange("jobs", { key: body.link ?? body.linkedin_job_id ?? body.title ?? "unknown", status: "failed", error: error instanceof Error ? error.message : String(error) });
+      throw error;
+    }
+    await notifyChange("jobs", sub === "save" ? { key: String(result.job.id), status: result.existing ? "existing" : "saved", job: result.job } : undefined);
     console.log(result.job.archived_at ? `job #${result.job.id} remains archived`
       : `job #${result.job.id} ${result.existing ? "already exists" : sub === "update" ? "updated" : "saved"}`);
     return;

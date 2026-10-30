@@ -1,3 +1,4 @@
+import type { SearchSaveResult } from "../../../src/jobs/search-results"
 import { openApply } from "./preparation"
 import { candidateFromAnswers, withCandidateProfile } from "./candidate-profile"
 import { useSyncExternalStore } from "react"
@@ -79,6 +80,7 @@ let runId = 0
 const toolMessages = new Map<string, string>()
 export type AgentDraft = { skill: string; params: Record<string, string> }
 let state = {
+  jobOutcomes: [] as SearchSaveResult[],
   panelOpen: false,
   current: null as AgentDraft | null,
   completion: null as { skill: string; id: number } | null,
@@ -141,6 +143,8 @@ function listen() {
   listening = true
   subscribe((event) => {
     if (event.source === "apply") return;
+    if (event.type === "changed" && event.jobSave && state.running && state.current?.skill === "job-scout")
+      update({ jobOutcomes: [...state.jobOutcomes, event.jobSave as SearchSaveResult] })
     if ((event.type === "hello" || event.type === "connection" && event.live === true) && state.status === "Connection lost — run status unknown") {
       const currentRun = runId
       void request<PermissionSnapshot>("acp/permissions").then(snapshot => {
@@ -234,7 +238,7 @@ export async function runAgent(
   if (state.running) { prepareSkill(skill, params); return }
   runId++
   toolMessages.clear()
-  update({ running: true, status: "Starting", draft: null, current: { skill, params: { ...params } }, completion: null })
+  update({ jobOutcomes: [], running: true, status: "Starting", draft: null, current: { skill, params: { ...params } }, completion: null })
   append(
     "user",
     `${skills.find((s) => s.id === skill)?.name ?? skill}\n${Object.entries(

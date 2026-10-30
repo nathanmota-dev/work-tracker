@@ -17,3 +17,17 @@ Saving a draft does not create an application or start an agent. The form lists 
 Identity matches use a source and source job ID, a LinkedIn job ID extracted from supported LinkedIn URLs, or a normalized URL. Titles alone never merge jobs. Normalization handles host casing, `www`, HTTP/HTTPS, trailing slashes, query ordering and ordinary page anchors. It retains ports, unknown query parameters and SPA route fragments, removes UTM parameters, and removes LinkedIn tracking parameters only on LinkedIn hosts.
 
 Conflicting identities and ambiguous legacy duplicates require review. Existing duplicates are preserved during migration. Identity checks and writes run in one SQLite transaction, including CLI writes from separate processes. Editing does not rewrite application links, application card fields, run manifests or PDF artifacts. Finish or cancel an active preparation run before editing its job.
+
+## Discovery and triage
+
+Jobs owns discovery: enter keywords, location, work arrangement and page count.
+Direct LinkedIn searches save structured results automatically; **Assess fit with
+agent** opens the contextual job-scout panel with the same criteria. Each search
+reports saved, already saved and failed items. Repeated searches preserve existing
+jobs, including archived roles.
+
+New jobs (including manual and CLI saves) appear in **New**, never directly in
+**Shortlist**. Select one or several and choose **Move to shortlist** or **Archive**.
+Shortlist retains filtering, selection and batch preparation. Archived jobs retain
+their prior triage state on restoration. The search criteria and tab persist in
+the URL; legacy Search job links redirect to Jobs. Search now finds only people.

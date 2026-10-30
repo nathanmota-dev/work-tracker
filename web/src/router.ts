@@ -63,6 +63,10 @@ export function createAppRouter(sidebarLayout: RouteComponent) {
           getParentRoute: () => sidebarRoute,
           path: page.path,
           component: page.component,
+          beforeLoad: ({ search }) => {
+            if (page.path === "search" && search.kind === "jobs")
+              throw redirect({ to: "/jobs", search: validateWorkspaceSearch("jobs", search), replace: true })
+          },
           validateSearch: (search: Record<string, unknown>) => validateWorkspaceSearch(page.path, search),
           search: { middlewares: [stripSearchParams(validateWorkspaceSearch(page.path, {}))] },
           staticData: { title: page.title },

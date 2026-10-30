@@ -1,11 +1,7 @@
-import type React from "react"
-import { Button } from "@/components/ui/button"
 import { Empty, ExternalLink, Panel } from "@/components/workspace-ui"
 import { Records, type Column } from "@/components/records"
-import { request, text, type Row } from "@/lib/api"
-import { prepareSkill } from "@/lib/agent"
+import { text, type Row } from "@/lib/api"
 import { extractSearchRows, structuredSearchRows } from "../../../src/jobs/search-results"
-import { SearchJobResults } from "@/components/search-job-results"
 
 // MCP servers may return structuredContent, text content blocks, or raw arrays.
 export function searchRows(raw: unknown): Row[] {
@@ -49,18 +45,14 @@ const peopleColumns: Column[] = [
 ]
 
 export function SearchResults({
-  kind,
   result,
   onSelect,
 }: {
-  kind: SearchKind
   result: unknown
   onSelect: (row: Row) => void
 }) {
   const rows = searchRows(result)
-  const jobRows = kind === "jobs" ? structuredSearchRows(result) : []
   const output = extractSearchRows(result) ? "" : readable(result)
-  if (jobRows.length) return <SearchJobResults results={jobRows} onSelect={onSelect} />
   return (
     rows.length ? (
       <Records
@@ -74,7 +66,6 @@ export function SearchResults({
       <Panel title="Search results">
         {output && !["[]", "{}", "null"].includes(output) ? (
           <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-            {kind === "jobs" && <p className="mb-3 font-medium">Not savable — open manually. Search returned text without structured job fields.</p>}
             <div>{output}</div>
           </div>
         ) : (
@@ -88,82 +79,6 @@ export function SearchResults({
   )
 }
 
-export function ResultActions({
-  kind,
-  selected,
-  setSelected,
-  detailBusy,
-  setDetailBusy,
-}: {
-  kind: SearchKind
-  selected: Row | null
-  setSelected: React.Dispatch<React.SetStateAction<Row | null>>
-  detailBusy: boolean
-  setDetailBusy: (busy: boolean) => void
-}) {
-  return (
-    <div className="flex flex-wrap gap-2">
-      <ExternalLink
-        value={
-          selected?.url ??
-          selected?.link ??
-          selected?.profile_url ??
-          selected?.job_url
-        }
-      />
-      {kind === "jobs" && (
-        <>
-          <Button
-            variant="outline"
-            disabled={
-              detailBusy ||
-              !(
-                selected?.job_id ??
-                selected?.id ??
-                selected?.linkedin_job_id
-              )
-            }
-            onClick={async () => {
-              setDetailBusy(true)
-              try {
-                const details = await request("search/job-details", {
-                  jobId: String(
-                    selected?.job_id ??
-                      selected?.id ??
-                      selected?.linkedin_job_id,
-                  ),
-                })
-                setSelected((r) =>
-                  r?.search_key === selected?.search_key ? { ...r, description: readable(details) } : r,
-                )
-              } catch (e) {
-                setSelected((r) =>
-                  r?.search_key === selected?.search_key ? { ...r, error: (e as Error).message } : r,
-                )
-              } finally {
-                setDetailBusy(false)
-              }
-            }}
-          >
-            {detailBusy ? "Loading…" : "Full details"}
-          </Button>
-          <Button
-            onClick={() => {
-              setSelected(null)
-              prepareSkill("deep-scout", {
-                query: text(
-                  selected?.url ??
-                    selected?.link ??
-                    selected?.job_url ??
-                    selected?.title,
-                ),
-              })
-            }}
-          >
-            Assess fit with agent
-          </Button>
-        </>
-      )}
-    </div>
-  )
+export function ResultActions({ selected }: { selected: Row | null }) {
+  return <ExternalLink value={selected?.url ?? selected?.link ?? selected?.profile_url} />
 }

@@ -11,6 +11,9 @@ test('Jobs: select across pages, review five jobs and create one batch with shar
   try { database.exec("UPDATE jobs SET scouted_at = datetime('2026-01-01', '+' || id || ' seconds')") }
   finally { database.close() }
   await workspace.go('Jobs')
+  await page.getByRole('button', { name: 'Select all filtered results (17)', exact: true }).click()
+  await page.getByRole('button', { name: 'Move selected to shortlist' }).click()
+  await page.getByRole('tab', { name: 'Shortlist (17)' }).click()
   await page.getByRole('button', { name: 'Select page (15)', exact: true }).click()
   await expect(page.getByRole('status').filter({ hasText: /^15 selected$/ })).toBeVisible()
   await page.getByRole('button', { name: 'Next', exact: true }).click()

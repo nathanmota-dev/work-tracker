@@ -1,4 +1,4 @@
-import { type ReactNode } from "react"
+import { useState, type ReactNode } from "react"
 import { Archive, ArchiveRestore, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
@@ -50,7 +50,8 @@ export function JobStats({ jobs }: { jobs: Row[] }) {
   return (
     <Stats
       items={[
-        { label: "Active roles", value: jobs.length },
+        { label: "New roles", value: jobs.filter(row => !row.shortlisted_at).length },
+        { label: "Shortlisted roles", value: jobs.filter(row => !!row.shortlisted_at).length },
         {
           label: "Companies",
           value: new Set(
@@ -71,14 +72,17 @@ export function JobStats({ jobs }: { jobs: Row[] }) {
   )
 }
 
-export function jobColumns(actions: (row: Row) => ReactNode): Column[] {
+export function jobColumns(actions: (row: Row) => ReactNode, arrived: number[] = []): Column[] {
   return [
     {
       key: "title",
       label: "Opportunity",
       render: (r) => (
         <div>
-          <p className="font-medium">{text(r.title)}</p>
+          <div className="flex items-center gap-2">
+            <p className="font-medium">{text(r.title)}</p>
+            {arrived.includes(Number(r.id)) && <span className="rounded bg-primary/10 px-2 text-xs text-primary">Just added</span>}
+          </div>
           <p className="mt-1 text-xs text-muted-foreground">
             {text(r.company_name)}
           </p>
@@ -145,12 +149,13 @@ export function JobActions({
   row: Row
   busy: boolean
   includePreparation: boolean
-  onMutate: (action: "archive" | "restore", row: Row) => void
+  onMutate: (action: "archive" | "restore" | "shortlist", row: Row) => void
   onDelete: (row: Row) => void
 }) {
   return (
     <div className="flex flex-wrap gap-2">
-      {includePreparation && <PrepareJob row={row} busy={busy} />}
+      {includePreparation && !!row.shortlisted_at && <PrepareJob row={row} busy={busy} />}
+      {!row.archived_at && !row.shortlisted_at && <Button size="sm" disabled={busy} onClick={() => onMutate("shortlist", row)}>Move to shortlist</Button>}
       <Button
         variant="outline"
         size="icon-sm"
@@ -182,18 +187,24 @@ export function JobTabs({
   archived,
   columns,
   onSelect,
+  onMutate,
 }: {
   active: Row[]
   archived: Row[]
   columns: Column[]
   onSelect: (row: Row) => void
+  onMutate: (action: "shortlist" | "archive", row: Row) => Promise<boolean>
 }) {
   const { search, update } = useWorkspaceState("jobs")
-  const view = search.view ?? "active"
+  const view = search.view ?? "new"
+  const fresh = active.filter(row => !row.shortlisted_at)
+  const shortlist = active.filter(row => !!row.shortlisted_at)
+  const rows = view === "archived" ? archived : view === "shortlist" ? shortlist : fresh
   return (
-    <Tabs value={view} onValueChange={view => update({ view, page: 0, q: "", status: "", selected: "" })}>
+    <Tabs value={view} onValueChange={view => update({ view, page: 0, q: "", status: "", selected: "", selection: [] })}>
       <TabsList aria-label="Job archive filter">
-        <TabsTrigger value="active">Active ({active.length})</TabsTrigger>
+        <TabsTrigger value="new">New ({fresh.length})</TabsTrigger>
+        <TabsTrigger value="shortlist">Shortlist ({shortlist.length})</TabsTrigger>
         <TabsTrigger value="archived">
           Archived ({archived.length})
         </TabsTrigger>
@@ -207,11 +218,13 @@ export function JobTabs({
         )}
         <MultiSelectRecords
           workspace="jobs"
-          selectionRows={[...active, ...archived]}
+          selectionRows={rows}
           rowKey={row => String(row.id)} rowLabel={row => text(row.title)}
           canSelect={() => true} busy={false} selectAllLabel="Select all filtered results"
-          action={(jobs, clear) => <BatchPreparation jobs={jobs} onCreated={clear} />}
-          rows={view === "archived" ? archived : active}
+          action={(jobs, clear) => view === "new"
+            ? <JobTriage jobs={jobs} onMutate={onMutate} onDone={clear} />
+            : <BatchPreparation jobs={jobs} onCreated={clear} />}
+          rows={rows}
           noun={view === "archived" ? "Archived opportunities" : "Opportunities"}
           onSelect={onSelect}
           columns={columns}
@@ -219,4 +232,22 @@ export function JobTabs({
       </TabsContent>
     </Tabs>
   )
+}
+
+function JobTriage({ jobs, onMutate, onDone }: {
+  jobs: Row[]; onMutate: (action: "shortlist" | "archive", row: Row) => Promise<boolean>; onDone: () => void
+}) {
+  const [busy, setBusy] = useState(false)
+  async function run(action: "shortlist" | "archive") {
+    setBusy(true)
+    try {
+      for (const job of jobs) if (!await onMutate(action, job)) return
+      onDone()
+    }
+    finally { setBusy(false) }
+  }
+  return <>
+    <Button size="sm" disabled={busy || !jobs.length} onClick={() => void run("shortlist")}>Move selected to shortlist</Button>
+    <Button size="sm" variant="outline" disabled={busy || !jobs.length} onClick={() => void run("archive")}>Archive selected</Button>
+  </>
 }

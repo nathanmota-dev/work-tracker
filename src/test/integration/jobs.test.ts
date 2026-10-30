@@ -108,3 +108,33 @@ test("invalid, unauthenticated, unknown and wrong-method actions never mutate or
   expect(find(job.id)).toMatchObject({ archived_at: null });
   expect(broadcast).not.toHaveBeenCalled();
 });
+
+test("existing jobs migrate to shortlist while CLI and search results require explicit triage", async () => {
+  expect(find(1)).toMatchObject({ shortlisted_at: expect.any(String) });
+  const output = vi.spyOn(console, "log").mockImplementation(() => {});
+  try { await jobCmd("save", { title: "Triage CLI", company: "Acme", link: "https://example.com/triage-cli" }); }
+  finally { output.mockRestore(); }
+  const cli = db().query("SELECT * FROM jobs WHERE title = 'Triage CLI'").get() as { id: number };
+  expect(cli).toMatchObject({ shortlisted_at: null });
+  const body = { items: [{ key: "triage", result: { title: "Search triage", company: "Acme", url: "https://example.com/triage-search" } }] };
+  const saved = await (await request("save-search", body)).json() as { results: { job: { id: number } }[] };
+  const job = saved.results[0]!.job;
+  expect(job).toMatchObject({ shortlisted_at: null });
+  expect(await (await request("save-search", body)).json()).toMatchObject({ results: [{ status: "existing", job: { id: job.id, shortlisted_at: null } }] });
+  expect((await request("shortlist", job)).status).toBe(200);
+  const triaged = find(job.id);
+  expect(triaged).toMatchObject({ shortlisted_at: expect.any(String) });
+  await request("shortlist", job);
+  expect(find(job.id)).toEqual(triaged);
+  await request("archive", job);
+  const archived = find(job.id);
+  await request("archive", job);
+  expect(find(job.id)).toEqual(archived);
+  expect((await request("shortlist", job)).status).toBe(409);
+  await request("save-search", body);
+  expect(find(job.id)).toEqual(archived);
+  const { queries } = await import("../../server/queries.ts");
+  expect(queries.jobs().find((row) => (row as { id: number }).id === job.id)).toMatchObject({ shortlisted_at: (triaged as { shortlisted_at: string }).shortlisted_at });
+  const overview = queries.overview() as unknown as Record<string, number>;
+  expect(overview.jobs).toBe(overview.new_jobs! + overview.shortlisted_jobs!);
+});

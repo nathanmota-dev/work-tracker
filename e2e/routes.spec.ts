@@ -3,12 +3,12 @@ import { test, expect } from './fixtures'
 // Explicit inventory: a new sidebar link must gain coverage, not be silently skipped.
 export const routes = [
   ['Dashboard', 'dashboard', 'Saved opportunities'],
-  ['Search', 'search', 'Explore LinkedIn'],
   ['Jobs', 'jobs', 'Discover opportunities'],
   ['Applications', 'applications', 'Tailor a resume'],
   ['Application board', 'application-board', 'New application'],
   ['Apply', 'apply', 'Opportunity'],
   ['Interviews', 'interviews', 'Upcoming'],
+  ['Search', 'search', 'People & recruiters'],
   ['Recruiters', 'recruiters', 'Preview connection sync'],
   ['Outreach', 'outreach', 'Connection lifecycle'],
   ['Profile', 'profile', 'Profile assessment'],
@@ -30,9 +30,9 @@ for (const populated of [false, true]) {
         expect(await page.locator('[data-sidebar="sidebar"]').getByRole('group').evaluateAll(groups =>
           groups.map(group => [group.getAttribute('aria-label'), Array.from(group.querySelectorAll('a')).map(link => link.getAttribute('aria-label'))])
         )).toEqual([
-          ['Overview', ['Dashboard']], ['Find', ['Search', 'Jobs']],
+          ['Overview', ['Dashboard']], ['Find', ['Jobs']],
           ['Apply & track', ['Applications', 'Application board', 'Apply', 'Interviews']],
-          ['People', ['Recruiters', 'Outreach']], ['You', ['Profile', 'Answers']],
+          ['People', ['Search', 'Recruiters', 'Outreach']], ['You', ['Profile', 'Answers']],
           ['Tools', ['Agent', 'Activity', 'Settings']],
         ])
         await workspace.go(title)

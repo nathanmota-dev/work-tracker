@@ -36,14 +36,14 @@ it("shows active roles by default and archives/restores directly from the list",
   expect(await screen.findByText("Engineer")).toBeInTheDocument()
   expect(screen.queryByText("Old role")).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole("button", { name: "Archive Engineer" }))
-  await screen.findByRole("tab", { name: "Active (0)" })
+  await screen.findByRole("tab", { name: "New (0)" })
   expect(request).toHaveBeenCalledWith("jobs/archive", { id: 1 })
   tab("Archived (2)")
   expect(screen.getByText("Old role")).toBeInTheDocument()
   fireEvent.click(screen.getByRole("button", { name: "Restore Engineer" }))
   await screen.findByRole("tab", { name: "Archived (1)" })
   expect(request).toHaveBeenCalledWith("jobs/restore", { id: 1 })
-  tab("Active (1)")
+  tab("New (1)")
   expect(screen.getByText("Engineer")).toBeInTheDocument()
 })
 
@@ -58,8 +58,8 @@ it("keeps archived details readable and disables application preparation until r
   expect(details.getByRole("button", { name: "Assess fit" })).toBeDisabled()
   fireEvent.click(details.getByRole("button", { name: "Restore Old role" }))
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
-  await screen.findByRole("tab", { name: "Active (2)" })
-  tab("Active (2)")
+  await screen.findByRole("tab", { name: "New (2)" })
+  tab("New (2)")
   fireEvent.click(screen.getByRole("button", { name: "View Old role" }))
   expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Prepare application" })).toBeEnabled()
 })
@@ -117,11 +117,13 @@ it("refreshes archive state in an open details dialog after a backend event", as
 
 it("shows the linked application with its step and contextual next action", async () => {
   jobs = [
-    { id: 1, title: "Engineer", company_name: "Acme", archived_at: null, application_id: 9, application_phase: "prepared", application_view: "preparation", application_origin: "preparation" },
-    { id: 3, title: "Tracked role", company_name: "Beta", archived_at: null, application_id: 11, application_phase: "submitted", application_view: "tracking", application_origin: "manual" },
+    { id: 1, title: "Engineer", company_name: "Acme", archived_at: null, shortlisted_at: "2026-01-01", application_id: 9, application_phase: "prepared", application_view: "preparation", application_origin: "preparation" },
+    { id: 3, title: "Tracked role", company_name: "Beta", archived_at: null, shortlisted_at: "2026-01-01", application_id: 11, application_phase: "submitted", application_view: "tracking", application_origin: "manual" },
   ]
   window.location.hash = ""
   render(<JobsPage />)
+  await screen.findByRole("tab", { name: "Shortlist (2)" })
+  tab("Shortlist (2)")
   const row = async (title: string) => within((await screen.findByText(title)).closest("tr")!)
   expect((await row("Engineer")).getByText("Prepared")).toBeInTheDocument()
   expect((await row("Tracked role")).getByText("Submitted")).toBeInTheDocument()
@@ -135,4 +137,34 @@ it("shows the linked application with its step and contextual next action", asyn
   expect(window.location.hash).toBe("#/apply?jobId=3&applicationId=11")
   expect(details.getByRole("link", { name: "Open board" })).toHaveAttribute("href", "#/application-board")
   expect(details.getByRole("link", { name: "View in Applications" })).toHaveAttribute("href", "#/applications")
+})
+
+it("moves a new role to the shortlist only after explicit triage", async () => {
+  const original = request.getMockImplementation()!
+  request.mockImplementation(async (path: string, body?: { id: number }) => {
+    if (path === "jobs/shortlist") jobs.find(row => row.id === body?.id)!.shortlisted_at = "2026-10-30"
+    return original(path, body)
+  })
+  render(<JobsPage />)
+  fireEvent.click(await screen.findByRole("button", { name: "Move to shortlist" }))
+  await screen.findByRole("tab", { name: "Shortlist (1)" })
+  tab("Shortlist (1)")
+  expect(screen.getByText("Engineer")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Prepare application" })).toBeInTheDocument()
+  expect(request).toHaveBeenCalledWith("jobs/shortlist", { id: 1 })
+})
+
+it("archives selected new roles and keeps failed bulk actions retryable", async () => {
+  jobs.push({ id: 3, title: "Another", company_name: "Acme", status: "saved" })
+  render(<JobsPage />)
+  fireEvent.click(await screen.findByRole("checkbox", { name: "Select Engineer" }))
+  fireEvent.click(screen.getByRole("checkbox", { name: "Select Another" }))
+  request.mockRejectedValueOnce(new Error("Archive unavailable"))
+  fireEvent.click(screen.getByRole("button", { name: "Archive selected" }))
+  expect(await screen.findByRole("alert")).toHaveTextContent("Archive unavailable")
+  expect(screen.getByRole("checkbox", { name: "Select Engineer" })).toBeChecked()
+  expect(request).not.toHaveBeenCalledWith("jobs/archive", { id: 3 })
+  fireEvent.click(screen.getByRole("button", { name: "Archive selected" }))
+  await screen.findByRole("tab", { name: "Archived (3)" })
+  expect(request).toHaveBeenCalledWith("jobs/archive", { id: 3 })
 })

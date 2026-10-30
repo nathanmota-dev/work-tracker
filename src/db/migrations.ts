@@ -63,7 +63,21 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 7, name: "document review versions", up: ensureCurrentSchema },
   { version: 8, name: "preparation batch queue", up: ensureCurrentSchema },
   { version: 9, name: "idempotent batch requests", up: ensureCurrentSchema },
+  {
+    version: 10, name: "job triage", incompatible: true,
+    up: (d) => {
+      ensureCurrentSchema(d);
+      backfillTriage(d);
+    },
+  },
 ];
+
+/** Keeps pre-triage jobs in the shortlist; very old workspaces may lack `scouted_at`. */
+function backfillTriage(d: Database): void {
+  const present = new Set((d.query("PRAGMA table_info(jobs)").all() as { name: string }[]).map((c) => c.name));
+  const since = present.has("scouted_at") ? "COALESCE(scouted_at, datetime('now'))" : "datetime('now')";
+  d.exec(`UPDATE jobs SET shortlisted_at = ${since} WHERE shortlisted_at IS NULL`);
+}
 
 /**
  * @property backupDir Directory for snapshots taken before incompatible steps.

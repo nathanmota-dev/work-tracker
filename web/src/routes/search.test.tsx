@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { SearchPage, searchRows } from "./search"
 import { prepareSkill } from "@/lib/agent"
@@ -43,41 +43,9 @@ describe("searchRows", () => {
 })
 
 describe("SearchPage", () => {
-  it("submits trimmed job criteria and shows returned results", async () => {
-    request.mockResolvedValue({ jobs: [{ job_id: 42, job_title: "Platform Engineer", company: "Northwind", location: "Remote" }] })
-    render(<SearchPage />)
-    fireEvent.change(screen.getByLabelText("Keywords"), { target: { value: "  Platform  " } })
-    fireEvent.change(screen.getByLabelText("Location"), { target: { value: "Remote" } })
-    fireEvent.change(screen.getByLabelText("Work arrangement"), { target: { value: "remote" } })
-    fireEvent.change(screen.getByLabelText("Pages to search"), { target: { value: "3" } })
-    fireEvent.click(screen.getByRole("button", { name: "Search LinkedIn" }))
-    expect(await screen.findByText("Platform Engineer")).toBeInTheDocument()
-    expect(request).toHaveBeenCalledWith("search/jobs", {
-      keywords: "Platform", location: "Remote", workType: "remote", maxPages: 3,
-    })
-  })
-
-  it("loads full job details, reports detail errors, and prepares an assessment", async () => {
-    request.mockResolvedValueOnce([{ id: 8, title: "Designer", url: "https://jobs.example/8" }])
-      .mockResolvedValueOnce({ content: [{ text: "Full role description" }] })
-      .mockRejectedValueOnce(new Error("Details unavailable"))
-    render(<SearchPage />)
-    fireEvent.change(screen.getByLabelText("Keywords"), { target: { value: "Designer" } })
-    fireEvent.click(screen.getByRole("button", { name: "Search LinkedIn" }))
-    fireEvent.click(await screen.findByRole("button", { name: "View Designer" }))
-    fireEvent.click(screen.getByRole("button", { name: "Full details" }))
-    expect(await screen.findByText("Full role description")).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Full details" }))
-    await waitFor(() => expect(request).toHaveBeenCalledWith("search/job-details", { jobId: "8" }))
-    expect(await screen.findByRole("dialog")).toHaveTextContent("Details unavailable")
-    fireEvent.click(screen.getByRole("button", { name: "Assess fit with agent" }))
-    expect(prepareSkill).toHaveBeenCalledWith("deep-scout", { query: "https://jobs.example/8" })
-  })
-
   it("renders readable empty output, handles errors, and supports people results", async () => {
     request.mockResolvedValueOnce({ content: [{ text: "No matching profiles" }] })
     render(<SearchPage />)
-    fireEvent.click(screen.getByRole("button", { name: "People & recruiters" }))
     fireEvent.change(screen.getByLabelText("Keywords"), { target: { value: "Recruiter" } })
     fireEvent.click(screen.getByRole("button", { name: "Search LinkedIn" }))
     expect(await screen.findByText("No matching profiles")).toBeInTheDocument()
@@ -95,7 +63,7 @@ describe("SearchPage", () => {
     request.mockResolvedValueOnce([{ title: "Unidentified role" }])
     fireEvent.click(screen.getByRole("button", { name: "Search LinkedIn" }))
     fireEvent.click(await screen.findByRole("button", { name: "View Unidentified role" }))
-    expect(screen.getByRole("button", { name: "Full details" })).toBeDisabled()
-    expect(screen.getByRole("button", { name: "Assess fit with agent" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Full details" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Assess fit with agent" })).not.toBeInTheDocument()
   })
 })

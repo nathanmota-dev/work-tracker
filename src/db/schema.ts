@@ -5,7 +5,7 @@
  */
 import { DOCUMENT_SCHEMA_SQL } from "./document-schema.ts";
 import { BATCH_SCHEMA_SQL } from "./batch-schema.ts";
-export const SCHEMA_VERSION = 9;
+export const SCHEMA_VERSION = 10;
 
 /** Bookkeeping tables the migration runner needs before any migration runs. */
 export const MIGRATION_TABLES_SQL = /* sql */ `
@@ -287,7 +287,6 @@ CREATE INDEX IF NOT EXISTS idx_attempts_company   ON outreach_attempts(company_u
  * Additive column migrations for tables that predate a feature. SQLite has no
  * \`ADD COLUMN IF NOT EXISTS\`, so we introspect \`PRAGMA table_info\` and only add
  * what's missing. Safe to run on every open (idempotent).
- *
  */
 export const COLUMN_MIGRATIONS: Record<string, Record<string, string>> = {
   application_runs: {
@@ -295,6 +294,7 @@ export const COLUMN_MIGRATIONS: Record<string, Record<string, string>> = {
     recovery_json: "TEXT NOT NULL DEFAULT '{}'",
   },
   jobs: {
+    shortlisted_at: "TEXT",
     archived_at: "TEXT",
     description: "TEXT",
     source: "TEXT",

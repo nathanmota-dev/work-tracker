@@ -6,14 +6,14 @@ import { paths } from "../paths.ts";
  * live-refresh. The server writes a lockfile containing {port, token}.
  * Best-effort: silently no-ops if no server is running.
  */
-export async function notifyChange(table: string): Promise<void> {
+export async function notifyChange(table: string, jobSave?: unknown): Promise<void> {
   if (!existsSync(paths.serverLock)) return;
   try {
     const { port, token } = JSON.parse(readFileSync(paths.serverLock, "utf8"));
     await fetch(`http://127.0.0.1:${port}/_internal/changed`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-work-tracker-token": token },
-      body: JSON.stringify({ table }),
+      body: JSON.stringify({ table, ...(jobSave ? { jobSave } : {}) }),
       signal: AbortSignal.timeout(500),
     });
   } catch {

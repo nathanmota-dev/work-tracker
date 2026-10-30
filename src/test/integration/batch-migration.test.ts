@@ -19,7 +19,8 @@ test("upgrading a v7 workspace adds empty batch tables without changing runs or 
       INSERT INTO application_runs (id, job_id, application_id, status, phase, provider, created_at, updated_at)
         VALUES ('run-1', 1, 1, 'interrupted', 'tailoring', 'fixture', 'fixture-time', 'fixture-time');`);
     const before = snapshot();
-    expect(migrateDatabase(d, options)).toMatchObject({ from: 7, to: 9, applied: [8, 9], backup: null });
+    before.jobs = before.jobs!.map(row => ({ ...(row as object), shortlisted_at: expect.any(String) }));
+    expect(migrateDatabase(d, options)).toMatchObject({ from: 7, to: 10, applied: [8, 9, 10], backup: expect.any(String) });
     expect(snapshot()).toEqual(before);
     expect(d.query("SELECT COUNT(*) AS n FROM preparation_batches").get()).toEqual({ n: 0 });
     d.exec("INSERT INTO preparation_batches (id, status, provider, source_version, sources_json, created_at, updated_at) VALUES ('b', 'active', 'fixture', 'v', '{}', 'now', 'now')");

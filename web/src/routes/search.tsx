@@ -21,7 +21,7 @@ import { text } from "@/lib/api"
 
 export { searchRows } from "@/components/search-results"
 
-function SearchFilters({
+export function SearchFilters({
   kind,
   values,
   busy,
@@ -96,49 +96,14 @@ function SearchFilters({
 }
 
 
-function KindToggle({
-  kind,
-  busy,
-  onKind,
-}: {
-  kind: SearchKind
-  busy: boolean
-  onKind: (kind: SearchKind) => void
-}) {
-  return (
-    <div className="mb-5 flex gap-2">
-      {(["jobs", "people"] as const).map((key) => (
-        <Button
-          key={key}
-          size="sm"
-          variant={kind === key ? "secondary" : "outline"}
-          disabled={busy}
-          aria-pressed={kind === key}
-          onClick={() => onKind(key)}
-        >
-          {key === "jobs" ? "Opportunities" : "People & recruiters"}
-        </Button>
-      ))}
-    </div>
-  )
-}
-
 export function SearchPage() {
-  const { kind, values, result, selected, setSelected, busy, error, detailBusy, setDetailBusy, search, update, setError } = useSearchWorkspace()
+  const { kind, values, result, selected, setSelected, busy, error, search, update } = useSearchWorkspace()
   return (
     <Page
       title="Search"
-      description="Find the roles and people that fit your direction."
+      description="Find people and recruiters that fit your direction."
     >
-      <Panel title="Explore LinkedIn">
-        <KindToggle
-          kind={kind}
-          busy={busy}
-          onKind={(key) => {
-            update({ kind: key, resultId: "", savedJobId: undefined, selected: "", selection: [], page: 0 })
-            setError("")
-          }}
-        />
+      <Panel title="People & recruiters">
         <form
           className="space-y-4"
           onSubmit={(e) => {
@@ -177,20 +142,14 @@ export function SearchPage() {
         </Panel>
       )}
       {result !== undefined && !busy && (
-        <SearchResults kind={kind} result={result} onSelect={setSelected} />
+        <SearchResults result={result} onSelect={setSelected} />
       )}
       <Details
         row={selected}
         title={text(selected?.title ?? selected?.name ?? "Search result")}
         onClose={() => setSelected(null)}
       >
-        <ResultActions
-          kind={kind}
-          selected={selected}
-          setSelected={setSelected}
-          detailBusy={detailBusy}
-          setDetailBusy={setDetailBusy}
-        />
+        <ResultActions selected={selected} />
       </Details>
     </Page>
   )
