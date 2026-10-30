@@ -1,3 +1,4 @@
+import { AgentCompletion, AgentPanel } from "@/components/agent-panel"
 import { Outlet } from "@tanstack/react-router"
 import { AgentPermissions } from "@/components/agent-permissions"
 import { AppSidebar } from "@/components/app-sidebar"
@@ -47,10 +48,12 @@ export function MainLayout() {
             <WorkspaceHeader />
             <BackendStatus />
             <AgentPermissions />
+            <AgentCompletion />
             <div data-workspace-scroll className="flex min-h-0 flex-1 overflow-auto">
               <Outlet />
             </div>
           </SidebarInset>
+          <AgentPanel />
         </CommandPaletteProvider>
       </SidebarProvider>
     </ThemeProvider>

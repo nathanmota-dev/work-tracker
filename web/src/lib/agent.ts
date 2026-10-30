@@ -77,11 +77,15 @@ export type AgentMessage = {
 let nextMessage = 0
 let runId = 0
 const toolMessages = new Map<string, string>()
+export type AgentDraft = { skill: string; params: Record<string, string> }
 let state = {
+  panelOpen: false,
+  current: null as AgentDraft | null,
+  completion: null as { skill: string; id: number } | null,
   running: false,
   status: "Ready",
   messages: [] as AgentMessage[],
-  draft: null as { skill: string; params: Record<string, string> } | null,
+  draft: null as AgentDraft | null,
 }
 const observers = new Set<() => void>()
 let listening = false
@@ -149,6 +153,7 @@ function listen() {
       update({ status: "Connection lost — run status unknown" })
     if (event.type === "acp-status")
       update({
+        ...(event.status === "done" && state.current && state.status !== "done" ? { completion: { skill: state.current.skill, id: runId } } : {}),
         status: event.status === "waiting_for_permission" ? "Waiting for decision" : event.status === "waiting_for_sign_in" ? "Waiting for sign-in" : String(event.status),
         running: ["starting", "running", "waiting_for_permission"].includes(String(event.status)),
         ...(event.status === "cancelled" ? { messages: interruptedMessages() } : {}),
@@ -217,10 +222,7 @@ export function prepareSkill(
   params: Record<string, string> = {},
 ) {
   if (skill === "resume-tailor") { openApply(params.jobIds); return }
-  update({ draft: { skill, params } })
-  const criteria = new URLSearchParams({ skill, ...params, target: params.query ?? params.jobIds ?? params.url ?? params.company ?? params.username ?? "" })
-  criteria.delete("extra")
-  window.location.hash = `/launch?${criteria}`
+  update({ draft: { skill, params }, panelOpen: true })
 }
 export async function runAgent(
   provider: string,
@@ -229,10 +231,10 @@ export async function runAgent(
   model?: string,
 ) {
   listen()
-  if (state.running) return
+  if (state.running) { prepareSkill(skill, params); return }
   runId++
   toolMessages.clear()
-  update({ running: true, status: "Starting", draft: null })
+  update({ running: true, status: "Starting", draft: null, current: { skill, params: { ...params } }, completion: null })
   append(
     "user",
     `${skills.find((s) => s.id === skill)?.name ?? skill}\n${Object.entries(
@@ -272,3 +274,7 @@ export function clearAgent() {
     update({ messages: [], status: "Ready" })
   }
 }
+
+export function setAgentPanelOpen(panelOpen: boolean) { update({ panelOpen }) }
+export function updateAgentDraft(draft: AgentDraft) { update({ draft }) }
+export function dismissAgentCompletion() { update({ completion: null }) }

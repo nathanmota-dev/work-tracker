@@ -1,3 +1,5 @@
+import { AgentIndicator } from "@/components/agent-indicator"
+import { setAgentPanelOpen } from "@/lib/agent"
 import { useWorkspaceLinks } from "@/lib/workspace-state"
 import { Link, useMatchRoute } from "@tanstack/react-router"
 import { Search } from "lucide-react"
@@ -91,6 +93,7 @@ function NavigationGroup({ group }: { group: (typeof navigationGroups)[number] }
                   <span className="group-data-[collapsible=icon]:hidden">{item.title}</span>
                 </Link>
               </SidebarMenuButton>
+              {item.to === "/launch" && <button type="button" aria-label="Open agent task" onClick={() => { setOpenMobile(false); setAgentPanelOpen(true) }} className="absolute right-1 top-0.5 rounded px-2 py-1 hover:bg-muted focus-visible:outline-2 group-data-[collapsible=icon]:right-0 group-data-[collapsible=icon]:top-0 group-data-[collapsible=icon]:p-0.5"><AgentIndicator /></button>}
             </SidebarMenuItem>
           ))}
         </SidebarMenu>

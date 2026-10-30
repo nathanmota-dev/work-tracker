@@ -203,3 +203,19 @@ describe("agent session", () => {
     expect(request).not.toHaveBeenCalled()
   })
 })
+
+it("opens contextual drafts without changing the route and preserves a second request", async () => {
+  const view = renderHook(useAgent)
+  window.location.hash = "/jobs"
+  act(() => prepareSkill("job-scout", { query: "React", location: "Brazil" }))
+  expect(window.location.hash).toBe("#/jobs")
+  expect(view.result.current).toMatchObject({ panelOpen: true, draft: { skill: "job-scout", params: { query: "React", location: "Brazil" } } })
+  await act(async () => { await runAgent("opencode", "job-scout", { query: "React" }) })
+  await act(async () => { await runAgent("opencode", "profile-optimizer", { username: "ana" }) })
+  expect(view.result.current.current?.skill).toBe("job-scout")
+  expect(view.result.current.draft).toEqual({ skill: "profile-optimizer", params: { username: "ana" } })
+  expect(request.mock.calls.filter(([path]) => path === "acp/run")).toHaveLength(1)
+  act(() => publish({ type: "acp-status", status: "done" }))
+  expect(view.result.current.completion?.skill).toBe("job-scout")
+  expect(view.result.current.draft?.skill).toBe("profile-optimizer")
+})

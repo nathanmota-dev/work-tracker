@@ -33,10 +33,12 @@ function JobDetailActions({
   busy,
   error,
   actions,
+  close,
 }: {
   selected: Row | null
   busy: boolean
   error: string
+  close: () => void
   actions: (row: Row) => ReactNode
 }) {
   const application = selected ? linkedApplication(selected) : undefined
@@ -57,7 +59,8 @@ function JobDetailActions({
         <Button
           variant="outline"
           disabled={busy || !!selected?.archived_at}
-          onClick={() =>
+          onClick={() => {
+            close()
             prepareSkill("deep-scout", {
               query: text(
                 selected?.link ??
@@ -65,7 +68,7 @@ function JobDetailActions({
                   selected?.title,
               ),
             })
-          }
+          }}
         >
           Assess fit
         </Button>
@@ -246,6 +249,7 @@ export function JobsPage() {
       >
         <Button variant="outline" disabled={busy} onClick={() => selected && edit(selected)}>Edit job</Button>
         <JobDetailActions
+          close={() => setSelectedId(null)}
           selected={selected}
           busy={busy}
           error={error}

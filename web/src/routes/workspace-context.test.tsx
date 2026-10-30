@@ -2,6 +2,8 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { Outlet, RouterProvider } from "@tanstack/react-router"
 import { beforeEach, expect, it, vi } from "vitest"
 import { createAppRouter } from "@/router"
+import { AgentPanel } from "@/components/agent-panel"
+import { setAgentPanelOpen } from "@/lib/agent"
 import { publish, type Row } from "@/lib/api"
 
 vi.mock("@/components/ui/select-control", () => ({ SelectControl: (props: React.ComponentProps<"select">) => <select {...props} /> }))
@@ -9,10 +11,12 @@ vi.mock("@/components/pdf-viewer", () => ({ PdfViewer: () => <div>PDF fixture</d
 const request = vi.fn()
 let jobs: Row[]
 beforeEach(() => {
+  setAgentPanelOpen(false)
   window.scrollTo = vi.fn()
   localStorage.clear()
   jobs = Array.from({ length: 32 }, (_, index) => ({ id: index + 1, title: `Engineer ${index + 1}`, company_name: "Example", description: `Description ${index + 1}`, status: "saved" }))
   request.mockReset().mockImplementation(async (path: string, body?: { jobId?: number }) => {
+    if (path === "acp/permissions") return { pending: [] }
     if (path === "jobs") return structuredClone(jobs)
     if (path === "application-preparation/details") return { job: jobs.find(job => job.id === body?.jobId), runs: [], busy: false }
     if (path === "acp/providers") return { providers: [{ id: "fake", displayName: "Fixture", models: ["test"] }], default: "fake" }
@@ -25,7 +29,7 @@ beforeEach(() => {
 })
 async function mount(path: string) {
   window.location.hash = path
-  const router = createAppRouter(Outlet)
+  const router = createAppRouter(() => <><Outlet /><AgentPanel /></>)
   const view = render(<RouterProvider router={router} />)
   await act(() => router.load())
   return { router, view }
@@ -92,7 +96,7 @@ it("removes deleted jobs while keeping archived selections reviewable and preser
   expect(localStorage.getItem("work-tracker-context-v1:apply:job:2:application:job")).toBe(draft)
 })
 
-it("Search → Launch → back preserves results, pagination, multi-selection and target drafts", async () => {
+it("Search assessment keeps results, pagination and selection while the panel opens", async () => {
   const { router } = await mount("/search?keywords=Engineer&location=Remote&maxPages=2")
   fireEvent.click(screen.getByRole("button", { name: "Search LinkedIn" }))
   fireEvent.click(await screen.findByRole("checkbox", { name: "Select Engineer 1" }))
@@ -100,19 +104,25 @@ it("Search → Launch → back preserves results, pagination, multi-selection an
   await waitFor(() => expect(screen.getByText("32 results · Page 2 of 3")).toBeInTheDocument())
   fireEvent.click(screen.getByRole("button", { name: "View Engineer 20" }))
   fireEvent.click(await screen.findByRole("button", { name: "Assess fit with agent" }))
-  await screen.findByRole("heading", { name: "Agent" })
-  fireEvent.change(await screen.findByLabelText("Additional context"), { target: { value: "Assessment context" } })
-  act(() => router.history.back())
-  expect(await screen.findByRole("dialog")).toHaveTextContent("Engineer 20")
-  fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Close" }))
+  const panel = await screen.findByRole("dialog", { name: "Agent task" })
+  expect(router.state.location.pathname).toBe("/search")
+  fireEvent.change(within(panel).getByLabelText("Additional context"), { target: { value: "Assessment context" } })
+  fireEvent.click(within(panel).getByRole("button", { name: "Close" }))
   expect(screen.getByText("1 selected")).toBeInTheDocument()
   expect(screen.getByText("32 results · Page 2 of 3")).toBeInTheDocument()
   expect(screen.getByLabelText("Keywords")).toHaveValue("Engineer")
   expect(request.mock.calls.filter(([path]) => path === "search/jobs")).toHaveLength(1)
-  await go(router, "/launch?skill=deep-scout&query=other&target=other")
-  expect(await screen.findByLabelText("Additional context")).toHaveValue("")
-  await go(router, "/launch?skill=deep-scout&query=https%3A%2F%2Fexample.com%2F20&target=https%3A%2F%2Fexample.com%2F20")
+  await go(router, "/profile")
+  act(() => setAgentPanelOpen(true))
   expect(await screen.findByLabelText("Additional context")).toHaveValue("Assessment context")
+  act(() => setAgentPanelOpen(false))
+  await go(router, "/launch?skill=deep-scout&query=other&target=other")
+  expect(await screen.findByLabelText("Role, keywords or job URL")).toHaveValue("other")
+  fireEvent.change(screen.getByLabelText("Additional context"), { target: { value: "Console context" } })
+  await go(router, "/launch?skill=deep-scout&query=another&target=another")
+  expect(await screen.findByLabelText("Additional context")).toHaveValue("")
+  await go(router, "/launch?skill=deep-scout&query=other&target=other")
+  expect(await screen.findByLabelText("Additional context")).toHaveValue("Console context")
 })
 
 it("uses route defaults for invalid URLs in Jobs, Search, Apply and Launch", async () => {
