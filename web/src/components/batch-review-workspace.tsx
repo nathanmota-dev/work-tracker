@@ -30,7 +30,7 @@ export function BatchReviewWorkspace({ search, renderItem }: { search: ReviewSea
     {batch && <ReviewPanel batch={batch} selected={item} pendingOnly={!!search.pendingOnly} disabled={pending || queue.loading || !live || !!queue.error} act={act} />}
     {queue.data?.portal && <p role="status" className="text-sm">The browser portal is reserved for {queue.data.portal.label}. Confirm its submission or cancel that item before filling another.</p>}
   </>
-  if (!batch || !item) return <Page title="Apply" description="Review the documents and pending work of a preparation batch.">{controls}{!queue.loading && !queue.error && <p role="alert">Batch item not found. Select an item above or return to the queue.</p>}<a className="underline" href="#/apply">All preparation batches</a></Page>
+  if (!batch || !item) return <Page title="Application" description="Review the documents and pending work of a preparation batch.">{controls}{!queue.loading && !queue.error && <p role="alert">Batch item not found. Select an item above or return to the queue.</p>}<a className="underline" href="#/applications">All preparation batches</a></Page>
   return renderItem(item, controls, pending || queue.loading || !!queue.error || !["active", "paused"].includes(batch.status) || item.status === "cancelled" || item.phase === "queued")
 }
 
@@ -39,7 +39,7 @@ function ReviewPanel({ batch, selected, pendingOnly, disabled, act }: { batch: P
   // Keep the selected result visible after a confirmation, until the candidate moves on.
   const items = pendingOnly ? batch.items.filter(item => unfinished(item) || item.id === selected?.id) : batch.items
   const index = items.findIndex(item => item.id === selected?.id)
-  return <Panel title="Application review center" action={<a className="text-sm underline" href="#/apply">All preparation batches</a>}>
+  return <Panel title="Application review center" action={<a className="text-sm underline" href="#/applications">All preparation batches</a>}>
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2 text-sm"><span>Batch created {new Date(batch.createdAt).toLocaleString()}</span><Status value={batch.status === "paused" && batch.pauseReason === "restart" ? "paused after restart" : batch.status} /></div>
       <p className="text-xs text-muted-foreground">{batch.provider}{batch.model ? ` · ${batch.model}` : ""} · {batch.items.length} items · {pending.length} unfinished</p>

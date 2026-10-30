@@ -5,7 +5,7 @@ const ready: ReadinessInput = { live: true, busy: false, archived: false, submit
 it("maps every local blocker to its correction", () => {
   expect(applyBlocks(ready, "generate")).toEqual([])
   const blocks = applyBlocks({ ...ready, live: false, busy: true, archived: true, submitted: true, sources: false, tools: false, descriptionDirty: true, provider: undefined, invalidModel: true }, "generate")
-  expect(blocks.map(block => block.label)).toEqual(["Check workspace connection", "View activity", "Restore in Jobs", "View application board", "Configure an agent", "Choose a model", "Configure resume sources", "Check installed tools", "Edit job description"])
+  expect(blocks.map(block => block.label)).toEqual(["Check workspace connection", "View activity", "Restore in Jobs", "Open the board", "Configure an agent", "Choose a model", "Configure resume sources", "Check installed tools", "Edit job description"])
   for (const block of blocks) expect(block.href || block.action).toBeTruthy()
   expect(applyBlocks({ ...ready, tailored: false }, "fill")[0]?.message).toContain("validated PDF")
   expect(applyBlocks({ ...ready, descriptionMissing: true }, "generate")[0]?.action).toBe("description")

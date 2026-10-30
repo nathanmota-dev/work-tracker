@@ -53,11 +53,22 @@ export function createAppRouter(sidebarLayout: RouteComponent) {
     staticData: { title: "Settings" },
   })
 
+  // The board is a view of Applications now; old links keep their search.
+  const applicationBoardRoute = createRoute({
+    getParentRoute: () => sidebarRoute,
+    path: "application-board",
+    validateSearch: (search: Record<string, unknown>) => validateWorkspaceSearch("applications", search),
+    beforeLoad: ({ search }) => {
+      throw redirect({ to: "/applications", search: { ...search, view: "board" }, replace: true })
+    },
+  })
+
   const routeTree = rootRoute.addChildren([
     indexRoute,
     sidebarRoute.addChildren([
       dashboardRoute.addChildren([dashboardIndexRoute]),
       settingsRoute,
+      applicationBoardRoute,
       ...workspacePages.map((page) =>
         createRoute({
           getParentRoute: () => sidebarRoute,
@@ -69,7 +80,7 @@ export function createAppRouter(sidebarLayout: RouteComponent) {
           },
           validateSearch: (search: Record<string, unknown>) => validateWorkspaceSearch(page.path, search),
           search: { middlewares: [stripSearchParams(validateWorkspaceSearch(page.path, {}))] },
-          staticData: { title: page.title },
+          staticData: { title: page.title, ...(page.path === "apply" && { parent: { title: "Applications", to: "/applications" } }) },
         }),
       ),
     ]),
@@ -84,6 +95,8 @@ export function createAppRouter(sidebarLayout: RouteComponent) {
 declare module "@tanstack/react-router" {
   interface StaticDataRouteOption {
     title?: string
+    /** A detail page's list, shown before it in the breadcrumb. */
+    parent?: { title: string; to: string }
   }
 
   interface Register {

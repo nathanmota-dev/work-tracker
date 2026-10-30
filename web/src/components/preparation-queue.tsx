@@ -9,9 +9,9 @@ type Act = (kind: "pause" | "resume" | "retry" | "cancel", body: Record<string, 
 const PHASES: Record<BatchItemPhase, string> = { queued: "Queued", preparing: "Preparing sources", tailoring: "Tailoring", compiling: "Compiling", ready_for_review: "Resume ready for review", waiting_for_fill: "Waiting to fill", filling: "Filling the portal", in_review: "Form in review", submitted: "Submitted" }
 const STATUSES: Record<BatchItemStatus, string> = { pending: "pending", running: "running", waiting_for_decision: "waiting for decision", waiting_for_sign_in: "waiting for sign-in", waiting_for_user: "needs you", failed: "failed", interrupted: "interrupted", cancelled: "cancelled", completed: "completed" }
 const HINTS: Partial<Record<`${BatchItemPhase}:${BatchItemStatus}` | BatchItemStatus, string>> = {
-  "ready_for_review:waiting_for_user": "Open it in Apply and approve the resume. Approved resumes are filled in order.",
+  "ready_for_review:waiting_for_user": "Open the application and approve the resume. Approved resumes are filled in order.",
   "waiting_for_fill:pending": "Fills when the agent is free and no other form is waiting in the browser.",
-  "in_review:waiting_for_user": "Review the form in the browser and submit it there yourself, then confirm the submission in Apply.",
+  "in_review:waiting_for_user": "Review the form in the browser and submit it there yourself, then confirm the submission in the application.",
   waiting_for_decision: "The agent is waiting for your permission decision.",
   waiting_for_sign_in: "Complete sign-in in the browser, then retry.",
 }
@@ -49,7 +49,7 @@ export function PreparationQueue() {
   return <Panel title="Preparation queue">
     <div className="space-y-4">
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-      {queue.data?.portal && <p role="status" className="text-sm">The browser portal is reserved for {queue.data.portal.label}. Other applications are filled after you confirm its submission in Apply or cancel that item.</p>}
+      {queue.data?.portal && <p role="status" className="text-sm">The browser portal is reserved for {queue.data.portal.label}. Other applications are filled after you confirm its submission in the application or cancel that item.</p>}
       {batches.map(batch => <BatchView key={batch.id} batch={batch} disabled={pending || !live} act={act} />)}
     </div>
   </Panel>
@@ -87,7 +87,7 @@ function ItemRow({ item, open, disabled, act }: { item: PreparationBatchItem; op
       {item.attempts > 1 && <span className="text-xs text-muted-foreground">Attempt {item.attempts}</span>}
       {item.holdsPortal && <Status value="holds the portal" />}
       <div className="ml-auto flex flex-wrap items-center gap-2">
-        <a className="text-sm underline" href={applyHref(item)} aria-label={`Open ${name} in Apply`}>Open in Apply</a>
+        <a className="text-sm underline" href={applyHref(item)} aria-label={`Open ${name} application`}>Open application</a>
         {open && item.retryable && <Button size="sm" variant="outline" aria-label={`Retry ${name}`} disabled={disabled || (item.reviewRequired && !reviewed)} onClick={() => act("retry", { batchId: item.batchId, itemId: item.id, reviewed })}>{item.status === "waiting_for_sign_in" ? "Retry after sign-in" : "Retry"}</Button>}
         {open && !["completed", "cancelled"].includes(item.status) && <Button size="sm" variant="ghost" aria-label={`Cancel ${name}`} disabled={disabled} onClick={() => act("cancel", { batchId: item.batchId, itemId: item.id })}>Cancel</Button>}
       </div>

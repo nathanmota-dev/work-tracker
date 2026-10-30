@@ -143,14 +143,24 @@ function ReviewEntry({ item, onLink, onResolved }: {
 }
 
 /**
- * Legacy applications the journey migration could not classify. Safe fixes run
- * only on request; every other record waits for an explicit decision.
+ * Legacy applications the journey migration could not classify, as a banner
+ * that expands into a review filter. Safe fixes run only on request; every
+ * other record waits for an explicit decision.
  */
-export function ApplicationReview() {
+export function ApplicationReview({
+  open: controlled,
+  onOpenChange,
+}: {
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+}) {
   const { items, error, refresh } = useReview()
   const [linking, setLinking] = useState<ReviewItem>()
   const [notice, setNotice] = useState("")
   const [busy, setBusy] = useState(false)
+  const [local, setLocal] = useState(false)
+  const open = controlled ?? local
+  const toggle = () => (onOpenChange ?? setLocal)(!open)
   if (error) return <p role="alert" className="text-sm text-destructive">{error}</p>
   if (!items?.length) return notice ? <p role="status" className="text-sm">{notice}</p> : null
   const safe = items.filter((item) => item.safe_fix).length
@@ -169,21 +179,31 @@ export function ApplicationReview() {
   return (
     <Panel
       title={`Needs review (${items.length})`}
-      action={safe > 0 && (
-        <Button size="sm" disabled={busy} onClick={() => void reconcile()}>
-          Apply safe fixes ({safe})
-        </Button>
-      )}
+      action={
+        <div className="flex flex-wrap gap-2">
+          {safe > 0 && (
+            <Button size="sm" disabled={busy} onClick={() => void reconcile()}>
+              Apply safe fixes ({safe})
+            </Button>
+          )}
+          <Button size="sm" variant="outline" aria-expanded={open} onClick={toggle}>
+            {open ? "Hide review" : "Review"}
+          </Button>
+        </div>
+      }
     >
-      <p className="mb-3 text-xs text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         Older applications whose job, status or board stage could not be decided automatically.
+        {!open && " Open the review to decide each one."}
       </p>
-      {notice && <p role="status" className="mb-3 text-sm">{notice}</p>}
-      <ul className="space-y-3">
-        {items.map((item) => (
-          <ReviewEntry key={item.id} item={item} onLink={() => setLinking(item)} onResolved={resolved} />
-        ))}
-      </ul>
+      {notice && <p role="status" className="mt-3 text-sm">{notice}</p>}
+      {open && (
+        <ul aria-label="Applications to review" className="mt-3 space-y-3">
+          {items.map((item) => (
+            <ReviewEntry key={item.id} item={item} onLink={() => setLinking(item)} onResolved={resolved} />
+          ))}
+        </ul>
+      )}
       {linking && (
         <JobLinkDialog
           applicationId={linking.id}

@@ -33,7 +33,7 @@ do agente), `waiting_for_sign_in`, `waiting_for_user` (aprovar o currículo ou
 enviar o formulário), `failed`, `interrupted`, `cancelled` ou `completed`.
 Pausar o lote, falhar ou cancelar nunca apaga a fase do item.
 
-- Só um PDF aprovado em Apply passa para `waiting_for_fill`.
+- Só um PDF aprovado no detalhe da candidatura passa para `waiting_for_fill`.
 - Um item em `in_review` (ou um preenchimento interrompido sem resultado)
   reserva o navegador: nenhum outro preenchimento começa, nem pela fila nem por
   Apply, até a confirmação do envio em Apply ou o cancelamento do item. A geração
@@ -83,5 +83,7 @@ Todas as rotas exigem o token da API.
   `reviewed` só vale para um item.
 - Eventos: `changed` com `table: "preparation_batches"`.
 
-A tela Apply mostra a fila (Preparation queue) com o progresso por item e fase e
-as operações acima. Crie lotes a partir da seleção na tela Jobs.
+A tela Applications mostra a fila (Preparation queue) com o progresso por item e
+fase, as operações acima e o link “Review batch” para a revisão do lote; cada item
+abre o detalhe da candidatura (`/apply`). Crie lotes a partir da seleção na tela
+Jobs.

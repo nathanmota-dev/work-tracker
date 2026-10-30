@@ -24,7 +24,12 @@ export function phaseLabel(value: unknown) {
   return PHASE_LABELS[value as JourneyPhase] ?? PHASE_LABELS.draft
 }
 
-/** Moves the application forward: Apply while preparing, the board once tracked. */
+/** Board view of Applications, scrolled to one card; archived records open on that tab. */
+export function boardHref(row: Row) {
+  return `#/applications?view=board${row.view === "archived" ? "&tab=archived" : ""}&highlight=${text(row.id)}`
+}
+
+/** Moves the application forward: its detail while preparing, the board once tracked. */
 export function NextStepAction({
   row,
   onPrepare,
@@ -38,7 +43,7 @@ export function NextStepAction({
   if (step.kind === "board")
     return (
       <Button asChild size="sm" variant="outline">
-        <a href="#/application-board">{step.label}</a>
+        <a href={boardHref(row)}>{step.label}</a>
       </Button>
     )
   return (
@@ -125,6 +130,7 @@ export function ApplicationList({
       <Records
         rows={visible}
         noun="Applications"
+        workspace="applications"
         statusKey="phase"
         onSelect={onSelect}
         columns={columns(onPrepare)}

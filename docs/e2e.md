@@ -67,7 +67,7 @@ main-process fetch response; subsequent requests use the original fetch.
 
 ## Coverage inventory
 
-All 14 sidebar links are compared with an explicit ordered inventory: Overview (Dashboard), Find (Search, Jobs), Apply & track (Applications, Application board, Apply, Interviews), People (Recruiters, Outreach), You (Profile, Answers), and the Tools footer (Agent, Activity, Settings). Agent retains the /launch path. Every view runs
+All 12 sidebar links are compared with an explicit ordered inventory: Overview (Dashboard), Journey (Jobs, Applications, Interviews), People (Search, Recruiters, Outreach), You (Profile, Answers), and the Tools footer (Agent, Activity, Settings). Agent retains the /launch path. The application detail (`/apply`) is not a sidebar entry; it opens from Jobs, Applications and the preparation queue, and `/application-board` redirects to `/applications?view=board` with its search. Every view runs
 with both empty and populated workspaces, including navigation, active sidebar,
 breadcrumb, view-specific content and reload. New sidebar entries require tests.
 
@@ -82,7 +82,7 @@ breadcrumb, view-specific content and reload. New sidebar entries require tests.
 | Apply | Sources, description, real two-page PDFs, generation/regeneration/history, report, viewer controls/export, failed output preservation, cancel, fill/sign-in/retry and explicit submission |
 | Jobs | Pagination, search/status filters, archive/restore, failed mutation, deletion confirmation/cancel, linked-record protection and Apply handoff |
 | Applications | Preparation/Tracking/Archived views, origin and step labels, journey counts shared with Jobs and Dashboard, records, zero score, details/portal, status updates, preserved preparation IDs, creating the job of a manual application (missing data, failed link/retry, Apply with the same IDs) and legacy review (safe fixes, explicit choice between ambiguous jobs) |
-| Application board | Minimal/full registration (optionally linked to a saved job), failed edits, search, pointer drag/stage selection, failed-move rollback, timeline, all archive reasons/reopen and stage management/protections |
+| Applications board | List/Board layout in the URL, fixed Draft/Prepared/Filled columns, minimal/full registration (optionally linked to a saved job), failed edits, search, pointer drag/stage selection, failed-move rollback, timeline, all archive reasons/reopen and stage management/protections |
 | Answers | Add/edit, required/duplicate keys, failure/retry, cancel and realtime updates |
 | Interviews | Upcoming/past/closed, details/search, live updates and Dashboard link |
 | Activity | Pagination/search/reset, real CLI notifications and reload persistence |
@@ -98,8 +98,8 @@ updates and the backend log keep working.
 `batch-selection.spec.ts` selects a page and filtered results in Jobs, deselects
 items, reviews five jobs and creates one batch with shared and overridden context;
 it checks that all five resumes reach review without filling or submitting.
-`preparation-batch.spec.ts` creates a batch through the desktop API and checks the Apply queue: a form in review reserves the portal
-for both the queue and Apply, a pending sign-in and two restarts keep every item's
+`preparation-batch.spec.ts` creates a batch through the desktop API and checks the preparation queue in Applications: a form in review reserves the portal
+for both the queue and the application detail, a pending sign-in and two restarts keep every item's
 phase, and a fill interrupted with an unknown outcome is not repeated by resume or
 "Retry failed" until the portal review is confirmed.
 
@@ -108,7 +108,7 @@ accessible locators and real pointer events for drag and drop. Read database sta
 only to verify persistence; perform the action under test through the UI. Existing
 unit/integration suites continue to cover exhaustive validation and backend rules.
 
-`workspace-context.spec.ts` covers Jobs → Apply → back with URL filters, page,
+`workspace-context.spec.ts` covers Jobs → application detail → back with URL filters, page,
 selection and navigation scroll, isolated context/description drafts after a real
 Electron restart, and Search → Launch → Search with retained results and selection.
 The manual-job journey also checks that the first generated application's draft
@@ -135,10 +135,10 @@ only after all checks pass in the main worktree.
 
 ### Batch application review
 
-The Application review center opens from a batch in Apply or immediately after
+The Application review center opens from a batch in the Applications preparation queue or immediately after
 creating one in Jobs. It navigates the batch's fixed item order and keeps the
 selected item and unfinished filter in the route, including returns from Answers.
-Applications and the application board remain the consultation and filtering views.
+The Applications list and board layouts remain the consultation and filtering views.
 
 Every item contributes once to the batch summary: cancelled, submitted, failed
 (including interrupted), pending adjustment, filled, prepared, or otherwise pending,

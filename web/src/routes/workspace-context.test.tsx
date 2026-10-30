@@ -3,6 +3,7 @@ import { Outlet, RouterProvider } from "@tanstack/react-router"
 import { beforeEach, expect, it, vi } from "vitest"
 import { createAppRouter } from "@/router"
 import { AgentPanel } from "@/components/agent-panel"
+import { RouteBreadcrumb } from "@/layout/route-breadcrumb"
 import { setAgentPanelOpen } from "@/lib/agent"
 import { publish, type Row } from "@/lib/api"
 
@@ -10,6 +11,11 @@ vi.mock("@/components/ui/select-control", () => ({ SelectControl: (props: React.
 vi.mock("@/components/pdf-viewer", () => ({ PdfViewer: () => <div>PDF fixture</div> }))
 const request = vi.fn()
 let jobs: Row[]
+const at = "2026-10-10T12:00:00.000Z"
+const board = {
+  stages: [{ id: 1, key: "applied", name: "Applied", category: "applied", position: 0, is_archived: false, created_at: at, updated_at: at }],
+  applications: [5, 6].map(id => ({ id, job_id: null, origin: "manual", attempt: 1, submission_status: "submitted", submitted_at: at, company_name: `Company ${id}`, external_url: "https://example.com/role", role_title: null, role_type: null, stack: [], comp: null, company_url: null, notes: null, applied_at: at, current_stage_id: 1, tracking_status: "active", archive_reason: null, archived_at: null, created_at: at, updated_at: at })),
+}
 beforeEach(() => {
   setAgentPanelOpen(false)
   window.scrollTo = vi.fn()
@@ -23,13 +29,16 @@ beforeEach(() => {
     if (path === "resume-sources") return { config: {}, dependencies: [], warnings: [] }
     if (path === "integrations/status") return { entries: [], dependencies: [] }
     if (path === "search/jobs") return jobs.map(job => ({ ...job, link: `https://example.com/${job.id}` }))
+    if (path === "application-board") return board
+    if (path === "application-board/review") return { items: [] }
+    if (path === "preparation-batches") return { batches: [] }
     return []
   })
   window.desktop = { request, connectionStatus: async () => true, onEvent: () => () => {}, readPdf: vi.fn(), savePdf: vi.fn(), chooseSource: vi.fn(), getVersion: async () => "1", openExternal: vi.fn() }
 })
 async function mount(path: string) {
   window.location.hash = path
-  const router = createAppRouter(() => <><Outlet /><AgentPanel /></>)
+  const router = createAppRouter(() => <><RouteBreadcrumb /><Outlet /><AgentPanel /></>)
   const view = render(<RouterProvider router={router} />)
   await act(() => router.load())
   return { router, view }
@@ -38,12 +47,12 @@ async function go(router: ReturnType<typeof createAppRouter>, href: string) {
   await act(() => router.navigate({ href }))
 }
 
-it("Jobs → Apply → back restores filters, page and selected details from the URL", async () => {
+it("Jobs → application detail → back restores filters, page and selected details from the URL", async () => {
   const { router } = await mount("/jobs?q=Engineer&page=1&status=saved&selected=20")
   expect(await screen.findByRole("dialog")).toHaveTextContent("Engineer 20")
   expect(screen.getByText("32 results · Page 2 of 3")).toBeInTheDocument()
-  fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Prepare application" }))
-  await screen.findByRole("heading", { name: "Apply" })
+  fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Apply" }))
+  await screen.findByRole("heading", { name: "Application" })
   await screen.findByLabelText("Additional context")
   act(() => router.history.back())
   expect(await screen.findByRole("dialog")).toHaveTextContent("Engineer 20")
@@ -132,7 +141,7 @@ it("uses route defaults for invalid URLs in Jobs, Search, Apply and Launch", asy
   expect(await screen.findByLabelText("Pages to search")).toHaveValue(1)
   expect(screen.getByLabelText("Work arrangement")).toHaveValue("")
   await go(router, "/apply?jobId=-2&applicationId=oops&pdfTab=bad")
-  expect(await screen.findByLabelText("Saved job")).toHaveValue("")
+  expect(await screen.findByRole("link", { name: "Open the Jobs shortlist" })).toBeInTheDocument()
   await go(router, "/launch?skill=bad")
   expect(await screen.findByLabelText("Skill")).toHaveValue("job-scout")
 })
@@ -173,4 +182,32 @@ it("Apply checklist → Answers correction → back keeps the review, and comple
   await go(router, "/answers?returnTo=https%3A%2F%2Fexample.com")
   expect(await screen.findByRole("heading", { name: "Answers" })).toBeInTheDocument()
   expect(screen.queryByRole("link", { name: "Back to the application checklist" })).not.toBeInTheDocument()
+})
+
+it("redirects the old board link to the Applications board and keeps its search", async () => {
+  const { router } = await mount("/application-board?q=Company%205")
+  await waitFor(() => expect(router.state.location.pathname).toBe("/applications"))
+  expect(router.state.location.search).toMatchObject({ view: "board", q: "Company 5" })
+  expect(await screen.findByLabelText("Search applications")).toHaveValue("Company 5")
+  expect(screen.getByText("Company 5")).toBeInTheDocument()
+  expect(screen.queryByText("Company 6")).not.toBeInTheDocument()
+})
+
+it("keeps the Applications layout in the URL and highlights the linked card", async () => {
+  const { router } = await mount("/applications")
+  fireEvent.mouseDown(await screen.findByRole("tab", { name: "Board" }))
+  await waitFor(() => expect(router.state.location.search).toMatchObject({ view: "board" }))
+  fireEvent.mouseDown(screen.getByRole("tab", { name: "List" }))
+  await waitFor(() => expect(router.state.location.search).not.toHaveProperty("view"))
+  await go(router, "/applications?view=board&highlight=6")
+  const card = (await screen.findByRole("button", { name: "View Company 6 application" })).closest("[data-slot=card]")
+  expect(card).toHaveAttribute("data-highlighted", "true")
+  expect(screen.getByRole("button", { name: "View Company 5 application" }).closest("[data-slot=card]")).not.toHaveAttribute("data-highlighted")
+})
+
+it("shows the detail under Applications in the breadcrumb, named after its job", async () => {
+  await mount("/apply?jobId=3")
+  const breadcrumb = screen.getByRole("navigation", { name: "Caminho da página" })
+  await waitFor(() => expect(within(breadcrumb).getByText("Example · Engineer 3")).toHaveAttribute("aria-current", "page"))
+  expect(within(breadcrumb).getByRole("link", { name: "Applications" })).toBeInTheDocument()
 })

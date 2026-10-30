@@ -4,7 +4,6 @@ import {
   CalendarClock,
   ClipboardCheck,
   ClipboardList,
-  Columns3,
   FileText,
   Rocket,
   Search,
@@ -16,7 +15,6 @@ import { ApplyPage } from "@/routes/apply"
 import { ActivityPage } from "@/routes/activity"
 import { AnswersPage } from "@/routes/answers"
 import { ApplicationsPage } from "@/routes/applications"
-import { ApplicationBoardPage } from "@/routes/application-board"
 import { InterviewsPage } from "@/routes/interviews"
 import { JobsPage } from "@/routes/jobs"
 import { LaunchPage } from "@/routes/launch"
@@ -31,10 +29,10 @@ export const workspacePages = [
   { path: "launch", title: "Agent", icon: Rocket, component: LaunchPage },
   { path: "recruiters", title: "Recruiters", icon: UsersRound, component: RecruitersPage },
   { path: "outreach", title: "Outreach", icon: Send, component: OutreachPage },
-  { path: "apply", title: "Apply", icon: FileText, component: ApplyPage },
+  // Application detail, opened from Jobs and Applications; not a sidebar entry.
+  { path: "apply", title: "Application", icon: FileText, component: ApplyPage },
   { path: "jobs", title: "Jobs", icon: BriefcaseBusiness, component: JobsPage },
   { path: "applications", title: "Applications", icon: ClipboardCheck, component: ApplicationsPage },
-  { path: "application-board", title: "Application board", icon: Columns3, component: ApplicationBoardPage },
   { path: "answers", title: "Answers", icon: ClipboardList, component: AnswersPage },
   { path: "interviews", title: "Interviews", icon: CalendarClock, component: InterviewsPage },
   { path: "activity", title: "Activity", icon: Activity, component: ActivityPage },

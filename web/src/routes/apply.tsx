@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { SelectControl } from "@/components/ui/select-control"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Page, Panel, Field, LoadState, Status, ExternalLink, controlClass } from "@/components/workspace-ui"
+import { ApplicationEmpty, ApplicationStepper } from "@/components/application-stepper"
 import { ResumeSources } from "@/components/resume-sources"
 import { ApplyReadiness, applyBlocks } from "@/components/apply-readiness"
 import { useIntegrations, type Target } from "@/lib/integrations"
@@ -15,18 +16,19 @@ import { RunRecovery } from "@/components/run-recovery"
 import { FillReviewPanel } from "@/components/fill-review"
 import { BatchReviewWorkspace } from "@/components/batch-review-workspace"
 import type { ReviewSearch } from "@/lib/batch-review"
-import { PreparationQueue } from "@/components/preparation-queue"
-import { request, useApi, useConnection, subscribe, type Row } from "@/lib/api"
+import { request, useApi, useConnection, subscribe } from "@/lib/api"
+import { applicationSteps } from "@/lib/application-steps"
+import { usePageCrumb } from "@/lib/page-crumb"
 import type { Providers } from "@/lib/agent"
 import { openApply, preparationMessages, usePreparation, type SourcesState, type PdfArtifact, type SubmissionConfirmation } from "@/lib/preparation"
 const PdfViewer = lazy(() => import("@/components/pdf-viewer").then(module => ({ default: module.PdfViewer })))
 export function ApplyPage() {
   const search = useSearch({ strict: false }) as ReviewSearch
   if (search.batchId) return <BatchReviewWorkspace key={search.batchId} search={search} renderItem={(item, controls, locked) => <ApplyWorkspace key={`${item.id}:${item.applicationId ?? "job"}`} search={{ ...search, jobId: item.jobId, applicationId: item.applicationId ?? undefined, runId: item.runId ?? undefined }} review={controls} reviewLocked={locked} />} />
-  return <ApplyWorkspace key={`${search.jobId ?? "none"}:${search.applicationId ?? "job"}`} search={search} />
+  if (!search.jobId) return <Page title="Application" description="Open an application from a shortlisted job to prepare, fill and confirm it."><ApplicationEmpty /></Page>
+  return <ApplyWorkspace key={`${search.jobId}:${search.applicationId ?? "job"}`} search={search} />
 }
 function ApplyWorkspace({ search, review, reviewLocked = false }: { search: ReviewSearch; review?: ReactNode; reviewLocked?: boolean }) {
-  const jobs = useApi<Row[]>("jobs")
   const providers = useApi<Providers>("acp/providers")
   const sources = useApi<SourcesState>("resume-sources")
   const details = usePreparation(search.jobId, search.applicationId)
@@ -37,8 +39,6 @@ function ApplyWorkspace({ search, review, reviewLocked = false }: { search: Revi
   const [notice, setNotice] = useState("")
   const [pending, setPending] = useState(false)
   const [preview, setPreview] = useState<PdfArtifact>()
-  const [wide, setWide] = useState(window.innerWidth >= 1100)
-  useEffect(() => { const resize = () => setWide(window.innerWidth >= 1100); window.addEventListener("resize", resize); return () => window.removeEventListener("resize", resize) }, [])
   const pdfTab = route.pdfTab ?? "base"
   const setPdfTab = (pdfTab: string) => update({ pdfTab })
   const refreshSources = sources.refresh
@@ -59,6 +59,7 @@ function ApplyWorkspace({ search, review, reviewLocked = false }: { search: Revi
   const readiness = { live, busy: (!!review && pdfRun?.id !== run?.id) || busy || integrations.testing, archived, submitted: details.data?.applicationStatus === "submitted", sources: !!sources.data?.config.projectDir, tools: !missingTools, descriptionDirty, linkedinNeeded: !details.data?.job.description && !!details.data?.job.linkedin_job_id, descriptionMissing: !details.data?.job.description && !details.data?.job.linkedin_job_id, tailored: !!tailored && !!version, approved: !!version?.approvedAt, provider: selectedProvider?.id, model, invalidModel: !!model && !selectedProvider?.models.includes(model), integrations: integrations.data }
   const generateBlocks = applyBlocks(readiness, "generate")
   const fillBlocks = applyBlocks({ ...readiness, provider: pdfRun?.provider ?? selectedProvider?.id, model: pdfRun?.model ?? "", invalidModel: false }, "fill")
+  const steps = applicationSteps({ description: !readiness.descriptionMissing && !descriptionDirty, approved: readiness.approved, filled: ["filled", "needs_input"].includes(details.data?.applicationStatus ?? ""), submitted: readiness.submitted || details.data?.journey?.submission_status === "submitted", generate: review ? [] : generateBlocks, fill: fillBlocks })
   function correct(action: "description" | "model" | "review") {
     if (action === "review") document.getElementById("document-review")?.scrollIntoView?.()
     else if (action === "description") { const textarea = document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Job description"]'); if (textarea?.parentElement?.parentElement instanceof HTMLDetailsElement) textarea.parentElement.parentElement.open = true; textarea?.focus() }
@@ -84,13 +85,15 @@ function ApplyWorkspace({ search, review, reviewLocked = false }: { search: Revi
     finally { setPending(false) }
   }
   const job = details.data?.job
-  return <Page title="Apply" description="Prepare a resume for one role, review both PDFs and fill its application." actions={<Status value={run?.decisionStatus ? "Waiting for decision" : run ? `${run.phase} · ${run.status}` : "Ready"} />}>
-    <LoadState {...jobs} retry={jobs.refresh} />
-    {review ?? <PreparationQueue />}
-    {!review && <details className="rounded-xl border p-4" open={!sources.data?.config.projectDir || undefined}><summary className="cursor-pointer text-sm font-medium">Resume sources</summary><div className="mt-4"><ResumeSources onPreview={artifact => { setPreview(artifact); sources.refresh() }} /></div></details>}
+  usePageCrumb(job ? `${job.company_name} · ${job.title}` : "")
+  const applicationId = details.data?.journey?.id ?? pdfRun?.application_id ?? search.applicationId
+  return <Page title="Application" description="One role, from job description to confirmed submission." actions={<Status value={run?.decisionStatus ? "Waiting for decision" : run ? `${run.phase} · ${run.status}` : "Ready"} />}>
+    {review}
+    {details.data && <ApplicationStepper steps={steps} />}
+    {/* Until Profile owns them (#50), resume sources stay one collapsed status line here. */}
+    {!review && <details className="rounded-xl border p-4"><summary className="cursor-pointer text-sm font-medium">{sources.data?.config.projectDir ? "Base resume configured" : "Base resume missing"}</summary><div className="mt-4"><ResumeSources onPreview={artifact => { setPreview(artifact); sources.refresh() }} /></div></details>}
     <Panel title="Opportunity">
-      {!review && <div className="grid gap-4 md:grid-cols-3">
-        <Field label="Saved job"><SelectControl className={controlClass} value={String(search.jobId ?? "")} onChange={e => openApply(e.target.value)}><option value="">Select a job</option>{jobs.data?.filter(j => !j.archived_at || j.id === search.jobId).map(j => <option key={String(j.id)} value={String(j.id)}>{String(j.company_name)} · {String(j.title)}{j.archived_at ? " (archived)" : ""}</option>)}</SelectControl></Field>
+      {!review && <div className="grid gap-4 md:grid-cols-2">
         <Field label="Agent"><SelectControl className={controlClass} value={selectedProvider?.id ?? ""} disabled={busy} onChange={e => { setProvider(e.target.value); setModel("") }}>{providers.data?.providers.map(p => <option key={p.id} value={p.id}>{p.displayName}</option>)}</SelectControl></Field>
         <Field label="Model"><SelectControl className={controlClass} value={effectiveModel} disabled={busy} onChange={e => setModel(e.target.value)}><option value="">Provider default</option>{selectedProvider?.models.map(m => <option key={m}>{m}</option>)}</SelectControl></Field>
       </div>}
@@ -113,15 +116,21 @@ function ApplyWorkspace({ search, review, reviewLocked = false }: { search: Revi
       </div>}
     </Panel>
     {(error || context.error) && <p role="alert" className="text-sm text-destructive">{error || context.error}</p>}
-    {(notice || details.data?.journey?.submission_status === "submitted") && <p role="status" className="text-sm">{notice || `Submitted${details.data?.journey?.submitted_at ? ` on ${new Date(details.data.journey.submitted_at).toLocaleDateString()}` : ""}.`} <a className="underline" href="#/application-board">Open the application board</a></p>}
+    {(notice || details.data?.journey?.submission_status === "submitted") && <p role="status" className="text-sm">{notice || `Submitted${details.data?.journey?.submitted_at ? ` on ${new Date(details.data.journey.submitted_at).toLocaleDateString()}` : ""}.`} <a className="underline" href={`#/applications?view=board${applicationId ? `&highlight=${applicationId}` : ""}`}>View it on the board</a></p>}
     {!review && <RunRecovery run={run} disabled={busy || archived || !live || details.data?.applicationStatus === "submitted" || (run?.recovery?.retryFrom === "filling" && fillBlocks.length > 0)} onRetry={reviewed => void action("retry", reviewed)} />}
     {run?.error && <details open className="rounded-xl border border-destructive/30 p-4"><summary className="cursor-pointer text-sm text-destructive">Execution needs attention</summary><pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap text-xs">{run.error}</pre></details>}
     {!review && !!details.data?.runs.length && <Field label="Execution history"><SelectControl className={controlClass} value={run?.id ?? ""} onChange={e => openApply(search.jobId, search.applicationId, e.target.value)}>{details.data.runs.map(r => <option key={r.id} value={r.id}>{new Date(r.created_at).toLocaleString()} · {r.phase} · {r.status}</option>)}</SelectControl></Field>}
     {tailored && pdfRun?.id !== run?.id && <p className="text-sm text-muted-foreground">{review ? "Showing the previous validated resume. Retry this item to finish the requested version." : "Showing the previous validated resume. Approve this version before filling if needed."}</p>}
     {version && <DocumentReview key={version.id} version={version} versions={details.data?.documents ?? []} disabled={reviewBusy || archived || !live || details.data?.applicationStatus === "submitted"} approve={() => void action("approve")} />}
     {details.data?.fill && (!review || run) && <FillReviewPanel key={details.data.fill.applicationId} review={details.data.fill} run={run} fillBlocked={fillBlocks.length > 0} onFillAgain={() => void action("fill")} />}
-    <Suspense fallback={<p role="status">Loading PDF viewer…</p>}>{wide ? <div className="grid min-w-0 grid-cols-2 gap-4"><PdfViewer title="Base PDF" artifact={base} /><PdfViewer title="Tailored PDF" artifact={tailored} /></div> : <Tabs value={pdfTab} onValueChange={setPdfTab}><TabsList><TabsTrigger value="base">Base PDF</TabsTrigger><TabsTrigger value="tailored">Tailored PDF</TabsTrigger></TabsList><TabsContent value="base"><PdfViewer title="Base PDF" artifact={base} /></TabsContent><TabsContent value="tailored"><PdfViewer title="Tailored PDF" artifact={tailored} /></TabsContent></Tabs>}</Suspense>
+    <PdfPair base={base} tailored={tailored} tab={pdfTab} onTab={setPdfTab} />
     <Panel title="Application workspace"><Tabs value={route.workspaceTab ?? "activity"} onValueChange={workspaceTab => update({ workspaceTab })}><TabsList><TabsTrigger value="activity">Agent activity</TabsTrigger><TabsTrigger value="report">Report</TabsTrigger></TabsList><TabsContent value="activity"><AgentConversation messages={messages} /></TabsContent><TabsContent value="report"><div className="max-h-[420px] overflow-auto whitespace-pre-wrap text-sm">{run?.report ?? "The tailoring report will appear after generation."}</div></TabsContent></Tabs></Panel>
     {tailored && <p className="text-xs text-muted-foreground">Review the PDF and portal fields before submitting in the browser.</p>}
   </Page>
+}
+/** Side by side on wide windows, tabs otherwise. */
+function PdfPair({ base, tailored, tab, onTab }: { base?: PdfArtifact | null; tailored?: PdfArtifact; tab: string; onTab: (tab: string) => void }) {
+  const [wide, setWide] = useState(window.innerWidth >= 1100)
+  useEffect(() => { const resize = () => setWide(window.innerWidth >= 1100); window.addEventListener("resize", resize); return () => window.removeEventListener("resize", resize) }, [])
+  return <Suspense fallback={<p role="status">Loading PDF viewer…</p>}>{wide ? <div className="grid min-w-0 grid-cols-2 gap-4"><PdfViewer title="Base PDF" artifact={base} /><PdfViewer title="Tailored PDF" artifact={tailored} /></div> : <Tabs value={tab} onValueChange={onTab}><TabsList><TabsTrigger value="base">Base PDF</TabsTrigger><TabsTrigger value="tailored">Tailored PDF</TabsTrigger></TabsList><TabsContent value="base"><PdfViewer title="Base PDF" artifact={base} /></TabsContent><TabsContent value="tailored"><PdfViewer title="Tailored PDF" artifact={tailored} /></TabsContent></Tabs>}</Suspense>
 }

@@ -8,10 +8,10 @@ import {
 } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { ReactNode } from "react"
-import { ApplicationBoardPage } from "@/routes/application-board"
+import { ApplicationsPage } from "@/routes/applications"
 import { CompanyIcon } from "@/components/application-card"
 import { ApplicationStages } from "@/components/application-stages"
-import { publish } from "@/lib/api"
+import { publish, type Row } from "@/lib/api"
 import type {
   ApplicationBoard,
   ApplicationDetails,
@@ -45,6 +45,13 @@ vi.mock("@dnd-kit/react", () => ({
 }))
 const request = vi.fn()
 let board: ApplicationBoard
+let rows: Row[]
+/** Applications in its board layout, as `?view=board` opens it. */
+function renderBoard() {
+  const view = render(<ApplicationsPage />)
+  fireEvent.mouseDown(screen.getByRole("tab", { name: "Board" }))
+  return view
+}
 const at = "2026-10-10T12:00:00.000Z"
 const initialStages: ApplicationStage[] = [
   {
@@ -98,6 +105,9 @@ async function serve(path: string, body?: unknown) {
     note?: string
   }
   if (path === "application-board") return structuredClone(board)
+  if (path === "applications") return structuredClone(rows)
+  if (path === "application-board/review") return { items: [] }
+  if (path === "preparation-batches") return { batches: [] }
   if (path === "application-board/details") {
     const application = board.applications.find((item) => item.id === input.id)!
     const details: ApplicationDetails = {
@@ -149,6 +159,7 @@ async function serve(path: string, body?: unknown) {
   return structuredClone(application)
 }
 beforeEach(() => {
+  rows = []
   board = {
     stages: structuredClone(initialStages),
     applications: [
@@ -169,8 +180,40 @@ beforeEach(() => {
   }
 })
 describe("application board", () => {
+  it("shows server-computed Draft, Prepared and Filled columns before the stages, without dragging", async () => {
+    window.location.hash = ""
+    rows = [
+      { id: 10, job_id: 1, job_title: "Draft role", company_name: "Draft Co", phase: "draft", view: "preparation", origin: "preparation" },
+      { id: 11, job_id: 2, job_title: "Ready role", company_name: "Ready Co", phase: "prepared", view: "preparation", origin: "preparation" },
+      { id: 12, job_id: 3, job_title: "Filled role", company_name: "Filled Co", phase: "filled", view: "preparation", origin: "agent" },
+      { id: 13, job_title: "Legacy role", company_name: "Legacy Co", phase: "submitted", view: "preparation", origin: "unknown" },
+      { id: 1, job_title: "Tracked", company_name: "São José", phase: "submitted", view: "tracking", origin: "manual" },
+    ]
+    renderBoard()
+    await screen.findByText("Filled Co")
+    const kanban = within(screen.getByLabelText("Application kanban"))
+    expect(kanban.getAllByRole("region").map((column) => column.getAttribute("aria-label"))).toEqual([
+      "Draft applications",
+      "Prepared applications",
+      "Filled applications",
+      "Applied applications",
+      "Technical interview applications",
+    ])
+    const filled = within(screen.getByRole("region", { name: "Filled applications" }))
+    expect(filled.getByRole("group", { name: "Filled Co · Filled role" })).toBeInTheDocument()
+    expect(filled.queryByRole("button", { name: /^Drag/ })).not.toBeInTheDocument()
+    expect(within(screen.getByRole("region", { name: "Applied applications" })).getByRole("button", { name: "Drag São José application" })).toBeInTheDocument()
+    // A submitted record without a stage waits in Needs review, not in a column.
+    expect(screen.queryByText("Legacy Co")).not.toBeInTheDocument()
+    fireEvent.click(filled.getByRole("button", { name: "Continue Filled Co · Filled role" }))
+    expect(window.location.hash).toBe("#/apply?jobId=3&applicationId=12")
+    fireEvent.change(screen.getByLabelText("Search applications"), { target: { value: "draft co" } })
+    expect(screen.getByText("Draft Co")).toBeInTheDocument()
+    expect(screen.queryByText("Ready Co")).not.toBeInTheDocument()
+    expect(screen.queryByText("No applications match your search.")).not.toBeInTheDocument()
+  })
   it("creates a manual application with just company and job link", async () => {
-    render(<ApplicationBoardPage />)
+    renderBoard()
     fireEvent.click(
       await screen.findByRole("button", { name: "New application" }),
     )
@@ -200,7 +243,7 @@ describe("application board", () => {
     )
   })
   it("searches all companies and technologies and refreshes on backend changes", async () => {
-    render(<ApplicationBoardPage />)
+    renderBoard()
     await screen.findByText("São José")
     fireEvent.change(screen.getByLabelText("Search applications"), {
       target: { value: "sao jose" },
@@ -220,7 +263,7 @@ describe("application board", () => {
     expect(await screen.findByText("New from backend")).toBeInTheDocument()
   })
   it("shows an application confirmed in Apply as soon as its board event arrives", async () => {
-    render(<ApplicationBoardPage />)
+    renderBoard()
     await screen.findByText("São José")
     board.applications.push({ ...record(4, "Prepared Corp"), job_id: 7, origin: "preparation" })
     act(() => publish({ type: "changed", table: "application_events" }))
@@ -235,7 +278,7 @@ describe("application board", () => {
           })
         : serve(path, body),
     )
-    render(<ApplicationBoardPage />)
+    renderBoard()
     await screen.findByText("São José")
     act(() =>
       dragEnd({
@@ -267,7 +310,7 @@ describe("application board", () => {
     ).toBeInTheDocument()
   })
   it("ignores canceled, outside and same-stage drops", async () => {
-    render(<ApplicationBoardPage />)
+    renderBoard()
     await screen.findByText("São José")
     act(() => {
       dragEnd({
@@ -294,7 +337,7 @@ describe("application board", () => {
     ).toHaveLength(0)
   })
   it("requires archive confirmation and keeps closed applications searchable and reopenable", async () => {
-    render(<ApplicationBoardPage />)
+    renderBoard()
     await screen.findByText("São José")
     act(() =>
       dragEnd({
@@ -344,7 +387,7 @@ describe("application board", () => {
     expect(await screen.findByText("São José")).toBeInTheDocument()
   })
   it("shows the timeline and preserves edits after a failed save", async () => {
-    render(<ApplicationBoardPage />)
+    renderBoard()
     fireEvent.click(
       await screen.findByRole("button", { name: "View São José application" }),
     )

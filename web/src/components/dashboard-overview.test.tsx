@@ -116,8 +116,8 @@ it("separates drafts from submitted applications and offers the next step", () =
 })
 it.each([
   [{ draft: 0, prepared: 2, filled: 0, submitted: 0 }, { preparation: 2, tracking: 0, archived: 0 }, "Continue preparing", "#/applications"],
-  [{ draft: 0, prepared: 0, filled: 0, submitted: 1 }, { preparation: 0, tracking: 1, archived: 0 }, "Open board", "#/application-board"],
-  [{ draft: 0, prepared: 0, filled: 0, submitted: 0 }, { preparation: 0, tracking: 0, archived: 0 }, "Tailor a resume", "#/apply"],
+  [{ draft: 0, prepared: 0, filled: 0, submitted: 1 }, { preparation: 0, tracking: 1, archived: 0 }, "Open board", "#/applications?view=board"],
+  [{ draft: 0, prepared: 0, filled: 0, submitted: 0 }, { preparation: 0, tracking: 0, archived: 0 }, "Apply from your shortlist", "#/jobs?view=shortlist"],
 ])("points to the next journey step %#", (phases, views, name, href) => {
   const overview = records.overview as { journey: Record<string, unknown> }
   overview.journey = {

@@ -43,7 +43,7 @@ it("saves a draft after correcting a failure, edits it and opens preparation wit
   fill("Role title", "Updated Engineer")
   fireEvent.click(screen.getByRole("button", { name: "Save job" }))
   await screen.findByRole("button", { name: "Edit job" })
-  fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Prepare application" }))
+  fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Apply" }))
   expect(window.location.hash).toBe("#/apply?jobId=1")
   expect(request.mock.calls.some(([path]) => path === "acp/run")).toBe(false)
   expect(jobs).toHaveLength(1)

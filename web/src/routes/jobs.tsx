@@ -27,7 +27,7 @@ import { openApply } from "@/lib/preparation"
 import { prepareSkill } from "@/lib/agent"
 import { JobForm, type JobSaveResult } from "@/components/job-form"
 import { useWorkspaceState } from "@/lib/workspace-state"
-import { nextStep } from "@/lib/application-journey"
+import { applyLabel } from "@/lib/application-journey"
 
 function JobDetailActions({
   selected,
@@ -43,7 +43,6 @@ function JobDetailActions({
   actions: (row: Row) => ReactNode
 }) {
   const application = selected ? linkedApplication(selected) : undefined
-  const step = application ? nextStep(application) : undefined
   return (
     <>
       {error && (
@@ -55,7 +54,7 @@ function JobDetailActions({
           disabled={busy || !!selected?.archived_at}
           onClick={() => openApply(selected?.id, application?.id)}
         >
-          {step?.kind === "prepare" ? step.label : "Prepare application"}
+          {applyLabel(application)}
         </Button>
         <Button
           variant="outline"

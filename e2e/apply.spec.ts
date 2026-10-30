@@ -1,13 +1,22 @@
 import { test, expect } from './fixtures'
-import { choose, panel } from './ui'
+import { panel } from './ui'
 import { readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 
+const step = (workspace: import('./fixtures').Workspace, name: string) => workspace.page.getByRole('navigation', { name: 'Application progress' }).getByRole('listitem', { name })
+/** Shortlist → Apply: the application detail opens without the sidebar or a job selector. */
 async function selectJob(workspace: import('./fixtures').Workspace) {
+  const { page } = workspace
   workspace.cli(['job', 'save', '--linkedin-id', '9001', '--title', 'React Engineer', '--company', 'Example Company', '--link', 'https://example.com/apply'])
-  await workspace.go('Apply')
-  await choose(workspace.page, 'Saved job', 'Example Company · React Engineer')
-  await expect(workspace.page.getByRole('button', { name: 'Generate resume', exact: true })).toBeEnabled()
+  await workspace.go('Jobs')
+  await page.getByRole('row', { name: /React Engineer/ }).getByRole('button', { name: 'Move to shortlist' }).click()
+  await page.getByRole('tab', { name: 'Shortlist (1)' }).click()
+  await page.getByRole('row', { name: /React Engineer/ }).getByRole('button', { name: 'Apply', exact: true }).click()
+  await workspace.ready('Application')
+  await expect(page.getByRole('navigation', { name: 'Caminho da página' }).locator('[aria-current="page"]')).toHaveText('Example Company · React Engineer')
+  await expect(page.getByRole('combobox', { name: /^Saved job/ })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Generate resume', exact: true })).toBeEnabled()
+  await expect(step(workspace, '2. Resume: Current step')).toHaveAttribute('aria-current', 'step')
 }
 async function generate(workspace: import('./fixtures').Workspace) {
   await workspace.page.getByRole('button', { name: /^(Generate resume|Regenerate)$/ }).click()
@@ -17,15 +26,17 @@ async function generate(workspace: import('./fixtures').Workspace) {
   await expect(workspace.page.getByLabel('Document text comparison').locator('del')).toContainText('Base resume.')
   await workspace.page.getByRole('button', { name: 'Approve this version', exact: true }).click()
   await expect(workspace.page.getByRole('button', { name: 'Fill application', exact: true })).toBeEnabled()
+  await expect(step(workspace, '3. Fill portal: Current step')).toBeVisible()
   await expect(panel(workspace.page, 'Tailored PDF').locator('.react-pdf__Page__textContent')).toContainText('Tailored resume.')
 }
 
 test('Apply: real PDFs, generation/regeneration/history, filling, submission and persisted application', async ({ workspace, page }) => {
   test.setTimeout(180_000)
   await selectJob(workspace)
-  await page.getByText('Job description', { exact: true }).click()
+  await page.locator('summary', { hasText: /^Job description$/ }).click()
   await page.getByLabel('Job description', { exact: true }).fill('React, TypeScript and testing')
   await expect(page.getByRole('button', { name: 'Generate resume', exact: true })).toBeDisabled()
+  await expect(step(workspace, '1. Job description: Blocked')).toContainText('Save your description changes before generating.')
   await page.getByRole('button', { name: 'Save description' }).click()
   await page.getByLabel('Additional context').fill('Focus on testing')
   await generate(workspace)
@@ -86,6 +97,7 @@ test('Apply: real PDFs, generation/regeneration/history, filling, submission and
   await expect(page).toHaveURL(new RegExp(`runId=${first}`))
   await page.getByRole('button', { name: 'Fill application', exact: true }).click()
   await expect(page.getByRole('button', { name: 'I submitted in the browser' })).toBeVisible({ timeout: 30_000 })
+  await expect(step(workspace, '4. Confirm submission: Current step')).toBeVisible()
   const fill = workspace.calls('fill').at(-1)!
   expect(fill.applicationId).toBe(id)
   const approved = workspace.query(`SELECT id, pdf_hash, approved_at FROM document_versions WHERE run_id = '${first}'`)[0]!
@@ -110,10 +122,16 @@ test('Apply: real PDFs, generation/regeneration/history, filling, submission and
   // The same application enters the board in its initial stage with one history event.
   expect(workspace.query("SELECT a.id, s.key, a.tracking_status FROM applications a JOIN application_stages s ON s.id = a.current_stage_id")).toEqual([{ id, key: 'applied', tracking_status: 'active' }])
   expect(workspace.query('SELECT event_type FROM application_events')).toEqual([{ event_type: 'created' }])
-  await page.getByRole('link', { name: 'Open the application board' }).click()
-  await expect(page.getByRole('region', { name: 'Applied applications' }).getByRole('button', { name: 'View Example Company application' })).toBeVisible()
+  await expect(step(workspace, '4. Confirm submission: Done')).toBeVisible()
+  await page.getByRole('link', { name: 'View it on the board' }).click()
+  await workspace.ready('Applications')
+  await expect(page).toHaveURL(new RegExp(`view=board&highlight=${id}`))
+  const card = page.getByRole('region', { name: 'Applied applications' }).locator('[data-slot="card"]').filter({ has: page.getByRole('button', { name: 'View Example Company application' }) })
+  await expect(card).toHaveAttribute('data-highlighted', 'true')
+  await expect(page.getByRole('region', { name: 'Filled applications' }).getByRole('group')).toHaveCount(0)
   expect(readFileSync(join(workspace.project, 'resume.tex'), 'utf8')).toBe(readFileSync('e2e/fixtures/resume.tex', 'utf8'))
-  await workspace.go('Applications')
+  await page.getByRole('tab', { name: 'List', exact: true }).click()
+  await expect(page).not.toHaveURL(/view=board/)
   await expect(page.getByRole('cell', { name: 'Submitted', exact: true })).toBeVisible()
   // Lists, Jobs and the dashboard count the same confirmed submission once.
   await expect(page.getByRole('tab', { name: 'Tracking (1)' })).toBeVisible()

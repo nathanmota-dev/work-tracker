@@ -1,3 +1,4 @@
+import type { ReactNode } from "react"
 import { DragDropProvider, DragOverlay } from "@dnd-kit/react"
 import { RotateCcw } from "lucide-react"
 import {
@@ -47,6 +48,8 @@ export function ActiveBoard({
   records,
   pending,
   isLocked,
+  preparation = { columns: null, total: 0, visible: 0 },
+  highlight,
   onCreate,
   onDetails,
   onEdit,
@@ -59,13 +62,16 @@ export function ActiveBoard({
   records: Map<number, TrackedApplication>
   pending: Set<number>
   isLocked: (id: number) => boolean
+  /** Fixed preparation columns shown before the stages. */
+  preparation?: { columns: ReactNode; total: number; visible: number }
+  highlight?: number
   onCreate: () => void
 }) {
   const inStage = (list: TrackedApplication[], stage: ApplicationStage) =>
     list.filter((application) => application.current_stage_id === stage.id)
   return (
     <>
-      {!active.length && (
+      {!active.length && !preparation.total && (
         <Empty
           title="No active applications yet"
           description="Register an application with just a company name and job link."
@@ -73,7 +79,7 @@ export function ActiveBoard({
           <Button onClick={onCreate}>New application</Button>
         </Empty>
       )}
-      {active.length > 0 && !visible.length && (
+      {active.length + preparation.total > 0 && !visible.length && !preparation.visible && (
         <p className="text-sm text-muted-foreground">
           No applications match your search.
         </p>
@@ -93,6 +99,7 @@ export function ActiveBoard({
           className="flex gap-4 overflow-x-auto pb-3"
           aria-label="Application kanban"
         >
+          {preparation.columns}
           {stages
             .filter((stage) => !stage.is_archived)
             .map((stage) => (
@@ -107,6 +114,7 @@ export function ActiveBoard({
                     key={application.id}
                     application={application}
                     busy={pending.has(application.id)}
+                    highlighted={application.id === highlight}
                     onDetails={() => onDetails(application)}
                     onEdit={() => onEdit(application)}
                     onArchive={() => onArchive(application)}

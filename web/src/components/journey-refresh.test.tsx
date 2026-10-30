@@ -1,8 +1,7 @@
-import { act, render, screen, waitFor, within } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { beforeEach, expect, it, vi } from "vitest"
 import type { ReactNode } from "react"
 import { DashboardOverview } from "@/components/dashboard-overview"
-import { ApplicationBoardPage } from "@/routes/application-board"
 import { ApplicationsPage } from "@/routes/applications"
 import { JobsPage } from "@/routes/jobs"
 import { publish } from "@/lib/api"
@@ -28,7 +27,7 @@ const summary = (): ApplicationSummary => ({
   origins: { preparation: 1, manual: 0, agent: 0, unknown: 0 },
   overlaps: { ready_resumes: 1, needs_input: 0, submitted_archived: 0, submitted_untracked: 0 },
 })
-/** One application that the confirmation in Apply moves from filled to submitted. */
+/** One application that the confirmation in its detail moves from filled to submitted. */
 async function serve(path: string) {
   const phase = submitted ? "submitted" : "filled"
   const view = submitted ? "tracking" : "preparation"
@@ -73,11 +72,12 @@ beforeEach(() => {
 it("a submission confirmation event refreshes Jobs, Applications, the board and the dashboard", async () => {
   const jobs = within(render(<JobsPage />).container)
   const list = within(render(<ApplicationsPage />).container)
-  const board = within(render(<ApplicationBoardPage />).container)
+  const board = within(render(<ApplicationsPage />).container)
+  fireEvent.mouseDown(board.getByRole("tab", { name: "Board" }))
   const dashboard = within(render(<DashboardOverview />).container)
   expect(within((await jobs.findByText("Platform Engineer")).closest("tr")!).getByText("Filled")).toBeInTheDocument()
   expect(await list.findByRole("tab", { name: "Tracking (0)" })).toBeInTheDocument()
-  expect(await board.findByText(/1 application is still in preparation/)).toBeInTheDocument()
+  expect(within(await board.findByRole("region", { name: "Filled applications" })).getByText("Acme")).toBeInTheDocument()
   expect(await dashboard.findByRole("link", { name: "0 submitted" })).toBeInTheDocument()
 
   submitted = true
@@ -89,7 +89,8 @@ it("a submission confirmation event refreshes Jobs, Applications, the board and 
   expect(await list.findByRole("tab", { name: "Tracking (1)" })).toBeInTheDocument()
   expect(list.getByRole("tab", { name: "Preparation (0)" })).toBeInTheDocument()
   expect(await board.findByRole("tab", { name: "Active (1)" })).toBeInTheDocument()
-  await waitFor(() => expect(board.queryByText(/still in preparation/)).not.toBeInTheDocument())
+  await waitFor(() => expect(within(board.getByRole("region", { name: "Filled applications" })).queryByText("Acme")).not.toBeInTheDocument())
+  expect(within(board.getByRole("region", { name: "Applied applications" })).getByText("Acme")).toBeInTheDocument()
   expect(await dashboard.findByRole("link", { name: "1 submitted" })).toBeInTheDocument()
   expect(dashboard.getByRole("link", { name: "0 filled" })).toBeInTheDocument()
   expect(screen.queryByText(/reload/i)).not.toBeInTheDocument()
