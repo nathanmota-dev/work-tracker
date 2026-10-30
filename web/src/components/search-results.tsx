@@ -148,7 +148,8 @@ export function ResultActions({
             {detailBusy ? "Loading…" : "Full details"}
           </Button>
           <Button
-            onClick={() =>
+            onClick={() => {
+              setSelected(null)
               prepareSkill("deep-scout", {
                 query: text(
                   selected?.url ??
@@ -157,7 +158,7 @@ export function ResultActions({
                     selected?.title,
                 ),
               })
-            }
+            }}
           >
             Assess fit with agent
           </Button>
