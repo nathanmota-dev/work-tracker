@@ -46,7 +46,7 @@ test('Settings: a running preview can be cancelled without leaving a compiler pr
 
 test('Settings: active agent blocks browser sign-in and resume writes until cancellation', async ({ workspace, page }) => {
   workspace.setScenario({ agent: 'hold' })
-  await workspace.go('Launch')
+  await workspace.go('Agent')
   await page.getByLabel('Role, keywords or job URL').fill('React')
   await page.getByRole('button', { name: 'Run agent' }).click()
   await expect(page.getByText('Synthetic agent is working.', { exact: true })).toBeVisible()
@@ -56,7 +56,7 @@ test('Settings: active agent blocks browser sign-in and resume writes until canc
   await page.getByRole('tab', { name: 'Resume sources', exact: true }).click()
   await page.getByLabel('Main .tex file').fill('other.tex')
   await expect(page.getByRole('button', { name: 'Save sources' })).toBeDisabled()
-  await workspace.go('Launch')
+  await workspace.go('Agent')
   await page.getByRole('button', { name: 'Cancel', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Run agent' })).toBeEnabled()
 })

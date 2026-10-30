@@ -9,7 +9,7 @@ const alive = (pid: number) => { try { process.kill(pid, 0); return true } catch
 
 test('Backend: an unexpected exit is shown and recovered without closing the window', async ({ workspace, page }) => {
   workspace.setScenario({ agent: 'hold' })
-  await workspace.go('Launch')
+  await workspace.go('Agent')
   await page.getByLabel('Role, keywords or job URL').fill('React')
   await page.getByRole('button', { name: 'Run agent' }).click()
   await expect(page.getByText('Synthetic agent is working.', { exact: true })).toBeVisible()
