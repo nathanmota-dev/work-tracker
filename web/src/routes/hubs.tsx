@@ -1,5 +1,8 @@
+import type { ReactNode } from "react"
 import { useWorkspaceState } from "@/lib/workspace-state"
 import { Button } from "@/components/ui/button"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Empty, Page, PageSection, Panel } from "@/components/workspace-ui"
 import { ResumeSources } from "@/components/resume-sources"
 import { prepareSkill } from "@/lib/agent"
 import { ProfilePage } from "./profile"
@@ -10,19 +13,91 @@ import { SearchPage } from "./search"
 import { LaunchPage } from "./launch"
 import { ActivityPage } from "./activity"
 
-function HubTabs({ path, tabs }: { path: string; tabs: [string, string][] }) {
+/** One page whose tabs, kept in the URL, show other pages as its sections. */
+function Hub({ path, title, description, tabs, children }: {
+  path: string
+  title: string
+  description: string
+  tabs: [string, string][]
+  children: (tab: string) => ReactNode
+}) {
   const { search, update } = useWorkspaceState(path)
-  return <div role="tablist" className="flex gap-2 p-4">{tabs.map(([value, label]) => <Button key={value} role="tab" aria-selected={(search.tab ?? tabs[0][0]) === value} variant={(search.tab ?? tabs[0][0]) === value ? "default" : "outline"} onClick={() => update({ tab: value })}>{label}</Button>)}</div>
+  const tab = search.tab ?? tabs[0][0]
+  return (
+    <Page title={title} description={description}>
+      <Tabs value={tab} onValueChange={(value) => update({ tab: value })}>
+        <TabsList aria-label={`${title} sections`}>
+          {tabs.map(([value, label]) => <TabsTrigger key={value} value={value}>{label}</TabsTrigger>)}
+        </TabsList>
+      </Tabs>
+      <PageSection>{children(tab)}</PageSection>
+    </Page>
+  )
 }
+
 export function ContactsHub() {
-  const { search } = useWorkspaceState("contacts")
-  return <><h1 className="px-4 text-2xl font-semibold">Contacts</h1><HubTabs path="contacts" tabs={[["people", "People"], ["follow-ups", "Follow-ups"]]} />{search.tab === "follow-ups" ? <OutreachPage /> : <><RecruitersPage /><SearchPage /></>}</>
+  return (
+    <Hub
+      path="contacts"
+      title="Contacts"
+      description="The people behind your next opportunity, and the follow-ups that keep each conversation going."
+      tabs={[["people", "People"], ["follow-ups", "Follow-ups"]]}
+    >
+      {(tab) => tab === "follow-ups" ? <OutreachPage /> : <><RecruitersPage /><SearchPage /></>}
+    </Hub>
+  )
 }
+
+function BaseResume() {
+  return (
+    <Page title="Base resume" description="The LaTeX project every tailored resume starts from.">
+      <ResumeSources />
+    </Page>
+  )
+}
+
+function Experiences() {
+  return (
+    <Page
+      title="Experiences"
+      description="Achievements and projects that do not fit on your base resume."
+      actions={<Button size="sm" onClick={() => prepareSkill("experience-bank")}>Update experiences</Button>}
+    >
+      <Panel title="Experience bank">
+        <Empty
+          title="Capture what your resume leaves out"
+          description="The agent interviews you about recent work and saves it to your experience bank. Tailored resumes use it when a role asks for experience your base resume does not show."
+        />
+      </Panel>
+    </Page>
+  )
+}
+
 export function ProfileHub() {
-  const { search } = useWorkspaceState("profile")
-  return <>{(search.tab ?? "linkedin") !== "linkedin" && <h1 className="px-4 text-2xl font-semibold">Profile</h1>}<HubTabs path="profile" tabs={[["linkedin", "LinkedIn"], ["resume", "Base resume"], ["answers", "Answers"], ["experiences", "Experiences"]]} />{search.tab === "resume" ? <ResumeSources /> : search.tab === "answers" ? <AnswersPage /> : search.tab === "experiences" ? <Button onClick={() => prepareSkill("experience-bank")}>Update experiences</Button> : <ProfilePage />}</>
+  return (
+    <Hub
+      path="profile"
+      title="Profile"
+      description="Everything your applications and your agent know about you."
+      tabs={[["linkedin", "LinkedIn"], ["resume", "Base resume"], ["answers", "Answers"], ["experiences", "Experiences"]]}
+    >
+      {(tab) => tab === "resume" ? <BaseResume />
+        : tab === "answers" ? <AnswersPage />
+        : tab === "experiences" ? <Experiences />
+        : <ProfilePage />}
+    </Hub>
+  )
 }
+
 export function AgentHub() {
-  const { search } = useWorkspaceState("launch")
-  return <><HubTabs path="launch" tabs={[["console", "Console"], ["history", "History"]]} />{search.tab === "history" ? <ActivityPage /> : <LaunchPage />}</>
+  return (
+    <Hub
+      path="launch"
+      title="Agent"
+      description="Run any skill with full control, and review what your agent has done."
+      tabs={[["console", "Console"], ["history", "History"]]}
+    >
+      {(tab) => tab === "history" ? <ActivityPage /> : <LaunchPage />}
+    </Hub>
+  )
 }

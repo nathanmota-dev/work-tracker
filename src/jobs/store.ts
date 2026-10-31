@@ -1,4 +1,5 @@
 import type { Database } from "../db/sqlite.ts";
+import { now } from "../db/index.ts";
 import { missingForPreparation } from "./preparation.ts";
 import { linkedinJobId, normalizeLink, webUrl } from "./identity.ts";
 
@@ -83,6 +84,11 @@ export function saveJob(d: Database, body: unknown, updateId?: number, rediscove
       : d.query(`INSERT INTO jobs (${fields.join(", ")}) VALUES (${fields.map(() => "?").join(", ")}) RETURNING id`).get(...values);
     return result(d, (job as { id: number }).id, !current, false);
   })();
+}
+
+/** A role the user chose (by hand or by applying) skips triage; archived roles stay archived. */
+export function shortlistJob(d: Database, id: number): void {
+  d.query("UPDATE jobs SET shortlisted_at = COALESCE(shortlisted_at, ?) WHERE id = ? AND archived_at IS NULL").run(now(), id);
 }
 
 function result(d: Database, id: number, created: boolean, existing: boolean) {

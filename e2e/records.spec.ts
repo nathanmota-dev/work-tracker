@@ -48,7 +48,7 @@ test.describe('saved records', () => {
   })
 
   test('Recruiters / Outreach: preview before sync, details, funnel and agent handoffs', async ({ workspace, page }) => {
-    await workspace.visit('/contacts?tab=people', 'Recruiters')
+    await workspace.visit('/contacts?tab=people', 'Contacts')
     await page.getByLabel('Search Recruiters', { exact: true }).fill('Alex Recruiter')
     await page.getByRole('button', { name: 'View Alex Recruiter' }).click()
     await page.getByRole('button', { name: 'View LinkedIn' }).click()
@@ -63,7 +63,7 @@ test.describe('saved records', () => {
     await page.getByRole('button', { name: 'Preview connection sync' }).click()
     await expect(page.getByRole('heading', { name: 'You’re up to date' })).toBeVisible()
     await page.getByRole('button', { name: 'Dismiss' }).click()
-    await workspace.visit('/contacts?tab=follow-ups', 'Outreach')
+    await workspace.visit('/contacts?tab=follow-ups', 'Contacts')
     await expect(panel(page, 'Next actions')).toContainText('Due Person')
     await expect(panel(page, 'Companies in cooldown')).toContainText('Cooldown Company')
     await page.getByLabel('Search Next actions').fill('no match')
@@ -74,7 +74,7 @@ test.describe('saved records', () => {
     await page.getByRole('button', { name: 'Run agent' }).click()
     await expect(page.getByText('Synthetic agent is working. Synthetic workflow completed.', { exact: true })).toBeVisible()
     await page.getByRole('dialog', { name: 'Agent task' }).getByRole('button', { name: 'Close', exact: true }).click()
-    await workspace.visit('/contacts?tab=people', 'Recruiters')
+    await workspace.visit('/contacts?tab=people', 'Contacts')
     await page.getByRole('button', { name: 'Find recruiters', exact: true }).click()
     await expect(page.getByRole('dialog', { name: 'Agent task' })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Find recruiters', exact: true })).toBeVisible()
@@ -111,7 +111,7 @@ test.describe('saved records', () => {
   })
 
   test('Activity: pagination resets with search and receives CLI events', async ({ workspace, page }) => {
-    await workspace.visit('/launch?tab=history', 'Activity')
+    await workspace.visit('/launch?tab=history', 'Agent')
     await page.getByRole('button', { name: 'Next', exact: true }).click()
     await expect(page.getByText('17 results · Page 2 of 2')).toBeVisible()
     await page.getByLabel('Search Activity').fill('Seed activity 17')
@@ -120,7 +120,7 @@ test.describe('saved records', () => {
     await page.getByLabel('Search Activity').fill('Live activity')
     await expect(page.getByRole('cell', { name: 'Live activity', exact: true })).toBeVisible()
     await page.reload()
-    await workspace.ready('Activity')
+    await workspace.ready('Agent')
     await page.getByLabel('Search Activity').fill('Live activity')
     await expect(page.getByRole('cell', { name: 'Live activity', exact: true })).toBeVisible()
   })

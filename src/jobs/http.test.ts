@@ -96,14 +96,18 @@ test("create and update return shared validation results and notify only after a
   vi.mocked(saveJob).mockReturnValue(result);
   expect((await call("create", { title: "Engineer", company_name: "Corp" })).status).toBe(201);
   expect(saveJob).toHaveBeenCalledWith(d.asDatabase, { title: "Engineer", company_name: "Corp" }, undefined);
+  // A job added by hand skips triage.
+  expect(d.statement.run).toHaveBeenCalledWith("now", 1);
   expect(broadcast).toHaveBeenCalledOnce();
   broadcast.mockClear();
+  d.statement.run.mockClear();
   vi.mocked(saveJob).mockReturnValue({ ...result, created: false, existing: true });
   expect((await call("create", {})).status).toBe(200);
   expect(broadcast).not.toHaveBeenCalled();
   vi.mocked(saveJob).mockReturnValue({ ...result, created: false });
   expect((await call("update", { id: 1, description: "Build" })).status).toBe(200);
   expect(saveJob).toHaveBeenLastCalledWith(d.asDatabase, { id: 1, description: "Build" }, 1);
+  expect(d.statement.run).not.toHaveBeenCalled();
 });
 test("invalid updates and identity conflicts report errors, unexpected failures propagate", async () => {
   for (const body of [null, [], {}, { id: "1" }, { id: 0 }, { id: 1.5 }])
@@ -124,6 +128,6 @@ test("shortlisting updates triage without restoring archived jobs", async () => 
   expect(d.statement.run).not.toHaveBeenCalled();
   d.statement.get.mockReturnValueOnce({ id: 1, archived_at: null });
   expect((await call("shortlist")).status).toBe(200);
-  expect(d.query).toHaveBeenCalledWith("UPDATE jobs SET shortlisted_at = COALESCE(shortlisted_at, ?) WHERE id = ?");
+  expect(d.query).toHaveBeenCalledWith("UPDATE jobs SET shortlisted_at = COALESCE(shortlisted_at, ?) WHERE id = ? AND archived_at IS NULL");
   expect(d.statement.run).toHaveBeenCalledWith("now", 1);
 });

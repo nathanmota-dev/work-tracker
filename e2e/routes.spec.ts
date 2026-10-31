@@ -92,12 +92,13 @@ for (const [title, endpoint] of readEndpoints) {
     await workspace.go(title === 'Jobs' ? 'Settings' : 'Jobs')
     await workspace.fault(endpoint)
     // A failed request deliberately keeps its loader/error visible.
-    const destinations: Record<string, string> = { Recruiters: "/contacts?tab=people", Outreach: "/contacts?tab=follow-ups", Answers: "/profile?tab=answers", Activity: "/launch?tab=history" }
-    if (destinations[title]) await page.evaluate(hash => { location.hash = hash }, destinations[title])
+    const destinations: Record<string, [string, string]> = { Recruiters: ["/contacts?tab=people", "Contacts"], Outreach: ["/contacts?tab=follow-ups", "Contacts"], Answers: ["/profile?tab=answers", "Profile"], Activity: ["/launch?tab=history", "Agent"] }
+    if (destinations[title]) await page.evaluate(hash => { location.hash = hash }, destinations[title][0])
     else await page.locator('[data-sidebar="sidebar"]').getByRole('link', { name: title, exact: true }).click()
     await expect(page.getByRole('alert').filter({ hasText: 'Synthetic transport failure' })).toBeVisible()
     await page.getByRole('button', { name: 'Try again' }).first().click()
-    await workspace.ready(title)
+    // Tabbed sections live inside their hub page.
+    await workspace.ready(destinations[title]?.[1] ?? title)
     await expect(page.getByRole('alert')).toHaveCount(0)
   })
 }

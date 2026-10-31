@@ -1,4 +1,4 @@
-import { JobError, saveJob } from "./store.ts";
+import { JobError, saveJob, shortlistJob, type Job } from "./store.ts";
 import { db, now } from "../db/index.ts";
 import { saveSearchResults } from "./search-save.ts";
 
@@ -20,7 +20,13 @@ export async function handleJobAction(
       if (action === "update" && (!body || typeof body !== "object" || !("id" in body)
         || typeof body.id !== "number" || !Number.isSafeInteger(body.id) || body.id <= 0))
         throw new JobError("Expected a positive job id.");
-      const result = saveJob(db(), body, action === "update" ? (body as { id: number }).id : undefined);
+      const d = db();
+      let result = saveJob(d, body, action === "update" ? (body as { id: number }).id : undefined);
+      // A job added by hand is already a choice; only discovered jobs wait in New.
+      if (result.created) {
+        shortlistJob(d, result.job.id);
+        result = { ...result, job: d.query("SELECT * FROM jobs WHERE id = ?").get(result.job.id) as Job };
+      }
       if (!result.existing) broadcast({ type: "changed", table: "jobs" });
       return Response.json(result, { status: result.created ? 201 : 200 });
     } catch (error) {
@@ -57,7 +63,7 @@ export async function handleJobAction(
       d.query("DELETE FROM jobs WHERE id = ?").run(job.id);
     } else if (action === "shortlist") {
       if (job.archived_at) return { error: "Restore this job before moving it to the shortlist.", status: 409 };
-      d.query("UPDATE jobs SET shortlisted_at = COALESCE(shortlisted_at, ?) WHERE id = ?").run(now(), job.id);
+      shortlistJob(d, job.id);
     } else {
       d.query("UPDATE jobs SET archived_at = ? WHERE id = ?").run(
         action === "archive" ? job.archived_at ?? now() : null,

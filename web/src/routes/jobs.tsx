@@ -205,7 +205,9 @@ function useJobs() {
     setEditing(null)
     setNotice(result.existing ? `Job #${result.job.id} already exists. Its saved content was preserved.` : "Job saved.")
     api.refresh()
-    setSelectedId(Number(result.job.id))
+    // Show the saved job in its tab: added jobs skip triage, edits keep theirs.
+    const view = result.job.archived_at ? "archived" : result.job.shortlisted_at ? "shortlist" : "new"
+    update({ selected: String(result.job.id), view })
   }
   return { api, selected, deleting, busy, error, active, archived, editing, notice,
     setSelectedId, edit, setDeleting, setError, actions, saved, mutate }

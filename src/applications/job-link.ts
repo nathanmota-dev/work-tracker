@@ -6,7 +6,7 @@ import { ApplicationBoardError, id, optionalText, type Body } from "./validation
 
 export { normalizeLink, linkedinJobId } from "../jobs/identity.ts";
 import { normalizeLink, linkedinJobId } from "../jobs/identity.ts";
-import { saveJob } from "../jobs/store.ts";
+import { saveJob, shortlistJob } from "../jobs/store.ts";
 export { missingForPreparation } from "../jobs/preparation.ts";
 import { missingForPreparation } from "../jobs/preparation.ts";
 
@@ -112,6 +112,7 @@ export function linkJob(d: Database, body: Body): JobLinkResult {
       company_name = COALESCE(company_name, ?), role_title = COALESCE(role_title, ?), external_url = COALESCE(external_url, ?),
       comp = COALESCE(comp, ?), updated_at = ? WHERE id = ?`)
     .run(job.id, job.company_name, job.title, job.link, job.comp, now(), record.id);
+  shortlistJob(d, job.id);
   d.query("INSERT INTO activity_log (kind, summary, payload_json) VALUES ('application', ?, ?)")
     .run(`Linked application #${record.id} to job #${job.id}`, JSON.stringify({ applicationId: record.id, jobId: job.id, createdJob: created, previousJobId: record.job_id }));
   return { application_id: record.id, job_id: job.id, created_job: created, missing: missingForPreparation({ ...job, description: job.description ?? description }) };

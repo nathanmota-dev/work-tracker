@@ -228,9 +228,26 @@ it.each([
 
 it("persists Profile and Contacts tabs in the URL", async () => {
   const { router } = await mount("/profile")
-  fireEvent.click(await screen.findByRole("tab", { name: "Answers" }))
+  fireEvent.mouseDown(await screen.findByRole("tab", { name: "Answers" }))
   await waitFor(() => expect(router.state.location.search.tab).toBe("answers"))
   await go(router, "/contacts")
-  fireEvent.click(await screen.findByRole("tab", { name: "Follow-ups" }))
+  fireEvent.mouseDown(await screen.findByRole("tab", { name: "Follow-ups" }))
   await waitFor(() => expect(router.state.location.search.tab).toBe("follow-ups"))
+})
+
+it("opens a job added by hand in the shortlist tab with its details", async () => {
+  const original = request.getMockImplementation()!
+  request.mockImplementation(async (path: string, body?: { jobId?: number }) => {
+    if (path !== "jobs/create") return original(path, body)
+    const job = { id: 99, title: "Manual role", company_name: "Hand Corp", status: "saved", shortlisted_at: at }
+    jobs.push(job)
+    return { job, created: true, existing: false, missing: [] }
+  })
+  const { router } = await mount("/jobs")
+  fireEvent.click(await screen.findByRole("button", { name: "Add job" }))
+  fireEvent.change(screen.getByLabelText("Role title"), { target: { value: "Manual role" } })
+  fireEvent.change(screen.getByLabelText("Company name"), { target: { value: "Hand Corp" } })
+  fireEvent.click(screen.getByRole("button", { name: "Save job" }))
+  await waitFor(() => expect(router.state.location.search).toMatchObject({ view: "shortlist", selected: "99" }))
+  expect(await screen.findByRole("dialog", { name: "Manual role" })).toBeInTheDocument()
 })

@@ -124,7 +124,7 @@ export function ProfilePage() {
   const metrics = useApi<Row[]>("metrics")
   return (
     <Page
-      title="Profile"
+      title="LinkedIn profile"
       description="Understand how you show up, and where to grow."
       actions={
         <Button size="sm" onClick={() => prepareSkill("profile-optimizer")}>

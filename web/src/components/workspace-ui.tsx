@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react"
+import { createContext, useContext, useState, type ReactNode } from "react"
 import { ArrowUpRight, Inbox, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -12,6 +12,12 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog"
 import { openExternal, text, webUrl, type Row } from "@/lib/api"
+
+// Hub tabs show whole pages as sections of one parent page.
+const EmbeddedPage = createContext(false)
+export function PageSection({ children }: { children: ReactNode }) {
+  return <EmbeddedPage.Provider value>{children}</EmbeddedPage.Provider>
+}
 export function Page({
   title,
   description,
@@ -23,11 +29,16 @@ export function Page({
   actions?: ReactNode
   children: ReactNode
 }) {
+  const embedded = useContext(EmbeddedPage)
+  const Heading = embedded ? "h2" : "h1"
   return (
-    <section className="flex min-w-0 flex-1 flex-col gap-6 p-6">
+    <section
+      aria-label={embedded ? title : undefined}
+      className={embedded ? "flex min-w-0 flex-col gap-4" : "flex min-w-0 flex-1 flex-col gap-6 p-6"}
+    >
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-base font-medium">{title}</h1>
+          <Heading className={embedded ? "text-sm font-medium" : "text-base font-medium"}>{title}</Heading>
           <p className="mt-1 text-sm text-muted-foreground">{description}</p>
         </div>
         <div className="flex flex-wrap gap-2">{actions}</div>

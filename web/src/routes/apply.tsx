@@ -89,7 +89,7 @@ function ApplyWorkspace({ search, review, reviewLocked = false }: { search: Revi
   return <Page title="Application" description="One role, from job description to confirmed submission." actions={<Status value={run?.decisionStatus ? "Waiting for decision" : run ? `${run.phase} · ${run.status}` : "Ready"} />}>
     {review}
     {details.data && <ApplicationStepper steps={steps} />}
-    {!review && <p>{sources.data?.config.projectDir ? "Base resume configured" : "Base resume missing"} · <a href="#/profile?tab=resume">Configure resume sources</a></p>}
+    {!review && sources.data && <p className="text-sm text-muted-foreground">{sources.data.config.projectDir ? "Base resume configured" : "Base resume missing"} · <a className="text-foreground underline" href="#/profile?tab=resume">Configure resume sources</a></p>}
     <Panel title="Opportunity">
       {!review && <div className="grid gap-4 md:grid-cols-2">
         <Field label="Agent"><SelectControl className={controlClass} value={selectedProvider?.id ?? ""} disabled={busy} onChange={e => { setProvider(e.target.value); setModel("") }}>{providers.data?.providers.map(p => <option key={p.id} value={p.id}>{p.displayName}</option>)}</SelectControl></Field>
