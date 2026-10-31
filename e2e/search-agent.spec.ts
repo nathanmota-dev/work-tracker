@@ -25,7 +25,7 @@ test('Jobs: assessed search runs in the contextual panel with all criteria', asy
 })
 
 test('Search: people/company filters, empty results, errors and retry', async ({ workspace, page }) => {
-  await workspace.visit('/contacts?tab=people', 'Search')
+  await workspace.visit('/contacts?tab=people', 'Contacts')
   await page.getByLabel('Keywords').fill('Technical recruiter')
   await page.getByLabel('Company', { exact: true }).fill('Example Company')
   await page.getByLabel('Location', { exact: true }).fill('Brazil')
@@ -69,8 +69,8 @@ for (const [skill, field, input, destination, result] of skills) {
     if (input) expect(prompt.text).toContain(input)
     await page.getByText('Read LinkedIn profile', { exact: true }).click()
     await expect(page.getByText('Synthetic tool completed', { exact: true })).toBeVisible()
-    if (destination === "Recruiters") await workspace.visit("/contacts", "Recruiters")
-    else if (destination === "Activity") await workspace.visit("/launch?tab=history", "Activity")
+    if (destination === "Recruiters") await workspace.visit("/contacts", "Contacts")
+    else if (destination === "Activity") await workspace.visit("/launch?tab=history", "Agent")
     else await workspace.go(destination)
     if (destination === 'Recruiters') await expect(page.getByRole('button', { name: 'View Alex Recruiter' })).toBeVisible()
     else await expect(page.getByText(result, { exact: true }).first()).toBeVisible()

@@ -2,6 +2,7 @@ import { beforeEach, expect, test, vi } from "vitest";
 import type { Database } from "../db/sqlite.ts";
 import { insertApplication, insertJob, memoryDatabase } from "../test/memory-db.ts";
 import { jobCandidates, jobLinkOptions, linkJob, linkedinJobId, missingForPreparation, normalizeLink } from "./job-link.ts";
+import { openApplication } from "./journey-store.ts";
 vi.mock("../db/index.ts", () => ({ db: vi.fn(), now: () => "2026-10-17T10:00:00.000Z" }));
 
 let d: Database;
@@ -106,4 +107,20 @@ test("links a chosen job, fills only empty fields and repairs a missing job refe
   expect(d.query("SELECT description FROM jobs WHERE id = ?").get(other)).toEqual({ description: "Original" });
   const bare = insertJob(d, { link: "https://jobs.example.test/y" });
   expect(linkJob(d, { id: manual(), job_id: bare }).missing).toEqual(["description"]);
+});
+
+test("a job with an application leaves New for the shortlist, unless it is archived", () => {
+  const shortlisted = (id: number) => (d.query("SELECT shortlisted_at FROM jobs WHERE id = ?").get(id) as { shortlisted_at: string | null }).shortlisted_at;
+  const linked = insertJob(d);
+  linkJob(d, { id: manual(), job_id: linked });
+  expect(shortlisted(linked)).toBe("2026-10-17T10:00:00.000Z");
+  const prepared = insertJob(d, { link: "https://jobs.example.test/prepared" });
+  openApplication(d, { jobId: prepared, origin: "preparation" });
+  expect(shortlisted(prepared)).toBe("2026-10-17T10:00:00.000Z");
+  const archived = insertJob(d, { link: "https://jobs.example.test/archived", archived_at: "2026-10-01T00:00:00.000Z" });
+  openApplication(d, { jobId: archived, origin: "manual" });
+  expect(shortlisted(archived)).toBeNull();
+  const kept = insertJob(d, { link: "https://jobs.example.test/kept", shortlisted_at: "2026-09-01T00:00:00.000Z" });
+  openApplication(d, { jobId: kept, origin: "agent" });
+  expect(shortlisted(kept)).toBe("2026-09-01T00:00:00.000Z");
 });

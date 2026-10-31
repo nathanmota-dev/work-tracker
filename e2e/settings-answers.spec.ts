@@ -22,7 +22,7 @@ test('Settings / Answers / Profile: shared identity, validation, failed save and
   await page.getByLabel('First name').fill('Discard me')
   await page.getByRole('button', { name: 'Discard changes' }).click()
   await expect(page.getByLabel('First name')).toHaveValue('Taylor')
-  await workspace.visit('/profile?tab=answers', 'Answers')
+  await workspace.visit('/profile?tab=answers', 'Profile')
   await page.getByLabel('Advanced mode').check()
   await page.getByRole('button', { name: 'View email', exact: true }).click()
   await expect(page.getByLabel('Field key')).toBeDisabled()
@@ -49,7 +49,7 @@ test('Settings / Answers / Profile: shared identity, validation, failed save and
 })
 
 test('Answers: create, duplicate guard, edit failure retry, cancellation and realtime changes', async ({ workspace, page }) => {
-  await workspace.visit('/profile?tab=answers', 'Answers')
+  await workspace.visit('/profile?tab=answers', 'Profile')
   await page.getByLabel('Advanced mode').check()
   await page.getByRole('button', { name: 'Add answer' }).click()
   await expect(page.getByRole('button', { name: 'Save answer' })).toBeDisabled()
@@ -134,7 +134,7 @@ test('Settings: resume pickers, invalid sources, real preview and download', asy
 })
 
 test('Answers: friendly catalog, language variants, explicit fallback and deletion persistence', async ({ workspace, page }) => {
-  await workspace.visit('/profile?tab=answers', 'Answers')
+  await workspace.visit('/profile?tab=answers', 'Profile')
   await expect(page.getByText('Required answer missing — add it')).toHaveCount(3)
   await page.getByRole('button', { name: /Email · Required/ }).click()
   await page.getByRole('textbox', { name: 'Answer', exact: true }).fill('invalid')
@@ -167,7 +167,7 @@ test('Answers: friendly catalog, language variants, explicit fallback and deleti
   await expect(page.getByRole('dialog')).toHaveCount(0)
   expect(workspace.query("SELECT value FROM applicant_answers WHERE key = 'notice_period'")[0]?.value).toBe('Two weeks')
   await workspace.restart()
-  await workspace.visit('/profile?tab=answers', 'Answers')
+  await workspace.visit('/profile?tab=answers', 'Profile')
   await expect(workspace.page.getByRole('cell', { name: 'Two weeks', exact: true })).toBeVisible()
   await expect(workspace.page.getByRole('cell', { name: 'Duas semanas', exact: true })).toHaveCount(0)
 })

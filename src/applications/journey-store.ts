@@ -1,5 +1,6 @@
 import { now } from "../db/index.ts";
 import type { Database } from "../db/sqlite.ts";
+import { shortlistJob } from "../jobs/store.ts";
 import {
   JourneyError,
   TRANSITIONS,
@@ -100,6 +101,7 @@ export function openApplication(d: Database, input: OpenApplication): { record: 
   const row = d.query(`INSERT INTO applications (job_id, origin, attempt, previous_application_id, idempotency_key, status, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, 'draft', ?, ?) RETURNING id`)
     .get(input.jobId, input.origin, (latest?.attempt ?? 0) + 1, latest?.id ?? null, input.idempotencyKey ?? null, at, at) as { id: number };
+  if (input.jobId !== null) shortlistJob(d, input.jobId);
   return { record: journeyRecord(d, row.id), created: true };
 }
 

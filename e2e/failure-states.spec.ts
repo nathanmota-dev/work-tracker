@@ -5,7 +5,7 @@ import { execFileSync } from 'node:child_process'
 import { join } from 'node:path'
 
 test('Jobs: pending load is visible and resolves through the real backend', async ({ workspace, page }) => {
-  await workspace.visit('/contacts?tab=people', 'Search')
+  await workspace.visit('/contacts?tab=people', 'Contacts')
   await workspace.fault('jobs', 'hold')
   await page.locator('[data-sidebar="sidebar"]').getByRole('link', { name: 'Jobs', exact: true }).click()
   await expect(page.getByLabel('Loading workspace')).toBeVisible()

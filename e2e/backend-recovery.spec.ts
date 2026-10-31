@@ -41,7 +41,7 @@ test('Backend: an unexpected exit is shown and recovered without closing the win
   // Navigation and live updates keep working against the new backend.
   await workspace.go('Jobs')
   await expect(page.getByRole('cell').filter({ hasText: 'Engineer 01' })).toBeVisible()
-  await workspace.visit('/launch?tab=history', 'Activity')
+  await workspace.visit('/launch?tab=history', 'Agent')
   await page.getByLabel('Search Activity').fill('Recovered backend')
   workspace.cli(['activity', 'log', '--summary', 'Recovered backend activity', '--skill', 'synthetic'])
   await expect(page.getByRole('cell', { name: 'Recovered backend activity', exact: true })).toHaveCount(1)

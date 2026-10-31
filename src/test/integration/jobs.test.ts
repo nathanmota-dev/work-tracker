@@ -138,3 +138,11 @@ test("existing jobs migrate to shortlist while CLI and search results require ex
   const overview = queries.overview() as unknown as Record<string, number>;
   expect(overview.jobs).toBe(overview.new_jobs! + overview.shortlisted_jobs!);
 });
+
+test("a job added by hand goes straight to the shortlist", async () => {
+  const response = await request("create", { title: "Manual triage", company_name: "Acme", link: "https://example.com/manual-triage" });
+  expect(response.status).toBe(201);
+  const { job } = await response.json() as { job: { id: number; shortlisted_at: string | null } };
+  expect(job.shortlisted_at).toEqual(expect.any(String));
+  expect(find(job.id)).toMatchObject({ shortlisted_at: job.shortlisted_at });
+});

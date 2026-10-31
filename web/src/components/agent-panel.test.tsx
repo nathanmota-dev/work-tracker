@@ -5,7 +5,8 @@ import { AgentIndicator } from "./agent-indicator"
 import { clearAgent, dismissAgentCompletion, prepareSkill, runAgent, setAgentPanelOpen } from "@/lib/agent"
 import { publish } from "@/lib/api"
 
-vi.mock("@tanstack/react-router", () => ({ Link: ({ to, children, ...props }: React.PropsWithChildren<{ to: string }>) => <a href={to} {...props}>{children}</a> }))
+vi.mock("@tanstack/react-router", () => ({ Link: ({ to, search, children, ...props }: React.PropsWithChildren<{ to: string; search?: Record<string, string> }>) =>
+  <a href={search ? `${to}?${new URLSearchParams(search)}` : to} {...props}>{children}</a> }))
 const request = vi.fn()
 beforeEach(() => {
   request.mockReset().mockImplementation(async path => {
@@ -39,9 +40,20 @@ it("keeps contextual fields, saved defaults and conversation after closing the p
   expect(screen.getByText(/An agent is already running/)).toHaveTextContent("Audit your profile")
   expect(screen.getByLabelText("LinkedIn username")).toHaveValue("ana")
   act(() => publish({ type: "acp-status", status: "done" }))
-  expect(screen.getByRole("link", { name: "View new jobs" })).toHaveAttribute("href", "/jobs")
+  expect(screen.getByRole("link", { name: "View new jobs" })).toHaveAttribute("href", "/jobs?view=new")
   fireEvent.click(screen.getByRole("link", { name: "View new jobs" }))
   expect(screen.queryByText("Agent task completed.")).not.toBeInTheDocument()
+})
+
+it.each([
+  ["recruiter-outreach", "View recruiters", "/contacts?tab=people"],
+  ["outreach-tracker", "Review outreach", "/contacts?tab=follow-ups"],
+  ["profile-optimizer", "View profile", "/profile?tab=linkedin"],
+])("links a finished %s run straight to its hub tab", async (skill, label, href) => {
+  render(<AgentCompletion />)
+  await act(() => runAgent("opencode", skill, {}))
+  act(() => publish({ type: "acp-status", status: "done" }))
+  expect(screen.getByRole("link", { name: label })).toHaveAttribute("href", href)
 })
 
 it("reflects running, permission, login, completion and failure globally", async () => {

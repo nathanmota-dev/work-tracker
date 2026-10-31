@@ -6,7 +6,7 @@ Saving a draft does not create an application or start an agent. The form lists 
 
 ## API and CLI
 
-- `POST /api/jobs/create` accepts job fields and returns `{ job, created, existing, missing }`. A new job returns 201; an existing identity returns 200 with `existing: true` and the original saved content.
+- `POST /api/jobs/create` accepts job fields and returns `{ job, created, existing, missing }`. A new job returns 201 and is shortlisted; an existing identity returns 200 with `existing: true` and the original saved content.
 - `POST /api/jobs/update` accepts a positive local `id` and the fields to change. Omitted fields are preserved; empty optional text clears that field. A conflicting identity returns 409 with `existing_id` when available.
 - Writable fields are `title`, `company_name`, `link`, `description`, `location`, `work_type`, `comp`, `fit`, `status`, `requirements_json`, `source`, `source_job_id` and `linkedin_job_id`.
 - `work-tracker job save --title 'Engineer' --company 'Example' --source careers --source-id 42 --link 'https://careers.example/jobs?id=42'` uses the same validation and deduplication rules. Existing records are reported explicitly. Rediscovery can refresh supplied fit/status fields; archived jobs stay archived.
@@ -26,8 +26,11 @@ agent** opens the contextual job-scout panel with the same criteria. Each search
 reports saved, already saved and failed items. Repeated searches preserve existing
 jobs, including archived roles.
 
-New jobs (including manual and CLI saves) appear in **New**, never directly in
-**Shortlist**. Select one or several and choose **Move to shortlist** or **Archive**.
+Discovered jobs (LinkedIn searches and CLI/agent saves) appear in **New**, never
+directly in **Shortlist**. Select one or several and choose **Move to shortlist** or
+**Archive**. A job added by hand with **Add job** is already a choice, so it goes
+straight to **Shortlist**, and so does a job that gets an application (opened from
+Apply or linked from a manual application); archived jobs stay archived.
 Shortlist retains filtering, selection and batch preparation. Archived jobs retain
 their prior triage state on restoration. The search criteria and tab persist in
-the URL; legacy Search job links redirect to Jobs. Search now finds only people.
+the URL; legacy Search job links redirect to Jobs, and people search lives in Contacts.

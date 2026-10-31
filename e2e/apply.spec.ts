@@ -147,7 +147,7 @@ test('Apply: real PDFs, generation/regeneration/history, filling, submission and
   await page.getByRole('button', { name: 'View React Engineer' }).click()
   await page.getByRole('dialog').getByRole('button', { name: 'Prepare application' }).click()
   await expect(page).toHaveURL(new RegExp(`jobId=1&applicationId=${id}`))
-  await workspace.visit('/launch?tab=history', 'Activity')
+  await workspace.visit('/launch?tab=history', 'Agent')
   await expect(page.getByRole('cell', { name: 'Prepared Example Company React Engineer', exact: true }).first()).toBeVisible()
   await workspace.restart()
   await workspace.go('Applications')
