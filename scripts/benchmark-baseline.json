@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "kind": "reviewed",
+  "generatedFromCommit": "87a47b33f525",
+  "runtime": {
+    "node": "v24.18.0",
+    "platform": "linux",
+    "arch": "x64",
+    "runner": "local",
+    "runId": "local"
+  },
+  "policy": {
+    "maxRegressionPercent": 20
+  },
+  "projects": {
+    "backend": {
+      "benchmarks": {
+        "backend hot paths > ATS field matching > match 100 ATS fields": {
+          "hz": 55.84855010029552,
+          "mean": 17.96329903125,
+          "median": 17.713052499999947,
+          "rme": 1.361510809662269,
+          "sampleCount": 64
+        },
+        "backend hot paths > outreach due-action evaluation > evaluate 10000 outreach attempts": {
+          "hz": 392.0135894237107,
+          "mean": 2.5758753084832775,
+          "median": 2.4922209999999723,
+          "rme": 0.8732217735231153,
+          "sampleCount": 389
+        }
+      }
+    },
+    "frontend": {
+      "benchmarks": {
+        "frontend hot paths > application board filtering > filter 5000 applications": {
+          "hz": 322.57077451058814,
+          "mean": 3.1394867805642632,
+          "median": 2.996306000000004,
+          "rme": 1.052891395471522,
+          "sampleCount": 319
+        },
+        "frontend hot paths > preparation history assembly > assemble 2000 history events": {
+          "hz": 8519.680697264845,
+          "mean": 0.12430811883157347,
+          "median": 0.10894900000039343,
+          "rme": 0.393063686915753,
+          "sampleCount": 8045
+        }
+      }
+    }
+  }
+}

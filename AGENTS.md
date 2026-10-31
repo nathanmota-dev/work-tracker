@@ -19,6 +19,8 @@ When a task requires creating a Git branch, commit, or pull request, follow the 
 
 Before starting an implementation that requires a new branch, run `scripts/create-worktree-local.sh <branch-name> [destination] [start-point]` from the `main` worktree, then continue the task in the worktree path printed by the script. Use a branch name allowed by `git-pr-conventions`; the default destination is a sibling directory named after the repository and branch, and the default start point is `main`. Do not run the helper when the task is already in its intended worktree or does not require implementation.
 
+If you need create a new worktree, using ./scripts/copy-local-artifacts.sh .
+
 ## Mandatory verification before completing a task
 
 Whenever a task creates, modifies, or deletes application code, tests, runtime assets, dependencies, scripts, or build/runtime configuration, run **every command below**, in order, from the repository root before reporting the task as complete. This applies to backend/server, CLI, Electron main/preload, and frontend changes, regardless of how small the change is or which layer it affects. A targeted test or a partial checklist does not replace the full verification.
