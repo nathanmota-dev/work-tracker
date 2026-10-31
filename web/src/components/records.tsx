@@ -187,11 +187,14 @@ export function Records({
   statusKey,
   rowKey,
   workspace = "",
+  empty,
 }: {
   rows: Row[]
   columns: Column[]
   noun: string
   workspace?: string
+  /** Description shown while there are no records at all. */
+  empty?: ReactNode
   onSelect?: (row: Row) => void
   action?: RecordAction
   /** Column the status filter reads; defaults to `status`, then `state`. */
@@ -252,7 +255,7 @@ export function Records({
           description={
             rows.length
               ? "Try a different search or status filter."
-              : "As your job search progresses, your records will appear here."
+              : empty ?? "As your job search progresses, your records will appear here."
           }
         />
       ) : (

@@ -1,3 +1,4 @@
+import { ONBOARDING_STEPS } from "../../../src/onboarding/types"
 const string = (value: unknown) => typeof value === "string" ? value : ""
 const choice = (value: unknown, values: string[], fallback: string) => values.includes(string(value)) ? String(value) : fallback
 const integer = (value: unknown, minimum: number, fallback: number, maximum = Number.MAX_SAFE_INTEGER) => {
@@ -8,6 +9,7 @@ export const launchSkillIds = ["job-scout", "deep-scout", "profile-optimizer", "
 
 /** Only existing workspace controls are accepted; malformed URLs are harmless. */
 export function validateWorkspaceSearch(path: string, search: Record<string, unknown>): WorkspaceSearch {
+  if (path === "dashboard") return { step: choice(search.step, [...ONBOARDING_STEPS], "") || undefined }
   if (path === "profile") return { ...validateWorkspaceSearch("answers", search), tab: choice(search.tab, ["linkedin", "resume", "answers", "experiences"], "linkedin") }
   if (path === "contacts") return { ...validateWorkspaceSearch("search", search), tab: choice(search.tab, ["people", "follow-ups"], "people") }
   const records = {
@@ -51,5 +53,5 @@ export type WorkspaceSearch = {
   jobId?: number; applicationId?: number; runId?: string; provider?: string; model?: string; pdfTab?: string; workspaceTab?: string
   batchId?: string; itemId?: string; pendingOnly?: boolean
   skill?: string; target?: string; query?: string; username?: string; url?: string; jobIds?: string
-  field?: string; returnTo?: string
+  field?: string; returnTo?: string; step?: string
 }

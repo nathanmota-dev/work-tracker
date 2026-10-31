@@ -33,6 +33,10 @@ export function configuredCommand(target: Target, config = configSnapshot().conf
   const legacy = id === "linkedin" ? config.linkedinMcpCommand : undefined;
   return { command: legacy?.[0] ?? (id === "linkedin" ? "mcp-server-linkedin" : "chrome-devtools-mcp"), args: legacy?.slice(1) ?? [], env: {} };
 }
+/** Identifies one target's effective command, so a diagnostic stays valid until that command changes. */
+export function commandFingerprint(target: Target, config = configSnapshot().config): string {
+  return createHash("sha256").update(JSON.stringify(configuredCommand(target, config))).digest("hex");
+}
 const storedValue = "[stored value]";
 const storedArgument = (index: number) => `[stored argument ${index + 1}]`;
 export function integrationSettings() {

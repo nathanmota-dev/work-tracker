@@ -73,7 +73,7 @@ breadcrumb, view-specific content and reload. New sidebar entries require tests.
 
 | View | Functional coverage |
 | --- | --- |
-| Dashboard | Counts, upcoming calendar, activity, links and live CLI notifications |
+| Dashboard | Counts, upcoming calendar, activity, links, live CLI notifications and the Get started checklist |
 | Profile | Saved identity, metrics/score, audit handoff and candidate reuse |
 | Search | Jobs/people, filters, company URN, details, empty/error/retry and assessment → saved job |
 | Agent | Every selectable skill, provider/model/context, streaming/tool details, clear, errors, cancellation, sign-in retry and navigation during a run |
@@ -102,6 +102,13 @@ it checks that all five resumes reach review without filling or submitting.
 for both the queue and the application detail, a pending sign-in and two restarts keep every item's
 phase, and a fill interrupted with an unknown outcome is not repeated by resume or
 "Retry failed" until the portal review is confirmed.
+`onboarding.spec.ts` starts from an empty workspace and follows only the Dashboard
+Get started links to the first prepared application: integration diagnostics,
+essential answers, a LinkedIn search and resume generation with the fake ACP/MCP.
+A diagnostic run while the Dashboard is open completes its step without a reload,
+and a reload mid-trail keeps the progress. The manual variant skips the agent
+steps, registers a job and an application by hand without any prompt, and checks
+that skipped steps and the hidden checklist survive app restarts.
 
 Keep journeys independent; do not rely on test ordering or share databases. Use
 accessible locators and real pointer events for drag and drop. Read database state

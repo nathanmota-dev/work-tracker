@@ -5,8 +5,9 @@ import { useWorkspaceState } from "@/lib/workspace-state"
 import type { Row } from "@/lib/api"
 
 /** Selection is keyed independently of database IDs and survives filtering/paging. */
-export function MultiSelectRecords({ rows, columns, noun, rowKey, rowLabel, canSelect, busy, action, onSelect, workspace = "", selectionRows = rows, selectAllLabel = "Select all eligible results" }: {
+export function MultiSelectRecords({ rows, columns, noun, rowKey, rowLabel, canSelect, busy, action, onSelect, workspace = "", selectionRows = rows, selectAllLabel = "Select all eligible results", empty }: {
   workspace?: string
+  empty?: ReactNode
   rows: Row[]
   /** Complete selectable set, independent of the displayed archive tab/page. */
   selectionRows?: Row[]
@@ -39,6 +40,7 @@ export function MultiSelectRecords({ rows, columns, noun, rowKey, rowLabel, canS
     <Records
       workspace={workspace}
       noun={noun}
+      empty={empty}
       rows={rows}
       rowKey={rowKey}
       onSelect={onSelect}

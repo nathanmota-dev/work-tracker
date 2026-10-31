@@ -2,6 +2,8 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, expect, it, vi } from "vitest"
 import { JobDiscovery } from "./job-discovery"
 import { prepareSkill } from "@/lib/agent"
+// The Get started checklist reads its own status; these flows cover other requests.
+vi.mock("@/components/get-started", () => ({ NextStepHint: ({ fallback }: { fallback?: string }) => <>{fallback}</>, SetupNotice: () => null }))
 
 const state = vi.hoisted(() => ({ agent: { completion: null as null | { id: number; skill: string }, jobOutcomes: [] as unknown[] } }))
 vi.mock("@/lib/agent", () => ({ prepareSkill: vi.fn(), useAgent: () => state.agent }))

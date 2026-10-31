@@ -36,6 +36,7 @@ export function createAppRouter(sidebarLayout: RouteComponent) {
     getParentRoute: () => sidebarRoute,
     path: "dashboard",
     component: Outlet,
+    validateSearch: (search: Record<string, unknown>) => validateWorkspaceSearch("dashboard", search),
     staticData: { title: "Dashboard" },
   })
 

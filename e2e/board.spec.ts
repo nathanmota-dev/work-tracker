@@ -87,7 +87,7 @@ for (const outcome of ['Rejected', 'Withdrawn', 'No response', 'Hired']) {
 }
 
 test('Board: real pointer drag changes stage and dropping in archive requires confirmation', async ({ workspace, page }) => {
-  await workspace.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(1400, 1000))
+  await workspace.resize(1400, 1000)
   await workspace.board()
   await create(page)
   const handle = page.getByRole('button', { name: 'Drag Board Company application' })

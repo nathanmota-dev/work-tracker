@@ -1,13 +1,14 @@
 import { beforeEach, expect, test, vi } from "vitest";
 import { handleIntegrations, integrationStatus, integrationTesting, resetDiagnostics } from "./http.ts";
-const fake = vi.hoisted(() => ({ executable: vi.fn(), probe: vi.fn(), save: vi.fn(), snapshot: vi.fn(), close: vi.fn() }));
+const fake = vi.hoisted(() => ({ executable: vi.fn(), probe: vi.fn(), save: vi.fn(), snapshot: vi.fn(), close: vi.fn(), verified: vi.fn() }));
+vi.mock("../onboarding/store.ts", () => ({ recordVerification: fake.verified }));
 vi.mock("../cli/doctor.ts", () => ({ executableExists: fake.executable }));
 vi.mock("../cli/skills.ts", () => ({ agentEnvironment: () => ({ PATH: "/fixture/bin" }) }));
 vi.mock("../preparation/latex.ts", () => ({ dependencyStatus: async () => [{ command: "latexmk", available: true }] }));
 vi.mock("../preparation/sources.ts", () => ({ sourcesConfig: () => ({ engine: "pdflatex" }) }));
 vi.mock("../mcp/linkedin.ts", () => ({ closeMcp: () => fake.close() }));
 vi.mock("./probe.ts", () => ({ probeIntegration: fake.probe }));
-vi.mock("./config.ts", async original => ({ ...await original<typeof import("./config.ts")>(), configSnapshot: fake.snapshot, configuredCommand: () => ({ command: "fixture", args: [], env: {} }), integrationSettings: () => ({ revision: "revision", entries: [] }), saveIntegration: fake.save }));
+vi.mock("./config.ts", async original => ({ ...await original<typeof import("./config.ts")>(), configSnapshot: fake.snapshot, configuredCommand: () => ({ command: "fixture", args: [], env: {} }), commandFingerprint: () => "f".repeat(64), integrationSettings: () => ({ revision: "revision", entries: [] }), saveIntegration: fake.save }));
 const broadcast = vi.fn();
 const call = (path = "/api/integrations", body?: unknown, busy = false, method = body === undefined ? "GET" : "POST") => handleIntegrations(path, new Request("http://fixture" + path, { method, ...(body !== undefined && { body: JSON.stringify(body) }) }), busy, broadcast);
 beforeEach(() => { vi.clearAllMocks(); resetDiagnostics(); fake.snapshot.mockReturnValue({ revision: "revision", config: {} }); fake.executable.mockReturnValue(true); fake.probe.mockResolvedValue([{ stage: "connection", state: "ready", message: "Ready" }]); fake.save.mockReturnValue({ revision: "new", entries: [] }); fake.close.mockResolvedValue(undefined); });
@@ -16,6 +17,7 @@ test("reads settings/status, saves atomically and invalidates cached diagnostics
   expect(await (await call("/api/integrations/status")).json()).toMatchObject({ backend: true, dependencies: [{ available: true }] });
   await call("/api/integrations/test", { target: "acp/opencode" });
   expect((await integrationStatus()).entries[0]?.diagnostic?.checks[0]?.state).toBe("ready");
+  expect(fake.verified).toHaveBeenCalledWith("acp/opencode", expect.stringMatching(/^[0-9a-f]{64}$/), true);
   expect((await call("/api/integrations", { command: "new" })).status).toBe(200);
   expect(fake.close).toHaveBeenCalledOnce(); expect(broadcast).toHaveBeenCalledWith({ type: "changed", table: "integrations" });
   expect((await integrationStatus()).entries[0]?.diagnostic).toBeUndefined();
@@ -25,6 +27,7 @@ test("missing commands never launch a process; model changes and revisions stay 
   const result = await (await call("/api/integrations/test", { target: "acp/opencode", model: "one" })).json();
   expect(result).toMatchObject({ model: "one", checks: [{ state: "missing_executable" }] });
   expect(fake.probe).not.toHaveBeenCalled();
+  expect(fake.verified).toHaveBeenCalledWith("acp/opencode", expect.any(String), false);
   fake.snapshot.mockReturnValue({ revision: "other", config: {} });
   expect((await integrationStatus()).entries[0]?.diagnostic).toBeUndefined();
 });

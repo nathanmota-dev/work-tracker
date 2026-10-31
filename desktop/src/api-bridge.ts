@@ -6,6 +6,7 @@ import type { BackendConnection, BackendState } from "./backend-supervisor"
 const reads = new Set([
   "integrations",
   "integrations/status",
+  "onboarding/status",
   "overview",
   "recruiters",
   "recruiters/due",
@@ -30,6 +31,7 @@ const reads = new Set([
 const writes = new Set([
   "integrations",
   "integrations/test",
+  "onboarding/preferences",
   "browser/login",
   "jobs/create",
   "jobs/update",

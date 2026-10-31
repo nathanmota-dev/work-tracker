@@ -11,6 +11,7 @@ import { AgentIndicator } from "@/components/agent-indicator"
 import { AgentSelectors, RunFooter, SkillFields, WorkspaceActions } from "@/components/launch-form"
 import { BrowserSignIn } from "@/components/browser-sign-in"
 import { LoadState } from "@/components/workspace-ui"
+import { SetupNotice } from "@/components/get-started"
 import { reviewPermission } from "@/components/agent-permissions"
 import type { PermissionSnapshot } from "@/lib/permissions"
 
@@ -35,6 +36,7 @@ function AgentPanelForm() {
     <h3 className="font-medium">{selected.name}</h3>
     <p className="text-sm text-muted-foreground">{selected.description}</p>
     <LoadState {...api} retry={api.refresh} />
+    <SetupNotice step="connect">Your agent and integrations have not passed a test yet, so this task may stop early.</SetupNotice>
     <SkillFields fields={selected.fields} skill={draft.skill} params={draft.params} setParams={setParams} username={candidateFromAnswers(profile.data ?? []).linkedinUsername} disabled={agent.running} />
     <details className="space-y-3">
       <summary className="cursor-pointer text-sm">Advanced</summary>

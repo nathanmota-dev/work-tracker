@@ -3,6 +3,8 @@ import { beforeEach, expect, it, vi } from "vitest"
 import { JobsPage } from "@/routes/jobs"
 import { JobForm } from "@/components/job-form"
 import type { Row } from "@/lib/api"
+// The Get started checklist reads its own status; these flows cover other requests.
+vi.mock("@/components/get-started", () => ({ NextStepHint: ({ fallback }: { fallback?: string }) => <>{fallback}</>, SetupNotice: () => null }))
 
 let jobs: Row[]
 const request = vi.fn()

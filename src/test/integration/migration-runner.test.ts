@@ -46,6 +46,7 @@ test("creates a new database at the latest version without running steps", () =>
     { version: 8, name: "preparation batch queue", applied_at: "2026-10-16T12:00:00.000Z" },
     { version: 9, name: "idempotent batch requests", applied_at: "2026-10-16T12:00:00.000Z" },
     { version: 10, name: "job triage", applied_at: "2026-10-16T12:00:00.000Z" },
+    { version: 11, name: "onboarding preferences", applied_at: "2026-10-16T12:00:00.000Z" },
   ]);
   expect(value(d, "SELECT COUNT(*) FROM outreach_budget")).toBe(1);
 });
@@ -63,7 +64,7 @@ test("upgrades an unversioned legacy workspace in place, keeping IDs and links",
   expect(existsSync(options.backupDir)).toBe(false);
   // The journey step then snapshots it and flags the ambiguous status for review.
   const result = migrateDatabase(d, latest);
-  expect(result).toMatchObject({ mode: "migrated", from: 3, to: SCHEMA_VERSION, applied: [4, 5, 6, 7, 8, 9, 10] });
+  expect(result).toMatchObject({ mode: "migrated", from: 3, to: SCHEMA_VERSION, applied: [4, 5, 6, 7, 8, 9, 10, 11] });
   expect(existsSync(result.backup!)).toBe(true);
   expect(value(d, "SELECT COUNT(*) FROM jobs WHERE shortlisted_at IS NULL")).toBe(0);
   expect(d.query("SELECT id, job_id, status, submission_status, review_reason, attempt FROM applications").all()).toEqual([
@@ -174,7 +175,7 @@ test("v4 workspaces gain external source fields without changing jobs or applica
     UPDATE meta SET value = '4' WHERE key = 'schema_version';
     INSERT INTO jobs (id, title) VALUES (81, 'External');
     INSERT INTO applications (id, job_id) VALUES (91, 81);`);
-  expect(migrateDatabase(d, latest)).toMatchObject({ from: 4, to: SCHEMA_VERSION, applied: [5, 6, 7, 8, 9, 10], backup: expect.any(String) });
+  expect(migrateDatabase(d, latest)).toMatchObject({ from: 4, to: SCHEMA_VERSION, applied: [5, 6, 7, 8, 9, 10, 11], backup: expect.any(String) });
   expect(d.query("SELECT id, title, source, source_job_id FROM jobs").all()).toEqual([{ id: 81, title: "External", source: null, source_job_id: null }]);
   expect(d.query("SELECT id, job_id FROM applications").all()).toEqual([{ id: 91, job_id: 81 }]);
   d.close();
