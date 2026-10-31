@@ -5,6 +5,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Stats, Status } from "@/components/workspace-ui"
 import { type Column } from "@/components/records"
 import { MultiSelectRecords } from "@/components/multi-select-records"
+import { NextStepHint } from "@/components/get-started"
 import { BatchPreparation } from "@/components/batch-preparation"
 import { useWorkspaceState } from "@/lib/workspace-state"
 import { text, date, type Row } from "@/lib/api"
@@ -225,6 +226,7 @@ export function JobTabs({
             : <BatchPreparation jobs={jobs} onCreated={clear} />}
           rows={rows}
           noun={view === "archived" ? "Archived opportunities" : "Opportunities"}
+          empty={view === "archived" ? undefined : <NextStepHint fallback={view === "new" ? "Search LinkedIn above or add a job by hand to start your list." : "Move roles from New to build your shortlist."} />}
           onSelect={onSelect}
           columns={columns}
         />

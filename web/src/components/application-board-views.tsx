@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Empty } from "@/components/workspace-ui"
+import { NextStepHint } from "@/components/get-started"
 import { date } from "@/lib/api"
 import {
   ARCHIVE_REASONS,
@@ -74,7 +75,7 @@ export function ActiveBoard({
       {!active.length && !preparation.total && (
         <Empty
           title="No active applications yet"
-          description="Register an application with just a company name and job link."
+          description={<NextStepHint fallback="Register an application with just a company name and job link." />}
         >
           <Button onClick={onCreate}>New application</Button>
         </Empty>

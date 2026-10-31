@@ -6,7 +6,7 @@ test.describe('workspace context', () => {
 
   test('Jobs → application detail → back keeps URL controls and restores drafts after an app restart', async ({ workspace, page }) => {
     workspace.query("UPDATE jobs SET status = 'saved'")
-    await workspace.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(1100, 550))
+    await workspace.resize(1100, 550)
     await workspace.go('Jobs')
     await page.getByLabel('Search Opportunities', { exact: true }).fill('Engineer')
     await choose(page, 'Filter by status', 'saved')

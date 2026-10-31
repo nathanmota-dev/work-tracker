@@ -1,9 +1,12 @@
 import { Sparkles } from "lucide-react"
 import { DashboardOverview } from "@/components/dashboard-overview"
+import { GetStarted } from "@/components/get-started"
 import { Page } from "@/components/workspace-ui"
 import { Button } from "@/components/ui/button"
 import { Link } from "@tanstack/react-router"
+import { useWorkspaceState } from "@/lib/workspace-state"
 export function Dashboard() {
+  const { search } = useWorkspaceState("dashboard")
   return (
     <Page
       title="Dashboard"
@@ -15,6 +18,7 @@ export function Dashboard() {
         </Link></Button>
       }
     >
+      <GetStarted focus={search.step} />
       <DashboardOverview />
     </Page>
   )

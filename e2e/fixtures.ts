@@ -151,7 +151,10 @@ export class Workspace {
   async release() { await this.app.evaluate(() => (globalThis as typeof globalThis & { e2eRelease?: () => void }).e2eRelease?.()) }
   async picker(paths?: string[], save?: string) { await this.app.evaluate((_electron, value) => Object.assign(globalThis, { e2eOpen: value.paths, e2eSave: value.save }), { paths, save }) }
   async external() { return this.app.evaluate(() => (globalThis as typeof globalThis & { e2eExternal: string[] }).e2eExternal) }
-  async resize(width: number) { await this.app.evaluate(({ BrowserWindow }, w) => BrowserWindow.getAllWindows()[0]!.setSize(w, 800), width) }
+  /** The window opens maximized; restore it first so the requested size applies. */
+  async resize(width: number, height = 800) {
+    await this.app.evaluate(({ BrowserWindow }, [w, h]) => { const window = BrowserWindow.getAllWindows()[0]!; window.unmaximize(); window.setSize(w!, h!) }, [width, height])
+  }
 }
 
 type Fixtures = { workspace: Workspace; page: Page; populated: boolean }

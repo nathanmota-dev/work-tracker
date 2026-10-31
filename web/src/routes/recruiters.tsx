@@ -12,6 +12,7 @@ import {
 import { Records, type Column } from "@/components/records"
 import { useApi, request, publish, text, date, type Row } from "@/lib/api"
 import { prepareSkill } from "@/lib/agent"
+import { NextStepHint } from "@/components/get-started"
 const recruiterColumns: Column[] = [
   {
     key: "name",
@@ -145,6 +146,7 @@ export function RecruitersPage() {
         <Records
           rows={api.data}
           noun="Recruiters"
+          empty={<NextStepHint fallback="Recruiters you reach out to will appear here." />}
           onSelect={setSelected}
           columns={recruiterColumns}
         />

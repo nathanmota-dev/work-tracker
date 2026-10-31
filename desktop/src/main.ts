@@ -29,7 +29,11 @@ function createWindow() {
     },
   })
 
-  window.once("ready-to-show", () => window.show())
+  // Open filling the screen; the size above is what restoring the window returns to.
+  window.once("ready-to-show", () => {
+    window.maximize()
+    window.show()
+  })
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }))
   window.webContents.on("will-navigate", (event) => event.preventDefault())
 

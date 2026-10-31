@@ -4,6 +4,7 @@ import { SelectControl } from "@/components/ui/select-control"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Records, type Column } from "@/components/records"
 import { JourneyCounts } from "@/components/journey-summary"
+import { NextStepHint } from "@/components/get-started"
 import { Status, controlClass } from "@/components/workspace-ui"
 import { text, date, type Row } from "@/lib/api"
 import {
@@ -131,6 +132,7 @@ export function ApplicationList({
         rows={visible}
         noun="Applications"
         workspace="applications"
+        empty={<NextStepHint fallback="Prepare a shortlisted job, or register an application you already sent." />}
         statusKey="phase"
         onSelect={onSelect}
         columns={columns(onPrepare)}

@@ -4,14 +4,15 @@ import { agentEnvironment } from "../cli/skills.ts";
 import { dependencyStatus } from "../preparation/latex.ts";
 import { sourcesConfig } from "../preparation/sources.ts";
 import { closeMcp } from "../mcp/linkedin.ts";
-import { configSnapshot, configuredCommand, integrationSettings, IntegrationError, saveIntegration, targetId, targets } from "./config.ts";
+import { recordVerification } from "../onboarding/store.ts";
+import { commandFingerprint, configSnapshot, configuredCommand, integrationSettings, IntegrationError, saveIntegration, targetId, targets } from "./config.ts";
 import { probeIntegration, type Diagnostic } from "./probe.ts";
 
 const results = new Map<string, Diagnostic>();
 let testing = false;
 export function integrationTesting() { return testing; }
 export function resetDiagnostics() { results.clear(); }
-function executable(target: typeof targets[number]) {
+export function executable(target: typeof targets[number]) {
   const command = configuredCommand(target);
   return executableExists(command.command, { ...agentEnvironment(), ...command.env }, paths.workspace);
 }
@@ -40,10 +41,11 @@ export async function handleIntegrations(path: string, req: Request, busy: boole
       const target = targetId(body?.target);
       const model = body?.model ?? "";
       if (typeof model !== "string" || model.length > 256 || [...model].some(character => character.charCodeAt(0) < 32)) throw new IntegrationError("Choose a valid model identifier.");
-      const { revision } = configSnapshot();
+      const { revision, config } = configSnapshot();
       const checks = executable(target) ? await probeIntegration(target, model) : [{ stage: "executable", state: "missing_executable" as const, message: "The executable was not found. Install it or correct its command and PATH, then test again." }];
       const diagnostic: Diagnostic = { target, model, checkedAt: new Date().toISOString(), checks };
       results.set(`${revision}/${target}`, diagnostic);
+      recordVerification(target, commandFingerprint(target, config), checks.every(check => check.state === "ready" || check.state === "unverified"));
       broadcast({ type: "changed", table: "integrations" });
       return Response.json(diagnostic);
     } finally { testing = false; }

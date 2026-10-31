@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Panel } from "@/components/workspace-ui"
+import { SetupNotice } from "@/components/get-started"
 import { SearchFilters } from "@/routes/search"
 import { useWorkspaceState } from "@/lib/workspace-state"
 import { prepareSkill, useAgent } from "@/lib/agent"
@@ -65,6 +66,10 @@ export function JobDiscovery({ onResults }: { onResults: (ids: number[]) => void
         onChange={event => update({ assess: event.target.checked })} />Assess fit with agent</label>
       <Button disabled={busy || !values.keywords.trim()}>{busy ? "Searching LinkedIn…" : search.assess ? "Search with agent" : "Search LinkedIn"}</Button>
     </form>
+    <div className="mt-3">
+      {error ? <SetupNotice step="connect">LinkedIn search needs a tested LinkedIn MCP.</SetupNotice>
+        : <SetupNotice step="connect" pendingOnly>LinkedIn search and agent assessment need your agent and the LinkedIn MCP. You can still add jobs by hand.</SetupNotice>}
+    </div>
     {error && <p role="alert">{error}</p>}
     {output && <p role="status" className="mt-3 whitespace-pre-wrap text-sm">{output}</p>}
     {!!outcomes.length && <div className="mt-3 text-sm">

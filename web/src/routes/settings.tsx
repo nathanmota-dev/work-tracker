@@ -4,6 +4,7 @@ import { SettingsProfile } from "@/components/settings-profile"
 import { BrowserSignIn } from "@/components/browser-sign-in"
 import { IntegrationSettingsPanel } from "@/components/integration-settings"
 import { WorkspaceBackup } from "@/components/workspace-backup"
+import { GetStartedSettings } from "@/components/get-started"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { SelectControl } from "@/components/ui/select-control"
 import { useState } from "react"
@@ -179,6 +180,7 @@ export function SettingsPage() {
             <ConnectionPanel />
             <AgentPreferences preferences={preferences} />
             <BrowserSignIn />
+            <GetStartedSettings />
           </div>
         </TabsContent>
         <TabsContent value="resume"><ResumeSources /></TabsContent>

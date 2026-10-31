@@ -50,6 +50,7 @@ const dependencies: Record<string, string[]> = {
   "application-board": ["applications", "application_stages", "application_events"],
   "acp/providers": ["integrations"],
   "integrations/status": ["integrations", "applicant_answers", "profile"],
+  "onboarding/status": ["integrations", "applicant_answers", "jobs", "applications", "onboarding_state"],
   "acp/permissions": ["agent_permissions"],
   "preparation-batches": ["preparation_batches", "jobs"],
 }

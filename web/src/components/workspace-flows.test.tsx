@@ -5,6 +5,8 @@ import { JobsPage } from "@/routes/jobs"
 import { SearchPage, searchRows } from "@/routes/search"
 import { publish, useApi } from "@/lib/api"
 import { Records } from "@/components/records"
+// The Get started checklist reads its own status; these flows cover other requests.
+vi.mock("@/components/get-started", () => ({ NextStepHint: ({ fallback }: { fallback?: string }) => <>{fallback}</>, SetupNotice: () => null }))
 const request = vi.fn()
 beforeEach(() => {
   request.mockReset()
