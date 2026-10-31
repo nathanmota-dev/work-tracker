@@ -70,41 +70,6 @@ function SyncPreview({ changes, busy, onApply, onDismiss }: { changes: Row[]; bu
   )
 }
 
-function DueFollowUps() {
-  const due = useApi<Row[]>("recruiters/due")
-  return (
-    <>
-      <LoadState {...due} retry={due.refresh} />
-      {due.data && (
-        <Records
-          rows={due.data}
-          noun="Due follow-ups"
-          columns={[
-            { key: "name", label: "Contact" },
-            { key: "company", label: "Company" },
-            {
-              key: "action",
-              label: "Next action",
-              render: (r) => <Status value={r.action} />,
-            },
-            { key: "reason", label: "Reason" },
-            { key: "due", label: "Due", render: (r) => date(r.due) },
-          ]}
-          action={
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => prepareSkill("outreach-tracker")}
-            >
-              Review follow-ups
-            </Button>
-          }
-        />
-      )}
-    </>
-  )
-}
-
 export function RecruitersPage() {
   const api = useApi<Row[]>("recruiters")
   const [selected, setSelected] = useState<Row | null>(null)
@@ -184,7 +149,6 @@ export function RecruitersPage() {
           columns={recruiterColumns}
         />
       )}
-      <DueFollowUps />
       <Details
         row={selected}
         title={text(selected?.name)}

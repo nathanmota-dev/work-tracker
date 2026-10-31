@@ -6,13 +6,9 @@ export const routes = [
   ['Jobs', 'jobs', 'Discover opportunities'],
   ['Applications', 'applications', 'New application'],
   ['Interviews', 'interviews', 'Upcoming'],
-  ['Search', 'search', 'People & recruiters'],
-  ['Recruiters', 'recruiters', 'Preview connection sync'],
-  ['Outreach', 'outreach', 'Connection lifecycle'],
+  ['Contacts', 'contacts', 'Preview connection sync'],
   ['Profile', 'profile', 'Profile assessment'],
-  ['Answers', 'answers', 'Add answer'],
   ['Agent', 'launch', 'Run a skill'],
-  ['Activity', 'activity', 'A running record of the steps you’ve taken. Showing the latest 50 events.'],
   ['Settings', 'settings', 'Appearance'],
 ] as const
 
@@ -24,13 +20,13 @@ for (const populated of [false, true]) {
         const links = page.locator('[data-sidebar="sidebar"]').getByRole('link')
         expect((await links.evaluateAll(nodes => nodes.map(node => node.getAttribute('href')!.split('#').at(-1)!.replace(/\/$/, ''))))).toEqual(routes.map(route => `/${route[1]}`))
         await expect(links).toHaveText(routes.map(route => route[0]))
-        await expect(page.locator('[data-sidebar="sidebar"]').getByRole('group')).toHaveCount(5)
+        await expect(page.locator('[data-sidebar="sidebar"]').getByRole('group')).toHaveCount(4)
         expect(await page.locator('[data-sidebar="sidebar"]').getByRole('group').evaluateAll(groups =>
           groups.map(group => [group.getAttribute('aria-label'), Array.from(group.querySelectorAll('a')).map(link => link.getAttribute('aria-label'))])
         )).toEqual([
-          ['Overview', ['Dashboard']], ['Journey', ['Jobs', 'Applications', 'Interviews']],
-          ['People', ['Search', 'Recruiters', 'Outreach']], ['You', ['Profile', 'Answers']],
-          ['Tools', ['Agent', 'Activity', 'Settings']],
+          ['Overview', ['Dashboard']], ['Journey', ['Jobs', 'Applications', 'Interviews', 'Contacts']],
+          ['You', ['Profile']],
+          ['Tools', ['Agent', 'Settings']],
         ])
         await workspace.go(title)
         await expect(page).toHaveURL(new RegExp(`#/${path}/?$`))
@@ -61,9 +57,9 @@ test('shell: redirect, sidebar, command palette, history and narrow window', asy
   await expect(page).toHaveURL(/#\/dashboard\/?$/)
   await page.getByRole('button', { name: 'Alternar sidebar' }).click()
   await page.getByRole('button', { name: 'Buscar na navegação' }).click()
-  await page.getByRole('combobox', { name: 'Search pages' }).fill('Answers')
+  await page.getByRole('combobox', { name: 'Search pages' }).fill('Profile')
   await page.keyboard.press('Enter')
-  await workspace.ready('Answers')
+  await workspace.ready('Profile')
   await page.keyboard.press('Control+k')
   await page.getByRole('combobox', { name: 'Search pages' }).fill('no such page')
   await expect(page.getByText('No pages found.')).toBeVisible()
@@ -73,7 +69,7 @@ test('shell: redirect, sidebar, command palette, history and narrow window', asy
   await page.getByRole('option').click()
   await workspace.ready('Settings')
   await page.goBack()
-  await workspace.ready('Answers')
+  await workspace.ready('Profile')
   await page.goForward()
   await workspace.ready('Settings')
   await workspace.resize(700)
@@ -93,10 +89,12 @@ const readEndpoints = [
 ] as const
 for (const [title, endpoint] of readEndpoints) {
   test(`${title}: failed load can be retried`, async ({ workspace, page }) => {
-    await workspace.go('Search')
+    await workspace.go(title === 'Jobs' ? 'Settings' : 'Jobs')
     await workspace.fault(endpoint)
     // A failed request deliberately keeps its loader/error visible.
-    await page.locator('[data-sidebar="sidebar"]').getByRole('link', { name: title, exact: true }).click()
+    const destinations: Record<string, string> = { Recruiters: "/contacts?tab=people", Outreach: "/contacts?tab=follow-ups", Answers: "/profile?tab=answers", Activity: "/launch?tab=history" }
+    if (destinations[title]) await page.evaluate(hash => { location.hash = hash }, destinations[title])
+    else await page.locator('[data-sidebar="sidebar"]').getByRole('link', { name: title, exact: true }).click()
     await expect(page.getByRole('alert').filter({ hasText: 'Synthetic transport failure' })).toBeVisible()
     await page.getByRole('button', { name: 'Try again' }).first().click()
     await workspace.ready(title)

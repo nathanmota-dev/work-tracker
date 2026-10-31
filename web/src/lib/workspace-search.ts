@@ -8,6 +8,8 @@ export const launchSkillIds = ["job-scout", "deep-scout", "profile-optimizer", "
 
 /** Only existing workspace controls are accepted; malformed URLs are harmless. */
 export function validateWorkspaceSearch(path: string, search: Record<string, unknown>): WorkspaceSearch {
+  if (path === "profile") return { ...validateWorkspaceSearch("answers", search), tab: choice(search.tab, ["linkedin", "resume", "answers", "experiences"], "linkedin") }
+  if (path === "contacts") return { ...validateWorkspaceSearch("search", search), tab: choice(search.tab, ["people", "follow-ups"], "people") }
   const records = {
     q: string(search.q), status: string(search.status),
     page: integer(search.page, 0, 0), selected: integer(search.selected, path === "jobs" ? 1 : 0, -1) >= 0 ? String(Number(search.selected)) : "",
@@ -35,6 +37,7 @@ export function validateWorkspaceSearch(path: string, search: Record<string, unk
     pdfTab: choice(search.pdfTab, ["base", "tailored"], "base"), workspaceTab: choice(search.workspaceTab, ["activity", "report"], "activity"),
   }
   if (path === "launch") return {
+    tab: choice(search.tab, ["console", "history"], "console"),
     skill: choice(search.skill, launchSkillIds, "job-scout"), provider: typeof search.provider === "string" ? search.provider : undefined, model: typeof search.model === "string" ? search.model : undefined, target: string(search.target),
     query: string(search.query), location: string(search.location), company: string(search.company), username: string(search.username), url: string(search.url), jobIds: string(search.jobIds),
   }

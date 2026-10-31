@@ -7,7 +7,6 @@ import { SelectControl } from "@/components/ui/select-control"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Page, Panel, Field, LoadState, Status, ExternalLink, controlClass } from "@/components/workspace-ui"
 import { ApplicationEmpty, ApplicationStepper } from "@/components/application-stepper"
-import { ResumeSources } from "@/components/resume-sources"
 import { ApplyReadiness, applyBlocks } from "@/components/apply-readiness"
 import { useIntegrations, type Target } from "@/lib/integrations"
 import { AgentConversation } from "@/components/agent-conversation"
@@ -90,8 +89,7 @@ function ApplyWorkspace({ search, review, reviewLocked = false }: { search: Revi
   return <Page title="Application" description="One role, from job description to confirmed submission." actions={<Status value={run?.decisionStatus ? "Waiting for decision" : run ? `${run.phase} · ${run.status}` : "Ready"} />}>
     {review}
     {details.data && <ApplicationStepper steps={steps} />}
-    {/* Until Profile owns them (#50), resume sources stay one collapsed status line here. */}
-    {!review && <details className="rounded-xl border p-4"><summary className="cursor-pointer text-sm font-medium">{sources.data?.config.projectDir ? "Base resume configured" : "Base resume missing"}</summary><div className="mt-4"><ResumeSources onPreview={artifact => { setPreview(artifact); sources.refresh() }} /></div></details>}
+    {!review && <p>{sources.data?.config.projectDir ? "Base resume configured" : "Base resume missing"} · <a href="#/profile?tab=resume">Configure resume sources</a></p>}
     <Panel title="Opportunity">
       {!review && <div className="grid gap-4 md:grid-cols-2">
         <Field label="Agent"><SelectControl className={controlClass} value={selectedProvider?.id ?? ""} disabled={busy} onChange={e => { setProvider(e.target.value); setModel("") }}>{providers.data?.providers.map(p => <option key={p.id} value={p.id}>{p.displayName}</option>)}</SelectControl></Field>

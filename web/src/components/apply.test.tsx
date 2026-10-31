@@ -80,14 +80,11 @@ it("keeps cancellation available while waiting for browser sign-in", async () =>
   await waitFor(() => expect(request).toHaveBeenCalledWith("application-preparation/cancel", { runId: "run-1", extra: "" }))
 })
 
-it("shows an explicitly refreshed base PDF when an older execution is selected", async () => {
+it("links base resume configuration to Profile", async () => {
   render(<ApplyPage />)
   await screen.findByText("pdf-1")
-  fireEvent.click(screen.getByText("Base resume configured", { selector: "summary" }))
-  await waitFor(() => expect(screen.getByRole("button", { name: "Update base PDF" })).toBeEnabled())
-  fireEvent.click(screen.getByRole("button", { name: "Update base PDF" }))
-  expect(await screen.findByText("base-current")).toBeInTheDocument()
-  expect(screen.getByText("pdf-1")).toBeInTheDocument()
+  expect(screen.getByRole("link", { name: "Configure resume sources" })).toHaveAttribute("href", "#/profile?tab=resume")
+  expect(screen.queryByRole("button", { name: "Update base PDF" })).not.toBeInTheDocument()
 })
 
 it("selects the validated PDF run when filling after a failed newer execution", async () => {

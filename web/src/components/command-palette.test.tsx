@@ -103,9 +103,9 @@ it("groups sidebar links in journey order and retains accessible collapsed links
   await renderApp()
   const sidebar = document.querySelector('[data-sidebar="sidebar"]') as HTMLElement
   expect(within(sidebar).getAllByRole("group").map((group) => group.getAttribute("aria-label")))
-    .toEqual(["Overview", "Journey", "People", "You", "Tools"])
+    .toEqual(["Overview", "Journey", "You", "Tools"])
   expect(within(sidebar).getAllByRole("link").map((link) => link.getAttribute("aria-label")))
-    .toEqual(["Dashboard", "Jobs", "Applications", "Interviews", "Search", "Recruiters", "Outreach", "Profile", "Answers", "Agent", "Activity", "Settings"])
+    .toEqual(["Dashboard", "Jobs", "Applications", "Interviews", "Contacts", "Profile", "Agent", "Settings"])
   expect(within(sidebar).getByRole("link", { name: "Dashboard" })).toHaveAttribute("aria-current", "page")
   fireEvent.click(screen.getByRole("button", { name: "Alternar sidebar" }))
   const agent = within(sidebar).getByRole("link", { name: "Agent" })

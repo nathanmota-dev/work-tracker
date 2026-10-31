@@ -211,3 +211,26 @@ it("shows the detail under Applications in the breadcrumb, named after its job",
   await waitFor(() => expect(within(breadcrumb).getByText("Example · Engineer 3")).toHaveAttribute("aria-current", "page"))
   expect(within(breadcrumb).getByRole("link", { name: "Applications" })).toBeInTheDocument()
 })
+
+it.each([
+  ["/recruiters", "/contacts", "people"],
+  ["/outreach", "/contacts", "follow-ups"],
+  ["/search?kind=people&keywords=Engineer&company=Acme", "/contacts", "people"],
+  ["/answers?field=email&returnTo=%2Fapply%3FjobId%3D1", "/profile", "answers"],
+  ["/activity", "/launch", "history"],
+])("redirects legacy hub link %s", async (url, pathname, tab) => {
+  const { router } = await mount(url)
+  await waitFor(() => expect(router.state.location.pathname).toBe(pathname))
+  expect(router.state.location.search.tab ?? "people").toBe(tab)
+  if (url.includes("keywords")) expect(router.state.location.search).toMatchObject({ keywords: "Engineer", company: "Acme" })
+  if (url.includes("field")) expect(router.state.location.search).toMatchObject({ field: "email", returnTo: "/apply?jobId=1" })
+})
+
+it("persists Profile and Contacts tabs in the URL", async () => {
+  const { router } = await mount("/profile")
+  fireEvent.click(await screen.findByRole("tab", { name: "Answers" }))
+  await waitFor(() => expect(router.state.location.search.tab).toBe("answers"))
+  await go(router, "/contacts")
+  fireEvent.click(await screen.findByRole("tab", { name: "Follow-ups" }))
+  await waitFor(() => expect(router.state.location.search.tab).toBe("follow-ups"))
+})
