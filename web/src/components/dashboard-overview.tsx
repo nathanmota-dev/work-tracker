@@ -87,7 +87,8 @@ function ApplicationJourney({ summary }: { summary: ApplicationSummary }) {
 function ViewAll({ to }: { to: "/interviews" | "/activity" }) {
   return (
     <Link
-      to={to}
+      to={to === "/activity" ? "/launch" : to}
+      search={to === "/activity" ? { tab: "history" } : {}}
       className="text-xs text-muted-foreground hover:underline"
     >
       View all

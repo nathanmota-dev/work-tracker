@@ -43,3 +43,8 @@ are reported as `invalid-answer`. `GET /api/answers` retains its default-only
 contract; `/api/answers/variants` lists all versions and `/api/answers/catalog`
 returns the field metadata. `POST /api/answer` accepts an optional `language` and
 `POST /api/answer/delete` deletes one key and language version.
+
+Answers now live in **Profile → Answers** (`/profile?tab=answers`). Legacy
+`/answers` links redirect there while retaining `field` and `returnTo`, so a
+correction opened from an application can return to its checklist. Base resume
+configuration is available in **Profile → Base resume** (`/profile?tab=resume`).

@@ -24,7 +24,7 @@ export function OutreachPage() {
       description="Thoughtful follow-ups. Stronger connections."
       actions={
         <Button size="sm" onClick={() => prepareSkill("outreach-tracker")}>
-          Review next actions
+          Review follow-ups
         </Button>
       }
     >

@@ -60,7 +60,7 @@ it("shows credit data, fallbacks, cooldowns and proportional funnel values", () 
   expect(invited.querySelector('[style*="width"]')).toHaveStyle({
     width: "75%",
   })
-  fireEvent.click(screen.getByRole("button", { name: "Review next actions" }))
+  fireEvent.click(screen.getByRole("button", { name: "Review follow-ups" }))
   expect(prepareSkill).toHaveBeenCalledWith("outreach-tracker")
 })
 it("handles a zero total and empty due/blocked queues", () => {

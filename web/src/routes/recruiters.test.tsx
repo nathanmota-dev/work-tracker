@@ -39,7 +39,7 @@ beforeEach(() => {
 })
 it("renders contacts, followups, details and skill actions", () => {
   render(<RecruitersPage />)
-  expect(screen.getByText("Bruno")).toBeInTheDocument()
+  expect(screen.queryByText("Bruno")).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole("button", { name: "View Ana" }))
   expect(screen.getByRole("dialog")).toHaveTextContent("Acme")
   expect(
@@ -48,8 +48,7 @@ it("renders contacts, followups, details and skill actions", () => {
   fireEvent.click(screen.getByRole("button", { name: "Close" }))
   fireEvent.click(screen.getByRole("button", { name: "Find recruiters" }))
   expect(prepareSkill).toHaveBeenCalledWith("recruiter-outreach")
-  fireEvent.click(screen.getByRole("button", { name: "Review follow-ups" }))
-  expect(prepareSkill).toHaveBeenCalledWith("outreach-tracker")
+  expect(screen.queryByRole("button", { name: "Review follow-ups" })).not.toBeInTheDocument()
 })
 it("previews before applying and invalidates records only after successful apply", async () => {
   render(<RecruitersPage />)

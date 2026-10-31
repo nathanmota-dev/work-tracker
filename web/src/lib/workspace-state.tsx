@@ -23,7 +23,7 @@ export function WorkspaceRoute() {
 export function useWorkspaceState(path: string) {
   const context = useContext(WorkspaceContext)
   const [local, setLocal] = useState(() => validateWorkspaceSearch(path || "jobs", {}))
-  const enabled = ["jobs", "applications", "search", "apply", "launch", "answers"].includes(path)
+  const enabled = ["contacts", "profile", "jobs", "applications", "search", "apply", "launch", "answers"].includes(path)
   return context && enabled ? context : { search: local, update: (patch: Patch) => setLocal(previous => ({ ...previous, ...patch })) }
 }
 

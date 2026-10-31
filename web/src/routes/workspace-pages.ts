@@ -1,3 +1,4 @@
+import { ContactsHub, ProfileHub, AgentHub } from "./hubs"
 import {
   Activity,
   BriefcaseBusiness,
@@ -17,16 +18,15 @@ import { AnswersPage } from "@/routes/answers"
 import { ApplicationsPage } from "@/routes/applications"
 import { InterviewsPage } from "@/routes/interviews"
 import { JobsPage } from "@/routes/jobs"
-import { LaunchPage } from "@/routes/launch"
 import { OutreachPage } from "@/routes/outreach"
-import { ProfilePage } from "@/routes/profile"
 import { RecruitersPage } from "@/routes/recruiters"
 import { SearchPage } from "@/routes/search"
 
 export const workspacePages = [
-  { path: "profile", title: "Profile", icon: UserRound, component: ProfilePage },
+  { path: "contacts", title: "Contacts", icon: UsersRound, component: ContactsHub },
+  { path: "profile", title: "Profile", icon: UserRound, component: ProfileHub },
   { path: "search", title: "Search", icon: Search, component: SearchPage },
-  { path: "launch", title: "Agent", icon: Rocket, component: LaunchPage },
+  { path: "launch", title: "Agent", icon: Rocket, component: AgentHub },
   { path: "recruiters", title: "Recruiters", icon: UsersRound, component: RecruitersPage },
   { path: "outreach", title: "Outreach", icon: Send, component: OutreachPage },
   // Application detail, opened from Jobs and Applications; not a sidebar entry.
