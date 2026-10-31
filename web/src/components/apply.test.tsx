@@ -3,7 +3,7 @@ import { beforeEach, expect, it, vi } from "vitest"
 import { ApplyPage } from "@/routes/apply"
 import { LaunchPage } from "@/routes/launch"
 import { publish } from "@/lib/api"
-const search = vi.hoisted(() => ({ jobId: 7, applicationId: 3, runId: undefined as string | undefined }))
+const search = vi.hoisted(() => ({ jobId: 7 as number | undefined, applicationId: 3 as number | undefined, runId: undefined as string | undefined }))
 vi.mock("@tanstack/react-router", () => ({ useSearch: () => search }))
 vi.mock("@/components/ui/select-control", () => ({ SelectControl: ({ children, ...props }: React.ComponentProps<"select">) => <select {...props}>{children}</select> }))
 vi.mock("@/components/pdf-viewer", () => ({ PdfViewer: ({ title, artifact }: { title: string; artifact?: { id: string } }) => <section aria-label={title}>{artifact?.id ?? "empty"}</section> }))
@@ -83,7 +83,7 @@ it("keeps cancellation available while waiting for browser sign-in", async () =>
 it("shows an explicitly refreshed base PDF when an older execution is selected", async () => {
   render(<ApplyPage />)
   await screen.findByText("pdf-1")
-  fireEvent.click(screen.getByText("Resume sources", { selector: "summary" }))
+  fireEvent.click(screen.getByText("Base resume configured", { selector: "summary" }))
   await waitFor(() => expect(screen.getByRole("button", { name: "Update base PDF" })).toBeEnabled())
   fireEvent.click(screen.getByRole("button", { name: "Update base PDF" }))
   expect(await screen.findByText("base-current")).toBeInTheDocument()
@@ -115,7 +115,7 @@ it("confirms the submission, shows feedback and refreshes the application", asyn
   fireEvent.click(confirm)
   await waitFor(() => expect(request).toHaveBeenCalledWith("application-preparation/submitted", { runId: "run-1", applicationId: 3 }))
   expect(await screen.findByText(/Submission confirmed/)).toBeInTheDocument()
-  expect(screen.getByRole("link", { name: "Open the application board" })).toHaveAttribute("href", "#/application-board")
+  expect(screen.getByRole("link", { name: "View it on the board" })).toHaveAttribute("href", "#/applications?view=board&highlight=3")
   await waitFor(() => expect(screen.queryByRole("button", { name: "I submitted in the browser" })).not.toBeInTheDocument())
   expect(screen.getByRole("button", { name: "Fill application" })).toBeDisabled()
 })
@@ -237,4 +237,48 @@ it("approves and confirms one result while another execution, such as a batch it
   expect(screen.getByRole("button", { name: "Regenerate" })).toBeDisabled()
   fireEvent.click(approve)
   await waitFor(() => expect(request).toHaveBeenCalledWith("application-preparation/approve", { runId: "run-1", versionId: "pdf-1" }))
+})
+
+const step = (name: string) => screen.getByRole("listitem", { name: new RegExp(`^${name}: `) })
+it("titles the detail Application, without a job selector, and walks the stepper through each phase", async () => {
+  details.documents[0].approvedAt = null
+  const { unmount } = render(<ApplyPage />)
+  expect(await screen.findByRole("heading", { name: "Application", level: 1 })).toBeInTheDocument()
+  expect(screen.queryByLabelText("Saved job")).not.toBeInTheDocument()
+  await screen.findByRole("navigation", { name: "Application progress" })
+  expect(step("1. Job description")).toHaveAccessibleName("1. Job description: Done")
+  expect(step("2. Resume")).toHaveAttribute("aria-current", "step")
+  expect(step("3. Fill portal")).toHaveAccessibleName("3. Fill portal: Next")
+  unmount()
+  details.documents[0].approvedAt = "2026-01-01"
+  const approved = render(<ApplyPage />)
+  await waitFor(() => expect(step("3. Fill portal")).toHaveAttribute("aria-current", "step"))
+  expect(step("2. Resume")).toHaveAccessibleName("2. Resume: Done")
+  approved.unmount()
+  Object.assign(details, { applicationStatus: "filled", uploadedRunId: "run-1" })
+  const filled = render(<ApplyPage />)
+  await waitFor(() => expect(step("4. Confirm submission")).toHaveAttribute("aria-current", "step"))
+  filled.unmount()
+  Object.assign(details, { applicationStatus: "submitted", journey: { id: 3, submission_status: "submitted", submitted_at: "2026-10-01T12:00:00.000Z" } })
+  render(<ApplyPage />)
+  await waitFor(() => expect(step("4. Confirm submission")).toHaveAccessibleName("4. Confirm submission: Done"))
+  expect(screen.queryByRole("listitem", { current: "step" })).not.toBeInTheDocument()
+})
+it("marks the current step as blocked with its readiness reason", async () => {
+  details.job.description = null
+  details.runs = []
+  details.documents = []
+  render(<ApplyPage />)
+  await waitFor(() => expect(step("1. Job description")).toHaveAccessibleName("1. Job description: Blocked"))
+  expect(step("1. Job description")).toHaveTextContent("This job needs a description.")
+  expect(step("2. Resume")).toHaveAccessibleName("2. Resume: Next")
+})
+it("shows an empty state that links to the Jobs shortlist when no job is chosen", () => {
+  search.jobId = undefined
+  search.applicationId = undefined
+  render(<ApplyPage />)
+  expect(screen.getByRole("heading", { name: "Application", level: 1 })).toBeInTheDocument()
+  expect(screen.getByRole("link", { name: "Open the Jobs shortlist" })).toHaveAttribute("href", "#/jobs?view=shortlist")
+  expect(screen.queryByRole("combobox")).not.toBeInTheDocument()
+  expect(request).not.toHaveBeenCalledWith("application-preparation/details", expect.anything())
 })

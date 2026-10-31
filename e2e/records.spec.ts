@@ -20,7 +20,7 @@ test.describe('saved records', () => {
     await page.getByRole('button', { name: 'Archive Engineer 01', exact: true }).click()
     await page.getByRole('tab', { name: 'Archived (1)' }).click()
     await page.getByRole('button', { name: 'View Engineer 01', exact: true }).click()
-    await expect(page.getByRole('dialog').getByRole('button', { name: 'Prepare application' })).toBeDisabled()
+    await expect(page.getByRole('dialog').getByRole('button', { name: 'View application', exact: true })).toBeDisabled()
     await page.getByRole('dialog').getByRole('button', { name: 'View opportunity' }).click()
     expect(await workspace.external()).toContain('https://example.com/jobs/1')
     await closeDialog(page)
@@ -42,8 +42,8 @@ test.describe('saved records', () => {
     expect(workspace.query("SELECT id FROM jobs WHERE linkedin_job_id='disposable'")).toHaveLength(0)
     await page.getByLabel('Search Opportunities', { exact: true }).fill('Engineer 01')
     await page.getByRole('button', { name: 'View Engineer 01', exact: true }).click()
-    await page.getByRole('dialog').getByRole('button', { name: 'Prepare application', exact: true }).click()
-    await workspace.ready('Apply')
+    await page.getByRole('dialog').getByRole('button', { name: 'View application', exact: true }).click()
+    await workspace.ready('Application')
     await expect(page).toHaveURL(/jobId=1/)
   })
 
@@ -89,7 +89,7 @@ test.describe('saved records', () => {
     await page.getByRole('button', { name: 'Open portal' }).click()
     expect(await workspace.external()).toContain('https://example.com/jobs/1')
     await page.getByRole('dialog').getByRole('button', { name: 'Prepare application' }).click()
-    await workspace.ready('Apply')
+    await workspace.ready('Application')
     await expect(page).toHaveURL(/jobId=1&applicationId=1/)
   })
 

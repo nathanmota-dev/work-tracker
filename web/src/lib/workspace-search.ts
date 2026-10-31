@@ -19,6 +19,10 @@ export function validateWorkspaceSearch(path: string, search: Record<string, unk
     workType: choice(search.workType, ["remote", "hybrid", "on-site"], ""), maxPages: integer(search.maxPages, 1, 1, 10),
     assess: search.assess === true || search.assess === "true", focus: search.focus === true || search.focus === "true",
   }
+  if (path === "applications") return {
+    ...records, view: choice(search.view, ["list", "board"], "list"), tab: choice(search.tab, ["active", "archived"], "active"),
+    highlight: integer(search.highlight, 1, 0) || undefined, review: search.review === true || search.review === "true",
+  }
   if (path === "search") return {
     ...records, savedJobId: integer(search.savedJobId, 1, 0) || undefined, kind: choice(search.kind, ["jobs", "people"], "people"),
     keywords: string(search.keywords), location: string(search.location), company: string(search.company),
@@ -38,7 +42,7 @@ export function validateWorkspaceSearch(path: string, search: Record<string, unk
   return {}
 }
 export type WorkspaceSearch = {
-  assess?: boolean; focus?: boolean;
+  assess?: boolean; focus?: boolean; tab?: string; highlight?: number; review?: boolean
   q?: string; status?: string; page?: number; view?: string; selected?: string; selection?: string[]
   savedJobId?: number; kind?: string; keywords?: string; location?: string; company?: string; workType?: string; maxPages?: number; resultId?: string
   jobId?: number; applicationId?: number; runId?: string; provider?: string; model?: string; pdfTab?: string; workspaceTab?: string

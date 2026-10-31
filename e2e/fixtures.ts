@@ -122,6 +122,17 @@ export class Workspace {
     }).toPass({ timeout: 10_000 })
     await this.ready(title)
   }
+  /** Pages outside the sidebar, such as the application detail, open by URL. */
+  async visit(hash: string, title: string) {
+    await this.page.evaluate(value => { location.hash = value }, hash)
+    await this.ready(title)
+  }
+  /** The board layout of Applications. */
+  async board() {
+    await this.go('Applications')
+    await this.page.getByRole('tab', { name: 'Board', exact: true }).click()
+    await expect(this.page).toHaveURL(/view=board/)
+  }
   async restart() { await this.stop(); await this.start() }
   async stop() { this.stopping = true; if (this.app) await this.app.close() }
   async fault(path: string, mode: 'error' | 'hold' = 'error') {

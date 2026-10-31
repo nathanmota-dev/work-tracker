@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import { useDraggable, useDroppable } from "@dnd-kit/react"
 import { Archive, ArrowUpRight, GripVertical, Pencil } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -87,15 +87,26 @@ export function ApplicationSummary({
     </div>
   )
 }
+/** Scrolls a card linked from elsewhere (`?highlight=`) into view. */
+export function useHighlightRef<T extends HTMLElement>(highlighted: boolean) {
+  const ref = useRef<T | null>(null)
+  useEffect(() => {
+    if (highlighted) ref.current?.scrollIntoView?.({ block: "nearest", inline: "center" })
+  }, [highlighted])
+  return ref
+}
 export function ApplicationCard({
   application,
   busy,
+  highlighted = false,
   onDetails,
   onEdit,
   onArchive,
 }: {
   application: TrackedApplication
   busy: boolean
+  /** Set after a confirmed submission links here from the application detail. */
+  highlighted?: boolean
   onDetails: () => void
   onEdit: () => void
   onArchive: () => void
@@ -105,13 +116,19 @@ export function ApplicationCard({
     type: "application",
     disabled: busy,
   })
+  const card = useHighlightRef<HTMLDivElement>(highlighted)
   return (
     <Card
-      ref={ref}
+      ref={(element) => {
+        card.current = element
+        ref(element)
+      }}
+      data-highlighted={highlighted || undefined}
       className={cn(
         "gap-3 rounded-xl py-3 shadow-none transition-shadow hover:shadow-sm",
         isDragging && "opacity-40",
         busy && "opacity-60",
+        highlighted && "ring-2 ring-primary",
       )}
       aria-busy={busy}
     >

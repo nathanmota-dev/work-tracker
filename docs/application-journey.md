@@ -221,10 +221,40 @@ estar arquivadas; e um envio legado fora do quadro aparece na visão Preparation
 como `submitted` até ser resolvido em "Needs review".
 
 Próxima ação: rascunho → "Prepare application"; preparado → "Fill in Apply";
-preenchido → "Submit in Apply"; no quadro → "Open board" ou "Reopen on board";
-enviado fora do quadro → "Needs review". Em Jobs, cada vaga mostra a última
-tentativa vinculada com o mesmo passo e a mesma ação. O quadro avisa quantas
-candidaturas ainda estão em preparação, e o dashboard mostra os quatro passos
-com a ação mais útil. Lista, Jobs, quadro e dashboard dependem da tabela
+preenchido → "Submit in Apply"; no quadro → "Open board" ou "Reopen on board"
+(`/applications?view=board`, com o card destacado); enviado fora do quadro →
+"Needs review". Em Jobs, cada vaga mostra a última tentativa vinculada com o
+mesmo passo, e a ação da linha e do detalhe é "Apply" (sem candidatura),
+"Continue application" (em preparação) ou "View application" (já no quadro). O
+dashboard mostra os quatro passos com a ação mais útil. Lista, Jobs, quadro e dashboard dependem da tabela
 `applications`, então o evento `changed` da confirmação de envio os atualiza
 sem recarregar o app.
+
+## Uma página para a candidatura
+
+Applications reúne todas as candidaturas, do rascunho à última etapa, com a
+alternância **List | Board** guardada na URL (`view=list|board`), junto com a
+busca (`q`), a aba do quadro (`tab=active|archived`), o card destacado
+(`highlight`) e o filtro de revisão (`review`). `/application-board` redireciona
+para `/applications?view=board` preservando a busca.
+
+- **Board:** à esquerda ficam as colunas fixas **Draft → Prepared → Filled**,
+  calculadas pelo servidor a partir de `phase` e `view` (não podem ser
+  arrastadas); depois vêm as etapas configuráveis (Manage stages). Só entra nas
+  etapas o que teve envio confirmado; um envio legado fora do quadro aparece em
+  "Needs review", não numa coluna de preparo.
+- **Needs review:** banner nos dois modos; "Review" abre as decisões e, na
+  lista, mostra só os registros sinalizados enquanto houver algum.
+- A fila de preparação (Preparation queue) e o acesso à revisão de lote ficam em
+  Applications; "New application" (registro manual) e Archived continuam lá.
+
+O detalhe (`/apply`, com `jobId`, `applicationId`, `runId` e `batchId`) não está
+na sidebar e se chama **Application**, com o breadcrumb
+`Applications / <empresa · cargo>`. Um stepper derivado da fase e da prontidão
+(`ApplyReadiness`) indica o passo atual e seus bloqueios: **1. Job description →
+2. Resume → 3. Fill portal → 4. Confirm submission**. Sem `jobId`, a tela mostra
+um estado vazio com link para a Shortlist de Jobs. Até a #50, Resume sources
+aparece recolhido como "Base resume configured / missing". Após confirmar o
+envio, "View it on the board" abre `/applications?view=board` com o card
+destacado.
+

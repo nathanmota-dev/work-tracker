@@ -12,7 +12,7 @@ async function create(page: Page, company = 'Board Company') {
 }
 
 test('Board: minimal registration, failed edits, optional fields, stages, timeline and persistence', async ({ workspace, page }) => {
-  await workspace.go('Application board')
+  await workspace.board()
   await create(page)
   await page.getByRole('button', { name: 'Edit Board Company application' }).click()
   await page.getByLabel('Role title').fill('Full stack engineer')
@@ -57,14 +57,14 @@ test('Board: minimal registration, failed edits, optional fields, stages, timeli
   await expect(page.getByRole('dialog').getByRole('alert')).toBeVisible()
   await page.getByRole('button', { name: 'Done', exact: true }).click()
   await workspace.restart()
-  await workspace.go('Application board')
+  await workspace.board()
   await expect(workspace.page.getByLabel('Technical interview applications').getByRole('button', { name: 'View Board Company application' })).toBeVisible()
   expect(workspace.query('SELECT notes, stack_json FROM applications')[0]).toMatchObject({ notes: 'Synthetic note', stack_json: '["React","TypeScript"]' })
 })
 
 for (const outcome of ['Rejected', 'Withdrawn', 'No response', 'Hired']) {
   test(`Board: archive with ${outcome}, preserve history and reopen`, async ({ workspace, page }) => {
-    await workspace.go('Application board')
+    await workspace.board()
     await create(page)
     await page.getByRole('button', { name: 'Archive Board Company application' }).click()
     await page.getByRole('button', { name: 'Cancel', exact: true }).click()
@@ -88,7 +88,7 @@ for (const outcome of ['Rejected', 'Withdrawn', 'No response', 'Hired']) {
 
 test('Board: real pointer drag changes stage and dropping in archive requires confirmation', async ({ workspace, page }) => {
   await workspace.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(1400, 1000))
-  await workspace.go('Application board')
+  await workspace.board()
   await create(page)
   const handle = page.getByRole('button', { name: 'Drag Board Company application' })
   const target = page.getByLabel('Recruiter interview applications')

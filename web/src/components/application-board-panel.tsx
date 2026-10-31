@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Columns3, Plus, Search } from "lucide-react"
+import { Search } from "lucide-react"
 import {
   ActiveBoard,
   ArchivedList,
@@ -8,12 +8,11 @@ import { ApplicationForm } from "@/components/application-form"
 import { ApplicationArchive } from "@/components/application-archive"
 import { ApplicationStages } from "@/components/application-stages"
 import { ApplicationDetails } from "@/components/application-details"
-import { Button } from "@/components/ui/button"
+import { PreparationColumns, preparationRows } from "@/components/preparation-columns"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { LoadState, Page } from "@/components/workspace-ui"
-import { useApi } from "@/lib/api"
-import type { ApplicationSummary } from "@/lib/application-journey"
+import { LoadState } from "@/components/workspace-ui"
+import type { Row } from "@/lib/api"
 import { useApplicationBoard } from "@/hooks/use-application-board"
 import {
   matchesApplication,
@@ -53,22 +52,6 @@ function BoardToolbar({
   )
 }
 
-/** Applications not on the board yet; the same total as the Preparation view. */
-function PreparationNotice() {
-  const summary = useApi<ApplicationSummary>("applications/summary")
-  const count = summary.data?.views.preparation ?? 0
-  if (!count) return null
-  return (
-    <p className="text-sm text-muted-foreground">
-      {count} {count === 1 ? "application is" : "applications are"} still in
-      preparation and not on the board.{" "}
-      <a href="#/applications" className="text-foreground underline">
-        Continue in Applications
-      </a>
-    </p>
-  )
-}
-
 type Dialogs = {
   edit: TrackedApplication | null | undefined
   setEdit: (edit: TrackedApplication | null | undefined) => void
@@ -80,7 +63,7 @@ type Dialogs = {
   setSelectedId: (id: number | undefined) => void
 }
 
-function BoardDialogs({
+export function BoardDialogs({
   board,
   dialogs,
   onEdit,
@@ -134,7 +117,7 @@ function BoardDialogs({
   )
 }
 
-function useBoardDialogs(
+export function useBoardDialogs(
   records: Map<number, TrackedApplication>,
   setError: (error: string) => void,
 ) {
@@ -171,12 +154,33 @@ function useBoardDialogs(
   }
 }
 
-export function ApplicationBoardPage() {
-  const board = useApplicationBoard()
-  const { api, records, stages, active, archived, pending, error, setError } = board
-  const [query, setQuery] = useState("")
-  const [view, setView] = useState("active")
-  const dialogs = useBoardDialogs(records, setError)
+/**
+ * The board view of Applications: fixed preparation columns, then the
+ * configurable stages. Only confirmed submissions enter the stages.
+ */
+export function ApplicationBoardView({
+  board,
+  dialogs,
+  rows,
+  query,
+  onQuery,
+  tab,
+  onTab,
+  highlight,
+  onPrepare,
+}: {
+  board: ReturnType<typeof useApplicationBoard>
+  dialogs: ReturnType<typeof useBoardDialogs>
+  /** Applications list rows, for the preparation columns. */
+  rows: Row[]
+  query: string
+  onQuery: (query: string) => void
+  tab: string
+  onTab: (tab: string) => void
+  highlight?: number
+  onPrepare: (row: Row) => void
+}) {
+  const { api, records, stages, active, archived, pending, error } = board
   const { showDetails, editRecord, archiveRecord } = dialogs
   const visible = active.filter((application) =>
     matchesApplication(application, query),
@@ -184,28 +188,10 @@ export function ApplicationBoardPage() {
   const archivedVisible = archived.filter((application) =>
     matchesApplication(application, query),
   )
+  const preparing = preparationRows(rows, "")
+  const preparingVisible = preparationRows(rows, query)
   return (
-    <Page
-      title="Application board"
-      description="Track every application, every round and where each process ends."
-      actions={
-        <>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={!api.data}
-            onClick={() => dialogs.setManage(true)}
-          >
-            <Columns3 className="size-4" />
-            Manage stages
-          </Button>
-          <Button size="sm" onClick={() => dialogs.setEdit(null)}>
-            <Plus className="size-4" />
-            New application
-          </Button>
-        </>
-      }
-    >
+    <>
       <LoadState
         loading={api.loading && !api.data}
         error={api.error}
@@ -219,14 +205,13 @@ export function ApplicationBoardPage() {
       <p role="status" aria-live="polite" className="sr-only">
         {board.notice}
       </p>
-      <PreparationNotice />
       {api.data && (
-        <Tabs value={view} onValueChange={setView}>
+        <Tabs value={tab} onValueChange={onTab}>
           <BoardToolbar
             activeCount={active.length}
             archivedCount={archived.length}
             query={query}
-            onQuery={setQuery}
+            onQuery={onQuery}
           />
           <TabsContent value="active" className="space-y-4">
             <ActiveBoard
@@ -236,6 +221,18 @@ export function ApplicationBoardPage() {
               records={records}
               pending={pending}
               isLocked={board.isLocked}
+              highlight={highlight}
+              preparation={{
+                columns: (
+                  <PreparationColumns
+                    rows={preparingVisible}
+                    highlight={highlight}
+                    onOpen={onPrepare}
+                  />
+                ),
+                total: preparing.length,
+                visible: preparingVisible.length,
+              }}
               onCreate={() => dialogs.setEdit(null)}
               onDetails={showDetails}
               onEdit={editRecord}
@@ -255,12 +252,6 @@ export function ApplicationBoardPage() {
           </TabsContent>
         </Tabs>
       )}
-      <BoardDialogs
-        board={board}
-        dialogs={dialogs}
-        onEdit={editRecord}
-        onArchive={archiveRecord}
-      />
-    </Page>
+    </>
   )
 }

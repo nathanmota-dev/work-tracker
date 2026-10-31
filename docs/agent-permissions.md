@@ -26,7 +26,7 @@ always require a decision. Automatic decisions use only an offered
 `allow_once` option; no option is invented. This conservative fallback also
 applies to tools that do not provide a reliable identity. Revoking a rule in
 Settings restores prompting; session rules are cleared when that ACP session
-ends. Submission confirmation remains a separate action in Apply.
+ends. Submission confirmation remains a separate action in the application detail.
 
 ## API for execution consumers
 

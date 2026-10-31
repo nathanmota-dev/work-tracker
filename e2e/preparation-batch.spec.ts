@@ -7,12 +7,14 @@ test('Batch: a form in review, a pending sign-in and restarts keep the queue; an
   test.setTimeout(300_000)
   for (const [id, company] of [['9101', 'Alpha'], ['9102', 'Beta'], ['9103', 'Gamma']])
     workspace.cli(['job', 'save', '--linkedin-id', id!, '--title', 'React Engineer', '--company', `${company} Company`, '--link', `https://example.com/${company!.toLowerCase()}`])
-  await workspace.go('Apply')
+  // The preparation queue lives in Applications; each item opens its application detail.
+  await workspace.go('Applications')
   const request = (path: string, body: unknown) => workspace.page.evaluate(([path, body]) => window.desktop!.request(path, body), [path, body] as const) as Promise<{ id: string }>
   const item = (position: number, company: string) => workspace.page.getByRole('listitem', { name: `${position}. ${name(company)}` })
   const open = async (company: string, jobId: number) => {
-    await workspace.page.getByRole('link', { name: `Open ${name(company)} in Apply` }).click()
+    await workspace.page.getByRole('link', { name: `Open ${name(company)} application` }).click()
     await expect(workspace.page).toHaveURL(new RegExp(`jobId=${jobId}&`))
+    await workspace.ready('Application')
   }
   const batch = await request('preparation-batches/create', { provider: 'opencode', items: [{ jobId: 1 }, { jobId: 2 }] })
   await expect(item(1, 'Alpha')).toContainText('Resume ready for review · needs you', { timeout: 90_000 })
@@ -22,21 +24,25 @@ test('Batch: a form in review, a pending sign-in and restarts keep the queue; an
   await expect(item(3, 'Gamma')).toContainText('Tailoring · waiting for sign-in', { timeout: 90_000 })
   workspace.setScenario({})
 
-  // Approving a resume in Apply sends it to the fill phase; the filled form then reserves the portal.
+  // Approving a resume in its detail sends it to the fill phase; the filled form then reserves the portal.
   await open('Alpha', 1)
   await workspace.page.getByRole('button', { name: 'Approve this version', exact: true }).click()
+  await workspace.go('Applications')
   await expect(item(1, 'Alpha')).toContainText('Form in review · needs you', { timeout: 60_000 })
   await expect(workspace.page.getByRole('status').filter({ hasText: `The browser portal is reserved for ${name('Alpha')}` })).toBeVisible()
   await open('Beta', 2)
   await workspace.page.getByRole('button', { name: 'Approve this version', exact: true }).click()
+  await workspace.go('Applications')
   await expect(item(2, 'Beta')).toContainText('Waiting to fill · pending')
   // A manual fill cannot overwrite the form waiting for the candidate either.
+  await workspace.page.goBack()
+  await workspace.ready('Application')
   await workspace.page.getByRole('button', { name: 'Fill application', exact: true }).click()
   await expect(workspace.page.getByRole('alert')).toContainText(`The ${name('Alpha')} form is waiting for your review in the browser`)
   expect(workspace.calls('fill').map(call => call.applicationId)).toEqual([workspace.query("SELECT a.id FROM applications a JOIN jobs j ON j.id = a.job_id WHERE j.company_name = 'Alpha Company'")[0]!.id])
 
   await workspace.restart()
-  await workspace.go('Apply')
+  await workspace.go('Applications')
   await expect(workspace.page.getByText('paused after restart', { exact: true })).toBeVisible()
   await expect(item(1, 'Alpha')).toContainText('Form in review · needs you')
   await expect(item(2, 'Beta')).toContainText('Waiting to fill · pending')
@@ -47,6 +53,8 @@ test('Batch: a form in review, a pending sign-in and restarts keep the queue; an
   // Confirming the submission releases the portal; the next fill is interrupted with an unknown outcome.
   await open('Alpha', 1)
   await workspace.page.getByRole('button', { name: 'I submitted in the browser' }).click()
+  await expect(workspace.page.getByText(/Submission confirmed/)).toBeVisible()
+  await workspace.go('Applications')
   await expect(item(1, 'Alpha')).toContainText('Submitted · completed')
   workspace.setScenario({ agent: 'hold' })
   const filled = prompts(workspace)
@@ -54,7 +62,7 @@ test('Batch: a form in review, a pending sign-in and restarts keep the queue; an
   await expect(item(2, 'Beta')).toContainText('Filling the portal · running', { timeout: 60_000 })
   await expect.poll(() => prompts(workspace)).toBe(filled + 1)
   await workspace.restart()
-  await workspace.go('Apply')
+  await workspace.go('Applications')
   await expect(item(2, 'Beta')).toContainText('Filling the portal · interrupted')
   await expect(workspace.page.getByRole('status').filter({ hasText: `The browser portal is reserved for ${name('Beta')}` })).toBeVisible()
   workspace.setScenario({})

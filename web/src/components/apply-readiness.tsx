@@ -11,7 +11,7 @@ export function applyBlocks(input: ReadinessInput, operation: "generate" | "fill
   if (!input.live) blocks.push({ message: "The backend is disconnected.", label: "Check workspace connection", href: "#/settings?section=general" })
   if (input.busy) blocks.push({ message: "An execution is active. Wait for it to finish or cancel it below.", label: "View activity", href: "#/activity" })
   if (input.archived) blocks.push({ message: "This job is archived.", label: "Restore in Jobs", href: "#/jobs" })
-  if (input.submitted) blocks.push({ message: "This application has already been submitted.", label: "View application board", href: "#/application-board" })
+  if (input.submitted) blocks.push({ message: "This application has already been submitted.", label: "Open the board", href: "#/applications?view=board" })
   if (!input.provider) blocks.push({ message: "No ACP provider is available.", label: "Configure an agent", href: correctionLink() })
   if (input.invalidModel) blocks.push({ message: "The saved model is unavailable for this provider.", label: "Choose a model", action: "model" })
   if (operation === "generate") {

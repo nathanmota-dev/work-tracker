@@ -39,7 +39,7 @@ it("reviews five jobs and shares one agent/model/resume while allowing only cont
   })
   expect(created).toHaveBeenCalledOnce()
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
-  expect(screen.getByRole("link", { name: "Open preparation queue" })).toHaveAttribute("href", "#/apply")
+  expect(screen.getByRole("link", { name: "Open preparation queue" })).toHaveAttribute("href", "#/applications")
 })
 it("keeps errors reviewable, locks double clicks and retries the same request ID after an unknown result", async () => {
   await review()

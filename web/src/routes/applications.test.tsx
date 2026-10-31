@@ -63,8 +63,7 @@ it("distinguishes zero/missing scores and unsubmitted applications", () => {
 })
 it("opens details/portal and prepares the selected application", async () => {
   render(<ApplicationsPage />)
-  fireEvent.click(screen.getByRole("button", { name: "Tailor a resume" }))
-  expect(openApply).toHaveBeenCalledWith()
+  expect(screen.queryByRole("button", { name: "Tailor a resume" })).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole("button", { name: "View Engineer" }))
   expect(screen.getByRole("dialog")).toHaveTextContent("Acme")
   fireEvent.click(screen.getByRole("button", { name: "Open portal" }))
@@ -76,7 +75,7 @@ it("opens details/portal and prepares the selected application", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Prepare application" }))
   expect(openApply).toHaveBeenCalledWith(7, 2)
 })
-it("links the job of a manual application before opening Apply and hides unsafe links", async () => {
+it("links the job of a manual application before opening its detail and hides unsafe links", async () => {
   rows = [
     { id: 3, job_title: "No target" },
     { id: 4, job_title: "Unsafe", external_url: "javascript:bad" },
@@ -99,7 +98,7 @@ it("links the job of a manual application before opening Apply and hides unsafe 
   const dialog = within(await screen.findByRole("dialog", { name: "Prepare this application" }))
   expect(await dialog.findByLabelText("Role title")).toHaveValue("No target")
   expect(openApply).not.toHaveBeenCalled()
-  fireEvent.click(dialog.getByRole("button", { name: "Link and open Apply" }))
+  fireEvent.click(dialog.getByRole("button", { name: "Link and open the application" }))
   await waitFor(() => expect(openApply).toHaveBeenCalledWith(12, 3))
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
 })
@@ -141,8 +140,8 @@ it("splits manual and generated records into views with origin, step and next ac
   expect(row("Manual role").getByText("Manual")).toBeInTheDocument()
   fireEvent.click(row("Filled role").getByRole("button", { name: "Submit in Apply" }))
   expect(openApply).toHaveBeenCalledWith(2, 11)
-  expect(row("Manual role").getByRole("link", { name: "Open board" })).toHaveAttribute("href", "#/application-board")
-  expect(row("Closed role").getByRole("link", { name: "Reopen on board" })).toHaveAttribute("href", "#/application-board")
+  expect(row("Manual role").getByRole("link", { name: "Open board" })).toHaveAttribute("href", "#/applications?view=board&highlight=12")
+  expect(row("Closed role").getByRole("link", { name: "Reopen on board" })).toHaveAttribute("href", "#/applications?view=board&tab=archived&highlight=13")
   expect(row("Legacy role").getByText("Resolve in Needs review")).toBeInTheDocument()
   choose("Filter by origin", "Manual")
   expect(screen.queryByText("Draft role")).not.toBeInTheDocument()
@@ -162,8 +161,43 @@ it("keeps view tabs keyboard reachable and explains each view", () => {
   render(<ApplicationsPage />)
   fireEvent.mouseDown(screen.getByRole("tab", { name: "Tracking (1)" }))
   fireEvent.keyDown(screen.getByRole("tab", { name: "Tracking (1)" }), { key: "Enter" })
-  expect(screen.getByText("Active on the application board.")).toBeInTheDocument()
+  expect(screen.getByText("Active on the board.")).toBeInTheDocument()
   expect(screen.queryByText("Draft role")).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole("button", { name: "View Manual role" }))
   expect(screen.getByRole("dialog")).toHaveTextContent("Manual · Submitted · Tracking")
+})
+
+it("switches between list and board layouts and keeps manual registration in both", () => {
+  rows = [
+    { id: 10, job_id: 1, job_title: "Draft role", company_name: "Draft Co", origin: "preparation", phase: "draft", view: "preparation" },
+  ]
+  render(<ApplicationsPage />)
+  expect(screen.getByRole("tab", { name: "List" })).toHaveAttribute("aria-selected", "true")
+  expect(screen.queryByRole("button", { name: "Manage stages" })).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole("button", { name: "New application" }))
+  expect(screen.getByRole("dialog")).toHaveTextContent("Company name")
+  fireEvent.click(screen.getByRole("button", { name: "Close" }))
+  fireEvent.mouseDown(screen.getByRole("tab", { name: "Board" }))
+  expect(screen.getByRole("tab", { name: "Board" })).toHaveAttribute("aria-selected", "true")
+  expect(screen.getByRole("button", { name: "Manage stages" })).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "New application" })).toBeInTheDocument()
+  expect(screen.queryByRole("tab", { name: "All (1)" })).not.toBeInTheDocument()
+})
+it("filters the list to records that need review while the review is open", async () => {
+  rows = [
+    { id: 20, job_title: "Legacy role", origin: "unknown", phase: "submitted", view: "preparation", review_reason: "missing_stage" },
+    { id: 21, job_id: 1, job_title: "Clean role", origin: "preparation", phase: "draft", view: "preparation" },
+  ]
+  vi.mocked(window.desktop!.request).mockImplementation(async (path: string) =>
+    path === "application-board/review"
+      ? { items: [{ id: 20, company_name: "Legacy Co", role_title: "Legacy role", review_reason: "missing_stage", origin: "unknown", status: "submitted", submission_status: "submitted", applied_at: null, job_id: null, job_exists: false, related: [], candidates: [], missing: [], decisions: ["track"], link_job: false, safe_fix: false }] }
+      : {},
+  )
+  render(<ApplicationsPage />)
+  expect(await screen.findByText("Needs review (1)")).toBeInTheDocument()
+  expect(screen.getByText("Clean role")).toBeInTheDocument()
+  fireEvent.click(screen.getByRole("button", { name: "Review" }))
+  expect(screen.getByRole("list", { name: "Applications to review" })).toBeInTheDocument()
+  expect(screen.queryByText("Clean role")).not.toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "View Legacy role" })).toBeInTheDocument()
 })

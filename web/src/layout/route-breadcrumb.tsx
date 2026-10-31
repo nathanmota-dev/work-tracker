@@ -1,13 +1,16 @@
 import { Link, useMatches } from "@tanstack/react-router"
+import { useCurrentCrumb } from "@/lib/page-crumb"
 
 export function RouteBreadcrumb() {
+  const label = useCurrentCrumb()
   const breadcrumbs = useMatches({
     select: (matches) =>
-      matches.flatMap((match) =>
-        match.staticData.title
-          ? [{ id: match.id, title: match.staticData.title, to: match.pathname }]
-          : [],
-      ),
+      matches.flatMap((match) => {
+        const { title, parent } = match.staticData
+        if (!title) return []
+        const crumb = { id: match.id, title, to: match.pathname }
+        return parent ? [{ id: `${match.id}:parent`, ...parent }, crumb] : [crumb]
+      }),
   })
 
   return (
@@ -25,7 +28,7 @@ export function RouteBreadcrumb() {
               )}
               {isCurrentPage ? (
                 <span aria-current="page" className="font-medium">
-                  {breadcrumb.title}
+                  {label || breadcrumb.title}
                 </span>
               ) : (
                 <Link

@@ -106,10 +106,10 @@ test('Launch: errors, cancellation and retained sign-in retry', async ({ workspa
   expect(workspace.calls('prompt').at(-1)?.pid).toBe(prompts.at(-1)?.pid)
 })
 
-test('Launch: portal preparation opens Apply before any agent fills a document', async ({ workspace, page }) => {
+test('Launch: portal preparation opens the application detail before any agent fills a document', async ({ workspace, page }) => {
   await workspace.go('Agent')
   await choose(page, 'Skill', 'Prepare an application')
   await page.getByRole('button', { name: 'Run agent' }).click()
-  await expect(page.getByRole('heading', { name: 'Apply', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Application', exact: true })).toBeVisible()
   expect(workspace.calls('prompt')).toEqual([])
 })

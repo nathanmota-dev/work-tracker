@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
-import { beforeEach, expect, it } from "vitest"
+import { beforeEach, expect, it, vi } from "vitest"
 import { ApplicationReview } from "@/components/application-review"
 import { publish } from "@/lib/api"
 import { desktopDouble } from "@/test/doubles"
@@ -41,10 +41,25 @@ beforeEach(() => {
   window.desktop = desktop
 })
 
+it("starts as a banner and expands into the review on request", async () => {
+  const onOpenChange = vi.fn()
+  const { rerender } = render(<ApplicationReview open={false} onOpenChange={onOpenChange} />)
+  expect(await screen.findByText("Needs review (3)")).toBeInTheDocument()
+  expect(screen.getByText(/Open the review to decide each one/)).toBeInTheDocument()
+  expect(screen.queryByRole("list", { name: "Applications to review" })).not.toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Apply safe fixes (1)" })).toBeInTheDocument()
+  fireEvent.click(screen.getByRole("button", { name: "Review" }))
+  expect(onOpenChange).toHaveBeenCalledWith(true)
+  rerender(<ApplicationReview open onOpenChange={onOpenChange} />)
+  expect(screen.getByRole("list", { name: "Applications to review" })).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Hide review" })).toHaveAttribute("aria-expanded", "true")
+})
+
 it("lists conflicts and missing data, then applies safe fixes on request", async () => {
   render(<ApplicationReview />)
   const panel = await screen.findByText("Needs review (3)")
   expect(panel).toBeInTheDocument()
+  fireEvent.click(screen.getByRole("button", { name: "Review" }))
   expect(screen.getByText("2 saved jobs match this link. Choose one with “Link job”.")).toBeInTheDocument()
   expect(screen.getByText(/Same job as #1 \(attempt \?, not submitted\)/)).toBeInTheDocument()
   expect(screen.getByText(/#2 · Unknown company · Untitled role/)).toBeInTheDocument()
@@ -57,7 +72,7 @@ it("lists conflicts and missing data, then applies safe fixes on request", async
 })
 
 it("keeps a failed decision visible and records the remaining issue of a resolved one", async () => {
-  render(<ApplicationReview />)
+  render(<ApplicationReview open />)
   const entry = within((await screen.findByText(/#2 · Unknown company/)).closest("li")!)
   fireEvent.change(entry.getByLabelText("Company name"), { target: { value: "Typed" } })
   fireEvent.change(entry.getByLabelText("Application date"), { target: { value: "2026-09-01T10:00" } })
@@ -71,7 +86,7 @@ it("keeps a failed decision visible and records the remaining issue of a resolve
 })
 
 it("links a job from the review and refreshes on changes", async () => {
-  render(<ApplicationReview />)
+  render(<ApplicationReview open />)
   fireEvent.click(await screen.findByRole("button", { name: "Link job" }))
   const dialog = within(await screen.findByRole("dialog"))
   fireEvent.change(await dialog.findByLabelText("Role title"), { target: { value: "Engineer" } })

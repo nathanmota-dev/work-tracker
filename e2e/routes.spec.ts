@@ -4,9 +4,7 @@ import { test, expect } from './fixtures'
 export const routes = [
   ['Dashboard', 'dashboard', 'Saved opportunities'],
   ['Jobs', 'jobs', 'Discover opportunities'],
-  ['Applications', 'applications', 'Tailor a resume'],
-  ['Application board', 'application-board', 'New application'],
-  ['Apply', 'apply', 'Opportunity'],
+  ['Applications', 'applications', 'New application'],
   ['Interviews', 'interviews', 'Upcoming'],
   ['Search', 'search', 'People & recruiters'],
   ['Recruiters', 'recruiters', 'Preview connection sync'],
@@ -26,12 +24,11 @@ for (const populated of [false, true]) {
         const links = page.locator('[data-sidebar="sidebar"]').getByRole('link')
         expect((await links.evaluateAll(nodes => nodes.map(node => node.getAttribute('href')!.split('#').at(-1)!.replace(/\/$/, ''))))).toEqual(routes.map(route => `/${route[1]}`))
         await expect(links).toHaveText(routes.map(route => route[0]))
-        await expect(page.locator('[data-sidebar="sidebar"]').getByRole('group')).toHaveCount(6)
+        await expect(page.locator('[data-sidebar="sidebar"]').getByRole('group')).toHaveCount(5)
         expect(await page.locator('[data-sidebar="sidebar"]').getByRole('group').evaluateAll(groups =>
           groups.map(group => [group.getAttribute('aria-label'), Array.from(group.querySelectorAll('a')).map(link => link.getAttribute('aria-label'))])
         )).toEqual([
-          ['Overview', ['Dashboard']], ['Find', ['Jobs']],
-          ['Apply & track', ['Applications', 'Application board', 'Apply', 'Interviews']],
+          ['Overview', ['Dashboard']], ['Journey', ['Jobs', 'Applications', 'Interviews']],
           ['People', ['Search', 'Recruiters', 'Outreach']], ['You', ['Profile', 'Answers']],
           ['Tools', ['Agent', 'Activity', 'Settings']],
         ])
@@ -47,7 +44,14 @@ for (const populated of [false, true]) {
         await expect(page.getByRole('alert')).toHaveCount(0)
         if (populated && title === 'Jobs') await expect(page.getByRole('cell', { name: 'Company 1', exact: false }).first()).toBeVisible()
         if (populated && title === 'Interviews') await expect(page.getByRole('cell', { name: 'Future Company', exact: true })).toBeVisible()
-        if (!populated && title === 'Apply') await expect(page.getByRole('heading', { name: 'No PDF yet' })).toHaveCount(2)
+        if (populated && title === 'Applications') {
+          await page.getByRole('tab', { name: 'Board', exact: true }).click()
+          await expect(page).toHaveURL(/view=board/)
+          await expect(page.getByRole('region', { name: 'Draft applications' })).toBeVisible()
+          await page.reload()
+          await workspace.ready(title)
+          await expect(page.getByRole('tab', { name: 'Board', exact: true })).toHaveAttribute('aria-selected', 'true')
+        }
       })
     }
   })
@@ -73,7 +77,8 @@ test('shell: redirect, sidebar, command palette, history and narrow window', asy
   await page.goForward()
   await workspace.ready('Settings')
   await workspace.resize(700)
-  await workspace.go('Apply')
+  workspace.cli(['job', 'save', '--linkedin-id', '9700', '--title', 'Narrow Engineer', '--company', 'Narrow Company'])
+  await workspace.visit('/apply?jobId=1', 'Application')
   await expect(page.getByRole('tab', { name: 'Base PDF' })).toBeVisible()
   await page.getByRole('tab', { name: 'Tailored PDF' }).click()
   await expect(page.getByRole('heading', { name: 'Tailored PDF', exact: true })).toBeVisible()
@@ -81,9 +86,9 @@ test('shell: redirect, sidebar, command palette, history and narrow window', asy
 
 const readEndpoints = [
   ['Dashboard', 'overview'], ['Profile', 'profile'], ['Agent', 'acp/providers'],
-  ['Recruiters', 'recruiters'], ['Outreach', 'outreach'], ['Apply', 'jobs'],
+  ['Recruiters', 'recruiters'], ['Outreach', 'outreach'],
   ['Jobs', 'jobs'], ['Applications', 'applications'],
-  ['Application board', 'application-board'], ['Answers', 'answers/variants'],
+  ['Answers', 'answers/variants'],
   ['Interviews', 'interviews'], ['Activity', 'activity'], ['Settings', 'acp/providers'],
 ] as const
 for (const [title, endpoint] of readEndpoints) {
@@ -98,3 +103,16 @@ for (const [title, endpoint] of readEndpoints) {
     await expect(page.getByRole('alert')).toHaveCount(0)
   })
 }
+
+test('legacy links: the board redirects to Applications and the detail stays reachable by URL', async ({ workspace, page }) => {
+  await page.evaluate(() => { location.hash = '/application-board?q=Nothing' })
+  await workspace.ready('Applications')
+  await expect(page).toHaveURL(/#\/applications\?.*view=board/)
+  await expect(page.getByLabel('Search applications')).toHaveValue('Nothing')
+  await expect(page.locator('[data-sidebar="sidebar"] a[aria-current="page"]')).toHaveAccessibleName('Applications')
+  await workspace.visit('/apply', 'Application')
+  await expect(page.getByRole('link', { name: 'Open the Jobs shortlist' })).toBeVisible()
+  await page.getByRole('link', { name: 'Open the Jobs shortlist' }).click()
+  await workspace.ready('Jobs')
+  await expect(page.getByRole('tab', { name: /^Shortlist/ })).toHaveAttribute('aria-selected', 'true')
+})

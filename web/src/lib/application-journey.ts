@@ -23,15 +23,15 @@ export const PHASE_LABELS: Record<JourneyPhase, string> = {
 export const VIEWS: Record<ApplicationView, { label: string; hint: string }> = {
   preparation: {
     label: "Preparation",
-    hint: "Not on the application board yet.",
+    hint: "Not on the board stages yet.",
   },
   tracking: {
     label: "Tracking",
-    hint: "Active on the application board.",
+    hint: "Active on the board.",
   },
   archived: {
     label: "Archived",
-    hint: "Closed processes; reopen them on the application board.",
+    hint: "Closed processes; reopen them on the board.",
   },
 }
 export const ORIGINS: Record<ApplicationOrigin, string> = {
@@ -62,6 +62,12 @@ export function nextStep(row: Row): NextStep {
   }
 }
 
+/** The Jobs action that opens the application detail for a job's latest attempt. */
+export function applyLabel(application?: Row) {
+  if (!application) return "Apply"
+  return nextStep(application).kind === "prepare" ? "Continue application" : "View application"
+}
+
 /** Phase and view totals for a list, using the server-computed columns. */
 export function countRows(rows: Row[]) {
   const phases: Record<JourneyPhase, number> = { draft: 0, prepared: 0, filled: 0, submitted: 0 }
@@ -80,6 +86,6 @@ export function summaryStep(summary: ApplicationSummary) {
   if (summary.phases.draft || summary.phases.prepared)
     return { label: "Continue preparing", href: "#/applications" }
   if (summary.views.tracking)
-    return { label: "Open board", href: "#/application-board" }
-  return { label: "Tailor a resume", href: "#/apply" }
+    return { label: "Open board", href: "#/applications?view=board" }
+  return { label: "Apply from your shortlist", href: "#/jobs?view=shortlist" }
 }

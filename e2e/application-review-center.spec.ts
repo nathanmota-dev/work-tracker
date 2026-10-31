@@ -38,8 +38,10 @@ test('Review center: select five jobs, recover a failure, adjust, restart, revie
   expect(workspace.query('SELECT id, pdf_hash FROM document_versions ORDER BY rowid')[0]).toEqual(firstDocument)
   expect(workspace.query('SELECT COUNT(*) AS n FROM document_versions')).toEqual([{ n: 6 }])
   await workspace.restart()
-  await workspace.go('Apply')
+  // Batch review stays reachable from the preparation queue in Applications.
+  await workspace.go('Applications')
   await workspace.page.getByRole('link', { name: 'Review batch', exact: true }).click()
+  await workspace.ready('Application')
   await expect(workspace.page.getByText('paused after restart', { exact: true })).toBeVisible()
   await expect(count('prepared')).toHaveText('5')
   await workspace.page.getByRole('link', { name: 'Show unfinished only', exact: true }).click()

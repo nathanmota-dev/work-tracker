@@ -9,7 +9,7 @@ import { BatchPreparation } from "@/components/batch-preparation"
 import { useWorkspaceState } from "@/lib/workspace-state"
 import { text, date, type Row } from "@/lib/api"
 import { openApply } from "@/lib/preparation"
-import { nextStep } from "@/lib/application-journey"
+import { applyLabel, nextStep } from "@/lib/application-journey"
 import { NextStepAction, originLabel, phaseLabel } from "@/components/application-list"
 
 /** The job's latest application attempt, shaped like an Applications row. */
@@ -126,7 +126,6 @@ export function jobColumns(actions: (row: Row) => ReactNode, arrived: number[] =
 
 function PrepareJob({ row, busy }: { row: Row; busy: boolean }) {
   const application = linkedApplication(row)
-  const step = application ? nextStep(application) : undefined
   return (
     <Button
       size="sm"
@@ -134,7 +133,7 @@ function PrepareJob({ row, busy }: { row: Row; busy: boolean }) {
       disabled={busy || !!row.archived_at}
       onClick={() => openApply(row.id, application?.id)}
     >
-      {step?.kind === "prepare" ? step.label : "Prepare application"}
+      {applyLabel(application)}
     </Button>
   )
 }

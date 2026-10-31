@@ -1,8 +1,8 @@
 import { test, expect } from './fixtures'
 import { panel } from './ui'
 
-test('Manual application: missing job is created from its data, a failed link is retried, and Apply opens with the same identity', async ({ workspace, page }) => {
-  await workspace.go('Application board')
+test('Manual application: missing job is created from its data, a failed link is retried, and its detail opens with the same identity', async ({ workspace, page }) => {
+  await workspace.go('Applications')
   await page.getByRole('button', { name: 'New application', exact: true }).first().click()
   await page.getByLabel('Company name', { exact: true }).fill('Manual Company')
   await page.getByLabel('Job link', { exact: true }).fill('https://manual.example/jobs/42')
@@ -22,17 +22,19 @@ test('Manual application: missing job is created from its data, a failed link is
   await dialog.getByLabel('Job description').fill('Build the synthetic platform.')
   await expect(dialog.getByText(/Missing for preparation/)).toHaveCount(0)
   await workspace.fault('application-board/link')
-  await dialog.getByRole('button', { name: 'Link and open Apply' }).click()
+  await dialog.getByRole('button', { name: 'Link and open the application' }).click()
   await expect(dialog.getByRole('alert')).toContainText('Synthetic transport failure')
   expect(workspace.query('SELECT COUNT(*) AS n FROM jobs')[0]?.n).toBe(0)
-  await dialog.getByRole('button', { name: 'Link and open Apply' }).click()
-  await workspace.ready('Apply')
+  await dialog.getByRole('button', { name: 'Link and open the application' }).click()
+  await workspace.ready('Application')
 
   const [job] = workspace.query('SELECT id, title, company_name, comp, link, description FROM jobs')
   expect(job).toEqual({ id: expect.any(Number), title: 'Manual Engineer', company_name: 'Manual Company', comp: 'USD 90k', link: 'https://manual.example/jobs/42', description: 'Build the synthetic platform.' })
   await expect(page).toHaveURL(new RegExp(`jobId=${job!.id}&applicationId=${application!.id}`))
   await expect(page.locator('p', { hasText: 'Manual Company · Manual Engineer' })).toBeVisible()
-  await expect(page.getByRole('combobox', { name: /^Saved job/ })).toContainText('Manual Company · Manual Engineer')
+  await expect(page.getByRole('navigation', { name: 'Caminho da página' }).locator('[aria-current="page"]')).toHaveText('Manual Company · Manual Engineer')
+  await expect(page.getByRole('combobox', { name: /^Saved job/ })).toHaveCount(0)
+  await expect(page.getByRole('listitem', { name: '4. Confirm submission: Done' })).toBeVisible()
   await expect(page.getByText(/^Submitted on /)).toBeVisible()
   expect(workspace.query('SELECT id, job_id, origin, submission_status FROM applications')).toEqual([{ id: application!.id, job_id: job!.id, origin: 'manual', submission_status: 'submitted' }])
   expect(workspace.query('SELECT event_type FROM application_events')).toEqual([{ event_type: 'created' }])
@@ -45,6 +47,10 @@ test('Legacy review: safe fixes keep IDs once, and an ambiguous job is linked on
     (32, 'draft', 'not_submitted', NULL, NULL, 'Legacy Co', 'Legacy Engineer', 'https://legacy.example/job', 1, 'unknown', 'missing_job')`)
   await workspace.go('Applications')
   const review = panel(page, 'Needs review (2)')
+  await review.getByRole('button', { name: 'Review', exact: true }).click()
+  await expect(page).toHaveURL(/review=true/)
+  // While reviewing, the list shows only the records that need a decision.
+  await expect(page.getByRole('button', { name: 'View Sent Engineer' })).toBeVisible()
   await expect(review).toContainText('2 saved jobs match this link.')
   await review.getByRole('button', { name: 'Apply safe fixes (1)' }).click()
   await expect(panel(page, 'Needs review (1)')).toContainText('1 application(s) reconciled.')
@@ -61,7 +67,7 @@ test('Legacy review: safe fixes keep IDs once, and an ambiguous job is linked on
   await expect(page.getByRole('heading', { name: /Needs review/ })).toHaveCount(0)
   expect(workspace.query('SELECT id, job_id FROM applications ORDER BY id')).toEqual([{ id: 31, job_id: null }, { id: 32, job_id: 42 }])
   expect(workspace.query('SELECT COUNT(*) AS n FROM jobs')[0]?.n).toBe(2)
-  await workspace.go('Application board')
+  await workspace.board()
   await expect(page.getByRole('region', { name: 'Applied applications' }).getByRole('button', { name: 'View Sent Co application' })).toBeVisible()
   expect(workspace.query("SELECT application_id FROM application_events WHERE event_type = 'created'")).toEqual([{ application_id: 31 }])
 })

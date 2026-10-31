@@ -48,8 +48,8 @@ it("shows each item's position, phase, status and the portal reservation", async
   expect(within(row("1. Company 1 · Engineer")).getByText(/submit it there yourself/)).toBeInTheDocument()
   expect(within(row("2. Company 2 · Engineer")).getByText("Synthetic agent failure")).toBeInTheDocument()
   expect(within(row("4. Company 4 · Engineer")).getByText(/approve the resume/)).toBeInTheDocument()
-  expect(screen.getByRole("link", { name: "Open Company 1 · Engineer in Apply" })).toHaveAttribute("href", "#/apply?jobId=1&applicationId=11&runId=run-1")
-  expect(screen.getByRole("link", { name: "Open Company 5 · Engineer in Apply" })).toHaveAttribute("href", "#/apply?jobId=5")
+  expect(screen.getByRole("link", { name: "Open Company 1 · Engineer application" })).toHaveAttribute("href", "#/apply?jobId=1&applicationId=11&runId=run-1")
+  expect(screen.getByRole("link", { name: "Open Company 5 · Engineer application" })).toHaveAttribute("href", "#/apply?jobId=5")
   expect(screen.queryByRole("button", { name: "Cancel Company 5 · Engineer" })).not.toBeInTheDocument()
 })
 
