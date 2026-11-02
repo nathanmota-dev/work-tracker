@@ -10,7 +10,7 @@ abertura, atualização, reabertura e saída de draft.
 | `backend-ci.yml` | Audit, lint e typecheck do backend, CLI, Electron main/preload e fontes E2E; unitários com cobertura; quality gate; integração em job próprio |
 | `frontend-ci.yml` | Audit, lint e typecheck de `web`; unitários e componentes com cobertura; quality gate |
 | `quality-gate.yml` | Workflow reutilizável chamado por cada CI com a camada correspondente |
-| `performance.yml` | Microbenchmarks do backend e do frontend comparados com a baseline do commit-base |
+| `performance.yml` | Microbenchmarks do backend e do frontend do commit-base e do PR, medidos no mesmo job e comparados |
 | `e2e.yml` | Suíte Electron/Playwright existente |
 
 Backend CI e Frontend CI não dependem um do outro: quando ambos são acionados,
@@ -28,11 +28,12 @@ o Frontend CI.
   baselines dos gates (`scripts/ci/`, `scripts/*.cjs`, `scripts/*.json`) e o
   workflow reutilizável.
 - **Performance e E2E** rodam em todo PR. Performance escolhe as camadas pelos
-  arquivos alterados; sem baseline no commit-base, mede ambas.
+  arquivos alterados (`scripts/ci/benchmark-layers.cjs`).
 
 `npm run test:infra` inclui `scripts/workflows.test.cjs`, que verifica disparos,
 concorrência e os filtros para mudanças exclusivas de backend, frontend,
-contratos compartilhados, lockfile e documentação.
+contratos compartilhados, lockfile e documentação, além da seleção de camadas e
+da estrutura do workflow de performance.
 
 ## Execução de cada camada
 
@@ -120,24 +121,84 @@ antes e depois da medição:
 `scripts/benchmark-gate.cjs` lê o reporter JSON atual
 (`testResults[].assertionResults[].benchmarks[].tasks[]`) e bloqueia perda de
 throughput **superior a 20%**, cenários removidos e resultados inválidos ou com
-verificações falhas. Cenários novos geram aviso até entrarem na baseline.
+verificações falhas. Cenários que existem no PR e não no commit-base geram aviso,
+sem bloquear.
+
+Nenhuma baseline de benchmark é versionada. Os números dependem da máquina: um
+arquivo medido em outro hardware bloqueia PRs sem regressão ou libera regressões
+reais (no PR #58, uma baseline local cerca de 40% mais rápida que o runner
+reprovou cenários que o PR nem alterava). Por isso, o commit-base e a mudança são
+sempre medidos **na mesma máquina e na mesma execução**:
+
+- `--capture <arquivo>` mede a árvore atual e grava a medição fora do
+  repositório (caminhos dentro dele são recusados, para que nunca seja
+  commitada);
+- `--baseline <arquivo>` compara a árvore atual com essa medição.
+
+Cada medição registra Node, sistema, arquitetura, uma impressão digital da
+máquina (hostname, modelo e quantidade de CPUs) e o run/tentativa do CI. O gate
+recusa uma baseline com qualquer um desses campos diferente, inclusive um arquivo
+antigo sem impressão digital.
+
+### CI
+
+O `performance.yml` usa um único job:
+
+1. faz checkout do `head.sha` em `pr-head/` e do `base.sha` em `pr-base/`;
+2. escolhe as camadas pelo diff entre os dois commits;
+3. instala as dependências do head e roda `npm run test:infra` com os scripts do
+   PR;
+4. instala as dependências do base, mede as camadas selecionadas e grava a
+   medição com `--capture`;
+5. copia `scripts/benchmark-gate.cjs`, `scripts/ci/benchmark.cjs` e
+   `scripts/ci/common.cjs` do base para o head, mede o head com eles e compara
+   com `--baseline`.
+
+Assim, o executor e o gate que medem e julgam o PR são os do commit-base:
+alterar o gate, o limite ou o executor no PR não muda a régua aplicada a ele. As
+mudanças nesses scripts continuam cobertas pelo `test:infra` do próprio PR. O
+relatório indica `main@<sha> (measured on this runner)` e mostra as duas
+medições; o artifact `performance-<run>-<tentativa>` inclui os relatórios brutos
+do base e do head e `base-benchmarks.json`. Falhas em qualquer medição, na
+comparação ou no `test:infra` bloqueiam o job. Sem camada selecionada, nada é
+medido e o relatório indica as camadas ignoradas.
+
+Enquanto o commit-base for anterior a este fluxo (sem `--capture`), o workflow
+mede as duas camadas do base com o modo bootstrap antigo e as compara usando o
+gate antigo. Depois que a `main` contiver este fluxo, esse ramo deixa de ser
+usado e pode ser removido.
+
+### Execução local
 
 ```bash
-npm run benchmark            # backend e frontend
-npm run performance:check    # compara com scripts/benchmark-baseline.json
+npm run benchmark                        # mede apenas a árvore atual
+npm run performance:check                # mede a main e o commit atual e compara
+npm run performance:check -- --base origin/main
 ```
 
-A primeira baseline é produzida no runner do CI. Sem
-`scripts/benchmark-baseline.json` no commit-base, o workflow mede as duas
-camadas em modo bootstrap e publica `reports/benchmark-candidate-baseline.json`
-(com `"kind": "bootstrap"`, Node, sistema, arquitetura e run) no artifact
-`performance-<run>-<tentativa>`. Incorpore esse arquivo como
-`scripts/benchmark-baseline.json`; depois do merge, os PRs seguintes passam a ser
-comparados com ele. Localmente, sem baseline, `performance:check` também roda em
-bootstrap, mas isso não conta como verificação: gere a baseline a partir do
-código da `main` no próprio worktree e compare com ela, conforme o `AGENTS.md`.
-Com a baseline do CI, a comparação local é apenas indicativa, porque depende da
-máquina.
+`npm run performance:check` (`scripts/performance-compare.cjs`) exige árvore
+limpa (inclusive sem arquivos não rastreados), então commite a mudança antes. Ele
+muda para o base em `--detach`, roda `npm run benchmark`, grava a medição em um
+diretório temporário, volta para o branch de origem (também após falha ou
+Ctrl+C), mede o branch e compara. O gate usado é o do branch, carregado antes da
+troca. As dependências instaladas são as do branch; se o PR alterar o lockfile, a
+medição do base usa esse `node_modules`.
+
+### Limite, ruído e acúmulo
+
+O limite continua em 20%. Em 10 execuções locais de `npm run performance:check`
+sem mudança de código medido (A/A, `main` contra o branch), a maior diferença
+foi de 5,3% (ATS 2,9%, outreach 3,9%, filtragem 5,3%, histórico 3,0%). Medições
+espaçadas no tempo, com outras cargas na máquina, variaram bem mais (até ~55% no
+primeiro cenário de uma medição), o que reforça medir base e head em sequência.
+O ruído entre base e head no mesmo runner do GitHub ainda não foi medido com 10
+execuções; reduzir o limite para ~10% só deve acontecer depois disso.
+
+Cada PR é comparado com o seu próprio commit-base, então várias perdas abaixo do
+limite podem se acumular sem que nenhum PR falhe. Para acompanhar a tendência,
+compare periodicamente a `main` com uma referência mais antiga, por exemplo
+`npm run performance:check -- --base <tag>`. Um job agendado com essa comparação
+é uma melhoria possível; hoje nenhum workflow roda fora de PRs.
 
 ## Caches
 
@@ -169,7 +230,8 @@ máquina.
   pelo Git, separados em `backend`, `frontend`, `integration` e `benchmarks`.
   As chaves do CI combinam sistema, arquitetura, versão do Node, lockfile,
   configurações e fontes relevantes, com restauração parcial sem o hash das
-  fontes.
+  fontes. O workflow de performance não restaura o cache de `benchmarks`, porque
+  mede duas árvores; cada medição começa com o mesmo estado.
 - **Worktrees:** `scripts/create-worktree-local.sh` copia `.cache/work-tracker`
   como cópia independente (`--reflink=auto`) e tolera a ausência do diretório.
   Os caches globais de npm, Electron e electron-builder continuam reutilizados.

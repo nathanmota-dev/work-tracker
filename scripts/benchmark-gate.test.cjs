@@ -1,9 +1,13 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
 const { describe, it } = require("node:test");
 const gate = require("./benchmark-gate.cjs");
 const { summarizeAudit } = require("./ci/audit.cjs");
+const { REPOSITORY_ROOT, stampArtifact, writeJson } = require("./ci/common.cjs");
 
 function task(name, hz, overrides = {}) {
   return {
@@ -29,7 +33,7 @@ function metrics(hz) {
 function snapshot(backend, frontend = { "suite > case > render": metrics(100) }) {
   return {
     schemaVersion: 1,
-    kind: "bootstrap",
+    kind: "measurement",
     policy: { maxRegressionPercent: 20 },
     projects: { backend: { benchmarks: backend }, frontend: { benchmarks: frontend } },
   };
@@ -84,37 +88,97 @@ describe("throughput comparison", () => {
 });
 
 describe("baseline and arguments", () => {
-  it("validates baseline policy and metrics", () => {
+  it("validates baseline policy and the metrics of the selected layers", () => {
     const valid = snapshot({ "suite > case > match": metrics(100) });
     assert.equal(gate.validateBaseline(valid), valid);
     assert.throws(() => gate.validateBaseline({ ...valid, schemaVersion: 2 }), /schemaVersion 1/);
     assert.throws(() => gate.validateBaseline({ ...valid, policy: { maxRegressionPercent: 100 } }), /lower than 100/);
     assert.throws(() => gate.validateBaseline(snapshot({})), /at least one benchmark/);
     assert.throws(() => gate.validateBaseline(snapshot({ x: { ...metrics(1), hz: 0 } })), /baseline hz/);
+    const frontendOnly = { ...valid, projects: { frontend: valid.projects.frontend } };
+    assert.equal(gate.validateBaseline(frontendOnly, ["frontend"]), frontendOnly);
+    assert.throws(() => gate.validateBaseline(frontendOnly, ["backend"]), /no backend measurement/);
   });
 
-  it("requires both layers when capturing a baseline", () => {
-    assert.deepEqual(gate.parseArguments(["--projects", "frontend"]).projects, ["frontend"]);
-    assert.deepEqual(gate.parseArguments(["--projects", ""]).projects, []);
-    assert.throws(() => gate.parseArguments(["--bootstrap", "--projects", "backend"]), /both layers/);
-    assert.throws(() => gate.parseArguments(["--projects", "web"]), /Unknown benchmark layer/);
+  it("requires a base measurement and keeps captures outside the repository", () => {
+    const outside = path.join(os.tmpdir(), "base.json");
+    assert.deepEqual(gate.parseArguments(["--projects", "frontend", "--baseline", outside], {}).projects, ["frontend"]);
+    assert.deepEqual(gate.parseArguments(["--projects", ""], {}).projects, []);
+    assert.equal(gate.parseArguments([], { BENCHMARK_BASELINE_PATH: outside }).baselinePath, outside);
+    assert.equal(gate.parseArguments(["--capture", outside, "--projects", "backend"], {}).capturePath, outside);
+    assert.equal(gate.parseArguments(["--baseline", outside, "--label", "main@abc"], {}).label, "main@abc");
+    assert.throws(() => gate.parseArguments([], {}), /base measurement from this machine is required/);
+    assert.throws(() => gate.parseArguments(["--capture", "scripts/benchmark-baseline.json"], {}), /outside the repository/);
+    assert.throws(() => gate.parseArguments(["--capture", outside, "--baseline", outside], {}), /either --capture or --baseline/);
+    assert.throws(() => gate.parseArguments(["--bootstrap"], {}), /Unknown argument/);
+    assert.throws(() => gate.parseArguments(["--update-baseline"], {}), /Unknown argument/);
+    assert.throws(() => gate.parseArguments(["--projects", "web", "--baseline", outside], {}), /Unknown benchmark layer/);
   });
 
-  it("identifies bootstrap snapshots with their runtime", () => {
-    const value = gate.buildSnapshot({ backend: { benchmarks: {} } }, gate.DEFAULT_POLICY, { commit: "abc", kind: "bootstrap" });
-    assert.equal(value.kind, "bootstrap");
+  it("identifies measurements with their machine and run", () => {
+    const value = gate.buildSnapshot({ backend: { benchmarks: {} } }, gate.DEFAULT_POLICY, { commit: "abc" });
+    assert.equal(value.kind, "measurement");
     assert.equal(value.runtime.node, process.version);
+    assert.match(value.runtime.machine, /^[a-f0-9]{16}$/);
     assert.deepEqual(Object.keys(value.projects), ["backend"]);
   });
 
-  it("renders bootstrap and failing reports", () => {
+  it("only compares measurements taken on the same machine in the same run", () => {
+    const current = gate.buildSnapshot({}, gate.DEFAULT_POLICY, { commit: "head" });
+    const base = gate.buildSnapshot({}, gate.DEFAULT_POLICY, { commit: "base" });
+    assert.doesNotThrow(() => gate.assertSameEnvironment(base, current));
+    for (const field of ["machine", "node", "runId", "runAttempt"]) {
+      const foreign = { ...base, runtime: { ...base.runtime, [field]: "other" } };
+      assert.throws(() => gate.assertSameEnvironment(foreign, current), new RegExp(`another environment \\(${field}:`));
+    }
+    const committed = { ...base, runtime: { node: process.version, runner: "local" } };
+    assert.throws(() => gate.assertSameEnvironment(committed, current), /machine: expected [a-f0-9]+, found none/);
+  });
+
+  it("renders both measurements, failures and new scenarios", () => {
     const baseline = snapshot({ "suite > case > match": metrics(100) });
-    const comparison = gate.compareBenchmarks(baseline, snapshot({ "suite > case > match": metrics(50) }), ["backend"]);
-    assert.match(gate.renderMarkdown({ baseline, comparison, selectedProjects: ["backend"], baselineLabel: "base" }), /\*\*FAIL\*\*/);
-    assert.match(
-      gate.renderMarkdown({ baseline, comparison: { ...comparison, failures: [] }, selectedProjects: [], baselineLabel: "base", bootstrap: true }),
-      /Bootstrap reference captured/,
-    );
+    const current = gate.buildSnapshot({ backend: { benchmarks: { "suite > case > match": metrics(50), "suite > case > new": metrics(10) } } }, gate.DEFAULT_POLICY, { commit: "head123" });
+    const comparison = gate.compareBenchmarks(baseline, current, ["backend"]);
+    const markdown = gate.renderMarkdown({ baseline, current, comparison, selectedProjects: ["backend"], baselineLabel: "main@abc (measured on this runner)" });
+    assert.match(markdown, /\*\*FAIL\*\*/);
+    assert.match(markdown, /Baseline: main&#64;abc \(measured on this runner\) · change: `head123`/);
+    assert.match(markdown, /\| 100 \| 50 \| -50\.00% \|/);
+    assert.match(markdown, /## Warnings\n\n- backend\/suite &gt; case &gt; new is new/);
+    assert.doesNotMatch(markdown, /[Bb]ootstrap/);
+  });
+});
+
+describe("command line", () => {
+  it("captures the base outside the repository and compares the change with it", (t) => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "benchmark-gate-"));
+    t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+    const reportsRoot = path.join(REPOSITORY_ROOT, "reports", "benchmarks");
+    const reportPath = path.join(reportsRoot, "backend.json");
+    const reportBackup = fs.existsSync(reportPath) ? fs.readFileSync(reportPath) : null;
+    const provenanceBackup = fs.existsSync(`${reportPath}.provenance.json`) ? fs.readFileSync(`${reportPath}.provenance.json`) : null;
+    t.after(() => {
+      for (const [file, contents] of [[reportPath, reportBackup], [`${reportPath}.provenance.json`, provenanceBackup]]) {
+        if (contents) fs.writeFileSync(file, contents);
+        else fs.rmSync(file, { force: true });
+      }
+    });
+    const writeReport = (hz) => {
+      writeJson(reportPath, report([task("match", hz)]));
+      stampArtifact(reportPath, { layer: "backend", kind: "benchmark" });
+    };
+    const quiet = t.mock.method(process.stdout, "write", () => true);
+    t.mock.method(process.stderr, "write", () => true);
+    const basePath = path.join(directory, "base.json");
+    writeReport(100);
+    assert.equal(gate.runCli(["--capture", basePath, "--projects", "backend"]), 0);
+    assert.deepEqual(Object.keys(JSON.parse(fs.readFileSync(basePath, "utf8")).projects), ["backend"]);
+    writeReport(90);
+    assert.equal(gate.runCli(["--baseline", basePath, "--projects", "backend"]), 0);
+    writeReport(70);
+    assert.equal(gate.runCli(["--baseline", basePath, "--projects", "backend"]), 1);
+    assert.equal(gate.runCli(["--baseline", basePath, "--projects", "frontend"]), 2);
+    assert.equal(gate.runCli(["--projects", ""]), 0);
+    quiet.mock.restore();
   });
 });
 

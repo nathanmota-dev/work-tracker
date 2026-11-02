@@ -5,6 +5,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const { describe, it } = require("node:test");
+const { selectLayers } = require("./ci/benchmark-layers.cjs");
 
 const WORKFLOWS = path.join(__dirname, "..", ".github", "workflows");
 const PR_WORKFLOWS = ["backend-ci.yml", "frontend-ci.yml", "performance.yml", "e2e.yml"];
@@ -100,6 +101,78 @@ describe("path filters", () => {
     it(`${label} triggers ${JSON.stringify(expected)}`, () => {
       assert.equal(triggers("backend-ci.yml", files), expected.backend);
       assert.equal(triggers("frontend-ci.yml", files), expected.frontend);
+    });
+  }
+});
+
+describe("performance workflow", () => {
+  const source = read("performance.yml");
+  const steps = source.split(/\n {6}- name: /).slice(1).map((step) => ({ name: step.split("\n")[0], body: step }));
+  const step = (name) => {
+    const found = steps.find((item) => item.name === name);
+    assert.ok(found, `missing step: ${name}`);
+    return found;
+  };
+  const position = (name) => steps.indexOf(step(name));
+
+  it("measures the base and the head in the same job without a committed baseline", () => {
+    assert.equal(source.match(/^ {2}[a-z-]+:\n {4}name:/gm)?.length, 1, "performance.yml must keep a single job");
+    assert.match(step("Checkout pull request head").body, /ref: \$\{\{ github\.event\.pull_request\.head\.sha \}\}\n +path: pr-head/);
+    assert.match(step("Checkout pull request base").body, /ref: \$\{\{ github\.event\.pull_request\.base\.sha \}\}\n +path: pr-base/);
+    assert.match(step("Base microbenchmarks").body, /working-directory: pr-base/);
+    assert.match(step("Base microbenchmarks").body, /node scripts\/benchmark-gate\.cjs --capture "\$BASE_MEASUREMENT" --projects "\$LAYERS"/);
+    assert.match(step("Head microbenchmarks").body, /working-directory: pr-head/);
+    assert.match(step("Compare head with base").body, /--baseline "\$BASE_MEASUREMENT" --projects "\$LAYERS"/);
+    assert.match(step("Compare head with base").body, /main@\$\{BASE_SHA:0:12\} \(measured on this runner\)/);
+    assert.ok(position("Base microbenchmarks") < position("Head microbenchmarks"));
+    assert.ok(position("Head microbenchmarks") < position("Compare head with base"));
+    assert.doesNotMatch(source, /benchmark-baseline\.json|git show "\$\{BASE_SHA\}/);
+    assert.equal(fs.existsSync(path.join(__dirname, "benchmark-baseline.json")), false);
+  });
+
+  it("judges the head with the base's runner and gate, after testing the PR's scripts", () => {
+    const overlay = step("Use the base's benchmark runner and gate").body;
+    assert.match(overlay, /cp pr-base\/scripts\/benchmark-gate\.cjs pr-head\/scripts\/benchmark-gate\.cjs/);
+    assert.match(overlay, /cp pr-base\/scripts\/ci\/benchmark\.cjs pr-base\/scripts\/ci\/common\.cjs pr-head\/scripts\/ci\//);
+    assert.match(step("Test gate scripts").body, /working-directory: pr-head\n +run: npm run test:infra/);
+    assert.ok(position("Test gate scripts") < position("Use the base's benchmark runner and gate"));
+    assert.ok(position("Use the base's benchmark runner and gate") < position("Head microbenchmarks"));
+    for (const name of ["Base microbenchmarks", "Head microbenchmarks"]) {
+      assert.match(step(name).body, /node scripts\/ci\/benchmark\.cjs "\$layer"/);
+      assert.doesNotMatch(step(name).body, /npm run benchmark/);
+    }
+  });
+
+  it("selects layers from the PR diff and blocks every failed measurement", () => {
+    assert.match(step("Select benchmark layers").body, /node scripts\/ci\/benchmark-layers\.cjs "\$BASE_SHA" "\$HEAD_SHA" >> "\$GITHUB_OUTPUT"/);
+    const enforce = step("Enforce blocking performance checks").body;
+    for (const check of ["gate script tests", "base microbenchmarks", "head microbenchmarks", "benchmark comparison"]) {
+      assert.ok(enforce.includes(`failures+=("${check}")`), check);
+    }
+    assert.match(step("Upload performance reports").body, /base-benchmarks\.json\n +pr-base\/reports\/benchmarks\/\n +pr-head\/reports\/benchmarks\//);
+  });
+
+  const cases = [
+    ["backend source", ["src/server/routes.ts"], ["backend"]],
+    ["Electron main process", ["desktop/src/main.ts"], ["backend"]],
+    ["backend benchmark", ["benchmarks/backend.bench.ts", "vitest.benchmark.config.mts"], ["backend"]],
+    ["frontend source", ["web/src/routes/jobs.tsx"], ["frontend"]],
+    ["frontend benchmark", ["web/benchmarks/frontend.bench.ts"], ["frontend"]],
+    ["shared application contract", ["src/applications/types.ts"], ["backend", "frontend"]],
+    ["shared job identity", ["src/jobs/identity.ts"], ["backend", "frontend"]],
+    ["lockfile", ["package-lock.json"], ["backend", "frontend"]],
+    ["benchmark gate", ["scripts/benchmark-gate.cjs"], ["backend", "frontend"]],
+    ["benchmark runner", ["scripts/ci/benchmark.cjs"], ["backend", "frontend"]],
+    ["performance workflow", [".github/workflows/performance.yml"], ["backend", "frontend"]],
+    ["documentation", ["docs/ci.md", "README.md", "AGENTS.md"], []],
+    ["other workflow", [".github/workflows/e2e.yml", "e2e/jobs.spec.ts"], []],
+  ];
+  for (const [label, files, expected] of cases) {
+    it(`${label} measures ${JSON.stringify(expected)}`, () => {
+      const selected = selectLayers(files);
+      assert.deepEqual(selected.layers, expected);
+      assert.equal(selected.backend, expected.includes("backend"));
+      assert.equal(selected.frontend, expected.includes("frontend"));
     });
   }
 });

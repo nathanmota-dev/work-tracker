@@ -48,7 +48,7 @@
     "benchmark": "npm run benchmark:backend && npm run benchmark:frontend",
     "benchmark:backend": "node scripts/ci/benchmark.cjs backend",
     "benchmark:frontend": "node scripts/ci/benchmark.cjs frontend",
-    "performance:check": "node scripts/benchmark-gate.cjs"
+    "performance:check": "node scripts/performance-compare.cjs"
   },
   "engines": {
     "node": ">=24.0.0"

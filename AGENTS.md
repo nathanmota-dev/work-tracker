@@ -42,7 +42,6 @@ npm run audit:ci
 npm run test:backend:coverage
 npm run test:frontend:coverage
 npm run quality:check
-npm run benchmark
 npm run performance:check
 ```
 
@@ -56,21 +55,23 @@ Use Node.js 24 or newer and installed npm dependencies. On Linux, E2E and Electr
 - `npm run test:e2e` rebuilds production output and runs the Playwright Electron suite, including all 8 sidebar routes and functional journeys with isolated SQLite workspaces and synthetic ACP/MCP integrations. On Linux it requires `Xvfb`, `xvfb-run`, `xauth`, `latexmk`, `pdflatex`, `pdfinfo`, and `pdftotext`. See `docs/e2e.md` for coverage, fixtures, debugging and CI.
 - `npm run lint` runs ESLint for both layers and must report zero errors and warnings. `npm run test:infra` tests the gate scripts, workflow triggers/path filters, and shared virtual-display launch/cancellation behavior without requiring Xvfb. `npm run audit:ci` blocks critical npm advisories and warns about high ones; it needs registry access.
 - `npm run test:backend:coverage` and `npm run test:frontend:coverage` run each unit suite once with coverage and stamp the reports; `npm run quality:check` then enforces the 80% per-layer coverage floor, no regression against `scripts/quality-baseline.json`, duplication, and the 350-line file and 100-line function limits.
-- `npm run benchmark` runs the backend and frontend microbenchmarks; `npm run performance:check` compares them with `scripts/benchmark-baseline.json`. See `docs/ci.md` for CI behavior. Add newly introduced checks to this checklist.
-- `quality:check` and `performance:check` must always compare the change with a baseline from `main`. A bootstrap-only result (`Bootstrap reference captured`) does not count as a passed comparison. Using the baseline file that `main` already has is only the fast path. When `main` has no `scripts/benchmark-baseline.json` (or no `scripts/quality-baseline.json`), generate it in the current worktree from `main`'s code and compare against it:
+- `npm run performance:check` measures the backend and frontend microbenchmarks of `main` and of the current commit back to back on this machine and compares them (`scripts/performance-compare.cjs`). It requires a clean working tree, so commit the task first; it switches to `main` in `--detach`, records that measurement outside the repository, always returns to the task branch (also after a failure or Ctrl+C), measures the branch and runs `scripts/benchmark-gate.cjs` against the `main` measurement. Use `npm run performance:check -- --base <ref>` to compare with another base, such as `origin/main`. No benchmark baseline is committed, and the gate rejects measurements from another machine, Node version or CI run. See `docs/ci.md` for CI behavior. Add newly introduced checks to this checklist.
+- `quality:check` must always compare the change with a baseline from `main`. A bootstrap-only result does not count as a passed comparison. Using `scripts/quality-baseline.json` from `main` is the fast path. When `main` has no `scripts/quality-baseline.json`, generate it in the current worktree from `main`'s code and compare against it:
 
   ```bash
   # Commit the task first so the working tree is clean; keep the baseline outside the repository.
-  baseline="$(mktemp -d)/benchmark-baseline.json"
+  baseline="$(mktemp -d)/quality-baseline.json"
   git switch --detach main
-  npm run benchmark
-  node scripts/benchmark-gate.cjs --update-baseline --baseline "$baseline"
+  npm run test:backend:coverage
+  npm run test:frontend:coverage
+  node scripts/quality-gate.cjs --update-baseline --baseline "$baseline"
   git switch -   # back to the task branch
-  npm run benchmark
-  BENCHMARK_BASELINE_PATH="$baseline" BENCHMARK_BASELINE_LABEL="main $(git rev-parse --short main) (local)" npm run performance:check
+  npm run test:backend:coverage
+  npm run test:frontend:coverage
+  QUALITY_GATE_BASELINE_PATH="$baseline" npm run quality:check
   ```
 
-  For a missing quality baseline, do the same with the coverage commands and `node scripts/quality-gate.cjs --update-baseline --baseline "$baseline"` on `main`. Then, back on the branch, run the coverage commands and `QUALITY_GATE_BASELINE_PATH="$baseline" npm run quality:check`. Do not commit a locally generated baseline. Report in the PR which baseline was used.
+  Do not commit a locally generated baseline. Report in the PR which quality baseline was used and the `main` commit that `performance:check` measured.
 - Watch commands are development tools, not completion checks.
 
 Fix verification failures and rerun the affected checks before completing the task. In the final response, summarize the checks executed and their results. If an environment problem prevents a required check from running or passing, explicitly name the blocked check and the reason; never silently skip it or claim that verification passed.

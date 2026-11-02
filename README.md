@@ -368,14 +368,14 @@ npm run audit:ci
 npm run test:backend:coverage
 npm run test:frontend:coverage
 npm run quality:check
-npm run benchmark
 npm run performance:check
 ```
 
 Os checks adicionais reproduzem localmente os gates do CI: lint com zero erros e
 avisos, testes dos scripts e dos workflows, audit (critical bloqueia, high avisa),
 cobertura de cada camada com piso de 80%, duplicação, limites de 350 linhas por
-arquivo e 100 por função e microbenchmarks. Consulte [CI, quality gate,
+arquivo e 100 por função e microbenchmarks do `main` e do branch medidos na mesma
+máquina (`performance:check` exige árvore limpa). Consulte [CI, quality gate,
 performance e caches](docs/ci.md).
 
 Os unitários do backend ficam ao lado dos módulos (`<modulo>.test.ts`), usam

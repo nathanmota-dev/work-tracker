@@ -1,5 +1,9 @@
 name: Performance
 
+# Measures the PR base and the PR head back to back in the same job, so both
+# numbers come from the same runner. No benchmark baseline is committed. The
+# base's benchmark runner and gate measure and judge both trees, so a PR cannot
+# weaken the rule it is judged by; the PR's own scripts are covered by test:infra.
 on:
   pull_request:
     branches: [main]
@@ -16,64 +20,40 @@ jobs:
   benchmarks:
     name: Microbenchmarks
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
+    env:
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      BASE_MEASUREMENT: ${{ github.workspace }}/base-benchmarks.json
     steps:
-      - name: Checkout pull request
+      - name: Checkout pull request head
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: pr-head
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Select trusted benchmark baseline
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          baseline_path="$RUNNER_TEMP/benchmark-baseline.json"
-          if git cat-file -e "${BASE_SHA}:scripts/benchmark-baseline.json" 2>/dev/null; then
-            git show "${BASE_SHA}:scripts/benchmark-baseline.json" > "$baseline_path"
-            echo "BENCHMARK_BASELINE_PATH=$baseline_path" >> "$GITHUB_ENV"
-            echo "BENCHMARK_BASELINE_LABEL=main@${BASE_SHA:0:12}:scripts/benchmark-baseline.json" >> "$GITHUB_ENV"
-            echo "BENCHMARK_BOOTSTRAP=false" >> "$GITHUB_ENV"
-          else
-            echo "BENCHMARK_BOOTSTRAP=true" >> "$GITHUB_ENV"
-            echo "::notice::The PR base has no benchmark baseline; capturing a bootstrap reference on this runner."
-          fi
+      - name: Checkout pull request base
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: pr-base
+          persist-credentials: false
 
       - name: Select benchmark layers
         id: changes
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          backend=false
-          frontend=false
-          while IFS= read -r file; do
-            case "$file" in
-              src/applications/types.ts|src/preparation/types.ts|src/jobs/search-results.ts|src/jobs/identity.ts) backend=true; frontend=true ;;
-              web/*) frontend=true ;;
-              src/*|desktop/*|benchmarks/*|vitest.benchmark.config.mts) backend=true ;;
-              package.json|package-lock.json|scripts/benchmark-gate*|scripts/ci/*|.github/workflows/performance.yml)
-                backend=true; frontend=true ;;
-            esac
-          done < <(git diff --no-renames --name-only "$BASE_SHA" "$HEAD_SHA")
-          # A bootstrap reference must describe every benchmark.
-          if [[ "$BENCHMARK_BOOTSTRAP" == "true" ]]; then
-            backend=true
-            frontend=true
-          fi
-          layers=()
-          [[ "$backend" == "true" ]] && layers+=(backend)
-          [[ "$frontend" == "true" ]] && layers+=(frontend)
-          echo "backend=$backend" >> "$GITHUB_OUTPUT"
-          echo "frontend=$frontend" >> "$GITHUB_OUTPUT"
-          echo "layers=$(IFS=,; echo "${layers[*]}")" >> "$GITHUB_OUTPUT"
+        working-directory: pr-head
+        run: node scripts/ci/benchmark-layers.cjs "$BASE_SHA" "$HEAD_SHA" >> "$GITHUB_OUTPUT"
 
       - name: Setup Node.js
-        id: node
         uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
+          cache-dependency-path: |
+            pr-head/package-lock.json
+            pr-base/package-lock.json
 
       - name: Restore Electron downloads
         uses: actions/cache@v4
@@ -81,54 +61,78 @@ jobs:
           path: |
             ~/.cache/electron
             ~/.cache/electron-builder
-          key: electron-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}
+          key: electron-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pr-head/package-lock.json', 'pr-base/package-lock.json') }}
 
-      - name: Install dependencies
+      - name: Install head dependencies
+        working-directory: pr-head
         run: npm ci --prefer-offline --no-audit
-
-      - name: Restore benchmark tool caches
-        uses: actions/cache@v4
-        with:
-          path: .cache/work-tracker/benchmarks
-          key: tools-benchmarks-${{ runner.os }}-${{ runner.arch }}-node${{ steps.node.outputs.node-version }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('vitest.benchmark.config.mts', 'web/vitest.benchmark.config.ts') }}-${{ hashFiles('src/**', 'web/src/**', 'benchmarks/**', 'web/benchmarks/**') }}
-          restore-keys: |
-            tools-benchmarks-${{ runner.os }}-${{ runner.arch }}-node${{ steps.node.outputs.node-version }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('vitest.benchmark.config.mts', 'web/vitest.benchmark.config.ts') }}-
 
       - name: Test gate scripts
         id: infra
         continue-on-error: true
+        working-directory: pr-head
         run: npm run test:infra
 
-      - name: Backend microbenchmarks
-        id: backend
-        if: steps.changes.outputs.backend == 'true'
-        continue-on-error: true
-        run: npm run benchmark:backend
+      - name: Install base dependencies
+        if: steps.changes.outputs.layers != ''
+        working-directory: pr-base
+        run: npm ci --prefer-offline --no-audit
 
-      - name: Frontend microbenchmarks
-        id: frontend
-        if: steps.changes.outputs.frontend == 'true'
+      - name: Base microbenchmarks
+        id: base
+        if: steps.changes.outputs.layers != ''
         continue-on-error: true
-        run: npm run benchmark:frontend
-
-      - name: Compare with baseline or capture bootstrap reference
-        id: gate
-        if: ${{ !cancelled() }}
-        continue-on-error: true
+        working-directory: pr-base
         env:
           LAYERS: ${{ steps.changes.outputs.layers }}
         run: |
-          if [[ "$BENCHMARK_BOOTSTRAP" == "true" ]]; then
-            node scripts/benchmark-gate.cjs --bootstrap
+          if grep -q -- '"--capture"' scripts/benchmark-gate.cjs; then
+            for layer in ${LAYERS//,/ }; do node scripts/ci/benchmark.cjs "$layer"; done
+            node scripts/benchmark-gate.cjs --capture "$BASE_MEASUREMENT" --projects "$LAYERS"
           else
-            node scripts/benchmark-gate.cjs --projects "$LAYERS"
+            # Transition: a base from before same-runner comparison only captures both layers.
+            echo "::notice::The PR base predates same-runner comparison; measuring both layers with its bootstrap mode."
+            for layer in backend frontend; do node scripts/ci/benchmark.cjs "$layer"; done
+            node scripts/benchmark-gate.cjs --bootstrap
+            cp reports/benchmark-candidate-baseline.json "$BASE_MEASUREMENT"
+          fi
+
+      - name: Use the base's benchmark runner and gate
+        if: steps.changes.outputs.layers != ''
+        run: |
+          cp pr-base/scripts/benchmark-gate.cjs pr-head/scripts/benchmark-gate.cjs
+          cp pr-base/scripts/ci/benchmark.cjs pr-base/scripts/ci/common.cjs pr-head/scripts/ci/
+
+      - name: Head microbenchmarks
+        id: head
+        if: steps.changes.outputs.layers != ''
+        continue-on-error: true
+        working-directory: pr-head
+        env:
+          LAYERS: ${{ steps.changes.outputs.layers }}
+        run: |
+          for layer in ${LAYERS//,/ }; do node scripts/ci/benchmark.cjs "$layer"; done
+
+      - name: Compare head with base
+        id: gate
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        working-directory: pr-head
+        env:
+          LAYERS: ${{ steps.changes.outputs.layers }}
+        run: |
+          export BENCHMARK_BASELINE_LABEL="main@${BASE_SHA:0:12} (measured on this runner)"
+          if [[ -n "$LAYERS" ]]; then
+            node scripts/benchmark-gate.cjs --baseline "$BASE_MEASUREMENT" --projects "$LAYERS"
+          else
+            node scripts/benchmark-gate.cjs --projects ""
           fi
 
       - name: Publish job summary
         if: always()
         run: |
-          if [[ -f reports/performance.md ]]; then
-            cat reports/performance.md >> "$GITHUB_STEP_SUMMARY"
+          if [[ -f pr-head/reports/performance.md ]]; then
+            cat pr-head/reports/performance.md >> "$GITHUB_STEP_SUMMARY"
           else
             printf '# Performance\n\n**ERROR** — The report was not generated.\n' >> "$GITHUB_STEP_SUMMARY"
           fi
@@ -141,25 +145,25 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
           path: |
-            reports/benchmarks/
-            reports/performance.md
-            reports/performance.json
-            reports/benchmark-candidate-baseline.json
+            base-benchmarks.json
+            pr-base/reports/benchmarks/
+            pr-head/reports/benchmarks/
+            pr-head/reports/performance.md
+            pr-head/reports/performance.json
 
       - name: Enforce blocking performance checks
         if: always()
         env:
-          BACKEND_SELECTED: ${{ steps.changes.outputs.backend }}
-          FRONTEND_SELECTED: ${{ steps.changes.outputs.frontend }}
+          SELECTED: ${{ steps.changes.outputs.layers }}
           INFRA: ${{ steps.infra.outcome }}
-          BACKEND: ${{ steps.backend.outcome }}
-          FRONTEND: ${{ steps.frontend.outcome }}
+          BASE: ${{ steps.base.outcome }}
+          HEAD: ${{ steps.head.outcome }}
           GATE: ${{ steps.gate.outcome }}
         run: |
           failures=()
           [[ "$INFRA" == "success" ]] || failures+=("gate script tests")
-          [[ "$BACKEND_SELECTED" != "true" || "$BACKEND" == "success" ]] || failures+=("backend microbenchmarks")
-          [[ "$FRONTEND_SELECTED" != "true" || "$FRONTEND" == "success" ]] || failures+=("frontend microbenchmarks")
+          [[ -z "$SELECTED" || "$BASE" == "success" ]] || failures+=("base microbenchmarks")
+          [[ -z "$SELECTED" || "$HEAD" == "success" ]] || failures+=("head microbenchmarks")
           [[ "$GATE" == "success" ]] || failures+=("benchmark comparison")
           if (( ${#failures[@]} > 0 )); then
             printf 'Blocking performance checks failed: %s\n' "${failures[*]}"
