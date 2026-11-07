@@ -3,7 +3,10 @@
 
 // Microbenchmark gate adapted from Gestão Solo for the Vitest 5 `bench` fixture
 // and JSON reporter: blocks throughput losses, removed scenarios and invalid results.
-const fs = require("node:fs");
+// The baseline is never committed: `--capture` measures the base (main) and
+// `--baseline` compares the change with it, on the same machine and in the same run.
+const crypto = require("node:crypto");
+const os = require("node:os");
 const path = require("node:path");
 const {
   GateInputError,
@@ -18,13 +21,12 @@ const {
 } = require("./ci/common.cjs");
 
 const DEFAULT_POLICY = Object.freeze({ maxRegressionPercent: 20 });
-const DEFAULT_BASELINE_PATH = path.join(__dirname, "benchmark-baseline.json");
 const REPORTS_DIRECTORY = path.join(REPOSITORY_ROOT, "reports");
 const RAW_REPORTS_DIRECTORY = path.join(REPORTS_DIRECTORY, "benchmarks");
 const MARKDOWN_PATH = path.join(REPORTS_DIRECTORY, "performance.md");
 const JSON_PATH = path.join(REPORTS_DIRECTORY, "performance.json");
-const CANDIDATE_BASELINE_PATH = path.join(REPORTS_DIRECTORY, "benchmark-candidate-baseline.json");
 const METRIC_FIELDS = ["hz", "mean", "median", "rme", "sampleCount"];
+const SAME_ENVIRONMENT_FIELDS = ["machine", "node", "platform", "arch", "runId", "runAttempt"];
 
 function assertFiniteMetric(value, label, { positive = false } = {}) {
   if (!Number.isFinite(value) || value < 0 || (positive && value <= 0)) {
@@ -105,7 +107,8 @@ function validateProjectMetrics(project, value) {
   return value;
 }
 
-function validateBaseline(value) {
+/** Validates a base measurement for the selected layers; other layers may be absent. */
+function validateBaseline(value, projects = LAYER_NAMES) {
   if (!value || value.schemaVersion !== 1) {
     throw new GateInputError("Benchmark baseline must use schemaVersion 1.");
   }
@@ -116,11 +119,26 @@ function validateBaseline(value) {
   if (!value.projects || typeof value.projects !== "object") {
     throw new GateInputError("Benchmark baseline must contain projects.");
   }
-  for (const project of LAYER_NAMES) validateProjectMetrics(project, value.projects[project]);
+  for (const project of projects) {
+    if (!value.projects[project]) {
+      throw new GateInputError(`Benchmark baseline has no ${project} measurement; measure the base with the same layers.`);
+    }
+    validateProjectMetrics(project, value.projects[project]);
+  }
   return value;
 }
 
-function buildSnapshot(projects, policy = DEFAULT_POLICY, { commit = currentCommit().slice(0, 12), kind = "candidate" } = {}) {
+/** Identifies the machine and runtime so a measurement is only compared with one taken alongside it. */
+function machineFingerprint() {
+  const cpus = os.cpus();
+  return crypto
+    .createHash("sha256")
+    .update([os.hostname(), cpus[0]?.model ?? "unknown", cpus.length, process.platform, process.arch].join("\0"))
+    .digest("hex")
+    .slice(0, 16);
+}
+
+function buildSnapshot(projects, policy = DEFAULT_POLICY, { commit = currentCommit().slice(0, 12), kind = "measurement" } = {}) {
   return {
     schemaVersion: 1,
     kind,
@@ -129,12 +147,28 @@ function buildSnapshot(projects, policy = DEFAULT_POLICY, { commit = currentComm
       node: process.version,
       platform: process.platform,
       arch: process.arch,
+      machine: machineFingerprint(),
       runner: process.env.RUNNER_NAME ? `${process.env.RUNNER_OS ?? ""} ${process.env.ImageOS ?? ""}`.trim() : "local",
       runId: process.env.GITHUB_RUN_ID ?? "local",
+      runAttempt: process.env.GITHUB_RUN_ATTEMPT ?? "local",
     },
     policy: { maxRegressionPercent: policy.maxRegressionPercent },
     projects: Object.fromEntries(LAYER_NAMES.filter((project) => projects[project]).map((project) => [project, projects[project]])),
   };
+}
+
+/** Rejects baselines from another machine, Node version or CI run: they measure the hardware, not the change. */
+function assertSameEnvironment(baseline, current) {
+  for (const field of SAME_ENVIRONMENT_FIELDS) {
+    const expected = current.runtime[field];
+    const found = baseline.runtime?.[field];
+    if (found !== expected) {
+      throw new GateInputError(
+        `Benchmark baseline was measured in another environment (${field}: expected ${expected}, found ${found ?? "none"}). `
+        + "Measure the base and the change on the same machine in the same run; locally, use npm run performance:check.",
+      );
+    }
+  }
 }
 
 function compareBenchmarks(baseline, current, selectedProjects) {
@@ -161,7 +195,7 @@ function compareBenchmarks(baseline, current, selectedProjects) {
     }
     for (const [key, currentMetric] of Object.entries(now)) {
       if (Object.hasOwn(before, key)) continue;
-      warnings.push(`${project}/${key} is new and has no trusted baseline yet.`);
+      warnings.push(`${project}/${key} is new and does not exist in the base yet.`);
       results.push({ project, key, baseline: null, current: currentMetric, changePercent: null, status: "new" });
     }
   }
@@ -172,23 +206,27 @@ function formatHz(value) {
   return value == null ? "—" : value.toLocaleString("en-US", { maximumFractionDigits: 2 });
 }
 
-function renderMarkdown({ baseline, comparison, selectedProjects, baselineLabel, bootstrap = false }) {
-  const status = bootstrap
-    ? "**PASS** — Bootstrap reference captured on this runner. Commit `reports/benchmark-candidate-baseline.json` as `scripts/benchmark-baseline.json` to start blocking comparisons."
-    : comparison.passed
-      ? "**PASS** — No blocking microbenchmark regression was detected."
-      : "**FAIL** — One or more blocking microbenchmark regressions were detected.";
+function renderMarkdown({ baseline, current, comparison, selectedProjects, baselineLabel }) {
+  const status = comparison.passed
+    ? "**PASS** — No blocking microbenchmark regression was detected."
+    : "**FAIL** — One or more blocking microbenchmark regressions were detected.";
+  const runtime = current?.runtime;
   const lines = [
     "# Performance",
     "",
     status,
     "",
-    `Baseline: \`${markdownEscape(baselineLabel)}\` · limit: \`${baseline.policy.maxRegressionPercent}%\` throughput loss.`,
+    `Baseline: ${markdownEscape(baselineLabel)} · change: \`${markdownEscape(current?.generatedFromCommit ?? "—")}\` · limit: \`${baseline.policy.maxRegressionPercent}%\` throughput loss.`,
+  ];
+  if (runtime) {
+    lines.push("", `Both measurements ran on the same machine: \`${markdownEscape(runtime.runner)}\`, Node \`${markdownEscape(runtime.node)}\`, \`${markdownEscape(runtime.platform)}/${markdownEscape(runtime.arch)}\`.`);
+  }
+  lines.push(
     "",
     "| Layer | Benchmark | Baseline ops/s | Current ops/s | Change | RME | Result |",
     "|---|---|---:|---:|---:|---:|---|",
-  ];
-  const labels = { pass: "Pass", regression: "Regression", missing: "Missing", new: bootstrap ? "Captured" : "New" };
+  );
+  const labels = { pass: "Pass", regression: "Regression", missing: "Missing", new: "New" };
   for (const result of comparison.results) {
     const change = result.changePercent == null ? "—" : `${result.changePercent >= 0 ? "+" : ""}${result.changePercent.toFixed(2)}%`;
     const rme = result.current ? `±${result.current.rme.toFixed(2)}%` : "—";
@@ -198,7 +236,7 @@ function renderMarkdown({ baseline, comparison, selectedProjects, baselineLabel,
     lines.push("| — | No benchmark-relevant layer changed | — | — | — | — | Skipped |");
   }
   if (comparison.failures.length) lines.push("", "## Failures", "", ...comparison.failures.map((item) => `- ${markdownEscape(item)}`));
-  if (!bootstrap && comparison.warnings.length) lines.push("", "## Warnings", "", ...comparison.warnings.map((item) => `- ${markdownEscape(item)}`));
+  if (comparison.warnings.length) lines.push("", "## Warnings", "", ...comparison.warnings.map((item) => `- ${markdownEscape(item)}`));
   const skipped = LAYER_NAMES.filter((project) => !selectedProjects.includes(project));
   lines.push(
     "",
@@ -209,35 +247,52 @@ function renderMarkdown({ baseline, comparison, selectedProjects, baselineLabel,
   return lines.join("\n");
 }
 
-function parseArguments(args) {
+function isInsideRepository(target) {
+  const relative = path.relative(REPOSITORY_ROOT, target);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function requireValue(args, index, flag) {
+  const value = args[index];
+  if (!value) throw new GateInputError(`${flag} requires a value.`);
+  return value;
+}
+
+function parseArguments(args, env = process.env) {
   const options = {
-    bootstrap: false,
-    updateBaseline: false,
+    capturePath: null,
+    label: env.BENCHMARK_BASELINE_LABEL || null,
     projects: [...LAYER_NAMES],
-    baselinePath: process.env.BENCHMARK_BASELINE_PATH || DEFAULT_BASELINE_PATH,
+    baselinePath: env.BENCHMARK_BASELINE_PATH ? path.resolve(REPOSITORY_ROOT, env.BENCHMARK_BASELINE_PATH) : null,
   };
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index];
-    if (argument === "--bootstrap") {
-      options.bootstrap = true;
-    } else if (argument === "--update-baseline") {
-      options.updateBaseline = true;
-    } else if (argument === "--projects") {
+    if (argument === "--projects") {
       const value = args[++index];
       if (value === undefined) throw new GateInputError("--projects requires a comma-separated value.");
       options.projects = [...new Set(value.split(",").filter(Boolean))];
     } else if (argument === "--baseline") {
-      const value = args[++index];
-      if (!value) throw new GateInputError("--baseline requires a path.");
-      options.baselinePath = path.resolve(REPOSITORY_ROOT, value);
+      options.baselinePath = path.resolve(REPOSITORY_ROOT, requireValue(args, ++index, argument));
+    } else if (argument === "--capture") {
+      options.capturePath = path.resolve(REPOSITORY_ROOT, requireValue(args, ++index, argument));
+    } else if (argument === "--label") {
+      options.label = requireValue(args, ++index, argument);
     } else {
       throw new GateInputError(`Unknown argument: ${argument}`);
     }
   }
   const invalid = options.projects.find((project) => !LAYER_NAMES.includes(project));
   if (invalid) throw new GateInputError(`Unknown benchmark layer: ${invalid}.`);
-  if ((options.bootstrap || options.updateBaseline) && options.projects.length !== LAYER_NAMES.length) {
-    throw new GateInputError("Capturing a benchmark baseline requires both layers.");
+  if (options.capturePath && isInsideRepository(options.capturePath)) {
+    throw new GateInputError("Base measurements must be written outside the repository so they are never committed.");
+  }
+  if (options.capturePath && options.baselinePath) {
+    throw new GateInputError("Use either --capture or --baseline, not both.");
+  }
+  if (!options.capturePath && !options.baselinePath && options.projects.length > 0) {
+    throw new GateInputError(
+      "A base measurement from this machine is required (--baseline or BENCHMARK_BASELINE_PATH). Locally, run npm run performance:check.",
+    );
   }
   return options;
 }
@@ -256,53 +311,43 @@ function writeReports(markdown, payload) {
   process.stdout.write(markdown);
 }
 
+/** Records the current tree's measurement as the base for a later comparison. */
+function capture(options) {
+  const snapshot = buildSnapshot(collectCurrentProjects(options.projects));
+  writeJson(options.capturePath, snapshot);
+  const count = Object.values(snapshot.projects).reduce((total, project) => total + Object.keys(project.benchmarks).length, 0);
+  process.stdout.write(
+    `Captured ${count} benchmark(s) from ${snapshot.generatedFromCommit} (${options.projects.join(", ") || "no layers"}) at ${options.capturePath}.\n`,
+  );
+  return 0;
+}
+
+function compare(options) {
+  const collected = collectCurrentProjects(options.projects);
+  const baseline = options.baselinePath
+    ? validateBaseline(readJson(options.baselinePath, "benchmark baseline"), options.projects)
+    : buildSnapshot({}, DEFAULT_POLICY, { kind: "empty" });
+  const current = buildSnapshot(collected, baseline.policy);
+  if (options.projects.length > 0) assertSameEnvironment(baseline, current);
+  const comparison = compareBenchmarks(baseline, current, options.projects);
+  const baselineLabel = options.label || `${baseline.generatedFromCommit} (measured on this machine)`;
+  writeReports(
+    renderMarkdown({ baseline, current, comparison, selectedProjects: options.projects, baselineLabel }),
+    {
+      schemaVersion: 1,
+      status: comparison.passed ? "pass" : "fail",
+      baseline: { label: baselineLabel, ...baseline },
+      current,
+      comparison,
+    },
+  );
+  return comparison.passed ? 0 : 1;
+}
+
 function runCli(args = process.argv.slice(2)) {
   try {
     const options = parseArguments(args);
-    if (options.updateBaseline && process.env.CI === "true") {
-      throw new GateInputError("Benchmark baseline updates are disabled in CI.");
-    }
-    if (!options.bootstrap && !options.updateBaseline && !fs.existsSync(options.baselinePath) && process.env.CI !== "true") {
-      // Until a CI-produced reference is committed, local runs only capture one.
-      process.stdout.write(`No benchmark baseline at ${path.relative(REPOSITORY_ROOT, options.baselinePath)}; running in bootstrap mode.\n`);
-      options.bootstrap = true;
-      options.projects = [...LAYER_NAMES];
-    }
-    const collected = collectCurrentProjects(options.projects);
-    if (options.bootstrap || options.updateBaseline) {
-      const kind = options.bootstrap ? "bootstrap" : "reviewed";
-      const current = buildSnapshot(collected, DEFAULT_POLICY, { kind });
-      const comparison = compareBenchmarks({ ...current, projects: {} }, current, options.projects);
-      comparison.warnings = [];
-      writeJson(CANDIDATE_BASELINE_PATH, current);
-      if (options.updateBaseline) writeJson(options.baselinePath, current);
-      const label = options.bootstrap ? "bootstrap (no reference in the PR base)" : path.relative(REPOSITORY_ROOT, options.baselinePath);
-      writeReports(
-        renderMarkdown({ baseline: current, comparison, selectedProjects: options.projects, baselineLabel: label, bootstrap: true }),
-        { schemaVersion: 1, status: kind, current, comparison },
-      );
-      return 0;
-    }
-    if (!fs.existsSync(options.baselinePath)) {
-      throw new GateInputError("Benchmark baseline not found. Run in bootstrap mode or capture one with --update-baseline.");
-    }
-    const baseline = validateBaseline(readJson(options.baselinePath, "benchmark baseline"));
-    const current = buildSnapshot(collected, baseline.policy);
-    const comparison = compareBenchmarks(baseline, current, options.projects);
-    const candidate = buildSnapshot({ ...baseline.projects, ...collected }, baseline.policy);
-    const baselineLabel = process.env.BENCHMARK_BASELINE_LABEL || path.relative(REPOSITORY_ROOT, options.baselinePath);
-    writeJson(CANDIDATE_BASELINE_PATH, candidate);
-    writeReports(
-      renderMarkdown({ baseline, comparison, selectedProjects: options.projects, baselineLabel }),
-      {
-        schemaVersion: 1,
-        status: comparison.passed ? "pass" : "fail",
-        baseline: { label: baselineLabel, kind: baseline.kind, generatedFromCommit: baseline.generatedFromCommit },
-        current,
-        comparison,
-      },
-    );
-    return comparison.passed ? 0 : 1;
+    return options.capturePath ? capture(options) : compare(options);
   } catch (error) {
     const normalized = error instanceof Error ? error : new Error(String(error));
     writeText(MARKDOWN_PATH, `# Performance\n\n**ERROR** — Microbenchmark results could not be collected or validated.\n\n## Failure\n\n- ${markdownEscape(normalized.message)}\n`);
@@ -314,6 +359,7 @@ function runCli(args = process.argv.slice(2)) {
 
 module.exports = {
   DEFAULT_POLICY,
+  assertSameEnvironment,
   benchmarkKey,
   buildSnapshot,
   compareBenchmarks,
