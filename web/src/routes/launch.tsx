@@ -1,6 +1,7 @@
 import { openApply } from "@/lib/preparation"
 import { useWorkspaceState } from "@/lib/workspace-state"
 import { useContextDraft } from "@/lib/context-draft"
+import { readLaunchFields, rememberedLaunchFields, writeLaunchFields } from "@/lib/launch-fields"
 import { candidateFromAnswers } from "@/lib/candidate-profile"
 import { AgentConversation } from "@/components/agent-conversation"
 import {
@@ -31,14 +32,16 @@ function useLaunchState() {
   const skill = search.skill ?? "job-scout"
   const setSkill = (skill: string) => update({ skill, target: "", query: "", location: "", company: "", username: "", url: "", jobIds: "" })
   const context = useContextDraft(`launch:${skill}:${search.target ?? ""}`)
+  const remembered = readLaunchFields(skill)
   const params: Record<string, string> = Object.fromEntries(["query", "location", "company", "username", "url", "jobIds"].flatMap(key => {
-    const value = search[key as keyof typeof search]
+    const value = search[key as keyof typeof search] || remembered[key as keyof typeof remembered]
     return typeof value === "string" && value ? [[key, value]] : []
   }))
   if (context.draft.extra) params.extra = context.draft.extra
   const setParams: React.Dispatch<React.SetStateAction<Record<string, string>>> = change => {
     const next = typeof change === "function" ? change(params) : change
     if (next.extra !== params.extra) context.update({ extra: next.extra ?? "" })
+    if (rememberedLaunchFields.some(key => next[key] !== params[key])) writeLaunchFields(skill, next)
     update(Object.fromEntries(Object.entries(next).filter(([key]) => key !== "extra")))
   }
   const provider = search.provider ?? localStorage.getItem("work-tracker-provider") ?? ""
