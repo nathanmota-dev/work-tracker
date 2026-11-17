@@ -206,6 +206,19 @@ test("SessionManager forwards events, uses saved profile and selected model, pre
   manager.cancel();
   expect(stop).toHaveBeenCalledOnce();
 });
+test("SessionManager starts the agent with the selected effort only when one is chosen", async () => {
+  const start = vi.fn().mockResolvedValue(undefined);
+  vi.mocked(AcpClient).mockImplementation(function () {
+    return { start, prompt: vi.fn().mockResolvedValue(undefined), stop: vi.fn() } as unknown as AcpClient;
+  });
+  const manager = new SessionManager("/private", vi.fn());
+  await manager.run("claude-code", "job-scout", {}, "sonnet", "high");
+  expect(start).toHaveBeenLastCalledWith({
+    command: { cmd: ["claude-code-acp"], env: { CLAUDECODE: "", ANTHROPIC_MODEL: "sonnet", CLAUDE_CODE_EFFORT_LEVEL: "high" } },
+  });
+  await manager.run("claude-code", "job-scout", {}, "sonnet");
+  expect(start).toHaveBeenLastCalledWith({});
+});
 test("pending login retains the ACP and browser, unrelated tools do not mark it done, and retry reuses the same session", async () => {
   let callbacks!: import("./client.ts").AcpEvents;
   const start = vi.fn().mockResolvedValue(undefined), stop = vi.fn();

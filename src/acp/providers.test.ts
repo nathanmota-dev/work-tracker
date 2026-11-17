@@ -33,6 +33,11 @@ test("default and custom commands preserve settings while selecting models", asy
     cmd: ["claude-code-acp"],
     env: { CLAUDECODE: "", ANTHROPIC_MODEL: "sonnet" },
   });
+  expect(getProvider("claude-code").command("/cwd", undefined, "high")).toEqual({
+    cmd: ["claude-code-acp"],
+    env: { CLAUDECODE: "", CLAUDE_CODE_EFFORT_LEVEL: "high" },
+  });
+  expect(getProvider("opencode").command("/cwd", undefined, "high").env).toEqual({});
   vi.mocked(loadConfig).mockReturnValue({
     acp: {
       opencode: {
@@ -63,6 +68,10 @@ test("default and custom commands preserve settings while selecting models", asy
   expect(getProvider("claude-code").command("/cwd", "haiku")).toEqual({
     cmd: ["adapter"],
     env: { CLAUDECODE: "", ANTHROPIC_MODEL: "haiku" },
+  });
+  expect(getProvider("claude-code").command("/cwd", "opus", "max")).toEqual({
+    cmd: ["adapter"],
+    env: { CLAUDECODE: "", ANTHROPIC_MODEL: "opus", CLAUDE_CODE_EFFORT_LEVEL: "max" },
   });
   expect(() => getProvider("missing")).toThrow("Unknown ACP provider");
 });

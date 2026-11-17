@@ -7,6 +7,7 @@ import { WorkspaceBackup } from "@/components/workspace-backup"
 import { GetStartedSettings } from "@/components/get-started"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { SelectControl } from "@/components/ui/select-control"
+import { EffortSlider } from "@/components/ui/effort-slider"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { useTheme } from "@/components/theme-provider"
@@ -86,13 +87,16 @@ function useAgentPreferences() {
   const [model, setModel] = useState(
     localStorage.getItem("work-tracker-model") ?? "",
   )
+  const [effort, setEffort] = useState(
+    localStorage.getItem("work-tracker-effort") ?? "",
+  )
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState("")
-  return { api, provider, setProvider, model, setModel, saved, setSaved, error, setError }
+  return { api, provider, setProvider, model, setModel, effort, setEffort, saved, setSaved, error, setError }
 }
 
 function AgentPreferences({ preferences }: { preferences: ReturnType<typeof useAgentPreferences> }) {
-  const { api, provider, setProvider, model, setModel, saved, setSaved, error, setError } = preferences
+  const { api, provider, setProvider, model, setModel, effort, setEffort, saved, setSaved, error, setError } = preferences
   const selected = api.data?.providers.find((p) => p.id === provider)
   return (
     <Panel title="Agent preferences">
@@ -106,10 +110,11 @@ function AgentPreferences({ preferences }: { preferences: ReturnType<typeof useA
           onSubmit={(e) => {
             e.preventDefault()
             setSaved(false)
-            if ((provider && !selected) || (model && !selected?.models.includes(model))) { setError("Choose an available agent and model before saving preferences."); return }
+            if ((provider && !selected) || (model && !selected?.models.includes(model)) || (effort && !selected?.efforts?.includes(effort))) { setError("Choose an available agent, model and effort before saving preferences."); return }
             setError("")
             localStorage.setItem("work-tracker-provider", provider)
             localStorage.setItem("work-tracker-model", model)
+            localStorage.setItem("work-tracker-effort", effort)
             setSaved(true)
           }}
         >
@@ -120,6 +125,7 @@ function AgentPreferences({ preferences }: { preferences: ReturnType<typeof useA
               onChange={(e) => {
                 setProvider(e.target.value)
                 setModel("")
+                setEffort("")
                 setSaved(false)
               }}
             >
@@ -148,6 +154,15 @@ function AgentPreferences({ preferences }: { preferences: ReturnType<typeof useA
               ))}
             </SelectControl>
           </Field>
+          {!!selected?.efforts?.length && <EffortSlider
+            label="Preferred effort"
+            levels={selected.efforts}
+            value={effort}
+            onChange={(level) => {
+              setEffort(level)
+              setSaved(false)
+            }}
+          />}
           <Button size="sm">Save preferences</Button>
           {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
           {saved && (

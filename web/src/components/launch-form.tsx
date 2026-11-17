@@ -1,6 +1,7 @@
 import type React from "react"
 import { Textarea } from "@/components/ui/textarea"
 import { SelectControl } from "@/components/ui/select-control"
+import { EffortSlider } from "@/components/ui/effort-slider"
 import { Play, Square } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -21,13 +22,17 @@ const labels: Record<string, string> = {
   company: "Target company",
   url: "Application URL",
 }
-export function AgentSelectors({ providers, selectedProvider, effectiveModel, disabled, onProvider, onModel }: {
-  providers: Providers["providers"]
+export type AgentSelection = {
   selectedProvider?: Providers["providers"][number]
   effectiveModel: string
-  disabled: boolean
+  effectiveEffort: string
   onProvider: (provider: string) => void
   onModel: (model: string) => void
+  onEffort: (effort: string) => void
+}
+export function AgentSelectors({ providers, selectedProvider, effectiveModel, effectiveEffort, disabled, onProvider, onModel, onEffort }: AgentSelection & {
+  providers: Providers["providers"]
+  disabled: boolean
 }) {
   return (
     <>
@@ -58,6 +63,13 @@ export function AgentSelectors({ providers, selectedProvider, effectiveModel, di
           ))}
         </SelectControl>
       </Field>
+      {!!selectedProvider?.efforts?.length && <EffortSlider
+        label="Effort"
+        levels={selectedProvider.efforts}
+        value={effectiveEffort}
+        disabled={disabled}
+        onChange={onEffort}
+      />}
     </>
   )
 }

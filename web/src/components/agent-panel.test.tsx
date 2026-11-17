@@ -45,6 +45,24 @@ it("keeps contextual fields, saved defaults and conversation after closing the p
   expect(screen.queryByText("Agent task completed.")).not.toBeInTheDocument()
 })
 
+it("sends the saved effort when the selected agent supports it", async () => {
+  localStorage.setItem("work-tracker-provider", "claude-code")
+  localStorage.setItem("work-tracker-effort", "high")
+  request.mockImplementation(async path => {
+    if (path === "answers") return []
+    if (path === "acp/providers") return { default: "opencode", providers: [{ id: "opencode", displayName: "OpenCode", models: [] }, { id: "claude-code", displayName: "Claude Code", models: ["sonnet"], efforts: ["low", "high"] }] }
+    if (path === "acp/permissions") return { pending: [] }
+    return { ok: true }
+  })
+  render(<AgentPanel />)
+  act(() => prepareSkill("job-scout", { query: "Backend" }))
+  expect(await screen.findByRole("slider", { name: "Effort" })).toHaveAttribute("aria-valuetext", "High")
+  await waitFor(() => expect(screen.getByRole("button", { name: "Run agent" })).toBeEnabled())
+  fireEvent.click(screen.getByRole("button", { name: "Run agent" }))
+  await waitFor(() => expect(request).toHaveBeenCalledWith("acp/run", { provider: "claude-code", effort: "high", skill: "job-scout", params: { query: "Backend" } }))
+  localStorage.clear()
+})
+
 it.each([
   ["recruiter-outreach", "View recruiters", "/contacts?tab=people"],
   ["outreach-tracker", "Review outreach", "/contacts?tab=follow-ups"],

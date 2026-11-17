@@ -44,6 +44,7 @@ async function listProviders(): Promise<Response> {
       displayName: p.displayName,
       models: await listProviderModels(p.id),
       defaultModel: p.defaultModel,
+      efforts: p.efforts,
     })),
   );
   return Response.json({
@@ -60,14 +61,18 @@ async function runAgent(req: Request, { acp, preparation }: Context): Promise<Re
     skill?: string;
     params?: Record<string, string>;
     model?: string;
+    effort?: string;
   };
+  const provider = body.provider ?? "opencode";
+  if (body.effort && !PROVIDERS[provider]?.efforts.includes(body.effort)) return Response.json({ error: `Unsupported effort for ${provider}: ${body.effort}` }, { status: 400 });
   if (body.skill?.replace(/^work-tracker-/, "") === "portal-filler") return Response.json({ error: "Use Apply to review and approve a document version before filling its portal." }, { status: 409 });
   // Fire and forget — progress streams over the WebSocket.
   void acp.run(
-    body.provider ?? "opencode",
+    provider,
     body.skill ?? "",
     body.params ?? {},
     body.model,
+    body.effort,
   );
   return Response.json({ ok: true });
 }

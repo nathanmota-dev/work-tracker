@@ -36,7 +36,10 @@ vi.mock("./queries.ts", () => ({
 }));
 vi.mock("../acp/session.ts", () => ({ SessionManager: vi.fn() }));
 vi.mock("../acp/providers.ts", () => ({
-  PROVIDERS: { opencode: { id: "opencode", displayName: "opencode" } },
+  PROVIDERS: {
+    opencode: { id: "opencode", displayName: "opencode", efforts: [] },
+    "claude-code": { id: "claude-code", displayName: "Claude Code", efforts: ["low", "high"] },
+  },
   listProviderModels: vi.fn(),
 }));
 vi.mock("../paths.ts", () => ({
@@ -202,11 +205,12 @@ test("answer writes validate a trimmed key and persist defaults before notifying
     table: "applicant_answers",
   });
 });
-test("ACP routes list models, default the provider and dispatch selected params/model and cancellation", async () => {
+test("ACP routes list models and efforts, default the provider and dispatch selected params/model/effort and cancellation", async () => {
   vi.mocked(listProviderModels).mockResolvedValue(["fixture/model"]);
   expect(await (await handle(req("/api/acp/providers"))).json()).toEqual({
     providers: [
-      { id: "opencode", displayName: "opencode", models: ["fixture/model"] },
+      { id: "opencode", displayName: "opencode", models: ["fixture/model"], efforts: [] },
+      { id: "claude-code", displayName: "Claude Code", models: ["fixture/model"], efforts: ["low", "high"] },
     ],
     default: "opencode",
   });
@@ -219,13 +223,14 @@ test("ACP routes list models, default the provider and dispatch selected params/
     ).default,
   ).toBe("claude-code");
   await handle(req("/api/acp/run", "bad-json"));
-  expect(acp.run).toHaveBeenLastCalledWith("opencode", "", {}, undefined);
+  expect(acp.run).toHaveBeenLastCalledWith("opencode", "", {}, undefined, undefined);
   await handle(
     req("/api/acp/run", {
       provider: "claude-code",
       skill: "job-scout",
       params: { query: "TS" },
       model: "sonnet",
+      effort: "high",
     }),
   );
   expect(acp.run).toHaveBeenLastCalledWith(
@@ -233,7 +238,15 @@ test("ACP routes list models, default the provider and dispatch selected params/
     "job-scout",
     { query: "TS" },
     "sonnet",
+    "high",
   );
+  acp.run.mockClear();
+  for (const body of [{ provider: "claude-code", effort: "max" }, { effort: "low" }]) {
+    const response = await handle(req("/api/acp/run", body));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: expect.stringContaining("Unsupported effort") });
+  }
+  expect(acp.run).not.toHaveBeenCalled();
   await handle(req("/api/acp/cancel", {}));
   expect(acp.cancel).toHaveBeenCalledOnce();
 });

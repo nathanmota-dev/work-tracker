@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router"
 import { useApi, useConnection } from "@/lib/api"
 import { candidateFromAnswers } from "@/lib/candidate-profile"
 import type { Row } from "@/lib/api"
-import { dismissAgentCompletion, runAgent, setAgentPanelOpen, skills, updateAgentDraft, useAgent, type Providers } from "@/lib/agent"
+import { dismissAgentCompletion, runAgent, setAgentPanelOpen, skills, supportedEffort, updateAgentDraft, useAgent, type Providers } from "@/lib/agent"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
 import { AgentConversation } from "@/components/agent-conversation"
@@ -22,16 +22,18 @@ function AgentPanelForm() {
   const live = useConnection()
   const [provider, setProvider] = useState(() => localStorage.getItem("work-tracker-provider") ?? "")
   const [model, setModel] = useState(() => localStorage.getItem("work-tracker-model") ?? "")
+  const [effort, setEffort] = useState(() => localStorage.getItem("work-tracker-effort") ?? "")
   const draft = agent.draft ?? agent.current ?? { skill: "job-scout", params: {} }
   const selected = skills.find(skill => skill.id === draft.skill) ?? skills[0]
   const selectedProvider = api.data?.providers.find(item => item.id === provider) ?? api.data?.providers.find(item => item.id === api.data?.default) ?? api.data?.providers[0]
   const effectiveModel = selectedProvider?.models.includes(model) ? model : ""
+  const effectiveEffort = supportedEffort(selectedProvider, effort)
   const setParams: React.Dispatch<React.SetStateAction<Record<string, string>>> = change => {
     updateAgentDraft({ ...draft, params: typeof change === "function" ? change(draft.params) : change })
   }
   return <form className="space-y-4" onSubmit={event => {
     event.preventDefault()
-    if (selectedProvider && live) void runAgent(selectedProvider.id, draft.skill, draft.params, effectiveModel || undefined)
+    if (selectedProvider && live) void runAgent(selectedProvider.id, draft.skill, draft.params, effectiveModel || undefined, effectiveEffort || undefined)
   }}>
     <h3 className="font-medium">{selected.name}</h3>
     <p className="text-sm text-muted-foreground">{selected.description}</p>
@@ -40,7 +42,7 @@ function AgentPanelForm() {
     <SkillFields fields={selected.fields} skill={draft.skill} params={draft.params} setParams={setParams} username={candidateFromAnswers(profile.data ?? []).linkedinUsername} disabled={agent.running} />
     <details className="space-y-3">
       <summary className="cursor-pointer text-sm">Advanced</summary>
-      {api.data && <AgentSelectors providers={api.data.providers} selectedProvider={selectedProvider} effectiveModel={effectiveModel} disabled={agent.running} onProvider={value => { setProvider(value); setModel("") }} onModel={setModel} />}
+      {api.data && <AgentSelectors providers={api.data.providers} selectedProvider={selectedProvider} effectiveModel={effectiveModel} effectiveEffort={effectiveEffort} disabled={agent.running} onProvider={value => { setProvider(value); setModel(""); setEffort("") }} onModel={setModel} onEffort={setEffort} />}
       <Link to="/launch" onClick={() => setAgentPanelOpen(false)} className="text-sm underline">Open advanced console</Link>
     </details>
     <RunFooter extra={draft.params.extra ?? ""} onExtra={extra => setParams(params => ({ ...params, extra }))} running={agent.running} canRun={!!selectedProvider && live} live={live} waitingForSignIn={agent.status === "Waiting for sign-in"} />

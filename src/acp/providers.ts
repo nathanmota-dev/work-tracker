@@ -15,6 +15,7 @@ export interface AcpProviderCommand {
 /**
  * @property models Available model IDs for this provider.
  * @property defaultModel Default model; undefined means use the provider default.
+ * @property efforts Reasoning effort levels the provider accepts; empty when unsupported.
  * @property command Command and arguments to spawn the agent in ACP mode.
  * @property bin Binary name expected on PATH, used for availability hints.
  */
@@ -23,7 +24,8 @@ export interface AcpProvider {
   displayName: string;
   models: string[];
   defaultModel?: string;
-  command: (cwd: string, model?: string) => AcpProviderCommand;
+  efforts: string[];
+  command: (cwd: string, model?: string, effort?: string) => AcpProviderCommand;
   bin: string;
 }
 
@@ -34,6 +36,7 @@ export const PROVIDERS: Record<string, AcpProvider> = {
     bin: "opencode",
     models: [],
     defaultModel: undefined,
+    efforts: [],
     command: (cwd, model) => {
       const env = model ? { OPENCODE_CONFIG_CONTENT: JSON.stringify({ model }) } : undefined;
       return { cmd: ["opencode", "acp", "--cwd", cwd], env };
@@ -49,9 +52,11 @@ export const PROVIDERS: Record<string, AcpProvider> = {
     // ANTHROPIC_MODEL accepts and always resolve to the current generation.
     models: ["opus", "sonnet", "haiku"],
     defaultModel: undefined,
+    // Claude Code clamps a level the selected model does not support.
+    efforts: ["low", "medium", "high", "xhigh", "max"],
     // Zed's ACP adapter wraps the Claude Code CLI.
-    // Model is passed via ANTHROPIC_MODEL env rather than a CLI flag.
-    command: (cwd, model) => {
+    // Model and effort are passed via env rather than CLI flags.
+    command: (cwd, model, effort) => {
       // The adapter refuses to start when it sees CLAUDECODE set (its
       // nested-session guard). When the dashboard itself is launched from
       // inside a Claude Code session that var is inherited, which would
@@ -60,6 +65,7 @@ export const PROVIDERS: Record<string, AcpProvider> = {
       // escape hatch ("unset the CLAUDECODE environment variable").
       const env: Record<string, string> = { CLAUDECODE: "" };
       if (model) env.ANTHROPIC_MODEL = model;
+      if (effort) env.CLAUDE_CODE_EFFORT_LEVEL = effort;
       return { cmd: ["claude-code-acp"], env };
     },
   },
@@ -72,8 +78,8 @@ export function getProvider(id: string | undefined): AcpProvider {
   const custom = loadConfig().acp?.[key as "opencode" | "claude-code"];
   return {
     ...provider,
-    command: (cwd, model) => {
-      const defaults = provider.command(cwd, model);
+    command: (cwd, model, effort) => {
+      const defaults = provider.command(cwd, model, effort);
       const env = { ...custom?.env, ...defaults.env };
       if (key === "opencode" && model) {
         const content = custom?.env?.OPENCODE_CONFIG_CONTENT ?? process.env.OPENCODE_CONFIG_CONTENT;

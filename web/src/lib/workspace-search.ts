@@ -40,7 +40,7 @@ export function validateWorkspaceSearch(path: string, search: Record<string, unk
   }
   if (path === "launch") return {
     tab: choice(search.tab, ["console", "history"], "console"),
-    skill: choice(search.skill, launchSkillIds, "job-scout"), provider: typeof search.provider === "string" ? search.provider : undefined, model: typeof search.model === "string" ? search.model : undefined, target: string(search.target),
+    skill: choice(search.skill, launchSkillIds, "job-scout"), provider: typeof search.provider === "string" ? search.provider : undefined, model: typeof search.model === "string" ? search.model : undefined, effort: typeof search.effort === "string" ? search.effort : undefined, target: string(search.target),
     query: string(search.query), location: string(search.location), company: string(search.company), username: string(search.username), url: string(search.url), jobIds: string(search.jobIds),
   }
   if (path === "answers") return { field: string(search.field), returnTo: /^\/apply(\?|$)/.test(string(search.returnTo)) ? string(search.returnTo) : "" }
@@ -50,7 +50,7 @@ export type WorkspaceSearch = {
   assess?: boolean; focus?: boolean; tab?: string; highlight?: number; review?: boolean
   q?: string; status?: string; page?: number; view?: string; selected?: string; selection?: string[]
   savedJobId?: number; kind?: string; keywords?: string; location?: string; company?: string; workType?: string; maxPages?: number; resultId?: string
-  jobId?: number; applicationId?: number; runId?: string; provider?: string; model?: string; pdfTab?: string; workspaceTab?: string
+  jobId?: number; applicationId?: number; runId?: string; provider?: string; model?: string; effort?: string; pdfTab?: string; workspaceTab?: string
   batchId?: string; itemId?: string; pendingOnly?: boolean
   skill?: string; target?: string; query?: string; username?: string; url?: string; jobIds?: string
   field?: string; returnTo?: string; step?: string

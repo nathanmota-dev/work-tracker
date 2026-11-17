@@ -59,8 +59,13 @@ export type Provider = {
   displayName: string
   models: string[]
   defaultModel?: string
+  efforts?: string[]
 }
 export type Providers = { providers: Provider[]; default: string }
+/** The stored effort when the provider supports it, otherwise the provider default. */
+export function supportedEffort(provider: Provider | undefined, effort: string) {
+  return provider?.efforts?.includes(effort) ? effort : ""
+}
 export type ToolActivity = {
   title: string
   kind: string
@@ -233,6 +238,7 @@ export async function runAgent(
   skill: string,
   params: Record<string, string>,
   model?: string,
+  effort?: string,
 ) {
   listen()
   if (state.running) { prepareSkill(skill, params); return }
@@ -260,6 +266,7 @@ export async function runAgent(
       skill,
       params: profileParams,
       ...(model ? { model } : {}),
+      ...(effort ? { effort } : {}),
     })
   } catch (e) {
     append("system", (e as Error).message)

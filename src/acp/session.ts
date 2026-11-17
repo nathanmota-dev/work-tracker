@@ -1,4 +1,5 @@
 import { AcpClient } from "./client.ts";
+import { getProvider } from "./providers.ts";
 import { prepareWorkspace } from "../cli/skills.ts";
 import { loadConfig } from "../paths.ts";
 import { randomUUID } from "node:crypto";
@@ -99,7 +100,7 @@ export class SessionManager {
     return this.running;
   }
 
-  async run(providerId: string, skill: string, params: Record<string, string>, model?: string): Promise<AcpRunResult | void> {
+  async run(providerId: string, skill: string, params: Record<string, string>, model?: string, effort?: string): Promise<AcpRunResult | void> {
     if (this.running) {
       this.emit({ type: "acp-error", message: "A skill run is already in progress." });
       return { status: "error", message: "A skill run is already in progress." };
@@ -111,7 +112,7 @@ export class SessionManager {
     this.cancelled = false;
     const prompt = buildSkillPrompt(skill, withSavedProfile(params));
     const config = loadConfig();
-    const clientKey = JSON.stringify([providerId, model, config.acp, config.mcp, config.linkedinMcpCommand]);
+    const clientKey = JSON.stringify([providerId, model, effort, config.acp, config.mcp, config.linkedinMcpCommand]);
     if (this.client && this.clientKey !== clientKey) this.stop();
     const resuming = this.client !== null;
 
@@ -147,7 +148,7 @@ export class SessionManager {
     try {
       prepareWorkspace();
       this.emit({ type: "acp-status", status: "starting", provider: providerId, skill });
-      if (!resuming) await client.start();
+      if (!resuming) await client.start(effort ? { command: getProvider(providerId).command(this.cwd, model, effort) } : {});
       this.permissions.setExecution({ runId: this.executionId, sessionId: client.activeSessionId ?? undefined, status: "running" });
       this.emit({ type: "acp-status", status: "running", skill });
       await client.prompt(prompt);

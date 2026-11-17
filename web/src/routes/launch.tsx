@@ -6,6 +6,7 @@ import { candidateFromAnswers } from "@/lib/candidate-profile"
 import { AgentConversation } from "@/components/agent-conversation"
 import {
   AgentSelectors,
+  type AgentSelection,
   RunFooter,
   SkillFields,
   SkillPicker,
@@ -20,7 +21,7 @@ import {
   Status,
 } from "@/components/workspace-ui"
 import { useApi, useConnection, type Row } from "@/lib/api"
-import { useAgent, runAgent, type Providers } from "@/lib/agent"
+import { useAgent, runAgent, supportedEffort, type Providers } from "@/lib/agent"
 
 function useLaunchState() {
   const profile = useApi<Row[]>("answers")
@@ -46,8 +47,7 @@ function useLaunchState() {
   }
   const provider = search.provider ?? localStorage.getItem("work-tracker-provider") ?? ""
   const model = search.model ?? localStorage.getItem("work-tracker-model") ?? ""
-  const setProvider = (provider: string) => update({ provider })
-  const setModel = (model: string) => update({ model })
+  const effort = search.effort ?? localStorage.getItem("work-tracker-effort") ?? ""
   const [error, setError] = useState("")
   const end = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -58,6 +58,13 @@ function useLaunchState() {
     api.data?.providers.find((p) => p.id === api.data?.default) ??
     api.data?.providers[0]
   const effectiveModel = selectedProvider?.models.includes(model) ? model : ""
+  const effectiveEffort = supportedEffort(selectedProvider, effort)
+  const selection: AgentSelection = {
+    selectedProvider, effectiveModel, effectiveEffort,
+    onProvider: provider => update({ provider, model: "", effort: "" }),
+    onModel: model => update({ model }),
+    onEffort: effort => update({ effort }),
+  }
   const selected = launchSkills.find((s) => s.id === skill) ?? launchSkills[0]
   function submit() {
     setError("")
@@ -71,6 +78,7 @@ function useLaunchState() {
       skill,
       params,
       effectiveModel || undefined,
+      effectiveEffort || undefined,
     )
   }
   return {
@@ -82,12 +90,10 @@ function useLaunchState() {
     setSkill,
     params,
     setParams,
-    setProvider,
-    setModel,
     error: error || context.error,
     setError,
     selectedProvider,
-    effectiveModel,
+    selection,
     selected,
     submit,
   }
@@ -103,12 +109,10 @@ export function LaunchPage() {
     setSkill,
     params,
     setParams,
-    setProvider,
-    setModel,
     error,
     setError,
     selectedProvider,
-    effectiveModel,
+    selection,
     selected,
     submit,
   } = useLaunchState()
@@ -132,14 +136,8 @@ export function LaunchPage() {
             >
               <AgentSelectors
                 providers={api.data.providers}
-                selectedProvider={selectedProvider}
-                effectiveModel={effectiveModel}
                 disabled={agent.running}
-                onProvider={(value) => {
-                  setProvider(value)
-                  setModel("")
-                }}
-                onModel={setModel}
+                {...selection}
               />
               <SkillPicker
                 skill={skill}

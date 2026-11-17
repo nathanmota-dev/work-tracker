@@ -27,7 +27,7 @@ const providers = {
   default: "one",
   providers: [
     { id: "one", displayName: "Agent One", models: ["model-a"] },
-    { id: "two", displayName: "Agent Two", models: ["model-b"] },
+    { id: "two", displayName: "Agent Two", models: ["model-b"], efforts: ["low", "max"] },
   ],
 }
 const view = () =>
@@ -124,7 +124,28 @@ it("rejects stale provider or model preferences without reporting success", () =
   localStorage.setItem("work-tracker-model", "missing-model")
   view()
   fireEvent.click(screen.getByRole("button", { name: "Save preferences" }))
-  expect(screen.getByRole("alert")).toHaveTextContent("Choose an available agent and model")
+  expect(screen.getByRole("alert")).toHaveTextContent("Choose an available agent, model and effort")
   expect(screen.queryByText("Preferences saved.")).not.toBeInTheDocument()
   expect(localStorage.getItem("work-tracker-model")).toBe("missing-model")
+})
+it("saves a preferred effort for agents that support it and rejects a stale one", () => {
+  localStorage.setItem("work-tracker-provider", "two")
+  localStorage.setItem("work-tracker-effort", "max")
+  view()
+  expect(screen.getByRole("slider", { name: "Preferred effort" })).toHaveAttribute("aria-valuetext", "Max")
+  fireEvent.keyDown(screen.getByRole("slider", { name: "Preferred effort" }), { key: "ArrowLeft" })
+  fireEvent.click(screen.getByRole("button", { name: "Save preferences" }))
+  expect(localStorage.getItem("work-tracker-effort")).toBe("low")
+  fireEvent.change(screen.getByLabelText("Preferred agent"), { target: { value: "one" } })
+  expect(screen.queryByRole("slider", { name: "Preferred effort" })).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole("button", { name: "Save preferences" }))
+  expect(localStorage.getItem("work-tracker-effort")).toBe("")
+})
+it("rejects an effort the preferred agent does not offer", () => {
+  localStorage.setItem("work-tracker-provider", "two")
+  localStorage.setItem("work-tracker-effort", "xhigh")
+  view()
+  fireEvent.click(screen.getByRole("button", { name: "Save preferences" }))
+  expect(screen.getByRole("alert")).toHaveTextContent("Choose an available agent, model and effort")
+  expect(localStorage.getItem("work-tracker-effort")).toBe("xhigh")
 })

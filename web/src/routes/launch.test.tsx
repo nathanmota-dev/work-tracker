@@ -28,7 +28,7 @@ const providers = {
   default: "alpha",
   providers: [
     { id: "alpha", displayName: "Alpha", models: ["a1", "a2"] },
-    { id: "beta", displayName: "Beta", models: ["b1"] },
+    { id: "beta", displayName: "Beta", models: ["b1"], efforts: ["low", "high"] },
   ],
 }
 const idle = { running: false, status: "Ready", messages: [], draft: null }
@@ -62,7 +62,22 @@ describe("LaunchPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Run agent" }))
     await waitFor(() => expect(runAgent).toHaveBeenCalledWith("alpha", "job-scout", {
       query: "  Staff engineer ", location: "Remote", extra: "Prefer climate work",
-    }, "a2"))
+    }, "a2", undefined))
+  })
+
+  it("offers effort only for providers that support it and sends the selected level", async () => {
+    localStorage.setItem("work-tracker-provider", "beta")
+    localStorage.setItem("work-tracker-effort", "high")
+    render(<LaunchPage />)
+    expect(screen.getByRole("slider", { name: "Effort" })).toHaveAttribute("aria-valuetext", "High")
+    fireEvent.keyDown(screen.getByRole("slider", { name: "Effort" }), { key: "ArrowLeft" })
+    fireEvent.change(screen.getByLabelText("Role, keywords or job URL"), { target: { value: "Backend" } })
+    fireEvent.click(screen.getByRole("button", { name: "Run agent" }))
+    await waitFor(() => expect(runAgent).toHaveBeenCalledWith("beta", "job-scout", { query: "Backend" }, undefined, "low"))
+    fireEvent.change(screen.getByLabelText("Agent"), { target: { value: "alpha" } })
+    expect(screen.queryByRole("slider", { name: "Effort" })).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText("Agent"), { target: { value: "beta" } })
+    expect(screen.getByRole("slider", { name: "Effort" })).toHaveAttribute("aria-valuetext", "Default")
   })
 
   it("opens Apply for document review before portal filling", async () => {
@@ -128,7 +143,7 @@ describe("LaunchPage", () => {
     expect(screen.getByLabelText("Location")).toHaveValue("Brazil")
     fireEvent.change(screen.getByLabelText("Location"), { target: { value: "" } })
     fireEvent.click(screen.getByRole("button", { name: "Run agent" }))
-    await waitFor(() => expect(runAgent).toHaveBeenCalledWith("alpha", "job-scout", { query: "Backend engineer", extra: "Remote only" }, undefined))
+    await waitFor(() => expect(runAgent).toHaveBeenCalledWith("alpha", "job-scout", { query: "Backend engineer", extra: "Remote only" }, undefined, undefined))
     fireEvent.change(screen.getByLabelText("Skill"), { target: { value: "recruiter-outreach" } })
     expect(screen.getByLabelText("Location")).toHaveValue("")
   })
