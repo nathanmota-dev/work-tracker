@@ -4,6 +4,7 @@ import { SettingsProfile } from "@/components/settings-profile"
 import { BrowserSignIn } from "@/components/browser-sign-in"
 import { IntegrationSettingsPanel } from "@/components/integration-settings"
 import { WorkspaceBackup } from "@/components/workspace-backup"
+import { AppUpdates } from "@/components/app-updates"
 import { GetStartedSettings } from "@/components/get-started"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { SelectControl } from "@/components/ui/select-control"
@@ -188,6 +189,7 @@ export function SettingsPage() {
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
           <TabsTrigger value="permissions">Permissions</TabsTrigger>
           <TabsTrigger value="backup">Backup</TabsTrigger>
+          <TabsTrigger value="updates">Updates</TabsTrigger>
         </TabsList>
         <TabsContent value="general">
           <div className="grid gap-4 lg:grid-cols-2">
@@ -205,6 +207,7 @@ export function SettingsPage() {
         <TabsContent value="integrations"><IntegrationSettingsPanel /><BrowserSignIn /></TabsContent>
         <TabsContent value="permissions"><PermissionSettings /></TabsContent>
         <TabsContent value="backup"><WorkspaceBackup /></TabsContent>
+        <TabsContent value="updates"><AppUpdates /></TabsContent>
       </Tabs>
     </Page>
   )

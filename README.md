@@ -27,6 +27,16 @@ As execuções locais usam `--no-sandbox` por compatibilidade com AppArmor.
 O pacote mantém o sandbox padrão; em hosts que o bloqueiam, passe `--no-sandbox`
 explicitamente ao executável.
 
+## Instalação por release e atualização dentro do app
+
+Cada versão publicada em GitHub Releases traz um AppImage
+(`work-tracker-X.Y.Z-x86_64.AppImage`). Baixe, torne executável
+(`chmod +x`) e execute de uma pasta onde seu usuário possa escrever. O app
+verifica atualizações a cada 12 horas; em **Settings → Updates** você também
+pode verificar na hora, baixar e reiniciar na nova versão. O build instalado
+pelo menu de aplicativos (abaixo) não se atualiza sozinho. Veja
+[docs/releases.md](docs/releases.md) para publicar uma versão.
+
 ## Instalação no Linux pelo menu de aplicativos
 
 A instalação por usuário copia o aplicativo completo para
@@ -358,9 +368,9 @@ npm run test:backend:integration
 npm run package
 node scripts/smoke-electron.mjs
 node scripts/smoke-electron.mjs node_modules/.bin/electron-vite dev --watch --noSandbox
-node scripts/smoke-electron.mjs './release/Work Tracker-1.0.0.AppImage' --no-sandbox
+node scripts/smoke-electron.mjs './release/work-tracker-0.0.1-x86_64.AppImage' --no-sandbox
 node scripts/smoke-apply.mjs node_modules/.bin/electron-vite dev --watch --noSandbox
-node scripts/smoke-apply.mjs './release/Work Tracker-1.0.0.AppImage' --no-sandbox
+node scripts/smoke-apply.mjs './release/work-tracker-0.0.1-x86_64.AppImage' --no-sandbox
 npm run test:e2e
 npm run lint
 npm run test:infra

@@ -8,7 +8,15 @@ files:
 asar: true
 linux:
   target: AppImage
+  # Stable, space-free names: electron-updater matches the architecture in the file name.
+  artifactName: work-tracker-${version}-${arch}.${ext}
   category: Office
+publish:
+  provider: github
+  owner: nathanmota-dev
+  repo: work-tracker
+  channel: latest
+  releaseType: release
 win:
   target: nsis
 mac:

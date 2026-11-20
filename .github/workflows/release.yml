@@ -1,0 +1,104 @@
+# Tag-driven Linux release: build and smoke-test the AppImage, then publish it after
+# maintainer approval of the `release` environment. See docs/releases.md.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  # Build and validate only: nothing is published.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build AppImage
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --prefer-offline --no-audit
+
+      # A tag must be a stable version equal to package.json and have release notes.
+      - name: Validate the tag
+        if: github.ref_type == 'tag'
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::$GITHUB_REF_NAME is not a stable vX.Y.Z tag"; exit 1; }
+          test "$version" = "$(node -p 'require("./package.json").version')" || { echo "::error::Tag does not match package.json"; exit 1; }
+          test -s "docs/release-notes/$version.md" || { echo "::error::Missing docs/release-notes/$version.md"; exit 1; }
+
+      - run: npm run package
+      - name: Write checksums
+        working-directory: release
+        run: sha256sum work-tracker-*-x86_64.AppImage latest-linux.yml > SHA256SUMS.txt
+
+      - name: Check the update feed
+        run: |
+          version=$(node -p 'require("./package.json").version')
+          grep -q "^version: $version$" release/latest-linux.yml
+          grep -q "work-tracker-$version-x86_64.AppImage" release/latest-linux.yml
+
+      - name: Smoke test the AppImage
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb xauth
+          node scripts/smoke-electron.mjs ./release/work-tracker-*-x86_64.AppImage --no-sandbox
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-x64
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            release/work-tracker-*-x86_64.AppImage
+            release/latest-linux.yml
+            release/SHA256SUMS.txt
+
+  publish:
+    name: Publish after maintainer approval
+    needs: build
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    # Required reviewers of this environment are the approval gate.
+    environment: release
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-x64
+          path: release
+      - name: Publish the release
+        run: |
+          gh release create "$TAG" --verify-tag --latest --title "Work Tracker ${TAG#v}" \
+            --notes-file "docs/release-notes/${TAG#v}.md" release/*
+
+      # curl sends no credentials: this is what users and the updater receive.
+      - name: Verify the public feed and download
+        run: |
+          base="https://github.com/${GH_REPO}/releases"
+          curl -fsSL --retry 5 --retry-delay 10 "$base/latest/download/latest-linux.yml" | cmp - release/latest-linux.yml \
+            || { echo "::error::The public latest-linux.yml does not serve $TAG"; exit 1; }
+          image=$(cd release && ls work-tracker-*-x86_64.AppImage)
+          curl -fsSL --retry 5 --retry-delay 10 "$base/download/${TAG}/$image" | cmp - "release/$image" \
+            || { echo "::error::The public AppImage differs from the verified build"; exit 1; }

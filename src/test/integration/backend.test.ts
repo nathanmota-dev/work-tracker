@@ -230,7 +230,7 @@ test("CLI operations, answer API and private skill setup", async () => {
   const wrapper = join(home, "bin", "work-tracker");
   expect(
     (await exec(wrapper, ["--version"], { env: process.env })).stdout,
-  ).toContain("work-tracker 1.0.0");
+  ).toContain("work-tracker 0.0.1");
   expect(JSON.parse((await cli("doctor")).stdout).home).toBe(home);
 });
 test("missing MCP is lazy and surfaced when requested", async () => {

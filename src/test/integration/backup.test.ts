@@ -80,7 +80,7 @@ const rewrite = (folder: string, edit: (manifest: Record<string, any>) => void) 
 test("WAL backup is versioned, hashed and lists sources it leaves out", () => {
   expect(readdirSync(destination)).toEqual([backup.path.split("/").at(-1)]);
   const manifest = manifestOf(backup.path);
-  expect(manifest).toMatchObject({ format: "work-tracker-backup", formatVersion: 1, schemaVersion: SCHEMA_VERSION, appVersion: "1.0.0" });
+  expect(manifest).toMatchObject({ format: "work-tracker-backup", formatVersion: 1, schemaVersion: SCHEMA_VERSION, appVersion: "0.0.1" });
   expect(manifest.counts).toMatchObject({ jobs: 1, applications: 1, application_runs: 1, pdf_artifacts: 1 });
   const artifact = manifest.files.find((file: { kind: string }) => file.kind === "artifact");
   expect(artifact).toEqual({ path: "artifacts/applications/12/run-1/tailored.pdf", kind: "artifact", size: pdf.length, sha256: createHash("sha256").update(pdf).digest("hex") });

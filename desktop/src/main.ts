@@ -4,6 +4,7 @@ import { dirname, join, resolve } from "node:path"
 import { app, BrowserWindow, ipcMain, utilityProcess } from "electron"
 import { registerApiBridge, connectApiBridge, closeApiBridge, emitBackendState } from "./api-bridge"
 import { BackendSupervisor, type BackendHandlers } from "./backend-supervisor"
+import { registerUpdates } from "./register-updates"
 import backendPath from "./backend-process?modulePath"
 
 declare const __WORK_TRACKER_REPO_ROOT__: string
@@ -112,6 +113,7 @@ void app.whenReady().then(() => {
   registerApiBridge(backend)
   backend.start()
   createWindow()
+  if (process.env.WORK_TRACKER_SMOKE !== "1") registerUpdates()
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
