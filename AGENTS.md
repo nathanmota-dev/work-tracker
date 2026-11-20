@@ -94,7 +94,7 @@ Ensure Work Tracker is closed, then run the following block from the root of the
 
   install_dir="$HOME/.local/opt/work-tracker"
   if [ ! -x "$install_dir/work-tracker-app" ]; then
-    printf '%s\n' 'Work Tracker is not installed; follow the installation instructions in README.md.' >&2
+    printf '%s\n' 'Work Tracker is not installed; follow the installation instructions in docs/desenvolvimento.md.' >&2
     exit 1
   fi
 
@@ -105,7 +105,7 @@ Ensure Work Tracker is closed, then run the following block from the root of the
 )
 ```
 
-Keep application data in `~/.work-tracker` untouched. Report the installation update result in the final response; if the update cannot finish, report the reason instead of claiming the installed app is current. See [README.md](README.md#instalação-no-linux-pelo-menu-de-aplicativos) for the initial installation and menu registration.
+Keep application data in `~/.work-tracker` untouched. Report the installation update result in the final response; if the update cannot finish, report the reason instead of claiming the installed app is current. See [docs/desenvolvimento.md](docs/desenvolvimento.md#instalação-no-linux-pelo-menu-de-aplicativos) for the initial installation and menu registration.
 
 ### Exceptions
 

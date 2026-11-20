@@ -806,7 +806,7 @@ Ordem proposta para discussão, baseada no [inventário de features e fluxos](fe
 
 **Critério de conclusão:** Atualizar preserva dados e fontes; versão e resultado ficam visíveis; recuperação considera compatibilidade do banco, sem prometer downgrade irrestrito.
 
-**Arquivos-base:** [desktop/src/main.ts](../desktop/src/main.ts), [desktop/electron-builder.yml](../desktop/electron-builder.yml), [package.json](../package.json), [README.md](../README.md).
+**Arquivos-base:** [desktop/src/main.ts](../desktop/src/main.ts), [desktop/electron-builder.yml](../desktop/electron-builder.yml), [package.json](../package.json), [docs/desenvolvimento.md](desenvolvimento.md).
 
 ## Feature 68 — Criar suporte validado a Windows e macOS
 

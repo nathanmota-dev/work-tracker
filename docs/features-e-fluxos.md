@@ -280,6 +280,6 @@ O primeiro objetivo de produto é **selecionar várias vagas em Jobs, preparar s
 | Limite de sessão e interação do agente | [launch.tsx](../web/src/routes/launch.tsx), [agent.ts](../web/src/lib/agent.ts), [sessão ACP](../src/acp/session.ts). |
 | Demais áreas | [profile.tsx](../web/src/routes/profile.tsx), [recruiters.tsx](../web/src/routes/recruiters.tsx), [outreach.tsx](../web/src/routes/outreach.tsx), [interviews.tsx](../web/src/routes/interviews.tsx), [answers.tsx](../web/src/routes/answers.tsx), [activity.tsx](../web/src/routes/activity.tsx), [settings.tsx](../web/src/routes/settings.tsx). |
 | Documentos e identidade | [PDF viewer](../web/src/components/pdf-viewer.tsx), [fontes do currículo](../web/src/components/resume-sources.tsx), [perfil configurável](../web/src/components/settings-profile.tsx). |
-| Capacidades de CLI e limites de plataforma | [README.md](../README.md), [exportação Typst](../src/cli/export.ts). |
+| Capacidades de CLI e limites de plataforma | [docs/desenvolvimento.md](desenvolvimento.md), [exportação Typst](../src/cli/export.ts). |
 
 Este arquivo é documentação de produto. Não altera o comportamento do aplicativo nem executa candidaturas, contatos ou integrações.
