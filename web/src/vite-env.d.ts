@@ -10,6 +10,7 @@ interface Window {
     backendStatus?: () => Promise<unknown>
     restartBackend?: () => Promise<boolean>
     openExternal: (url: string) => Promise<void>
+    updates?: import("@/types/updates").UpdatesBridge
     onEvent: (listener: (event: unknown) => void) => () => void
   }
 }

@@ -149,3 +149,11 @@ it("rejects an effort the preferred agent does not offer", () => {
   expect(screen.getByRole("alert")).toHaveTextContent("Choose an available agent, model and effort")
   expect(localStorage.getItem("work-tracker-effort")).toBe("xhigh")
 })
+
+it("opens the Updates tab", () => {
+  window.location.hash = "#/settings?section=updates"
+  view()
+  expect(screen.getByRole("tab", { name: "Updates" })).toHaveAttribute("aria-selected", "true")
+  expect(screen.getByRole("button", { name: "Check for updates" })).toBeInTheDocument()
+  window.location.hash = ""
+})

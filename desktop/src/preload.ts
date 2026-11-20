@@ -14,5 +14,16 @@ contextBridge.exposeInMainWorld("desktop", {
   readPdf: (id: string): Promise<ArrayBuffer> => ipcRenderer.invoke("api:pdf", id),
   savePdf: (id: string): Promise<boolean> => ipcRenderer.invoke("api:save-pdf", id),
   chooseSource: (kind: "folder" | "data"): Promise<string | null> => ipcRenderer.invoke("app:choose-source", kind),
+  updates: {
+    getState: () => ipcRenderer.invoke("updates:get-state"),
+    check: () => ipcRenderer.invoke("updates:check"),
+    download: () => ipcRenderer.invoke("updates:download"),
+    install: () => ipcRenderer.invoke("updates:install"),
+    onState: (callback: (state: unknown) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, state: unknown) => callback(state)
+      ipcRenderer.on("updates:state", handler)
+      return () => ipcRenderer.removeListener("updates:state", handler)
+    },
+  },
   getVersion: (): Promise<string> => ipcRenderer.invoke("app:get-version"),
 })
