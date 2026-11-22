@@ -27,7 +27,7 @@
     "lint:backend": "node scripts/ci/lint.cjs backend",
     "lint:frontend": "node scripts/ci/lint.cjs frontend",
     "build": "npm run typecheck && npm run build:cli && electron-vite build",
-    "package": "npm run build && electron-builder --config desktop/electron-builder.yml",
+    "package": "npm run build && electron-builder --config desktop/electron-builder.yml --publish never",
     "postinstall": "install-electron",
     "build:cli": "node scripts/build-cli.mjs",
     "test:backend": "vitest run --config vitest.config.mts",
