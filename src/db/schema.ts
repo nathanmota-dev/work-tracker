@@ -5,8 +5,8 @@
  */
 import { DOCUMENT_SCHEMA_SQL } from "./document-schema.ts";
 import { BATCH_SCHEMA_SQL } from "./batch-schema.ts";
-import { ONBOARDING_SCHEMA_SQL } from "./onboarding-schema.ts";
-export const SCHEMA_VERSION = 11;
+import { FEATURE_SCHEMA_SQL } from "./feature-schema.ts";
+export const SCHEMA_VERSION = 12;
 
 /** Bookkeeping tables the migration runner needs before any migration runs. */
 export const MIGRATION_TABLES_SQL = /* sql */ `
@@ -138,7 +138,7 @@ CREATE TABLE IF NOT EXISTS pdf_artifacts (
 );
 CREATE INDEX IF NOT EXISTS idx_application_runs_job ON application_runs(job_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_pdf_artifacts_run ON pdf_artifacts(run_id);
-${DOCUMENT_SCHEMA_SQL}${BATCH_SCHEMA_SQL}${ONBOARDING_SCHEMA_SQL}
+${DOCUMENT_SCHEMA_SQL}${BATCH_SCHEMA_SQL}${FEATURE_SCHEMA_SQL}
 CREATE TABLE IF NOT EXISTS application_events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   application_id INTEGER NOT NULL REFERENCES applications(id),

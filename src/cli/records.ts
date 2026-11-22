@@ -7,6 +7,7 @@ import { type Flags, str, int, reqStr } from "./flags.ts";
 import { applyStatus, journeyRecord, openApplication, resolveJob, transition } from "../applications/journey-store.ts";
 import { JourneyError } from "../applications/journey.ts";
 import { applicationReviewCmd, REVIEW_SUBCOMMANDS } from "./application-review.ts";
+import { applicationShowCmd } from "./interview-prep.ts";
 
 export { jobCmd } from "./jobs.ts";
 
@@ -116,6 +117,7 @@ export async function applicationCmd(sub: string, flags: Flags): Promise<void> {
     try { await applicationReviewCmd(sub, flags); } catch (error) { fail(error); }
     return;
   }
+  if (sub === "show") return applicationShowCmd(flags);
   const d = db();
   if (sub === "add") {
     let result: { id: number; created: boolean; attempt: number | null };

@@ -53,6 +53,7 @@ const dependencies: Record<string, string[]> = {
   "onboarding/status": ["integrations", "applicant_answers", "jobs", "applications", "onboarding_state"],
   "acp/permissions": ["agent_permissions"],
   "preparation-batches": ["preparation_batches", "jobs"],
+  "interview-preps": ["interview_preps"],
 }
 export function useApi<T>(path: string) {
   const [data, setData] = useState<T>()
@@ -67,7 +68,7 @@ export function useApi<T>(path: string) {
           ((path === "acp/permissions" || path.startsWith("preparation-batches")) && (event.type === "hello" || event.type === "connection" && event.live === true)) || event.type === "changed" &&
           (!event.table ||
             event.table === "unknown" ||
-            (dependencies[path.startsWith("preparation-batches/") ? "preparation-batches" : path] ?? [path]).includes(String(event.table)))
+            (dependencies[path.startsWith("preparation-batches/") ? "preparation-batches" : path.startsWith("interview-preps/") ? "interview-preps" : path] ?? [path]).includes(String(event.table)))
         )
           refresh()
       }),

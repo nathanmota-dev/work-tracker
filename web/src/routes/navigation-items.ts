@@ -15,7 +15,7 @@ const pages = [
 // This order is shared by the sidebar and page search.
 export const navigationGroups = [
   { title: "Overview", paths: ["/dashboard"], footer: false },
-  { title: "Journey", paths: ["/jobs", "/applications", "/interviews", "/contacts"], footer: false },
+  { title: "Journey", paths: ["/jobs", "/applications", "/interviews", "/interview-prep", "/contacts"], footer: false },
   { title: "You", paths: ["/profile"], footer: false },
   { title: "Tools", paths: ["/launch", "/settings"], footer: true },
 ].map(({ paths, ...group }) => ({

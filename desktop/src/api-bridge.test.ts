@@ -103,4 +103,16 @@ describe("api bridge", () => {
       await expect(request({}, invalid)).rejects.toThrow("Unsupported API request")
     await expect(request({}, path, {})).rejects.toThrow("Unsupported API request")
   })
+  it("allows reading the interview packs of one application only", async () => {
+    connectApiBridge({ address: "http://127.0.0.1:4000", token: "fixture" })
+    const fetch = vi.fn(async () => new Response("[]"))
+    vi.stubGlobal("fetch", fetch)
+    const request = electron.handlers.get("api:request")!
+    expect(await request({}, "interview-preps")).toEqual([])
+    expect(await request({}, "interview-preps/12")).toEqual([])
+    expect(fetch).toHaveBeenLastCalledWith(expect.objectContaining({ pathname: "/api/interview-preps/12" }), expect.objectContaining({ method: "GET" }))
+    for (const invalid of ["interview-preps/0", "interview-preps/1/extra", "interview-preps/abc", "interview-preps?applicationId=1"])
+      await expect(request({}, invalid)).rejects.toThrow("Unsupported API request")
+    await expect(request({}, "interview-preps", {})).rejects.toThrow("Unsupported API request")
+  })
 })
