@@ -48,6 +48,12 @@ export const skills = [
     fields: ["url", "jobIds"],
   },
   {
+    id: "interview-prep",
+    name: "Prepare for an interview",
+    description: "Build a stage-specific preparation pack for an application.",
+    fields: [],
+  },
+  {
     id: "experience-bank",
     name: "Capture experience",
     description: "Organize achievements and project experience.",

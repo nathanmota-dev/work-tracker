@@ -21,6 +21,7 @@ import {
 } from "../applications/journey-store.ts";
 import { saveJob } from "../jobs/store.ts";
 import { JourneyError } from "../applications/journey.ts";
+import { applicationShowCmd } from "./interview-prep.ts";
 vi.mock("../db/index.ts", () => ({
   db: vi.fn(),
   now: () => "2026-10-10T12:00:00Z",
@@ -34,6 +35,7 @@ vi.mock("../applications/journey-store.ts", () => ({
   transition: vi.fn(),
 }));
 vi.mock("../jobs/store.ts", () => ({ saveJob: vi.fn() }));
+vi.mock("./interview-prep.ts", () => ({ applicationShowCmd: vi.fn() }));
 let d: ReturnType<typeof databaseDouble>, output: ReturnType<typeof cliSpies>;
 beforeEach(() => {
   vi.mocked(saveJob).mockReset().mockReturnValue({ job: { id: 4 } as any, created: true, existing: false, missing: [] });
@@ -261,4 +263,10 @@ test("answer language commands canonicalize tags, filter category and delete onl
   expect(d.statement.run).toHaveBeenCalledWith("notice_period", "pt-BR");
   expect(notifyChange).toHaveBeenCalledWith("applicant_answers");
   expect(output.log).toHaveBeenLastCalledWith("Answer deleted.");
+});
+
+test("application show is delegated without opening the database", async () => {
+  await applicationCmd("show", { id: "3" });
+  expect(applicationShowCmd).toHaveBeenCalledWith({ id: "3" });
+  expect(db).not.toHaveBeenCalled();
 });

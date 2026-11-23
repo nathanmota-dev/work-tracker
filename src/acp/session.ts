@@ -47,9 +47,23 @@ function baseSkillPrompt(skill: string, params: Record<string, string>): string 
       return `Use the work-tracker-portal-filler skill for ${params.url ?? params.jobIds ?? "the selected application"}. Fill the portal and stop for human review before submission.`;
     case "deep-scout":
       return `Use the work-tracker-job-scout skill to deeply assess this role for fit against my profile: ${params.query}. Save it via \`work-tracker job save\` with a fit rating.`;
+    case "interview-prep":
+      return interviewPrepPrompt(params);
     default:
       return params.prompt ?? skill;
   }
+}
+
+function interviewPrepPrompt(params: Record<string, string>): string {
+  const details = [
+    ["Stage", params.stage],
+    ["Date", params.date],
+    ["Format", params.format],
+    ["Interviewers", params.interviewers],
+  ].flatMap(([label, value]) => (value?.trim() ? [`${label}: ${value.trim()}`] : []));
+  return `Use the work-tracker-interview-prep skill for application #${params.applicationId ?? "(none provided)"}.${
+    details.length ? ` ${details.join(". ")}.` : ""
+  } Build the preparation pack and store it with \`work-tracker interview-prep save\`.`;
 }
 
 function profileTarget(params: Record<string, string>): string {

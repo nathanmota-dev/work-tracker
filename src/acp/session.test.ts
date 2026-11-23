@@ -8,6 +8,7 @@ const SKILLS = [
   "experience-bank",
   "resume-tailor",
   "deep-scout",
+  "interview-prep",
 ];
 
 const DELIM = "\n\n---\nAdditional context from the user (honor this):\n";
@@ -42,6 +43,20 @@ describe("buildSkillPrompt — no extra (byte-identical)", () => {
     expect(
       buildSkillPrompt("job-scout", { query: "q", extra: "   \n\t " }),
     ).toBe(base);
+  });
+});
+
+describe("buildSkillPrompt — interview-prep", () => {
+  test("names the application and only the details that were given", () => {
+    const prompt = buildSkillPrompt("work-tracker-interview-prep", { applicationId: "12", stage: "Final round", date: "2026-12-01", interviewers: "  ", format: "" });
+    expect(prompt).toContain("work-tracker-interview-prep skill for application #12");
+    expect(prompt).toContain("Stage: Final round. Date: 2026-12-01.");
+    expect(prompt).not.toContain("Format");
+    expect(prompt).not.toContain("Interviewers");
+    expect(prompt).toContain("work-tracker interview-prep save");
+  });
+  test("flags a missing application id", () => {
+    expect(buildSkillPrompt("interview-prep", {})).toContain("(none provided)");
   });
 });
 

@@ -6,6 +6,7 @@ import {
   ClipboardCheck,
   ClipboardList,
   FileText,
+  GraduationCap,
   Rocket,
   Search,
   Send,
@@ -17,6 +18,7 @@ import { ActivityPage } from "@/routes/activity"
 import { AnswersPage } from "@/routes/answers"
 import { ApplicationsPage } from "@/routes/applications"
 import { InterviewsPage } from "@/routes/interviews"
+import { InterviewPrepPage } from "@/routes/interview-prep"
 import { JobsPage } from "@/routes/jobs"
 import { OutreachPage } from "@/routes/outreach"
 import { RecruitersPage } from "@/routes/recruiters"
@@ -35,5 +37,6 @@ export const workspacePages = [
   { path: "applications", title: "Applications", icon: ClipboardCheck, component: ApplicationsPage },
   { path: "answers", title: "Answers", icon: ClipboardList, component: AnswersPage },
   { path: "interviews", title: "Interviews", icon: CalendarClock, component: InterviewsPage },
+  { path: "interview-prep", title: "Interview prep", icon: GraduationCap, component: InterviewPrepPage },
   { path: "activity", title: "Activity", icon: Activity, component: ActivityPage },
 ] as const

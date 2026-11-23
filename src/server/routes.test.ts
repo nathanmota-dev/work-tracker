@@ -9,6 +9,7 @@ import { chromeLoginOpening } from "../mcp/chrome.ts";
 import { integrationTesting } from "../integrations/http.ts";
 import { handleBatches } from "../preparation/batch-http.ts";
 import { PreparationQueue } from "../preparation/batch-queue.ts";
+import { handleInterviewPreps } from "../interview-prep/http.ts";
 
 vi.mock("../applications/http.ts", () => ({ handleApplicationBoard: vi.fn() }));
 vi.mock("../jobs/http.ts", () => ({ handleJobAction: vi.fn() }));
@@ -19,6 +20,7 @@ vi.mock("../integrations/http.ts", async (original) => ({ ...(await original<typ
 vi.mock("../preparation/service.ts", () => ({ PreparationService: vi.fn() }));
 vi.mock("../preparation/batch-http.ts", () => ({ handleBatches: vi.fn() }));
 vi.mock("../preparation/batch-queue.ts", () => ({ PreparationQueue: vi.fn() }));
+vi.mock("../interview-prep/http.ts", () => ({ handleInterviewPreps: vi.fn() }));
 vi.mock("./queries.ts", () => ({ queries: {} }));
 
 const acp = { run: vi.fn(), cancel: vi.fn() };
@@ -98,4 +100,11 @@ test("creates one batch queue on the shared preparation service, waiting while t
   expect(agentBusy()).toBe(true);
   context.acp = { ...acp, isRunning: true };
   expect(agentBusy()).toBe(true);
+});
+
+test("serves stored interview preparation packs through their handler", async () => {
+  const req = new Request("http://localhost/api/interview-preps/3");
+  vi.mocked(handleInterviewPreps).mockReturnValue(ok);
+  expect(await routeApi("/api/interview-preps/3", req, { acp, broadcast })).toBe(ok);
+  expect(handleInterviewPreps).toHaveBeenCalledWith("/api/interview-preps/3", req);
 });

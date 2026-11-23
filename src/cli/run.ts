@@ -49,6 +49,10 @@ Write API (used by skills):
       --resume-path --cover-path --report-path --keyword-score --status --portal --external-url]
       Reuses the job's latest application; --new-attempt explicitly applies again after a submission
   work-tracker application update --id <n> [--status --portal --external-url --fields --unfilled]
+  work-tracker application show --id <n>                        Print the application, its job and submitted documents as JSON
+  work-tracker interview-prep save --application-id <n> --stage <s> --file <pack.md> [--when --format --interviewers]
+      Store an interview preparation pack (Markdown); earlier packs of the stage stay as history
+  work-tracker interview-prep list [--application-id <n>]       List stored packs
   work-tracker application review                   List legacy applications that need reconciliation
   work-tracker application reconcile                Apply safe fixes; ambiguous records keep their flag
   work-tracker application resolve --id <n> --decision <track|mark_submitted|mark_not_submitted|keep_attempt>
@@ -108,6 +112,10 @@ const commands: Record<string, Command> = {
   score: (_positionals, flags) => scoreCmd(flags),
   interview: ([sub], flags) => interviewCmd(sub ?? "", flags),
   application: ([sub], flags) => applicationCmd(sub ?? "", flags),
+  "interview-prep": async ([sub], flags) => {
+    const { interviewPrepCmd } = await import("./interview-prep.ts");
+    await interviewPrepCmd(sub ?? "", flags);
+  },
   answer: ([sub], flags) => answerCmd(sub ?? "", flags),
   match: async (_positionals, flags) => {
     const { matchCmd } = await import("./match.ts");

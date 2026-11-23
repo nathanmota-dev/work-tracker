@@ -6,6 +6,7 @@ export const routes = [
   ['Jobs', 'jobs', 'Discover opportunities'],
   ['Applications', 'applications', 'New application'],
   ['Interviews', 'interviews', 'Upcoming'],
+  ['Interview prep', 'interview-prep', 'Walk into every round with likely questions, grounded answers and a consistency brief.'],
   ['Contacts', 'contacts', 'Preview connection sync'],
   ['Profile', 'profile', 'Profile assessment'],
   ['Agent', 'launch', 'Run a skill'],
@@ -24,7 +25,7 @@ for (const populated of [false, true]) {
         expect(await page.locator('[data-sidebar="sidebar"]').getByRole('group').evaluateAll(groups =>
           groups.map(group => [group.getAttribute('aria-label'), Array.from(group.querySelectorAll('a')).map(link => link.getAttribute('aria-label'))])
         )).toEqual([
-          ['Overview', ['Dashboard']], ['Journey', ['Jobs', 'Applications', 'Interviews', 'Contacts']],
+          ['Overview', ['Dashboard']], ['Journey', ['Jobs', 'Applications', 'Interviews', 'Interview prep', 'Contacts']],
           ['You', ['Profile']],
           ['Tools', ['Agent', 'Settings']],
         ])

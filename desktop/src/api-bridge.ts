@@ -27,6 +27,7 @@ const reads = new Set([
   "acp/permissions",
   "resume-sources",
   "preparation-batches",
+  "interview-preps",
 ])
 const writes = new Set([
   "integrations",
@@ -127,7 +128,8 @@ export function registerApiBridge(backend: BackendControl) {
     "api:request",
     async (_event, path: string, body?: unknown) => {
       const batchReview = body === undefined && /^preparation-batches\/review\/[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(path)
-      if (!(body === undefined ? reads : writes).has(path) && !batchReview)
+      const applicationPacks = body === undefined && /^interview-preps\/[1-9]\d*$/.test(path)
+      if (!(body === undefined ? reads : writes).has(path) && !batchReview && !applicationPacks)
         throw new Error("Unsupported API request")
       if (!connection)
         throw new Error(unavailable ?? "Backend is starting. Please retry in a moment.")
