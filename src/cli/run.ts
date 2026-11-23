@@ -58,6 +58,10 @@ Write API (used by skills):
       [--subject <s> --stage-event <n>]   Store a 60-120 word draft for the user to send; refused after 2 sent follow-ups
   work-tracker followup list [--application-id <n>]             List drafts and sent messages as JSON
   work-tracker followup candidates [--days N]                   List follow-ups (default 10 days quiet) and thank-you notes due as JSON
+  work-tracker company-research get --company <name> [--allow-stale]
+      Cached company research as JSON with fresh and age_days; stale notes are withheld unless --allow-stale
+  work-tracker company-research save --company <name> --file <research.json>   Cache research (replaces the company's entry)
+  work-tracker company-research list                            List cached companies with their age
   work-tracker application review                   List legacy applications that need reconciliation
   work-tracker application reconcile                Apply safe fixes; ambiguous records keep their flag
   work-tracker application resolve --id <n> --decision <track|mark_submitted|mark_not_submitted|keep_attempt>
@@ -124,6 +128,10 @@ const commands: Record<string, Command> = {
   followup: async ([sub], flags) => {
     const { followupCmd } = await import("./followup.ts");
     await followupCmd(sub ?? "", flags);
+  },
+  "company-research": async ([sub], flags) => {
+    const { companyResearchCmd } = await import("./company-research.ts");
+    await companyResearchCmd(sub ?? "", flags);
   },
   answer: ([sub], flags) => answerCmd(sub ?? "", flags),
   match: async (_positionals, flags) => {

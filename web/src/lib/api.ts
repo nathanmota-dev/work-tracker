@@ -57,6 +57,7 @@ const dependencies: Record<string, string[]> = {
   "interview-preps": ["interview_preps"],
   followups: ["followup_drafts"],
   "followups/candidates": ["followup_drafts", "applications", "application_stages", "application_events"],
+  "company-research": ["company_research"],
 }
 /** Dependency entry of a read path: parameterized paths share their base entry. */
 function dependencyKey(path: string) {

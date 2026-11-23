@@ -318,7 +318,7 @@ O agente redige um **follow-up** para uma candidatura em silêncio ou um
 envia por conta própria e marca como enviado; nenhuma ação do app envia
 mensagem, lê caixa de entrada, muda etapa ou arquiva candidatura.
 
-- **Rascunhos (schema v15):** tabela `followup_drafts` com `application_id`,
+- **Rascunhos (schema v16):** tabela `followup_drafts` com `application_id`,
   `kind` (`follow_up` | `thank_you`), `channel` (`email` | `linkedin` |
   `portal`), `subject` (só em e-mail), `body_md`, `status` (`draft` | `sent` |
   `discarded`), `stage_event_id` (evento de etapa respondido por um

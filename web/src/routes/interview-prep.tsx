@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { AgentConversation } from "@/components/agent-conversation"
+import { CompanyResearchNote } from "@/components/company-research-note"
 import { InterviewPrepPacks } from "@/components/interview-prep-packs"
 import {
   AgentSelectors,
@@ -80,6 +81,7 @@ export function InterviewPrepPage() {
                   {open.map((row) => <option key={String(row.id)} value={String(row.id)}>{label(row)}</option>)}
                 </SelectControl>
               </Field>
+              {typeof selected?.company_name === "string" && selected.company_name.trim() && <CompanyResearchNote key={selected.company_name} company={selected.company_name} />}
               <Field label="Stage">
                 <Input className={controlClass} list="interview-stages" value={draft.stage} disabled={agent.running} onChange={(e) => set("stage")(e.target.value)} required />
                 <datalist id="interview-stages">{STAGES.map((stage) => <option key={stage} value={stage} />)}</datalist>

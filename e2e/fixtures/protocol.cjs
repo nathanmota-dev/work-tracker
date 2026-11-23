@@ -112,6 +112,20 @@ require('node:readline').createInterface({ input: process.stdin }).on('line', as
         fs.mkdirSync(join(home, 'artifacts', 'followups'), { recursive: true });
         fs.writeFileSync(file, `Hello hiring team,\n\n${kind === 'thank_you' ? 'Thank you for the conversation about' : 'I remain very interested in'} the Engineer role. ${'My submitted resume shows React and TypeScript work on production interfaces used every day by customers. '.repeat(4)}Could you share when the team expects to decide on next steps?\n\nBest regards,\nSynthetic Candidate`);
         cli(['followup', 'save', '--application-id', applicationId, '--kind', kind, '--channel', 'email', '--subject', `${kind === 'thank_you' ? 'Thank you' : 'Following up'}: Engineer`, '--file', file, ...(event ? ['--stage-event', event] : [])]);
+      } else if (/work-tracker-interview-prep/.test(text)) {
+        // Like the skill: read the company research cache first, research and write back only on a miss.
+        const id = text.match(/application #(\d+)/)[1];
+        const { company } = JSON.parse(cli(['application', 'show', '--id', id]));
+        const cached = JSON.parse(cli(['company-research', 'get', '--company', company]));
+        if (!cached.fresh) {
+          log({ kind: 'research', company });
+          const research = join(home, 'research.json');
+          fs.writeFileSync(research, JSON.stringify({ sources: { website: { url: 'https://example.com/about', notes: 'Synthetic mission' } }, summary: 'Synthetic research' }));
+          cli(['company-research', 'save', '--company', company, '--file', research]);
+        }
+        const pack = join(home, 'pack.md');
+        fs.writeFileSync(pack, `# ${company}\n\n${cached.fresh ? 'Reused cached research.' : 'Fresh research.'}\n`);
+        cli(['interview-prep', 'save', '--application-id', id, '--stage', text.match(/Stage: ([^.]+)\./)?.[1] ?? 'Recruiter screen', '--file', pack]);
       } else if (/work-tracker-experience-bank/.test(text)) {
         fs.mkdirSync(join(home, 'experience'), { recursive: true });
         fs.writeFileSync(join(home, 'experience', 'synthetic.md'), '# Synthetic achievement\nBuilt a React app.\n');

@@ -11,6 +11,7 @@ import { handleBatches } from "../preparation/batch-http.ts";
 import { PreparationQueue } from "../preparation/batch-queue.ts";
 import { handleInterviewPreps } from "../interview-prep/http.ts";
 import { handleFollowups } from "../followups/http.ts";
+import { handleCompanyResearch } from "../company-research/http.ts";
 
 vi.mock("../applications/http.ts", () => ({ handleApplicationBoard: vi.fn() }));
 vi.mock("../jobs/http.ts", () => ({ handleJobAction: vi.fn() }));
@@ -23,6 +24,7 @@ vi.mock("../preparation/batch-http.ts", () => ({ handleBatches: vi.fn() }));
 vi.mock("../preparation/batch-queue.ts", () => ({ PreparationQueue: vi.fn() }));
 vi.mock("../interview-prep/http.ts", () => ({ handleInterviewPreps: vi.fn() }));
 vi.mock("../followups/http.ts", () => ({ handleFollowups: vi.fn() }));
+vi.mock("../company-research/http.ts", () => ({ handleCompanyResearch: vi.fn() }));
 vi.mock("./queries.ts", () => ({ queries: {} }));
 
 const acp = { run: vi.fn(), cancel: vi.fn() };
@@ -118,4 +120,14 @@ test("serves follow-up drafts and candidates through their handler with the broa
     expect(await routeApi(path, req, { acp, broadcast })).toBe(ok);
     expect(handleFollowups).toHaveBeenLastCalledWith(path, req, broadcast);
   }
+});
+
+test("serves and invalidates the company research cache through its handler", async () => {
+  vi.mocked(handleCompanyResearch).mockResolvedValue(ok);
+  const read = new Request("http://localhost/api/company-research?company=Acme");
+  expect(await routeApi("/api/company-research", read, { acp, broadcast })).toBe(ok);
+  expect(handleCompanyResearch).toHaveBeenLastCalledWith("/api/company-research", read, broadcast);
+  const invalidate = new Request("http://localhost/api/company-research/invalidate", { method: "POST" });
+  expect(await routeApi("/api/company-research/invalidate", invalidate, { acp, broadcast })).toBe(ok);
+  expect(handleCompanyResearch).toHaveBeenLastCalledWith("/api/company-research/invalidate", invalidate, broadcast);
 });
