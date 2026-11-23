@@ -54,6 +54,10 @@ Write API (used by skills):
   work-tracker interview-prep save --application-id <n> --stage <s> --file <pack.md> [--when --format --interviewers]
       Store an interview preparation pack (Markdown); earlier packs of the stage stay as history
   work-tracker interview-prep list [--application-id <n>]       List stored packs
+  work-tracker followup save --application-id <n> --kind <follow_up|thank_you> --channel <email|linkedin|portal> --file <body.md>
+      [--subject <s> --stage-event <n>]   Store a 60-120 word draft for the user to send; refused after 2 sent follow-ups
+  work-tracker followup list [--application-id <n>]             List drafts and sent messages as JSON
+  work-tracker followup candidates [--days N]                   List follow-ups (default 10 days quiet) and thank-you notes due as JSON
   work-tracker application review                   List legacy applications that need reconciliation
   work-tracker application reconcile                Apply safe fixes; ambiguous records keep their flag
   work-tracker application resolve --id <n> --decision <track|mark_submitted|mark_not_submitted|keep_attempt>
@@ -116,6 +120,10 @@ const commands: Record<string, Command> = {
   "interview-prep": async ([sub], flags) => {
     const { interviewPrepCmd } = await import("./interview-prep.ts");
     await interviewPrepCmd(sub ?? "", flags);
+  },
+  followup: async ([sub], flags) => {
+    const { followupCmd } = await import("./followup.ts");
+    await followupCmd(sub ?? "", flags);
   },
   answer: ([sub], flags) => answerCmd(sub ?? "", flags),
   match: async (_positionals, flags) => {

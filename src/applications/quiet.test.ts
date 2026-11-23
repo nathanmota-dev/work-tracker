@@ -100,3 +100,18 @@ test("validates thresholds from JSON, query strings and CLI flags", () => {
   for (const invalid of [6, 7.5, -10, "6", "9O", "1e2", true, MAX_DAYS + 1, [60]])
     expect(() => quietDays(invalid)).toThrow(expect.objectContaining({ status: 400, message: "Days without activity must be a whole number from 7 to 3650." }));
 });
+
+test("a sent follow-up or thank-you restarts the clock; drafts and discarded ones do not", () => {
+  const app = sent("Followed", 30);
+  const message = (status: string, sent_at: string | null, kind = "follow_up") =>
+    d.query(`INSERT INTO followup_drafts (application_id, kind, channel, body_md, status, created_at, sent_at)
+      VALUES (?, ?, 'email', 'x', ?, ?, ?)`).run(app, kind, status, ago(1), sent_at);
+  message("draft", null);
+  message("discarded", null);
+  expect(lastActivityAt(d, app)).toBe(ago(30));
+  message("sent", ago(12));
+  message("sent", ago(4), "thank_you");
+  expect(lastActivityAt(d, app)).toBe(ago(4));
+  expect(quietApplications(d, { days: 7 }).items).toEqual([]);
+  expect(quietApplications(d, { days: 7, now: ago(-4) }).items).toEqual([expect.objectContaining({ id: app, days_quiet: 8 })]);
+});

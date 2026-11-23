@@ -131,7 +131,7 @@ test("agent PATH tolerates unavailable NVM and keeps the inherited executable di
 
 test("every skill that reads postings or pages declares the trust boundary and how to read the posting check", async () => {
   const real = await vi.importActual<typeof import("node:fs")>("node:fs");
-  const skills = ["job-scout", "resume-tailor", "portal-filler", "interview-prep", "recruiter-outreach"];
+  const skills = ["job-scout", "resume-tailor", "portal-filler", "interview-prep", "recruiter-outreach", "followup"];
   for (const skill of skills) {
     const text = real.readFileSync(join(process.cwd(), "resources/skills", `work-tracker-${skill}`, "SKILL.md"), "utf8");
     const section = text.slice(text.indexOf("## Trust boundary"));
@@ -141,4 +141,20 @@ test("every skill that reads postings or pages declares the trust boundary and h
     expect(section, skill).toMatch(/guard_verdict|guard\.verdict/);
     expect(section, skill).toContain("When the verdict contains ⚠, tell the user");
   }
+});
+
+test("the followup skill is bundled, found by discovery and copied into the prepared workspace", async () => {
+  const fs = await vi.importActual<typeof import("node:fs")>("node:fs");
+  vi.stubEnv("WORK_TRACKER_RESOURCES", undefined);
+  vi.mocked(existsSync).mockImplementation((path) => fs.existsSync(path));
+  const source = findSkillsSource();
+  const skill = fs.readFileSync(join(source, "work-tracker-followup", "SKILL.md"), "utf8");
+  expect(skill).toMatch(/^---\nname: work-tracker-followup\ndescription: >-\n/);
+  expect(skill).toContain("Use the private Work Tracker workspace");
+  for (const command of ["work-tracker application show", "work-tracker answer list", "work-tracker followup list", "work-tracker followup save", "work-tracker activity log --kind followup --skill followup"])
+    expect(skill).toContain(command);
+  expect(skill).toContain("Never send anything");
+  prepareWorkspace();
+  for (const agent of [".claude", ".agents", ".opencode"])
+    expect(cpSync).toHaveBeenCalledWith(source, `/private/workspace/${agent}/skills`, { recursive: true });
 });

@@ -10,6 +10,7 @@ import { integrationTesting } from "../integrations/http.ts";
 import { handleBatches } from "../preparation/batch-http.ts";
 import { PreparationQueue } from "../preparation/batch-queue.ts";
 import { handleInterviewPreps } from "../interview-prep/http.ts";
+import { handleFollowups } from "../followups/http.ts";
 
 vi.mock("../applications/http.ts", () => ({ handleApplicationBoard: vi.fn() }));
 vi.mock("../jobs/http.ts", () => ({ handleJobAction: vi.fn() }));
@@ -21,6 +22,7 @@ vi.mock("../preparation/service.ts", () => ({ PreparationService: vi.fn() }));
 vi.mock("../preparation/batch-http.ts", () => ({ handleBatches: vi.fn() }));
 vi.mock("../preparation/batch-queue.ts", () => ({ PreparationQueue: vi.fn() }));
 vi.mock("../interview-prep/http.ts", () => ({ handleInterviewPreps: vi.fn() }));
+vi.mock("../followups/http.ts", () => ({ handleFollowups: vi.fn() }));
 vi.mock("./queries.ts", () => ({ queries: {} }));
 
 const acp = { run: vi.fn(), cancel: vi.fn() };
@@ -107,4 +109,13 @@ test("serves stored interview preparation packs through their handler", async ()
   vi.mocked(handleInterviewPreps).mockReturnValue(ok);
   expect(await routeApi("/api/interview-preps/3", req, { acp, broadcast })).toBe(ok);
   expect(handleInterviewPreps).toHaveBeenCalledWith("/api/interview-preps/3", req);
+});
+
+test("serves follow-up drafts and candidates through their handler with the broadcaster", async () => {
+  vi.mocked(handleFollowups).mockResolvedValue(ok);
+  for (const path of ["/api/followups", "/api/followups/candidates", "/api/followups/sent"]) {
+    const req = new Request(`http://localhost${path}`);
+    expect(await routeApi(path, req, { acp, broadcast })).toBe(ok);
+    expect(handleFollowups).toHaveBeenLastCalledWith(path, req, broadcast);
+  }
 });

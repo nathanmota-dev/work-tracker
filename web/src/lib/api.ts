@@ -48,13 +48,15 @@ const dependencies: Record<string, string[]> = {
   "applications/summary": ["applications"],
   jobs: ["jobs", "applications"],
   "application-board": ["applications", "application_stages", "application_events"],
-  "application-board/quiet": ["applications", "application_stages", "application_events"],
+  "application-board/quiet": ["applications", "application_stages", "application_events", "followup_drafts"],
   "acp/providers": ["integrations"],
   "integrations/status": ["integrations", "applicant_answers", "profile"],
   "onboarding/status": ["integrations", "applicant_answers", "jobs", "applications", "onboarding_state"],
   "acp/permissions": ["agent_permissions"],
   "preparation-batches": ["preparation_batches", "jobs"],
   "interview-preps": ["interview_preps"],
+  followups: ["followup_drafts"],
+  "followups/candidates": ["followup_drafts", "applications", "application_stages", "application_events"],
 }
 /** Dependency entry of a read path: parameterized paths share their base entry. */
 function dependencyKey(path: string) {

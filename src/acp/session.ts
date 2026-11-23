@@ -49,6 +49,8 @@ function baseSkillPrompt(skill: string, params: Record<string, string>): string 
       return `Use the work-tracker-job-scout skill to deeply assess this role for fit against my profile: ${params.query}. Save it via \`work-tracker job save\` with a fit rating.`;
     case "interview-prep":
       return interviewPrepPrompt(params);
+    case "followup":
+      return followupPrompt(params);
     default:
       return params.prompt ?? skill;
   }
@@ -64,6 +66,19 @@ function interviewPrepPrompt(params: Record<string, string>): string {
   return `Use the work-tracker-interview-prep skill for application #${params.applicationId ?? "(none provided)"}.${
     details.length ? ` ${details.join(". ")}.` : ""
   } Build the preparation pack and store it with \`work-tracker interview-prep save\`.`;
+}
+
+function followupPrompt(params: Record<string, string>): string {
+  const thankYou = params.kind === "thank_you";
+  const details = [
+    ["Stage", params.stage],
+    ["Stage event", params.stageEventId],
+    ["Interviewers", params.interviewers],
+    ["Channel", params.channel],
+  ].flatMap(([label, value]) => (value?.trim() ? [`${label}: ${value.trim()}`] : []));
+  return `Use the work-tracker-followup skill to draft a ${thankYou ? "thank-you note (kind thank_you)" : "follow-up (kind follow_up)"} for application #${params.applicationId ?? "(none provided)"}.${
+    details.length ? ` ${details.join(". ")}.` : ""
+  } Store the draft with \`work-tracker followup save\` and never send it; I will send it myself.`;
 }
 
 function profileTarget(params: Record<string, string>): string {

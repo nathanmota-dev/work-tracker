@@ -103,6 +103,15 @@ require('node:readline').createInterface({ input: process.stdin }).on('line', as
       } else if (/work-tracker-recruiter-outreach/.test(text)) {
         cli(['recruiter', 'add', '--name', person.name, '--username', person.username, '--company', 'Example Company', '--status', 'pending']);
         cli(['outreach', 'log', '--username', person.username, '--company-urn', '1234', '--company', 'Example Company', '--state', 'invited', '--channel', 'connect_note']);
+      } else if (/work-tracker-followup/.test(text)) {
+        // Like the skill, store a 60-120 word draft and leave sending to the user.
+        const applicationId = text.match(/application #(\d+)/)[1];
+        const kind = /kind thank_you/.test(text) ? 'thank_you' : 'follow_up';
+        const event = text.match(/Stage event: (\d+)/)?.[1];
+        const file = join(home, 'artifacts', 'followups', `${applicationId}-${kind}.md`);
+        fs.mkdirSync(join(home, 'artifacts', 'followups'), { recursive: true });
+        fs.writeFileSync(file, `Hello hiring team,\n\n${kind === 'thank_you' ? 'Thank you for the conversation about' : 'I remain very interested in'} the Engineer role. ${'My submitted resume shows React and TypeScript work on production interfaces used every day by customers. '.repeat(4)}Could you share when the team expects to decide on next steps?\n\nBest regards,\nSynthetic Candidate`);
+        cli(['followup', 'save', '--application-id', applicationId, '--kind', kind, '--channel', 'email', '--subject', `${kind === 'thank_you' ? 'Thank you' : 'Following up'}: Engineer`, '--file', file, ...(event ? ['--stage-event', event] : [])]);
       } else if (/work-tracker-experience-bank/.test(text)) {
         fs.mkdirSync(join(home, 'experience'), { recursive: true });
         fs.writeFileSync(join(home, 'experience', 'synthetic.md'), '# Synthetic achievement\nBuilt a React app.\n');
