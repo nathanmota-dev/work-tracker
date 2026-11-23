@@ -30,6 +30,8 @@ const reads = new Set([
   "interview-preps",
   "followups",
   "followups/candidates",
+  "rankings",
+  "rankings/candidates",
 ])
 const writes = new Set([
   "integrations",
@@ -138,7 +140,8 @@ export function registerApiBridge(backend: BackendControl) {
       const quietScan = body === undefined && /^application-board\/quiet(\?days=[1-9]\d{0,3})?$/.test(path)
       const followups = body === undefined && /^followups(\?application_id=[1-9]\d*|\/candidates\?days=[1-9]\d{0,3})$/.test(path)
       const companyResearch = body === undefined && /^company-research\?company=[^&#]{1,600}$/.test(path)
-      if (!(body === undefined ? reads : writes).has(path) && !batchReview && !applicationPacks && !quietScan && !companyResearch && !followups)
+      const rankings = body === undefined && /^rankings\/candidates\?(all=true(&job_ids=[1-9]\d*(,[1-9]\d*)*)?|job_ids=[1-9]\d*(,[1-9]\d*)*)$/.test(path)
+      if (!(body === undefined ? reads : writes).has(path) && !batchReview && !applicationPacks && !quietScan && !companyResearch && !followups && !rankings)
         throw new Error("Unsupported API request")
       if (!connection)
         throw new Error(unavailable ?? "Backend is starting. Please retry in a moment.")

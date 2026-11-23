@@ -18,6 +18,12 @@ export const skills = [
     fields: ["query"],
   },
   {
+    id: "job-ranking",
+    name: "Rank opportunities",
+    description: "Score saved roles and shortlist the best fits.",
+    fields: ["jobIds"],
+  },
+  {
     id: "resume-tailor",
     name: "Tailor your resume",
     description: "Create tailored resumes, cover letters and match reports.",

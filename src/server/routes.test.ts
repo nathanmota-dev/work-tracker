@@ -11,6 +11,7 @@ import { handleBatches } from "../preparation/batch-http.ts";
 import { PreparationQueue } from "../preparation/batch-queue.ts";
 import { handleInterviewPreps } from "../interview-prep/http.ts";
 import { handleFollowups } from "../followups/http.ts";
+import { handleRankings } from "../rankings/http.ts";
 import { handleCompanyResearch } from "../company-research/http.ts";
 
 vi.mock("../applications/http.ts", () => ({ handleApplicationBoard: vi.fn() }));
@@ -24,6 +25,7 @@ vi.mock("../preparation/batch-http.ts", () => ({ handleBatches: vi.fn() }));
 vi.mock("../preparation/batch-queue.ts", () => ({ PreparationQueue: vi.fn() }));
 vi.mock("../interview-prep/http.ts", () => ({ handleInterviewPreps: vi.fn() }));
 vi.mock("../followups/http.ts", () => ({ handleFollowups: vi.fn() }));
+vi.mock("../rankings/http.ts", () => ({ handleRankings: vi.fn() }));
 vi.mock("../company-research/http.ts", () => ({ handleCompanyResearch: vi.fn() }));
 vi.mock("./queries.ts", () => ({ queries: {} }));
 
@@ -119,6 +121,15 @@ test("serves follow-up drafts and candidates through their handler with the broa
     const req = new Request(`http://localhost${path}`);
     expect(await routeApi(path, req, { acp, broadcast })).toBe(ok);
     expect(handleFollowups).toHaveBeenLastCalledWith(path, req, broadcast);
+  }
+});
+
+test("serves rankings and ranking candidates through their handler", async () => {
+  vi.mocked(handleRankings).mockReturnValue(ok);
+  for (const path of ["/api/rankings", "/api/rankings/candidates"]) {
+    const req = new Request(`http://localhost${path}`);
+    expect(await routeApi(path, req, { acp, broadcast })).toBe(ok);
+    expect(handleRankings).toHaveBeenLastCalledWith(path, req);
   }
 });
 

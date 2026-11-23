@@ -32,7 +32,7 @@ test("upgrading the answer catalog's v6 keeps localized answers and submitted PD
       UPDATE applications SET preparation_run_id = 'run-1' WHERE id = 1;`);
     const before = snapshot();
     before.jobs = before.jobs!.map(row => ({ ...(row as object), shortlisted_at: expect.any(String) }));
-    expect(migrateDatabase(d, options)).toMatchObject({ from: 6, to: SCHEMA_VERSION, applied: [7, 8, 9, 10, 11, 12, 13, 14, 15, 16], backup: expect.any(String) });
+    expect(migrateDatabase(d, options)).toMatchObject({ from: 6, to: SCHEMA_VERSION, applied: [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17], backup: expect.any(String) });
     expect(snapshot()).toEqual(before);
     expect(d.query("SELECT version, name FROM schema_migrations WHERE version >= 6 ORDER BY version").all()).toEqual([
       { version: 6, name: "reusable answer languages" },
@@ -46,6 +46,7 @@ test("upgrading the answer catalog's v6 keeps localized answers and submitted PD
       { version: 14, name: "posting integrity guard" },
       { version: 15, name: "company research cache" },
       { version: 16, name: "follow-up drafts" },
+      { version: 17, name: "job rankings" },
     ]);
     expect(d.query("SELECT * FROM document_versions").all()).toEqual([]);
     expect(d.query("SELECT * FROM application_documents").all()).toEqual([]);

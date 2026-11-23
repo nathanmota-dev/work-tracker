@@ -10,6 +10,7 @@ const SKILLS = [
   "deep-scout",
   "interview-prep",
   "followup",
+  "job-ranking",
 ];
 
 const DELIM = "\n\n---\nAdditional context from the user (honor this):\n";
@@ -72,6 +73,21 @@ describe("buildSkillPrompt — followup", () => {
   test("defaults to a follow-up and flags a missing application id", () => {
     const prompt = buildSkillPrompt("followup", {});
     expect(prompt).toContain("a follow-up (kind follow_up) for application #(none provided).");
+  });
+});
+
+describe("buildSkillPrompt — job-ranking", () => {
+  test("ranks the new roles with the default query", () => {
+    const prompt = buildSkillPrompt("work-tracker-job-ranking", {});
+    expect(prompt).toContain("work-tracker-job-ranking skill to triage my new saved roles.");
+    expect(prompt).toContain("`work-tracker ranking candidates` and store each posting with `work-tracker ranking save`");
+    expect(prompt).toContain("triage scores from the posting text only");
+  });
+  test("passes the selection, a valid limit and all, ignoring invalid values", () => {
+    const prompt = buildSkillPrompt("job-ranking", { jobIds: "3, 5,x,0", limit: "20", all: "true" });
+    expect(prompt).toContain("the selected jobs #3, #5, re-ranking jobs that were already ranked");
+    expect(prompt).toContain("`work-tracker ranking candidates --limit 20 --all --job-ids 3,5`");
+    expect(buildSkillPrompt("job-ranking", { limit: "0", all: "yes" })).toContain("`work-tracker ranking candidates` and");
   });
 });
 

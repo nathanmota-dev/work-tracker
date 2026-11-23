@@ -146,7 +146,7 @@ test("interview-prep and resume-tailor read the company research cache without w
 
 test("every skill that reads postings or pages declares the trust boundary and how to read the posting check", async () => {
   const real = await vi.importActual<typeof import("node:fs")>("node:fs");
-  const skills = ["job-scout", "resume-tailor", "portal-filler", "interview-prep", "recruiter-outreach", "followup"];
+  const skills = ["job-scout", "resume-tailor", "portal-filler", "interview-prep", "recruiter-outreach", "followup", "job-ranking"];
   for (const skill of skills) {
     const text = real.readFileSync(join(process.cwd(), "resources/skills", `work-tracker-${skill}`, "SKILL.md"), "utf8");
     const section = text.slice(text.indexOf("## Trust boundary"));
@@ -169,6 +169,26 @@ test("the followup skill is bundled, found by discovery and copied into the prep
   for (const command of ["work-tracker application show", "work-tracker answer list", "work-tracker followup list", "work-tracker followup save", "work-tracker activity log --kind followup --skill followup"])
     expect(skill).toContain(command);
   expect(skill).toContain("Never send anything");
+  prepareWorkspace();
+  for (const agent of [".claude", ".agents", ".opencode"])
+    expect(cpSync).toHaveBeenCalledWith(source, `/private/workspace/${agent}/skills`, { recursive: true });
+});
+
+test("the job-ranking skill is bundled, queries candidates, saves one job at a time and keeps 404 unreachable", async () => {
+  const fs = await vi.importActual<typeof import("node:fs")>("node:fs");
+  vi.stubEnv("WORK_TRACKER_RESOURCES", undefined);
+  vi.mocked(existsSync).mockImplementation((path) => fs.existsSync(path));
+  const source = findSkillsSource();
+  const skill = fs.readFileSync(join(source, "work-tracker-job-ranking", "SKILL.md"), "utf8");
+  expect(skill).toMatch(/^---\nname: work-tracker-job-ranking\ndescription: >-\n/);
+  expect(skill).toContain("Use the private Work Tracker workspace");
+  for (const command of ["work-tracker ranking candidates", "work-tracker ranking save --job-id", "work-tracker answer list", "work-tracker job update --id <job_id> --description"])
+    expect(skill).toContain(command);
+  expect(skill).toContain("Never run `work-tracker job list` to pick jobs yourself");
+  expect(skill).toContain("**A 404 is `unreachable`, not `expired`**");
+  expect(skill).toContain("**triage scores from the posting text only**");
+  expect(skill).toContain("Do **not** compute the overall score or the verdict");
+  expect(skill).toContain("No company research, no salary lookup");
   prepareWorkspace();
   for (const agent of [".claude", ".agents", ".opencode"])
     expect(cpSync).toHaveBeenCalledWith(source, `/private/workspace/${agent}/skills`, { recursive: true });

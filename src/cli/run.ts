@@ -41,7 +41,7 @@ Write API (used by skills):
   work-tracker outreach withdraw --id <n>                        Withdraw pending invite (browser) + block
   work-tracker job save --title <t> --company <c> [--linkedin-id --source --source-id --location --work-type --comp --fit --link --status --requirements --description --deadline YYYY-MM-DD]
   work-tracker job update --id <n> [same job fields]
-  work-tracker job list                     List jobs, including archived_at
+  work-tracker job list                     List jobs, including archived_at, guard_verdict, ranking_status and ranking_overall
   work-tracker metric record [--search-appearances --profile-views --post-impressions --connections --score]
   work-tracker score record --value <n> [--signals <json>]
   work-tracker interview add --company <c> [--when --stage --status --note]
@@ -58,6 +58,10 @@ Write API (used by skills):
       [--subject <s> --stage-event <n>]   Store a 60-120 word draft for the user to send; refused after 2 sent follow-ups
   work-tracker followup list [--application-id <n>]             List drafts and sent messages as JSON
   work-tracker followup candidates [--days N]                   List follow-ups (default 10 days quiet) and thank-you notes due as JSON
+  work-tracker ranking candidates [--limit N] [--all] [--job-ids 1,2]
+      Jobs to triage as JSON (default 10; unranked and unreachable only unless --all), with deferred and expired counts
+  work-tracker ranking save --job-id <n> --file <result.json>   Store one posting's triage result (scored | expired | unreachable)
+  work-tracker ranking list                                     List triage rankings, expiry derived from deadlines, as JSON
   work-tracker company-research get --company <name> [--allow-stale]
       Cached company research as JSON with fresh and age_days; stale notes are withheld unless --allow-stale
   work-tracker company-research save --company <name> --file <research.json>   Cache research (replaces the company's entry)
@@ -128,6 +132,10 @@ const commands: Record<string, Command> = {
   followup: async ([sub], flags) => {
     const { followupCmd } = await import("./followup.ts");
     await followupCmd(sub ?? "", flags);
+  },
+  ranking: async ([sub], flags) => {
+    const { rankingCmd } = await import("./rankings.ts");
+    await rankingCmd(sub ?? "", flags);
   },
   "company-research": async ([sub], flags) => {
     const { companyResearchCmd } = await import("./company-research.ts");

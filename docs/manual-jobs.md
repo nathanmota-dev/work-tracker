@@ -41,6 +41,18 @@ Shortlist retains filtering, selection and batch preparation. Archived jobs reta
 their prior triage state on restoration. The search criteria and tab persist in
 the URL; legacy Search job links redirect to Jobs, and people search lives in Contacts.
 
+## Triagem em lote
+
+A coluna **Score** mostra a nota de triagem como texto (“78 · Strong fit”), ou `Expired`, `Unreachable (attempt N)` e `Check manually`, com 🔥 “Closing soon” quando o prazo vence em até 7 dias. **Sort by score** ordena pela nota, com o prazo próximo como desempate, ao lado de **Sort by deadline**. O detalhe da vaga mostra as notas de Technical, Experience e Career alignment, os pontos fortes, as lacunas, a data da pontuação e o aviso de que é uma triagem a partir do texto da vaga; o botão **Apply** continua sendo a avaliação completa.
+
+**Rank selected**, **Rank new roles** e **Rank all again** abrem a skill `work-tracker-job-ranking` no painel do agente e a página continua utilizável. Vagas arquivadas ou com candidatura enviada nunca são candidatas. O agente lê e grava apenas pelo CLI:
+
+- `work-tracker ranking candidates [--limit N] [--all] [--job-ids 1,2]` lista as candidatas em JSON, com as contagens `eligible`, `deferred`, `expired` e `already_ranked`; é a consulta da skill, que nunca lê a lista inteira de vagas.
+- `work-tracker ranking save --job-id <n> --file result.json` grava o resultado de uma vaga (`{ "status": "scored", "scores": { "technical", "experience", "career" }, "strengths": [...], "gaps": [...] }`, ou `unreachable`/`expired` com `fetch_error`) e imprime o ranking com `overall` e `verdict` calculados.
+- `work-tracker ranking list` e `GET /api/rankings` listam os rankings com a expiração derivada do prazo; `work-tracker job list` traz `ranking_status` e `ranking_overall` por vaga.
+
+Dimensões, pesos, faixas e a regra de desistência estão em [features-e-fluxos.md](features-e-fluxos.md#14-triagem-em-lote-das-vagas-salvas).
+
 ## Verificação de integridade da descrição
 
 Toda descrição de vaga passa por uma guarda determinística (`src/postings/guard/`, portada do `tools/posting_guard.py` do `ai-job-search`) antes de ser gravada: no formulário de vaga, em `POST /api/jobs/create|update`, em `work-tracker job save|update --description`, na descrição colada no Apply, na descrição obtida do LinkedIn por `ensureDescription` e na vaga criada ou vinculada a partir de uma candidatura manual. Só o **texto limpo** é gravado em `jobs.description`; o resultado (veredito, contagens e trechos curtos, no máximo dez por classe) fica em `jobs.description_guard_json`.
