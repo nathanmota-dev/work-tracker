@@ -20,7 +20,7 @@ import { missingForPreparation } from "../jobs/preparation.ts";
 import { planTransition } from "../applications/journey.ts";
 import { assertPortalFree } from "./batch-store.ts";
 import { contactIdentity } from "../answers/store.ts";
-import { jobId, jobRecord, type PreparationJob as Job } from "./jobs.ts";
+import { jobId, jobRecord, savePastedDescription, type PreparationJob as Job } from "./jobs.ts";
 
 export type PreparationAgent = Pick<SessionManager, "run" | "cancel"> & Partial<Pick<SessionManager, "subscribe" | "isRunning">>;
 export class PreparationService {
@@ -77,7 +77,7 @@ export class PreparationService {
     finally { this.active = null; this.task = null; this.changed(); }
   }
   details(input: Record<string, unknown>): PreparationDetails {
-    const job = jobRecord(jobId(input.jobId));
+    const job = jobRecord(jobId(input.jobId), true);
     const requestedApplication = input.applicationId ? jobId(input.applicationId) : null;
     if (requestedApplication && !db().query("SELECT id FROM applications WHERE id = ? AND job_id = ?").get(requestedApplication, job.id)) throw new PreparationError("Application not found for this job.", 404);
     const rows = db().query("SELECT id FROM application_runs WHERE job_id = ? AND (? IS NULL OR application_id = ?) ORDER BY created_at DESC, rowid DESC").all(job.id, requestedApplication, requestedApplication) as { id: string }[];
@@ -96,7 +96,7 @@ export class PreparationService {
     const job = jobRecord(jobId(input.jobId));
     const description = typeof input.description === "string" ? input.description.trim() : "";
     if (!description) throw new PreparationError("Enter the job description.");
-    db().query("UPDATE jobs SET description = ? WHERE id = ?").run(description, job.id);
+    savePastedDescription(job.id, description);
     this.broadcast({ type: "changed", table: "jobs" });
   }
   /** `sources` lets a batch generate from the snapshot it recorded instead of the current sources. */
@@ -184,7 +184,7 @@ export class PreparationService {
     if (compiled) this.complete(id, job, sources, compiled);
   }
   private async prepareSources(id: string, job: Job, snapshot: SourcesSnapshot, signal: AbortSignal): Promise<GenerationSources> {
-    await ensureDescription(job);
+    const descriptionCheck = await ensureDescription(job);
     signal.throwIfAborted();
     const root = join(paths.artifacts, "applications", String(job.id), id);
     const baseProject = join(root, "base-project");
@@ -193,7 +193,7 @@ export class PreparationService {
     writeSnapshot(snapshot, project);
     writeFileSync(join(root, "profile.json"), JSON.stringify(snapshot.data, null, 2), { mode: 0o600 });
     const manifest = {
-      runId: id, job, sourceVersion: snapshot.version, engine: snapshot.config.engine,
+      runId: id, job, descriptionCheck, sourceVersion: snapshot.version, engine: snapshot.config.engine,
       project, baseProject, mainFile: snapshot.config.mainFile, profilePath: join(root, "profile.json"),
       reportPath: join(root, "report.md"), selectionPath: join(root, "selection.json"),
       coverPath: join(root, "cover-letter.md"),

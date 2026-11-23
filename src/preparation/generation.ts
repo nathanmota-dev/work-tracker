@@ -4,6 +4,8 @@ import { db } from "../db/index.ts";
 import { jobDetails } from "../mcp/search.ts";
 import type { LatexEngine, PreparationDetails } from "./types.ts";
 import { PreparationError } from "./sources.ts";
+import { guardVerdict, saveGuardedDescription } from "../postings/description.ts";
+import { NO_TEXT_VERDICT } from "../postings/guard/index.ts";
 
 /** Paths of one generation run; persisted as the run manifest. */
 export interface GenerationManifest {
@@ -39,14 +41,28 @@ export function readableJobDetails(value: unknown): string {
   if (Array.isArray(row.content)) return row.content.map(item => readableJobDetails((item as { text?: string }).text)).join("\n\n");
   return JSON.stringify(row, null, 2);
 }
-/** Fetch and save a missing job description; a sign-in notice is never treated as content. */
-export async function ensureDescription(job: PreparationDetails["job"] & { linkedin_job_id?: string | null }): Promise<void> {
-  if (job.description) return;
+/**
+ * Fetch and save a missing job description; a sign-in notice is never treated as
+ * content. The agent only ever receives text cleaned by the posting guard, so a
+ * description saved before the guard existed is checked here first. Returns the
+ * verdict line, which the agent may quote; the stored excerpts never reach it.
+ */
+export async function ensureDescription(job: PreparationDetails["job"] & { linkedin_job_id?: string | null }): Promise<string> {
+  const stored = db().query("SELECT description_guard_json FROM jobs WHERE id = ?").get(job.id) as { description_guard_json: string | null } | undefined;
+  if (job.description && stored?.description_guard_json) return guardVerdict(stored.description_guard_json);
+  if (job.description) return applyGuard(job, job.description, "Add the job description before generating a resume.");
   if (!job.linkedin_job_id) throw new PreparationError("Add the job description before generating a resume.");
   const description = readableJobDetails(await jobDetails(job.linkedin_job_id));
-  if (!description.trim() || /login (?:is still in|in) progress|sign-in[^\n]*pending/i.test(description)) throw new PreparationError("The job description is unavailable. Complete LinkedIn sign-in or paste the description, then retry.");
+  if (!description.trim() || /login (?:is still in|in) progress|sign-in[^\n]*pending/i.test(description)) throw new PreparationError(UNAVAILABLE);
+  return applyGuard(job, description, UNAVAILABLE);
+}
+const UNAVAILABLE = "The job description is unavailable. Complete LinkedIn sign-in or paste the description, then retry.";
+
+function applyGuard(job: PreparationDetails["job"], raw: string, empty: string): string {
+  const { description, guard } = saveGuardedDescription(db(), job.id, raw);
+  if (!description) throw new PreparationError(`${empty} (${guard?.verdict ?? NO_TEXT_VERDICT})`);
   job.description = description;
-  db().query("UPDATE jobs SET description = ? WHERE id = ?").run(description, job.id);
+  return guard!.verdict;
 }
 
 const normalize = (text: string) => text.replaceAll("\r\n", "\n");

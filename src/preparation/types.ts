@@ -47,7 +47,7 @@ export interface PreparationRun {
   updated_at: string;
 }
 export interface PreparationDetails {
-  job: { id: number; title: string; company_name: string; description: string | null; link: string | null; archived_at: string | null; linkedin_job_id?: string | null };
+  job: { id: number; title: string; company_name: string; description: string | null; description_guard_json?: string | null; link: string | null; archived_at: string | null; linkedin_job_id?: string | null };
   runs: PreparationRun[];
   documents?: DocumentVersion[];
   /** Readable review of the application's last recorded portal fill; null before the first one. */

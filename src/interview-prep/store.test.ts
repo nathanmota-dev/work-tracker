@@ -39,3 +39,12 @@ test("application context parses requirements, tolerates bad JSON and reports un
   expect(applicationContext(7)?.requirements).toBeNull();
   expect(applicationContext(8)).toBeNull();
 });
+
+test("application context carries the posting check verdict, never its excerpts", () => {
+  const guard = JSON.stringify({ verdict: "Posting check ⚠: 1 instruction-shaped line", flagged: true, excerpts: { hidden_blocks: ["secret"] } });
+  d.statement.get.mockReturnValueOnce({ id: 7, requirements_json: null, description_guard_json: guard }).mockReturnValueOnce({ id: 7, requirements_json: null, description_guard_json: null });
+  const context = applicationContext(7)!;
+  expect(context.guard).toEqual({ verdict: "Posting check ⚠: 1 instruction-shaped line", flagged: true });
+  expect(JSON.stringify(context)).not.toContain("secret");
+  expect(applicationContext(7)?.guard).toEqual({ verdict: "Not checked", flagged: false });
+});

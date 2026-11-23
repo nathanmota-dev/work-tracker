@@ -56,3 +56,11 @@ All endpoints require the backend API token, like other workspace endpoints.
 
 Tests use synthetic ACP processes and temporary workspaces; no real
 applications or personal profiles are accessed.
+
+## Posting text
+
+Job descriptions are third-party text. Before any agent reads one, Work Tracker
+removes hidden content and invisible characters and records a posting check
+verdict; see [manual-jobs.md](manual-jobs.md#verificação-de-integridade-da-descrição).
+The check advises and never changes these tool decisions: prompt-level rules are
+not a sandbox.
