@@ -6,7 +6,7 @@
 import { DOCUMENT_SCHEMA_SQL } from "./document-schema.ts";
 import { BATCH_SCHEMA_SQL } from "./batch-schema.ts";
 import { FEATURE_SCHEMA_SQL } from "./feature-schema.ts";
-export const SCHEMA_VERSION = 13;
+export const SCHEMA_VERSION = 14;
 
 /** Bookkeeping tables the migration runner needs before any migration runs. */
 export const MIGRATION_TABLES_SQL = /* sql */ `

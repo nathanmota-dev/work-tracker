@@ -73,6 +73,7 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 11, name: "onboarding preferences", up: ensureCurrentSchema },
   { version: 12, name: "interview preparation packs", up: ensureCurrentSchema },
   { version: 13, name: "application deadlines", up: ensureCurrentSchema },
+  { version: 14, name: "company research cache", up: ensureCurrentSchema },
 ];
 
 /** Keeps pre-triage jobs in the shortlist; very old workspaces may lack `scouted_at`. */

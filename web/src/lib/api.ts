@@ -55,6 +55,7 @@ const dependencies: Record<string, string[]> = {
   "acp/permissions": ["agent_permissions"],
   "preparation-batches": ["preparation_batches", "jobs"],
   "interview-preps": ["interview_preps"],
+  "company-research": ["company_research"],
 }
 /** Dependency entry of a read path: parameterized paths share their base entry. */
 function dependencyKey(path: string) {

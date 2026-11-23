@@ -129,4 +129,17 @@ describe("api bridge", () => {
       await expect(request({}, invalid)).rejects.toThrow("Unsupported API request")
     await expect(request({}, "application-board/quiet", {})).rejects.toThrow("Unsupported API request")
   })
+  it("allows reading the cached research of one company and invalidating it", async () => {
+    connectApiBridge({ address: "http://127.0.0.1:4000", token: "fixture" })
+    const fetch = vi.fn(async () => new Response("{}"))
+    vi.stubGlobal("fetch", fetch)
+    const request = electron.handlers.get("api:request")!
+    expect(await request({}, "company-research?company=Acme%20Corp")).toEqual({})
+    expect(fetch).toHaveBeenLastCalledWith(expect.objectContaining({ pathname: "/api/company-research", search: "?company=Acme+Corp&token=fixture" }), expect.objectContaining({ method: "GET" }))
+    expect(await request({}, "company-research/invalidate", { company: "Acme Corp" })).toEqual({})
+    expect(fetch).toHaveBeenLastCalledWith(expect.objectContaining({ pathname: "/api/company-research/invalidate" }), expect.objectContaining({ method: "POST", body: '{"company":"Acme Corp"}' }))
+    for (const invalid of ["company-research", "company-research?company=", "company-research?company=Acme&token=x", "company-research/invalidate"])
+      await expect(request({}, invalid)).rejects.toThrow("Unsupported API request")
+    await expect(request({}, "company-research?company=Acme", {})).rejects.toThrow("Unsupported API request")
+  })
 })

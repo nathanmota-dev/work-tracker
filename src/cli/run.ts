@@ -54,6 +54,10 @@ Write API (used by skills):
   work-tracker interview-prep save --application-id <n> --stage <s> --file <pack.md> [--when --format --interviewers]
       Store an interview preparation pack (Markdown); earlier packs of the stage stay as history
   work-tracker interview-prep list [--application-id <n>]       List stored packs
+  work-tracker company-research get --company <name> [--allow-stale]
+      Cached company research as JSON with fresh and age_days; stale notes are withheld unless --allow-stale
+  work-tracker company-research save --company <name> --file <research.json>   Cache research (replaces the company's entry)
+  work-tracker company-research list                            List cached companies with their age
   work-tracker application review                   List legacy applications that need reconciliation
   work-tracker application reconcile                Apply safe fixes; ambiguous records keep their flag
   work-tracker application resolve --id <n> --decision <track|mark_submitted|mark_not_submitted|keep_attempt>
@@ -116,6 +120,10 @@ const commands: Record<string, Command> = {
   "interview-prep": async ([sub], flags) => {
     const { interviewPrepCmd } = await import("./interview-prep.ts");
     await interviewPrepCmd(sub ?? "", flags);
+  },
+  "company-research": async ([sub], flags) => {
+    const { companyResearchCmd } = await import("./company-research.ts");
+    await companyResearchCmd(sub ?? "", flags);
   },
   answer: ([sub], flags) => answerCmd(sub ?? "", flags),
   match: async (_positionals, flags) => {

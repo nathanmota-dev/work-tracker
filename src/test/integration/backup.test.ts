@@ -43,7 +43,9 @@ function seedSource(m: Modules, home: string) {
     INSERT INTO application_runs (id, job_id, application_id, status, phase, provider, manifest_json, created_at, updated_at)
       VALUES ('run-1', 12, 40, 'completed', 'review', 'fake', '${JSON.stringify({ reportPath: join(artifacts, "report.md"), runId: "run-1" })}', '2026-03-01T00:00:00Z', '2026-03-01T00:00:00Z');
     INSERT INTO pdf_artifacts (id, run_id, kind, path, pages, text, warnings_json)
-      VALUES ('pdf-1', 'run-1', 'tailored', '${join(artifacts, "tailored.pdf")}', 1, 'Synthetic resume', '[]');`);
+      VALUES ('pdf-1', 'run-1', 'tailored', '${join(artifacts, "tailored.pdf")}', 1, 'Synthetic resume', '[]');
+    INSERT INTO company_research (company_key, company_name, fetched_at, sources_json, network_note, summary_md)
+      VALUES ('example-corp', 'Example Corp', '2026-03-01T00:00:00Z', '{"website":{"url":"https://example.com/","notes":"Mission"}}', 'One contact', 'Synthetic research');`);
   mkdirSync(join(home, "browsers", "linkedin", "profile"), { recursive: true });
   writeFileSync(join(home, "config.json"), JSON.stringify({ username: "synthetic-candidate", resumeSources: { projectDir: join(root, "external-latex"), mainFile: "resume.tex", dataFile: "", engine: "pdflatex" } }));
 }
@@ -81,7 +83,7 @@ test("WAL backup is versioned, hashed and lists sources it leaves out", () => {
   expect(readdirSync(destination)).toEqual([backup.path.split("/").at(-1)]);
   const manifest = manifestOf(backup.path);
   expect(manifest).toMatchObject({ format: "work-tracker-backup", formatVersion: 1, schemaVersion: SCHEMA_VERSION, appVersion: "0.0.1" });
-  expect(manifest.counts).toMatchObject({ jobs: 1, applications: 1, application_runs: 1, pdf_artifacts: 1 });
+  expect(manifest.counts).toMatchObject({ jobs: 1, applications: 1, application_runs: 1, pdf_artifacts: 1, company_research: 1 });
   const artifact = manifest.files.find((file: { kind: string }) => file.kind === "artifact");
   expect(artifact).toEqual({ path: "artifacts/applications/12/run-1/tailored.pdf", kind: "artifact", size: pdf.length, sha256: createHash("sha256").update(pdf).digest("hex") });
   expect(manifest.excluded.map((item: { kind: string }) => item.kind)).toEqual(["browser-session", "agent-workspace", "resume-source"]);
@@ -97,6 +99,9 @@ test("restoring into an isolated workspace recovers records, links and PDF bytes
   expect(d.query("SELECT id, title FROM jobs").all()).toEqual([{ id: 12, title: "Data Engineer" }]);
   expect(d.query("SELECT a.id, r.id AS run, p.id AS pdf FROM applications a JOIN application_runs r ON r.application_id = a.id JOIN pdf_artifacts p ON p.run_id = r.id").all()).toEqual([{ id: 40, run: "run-1", pdf: "pdf-1" }]);
   expect(d.query("PRAGMA foreign_key_check").all()).toEqual([]);
+  expect(d.query("SELECT company_key, fetched_at, sources_json, network_note, summary_md FROM company_research").all()).toEqual([{
+    company_key: "example-corp", fetched_at: "2026-03-01T00:00:00Z", sources_json: '{"website":{"url":"https://example.com/","notes":"Mission"}}', network_note: "One contact", summary_md: "Synthetic research",
+  }]);
   expect(target.store.pdfBytes("pdf-1").equals(pdf)).toBe(true);
   expect(target.store.artifactFile("pdf-1").path).toBe(join(target.home, "artifacts", "applications", "12", "run-1", "tailored.pdf"));
   expect(JSON.parse((d.query("SELECT manifest_json FROM application_runs").get() as { manifest_json: string }).manifest_json).reportPath).toContain(target.home);

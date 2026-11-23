@@ -23,7 +23,7 @@ test("migrates legacy answers unchanged, preserves canonical keys and persists v
     d.exec(`INSERT INTO applicant_answers VALUES ('email', 'fixture@example.test', 'contact', 'legacy-time'),
       ('custom_key', 'Legacy text', 'custom', 'legacy-time'), ('notice_period', 'Two weeks', 'eligibility', 'legacy-time')`);
     const legacy = d.query("SELECT * FROM applicant_answers ORDER BY key").all();
-    expect(migrateDatabase(d, options)).toMatchObject({ from: 5, to: SCHEMA_VERSION, applied: [6, 7, 8, 9, 10, 11, 12, 13] });
+    expect(migrateDatabase(d, options)).toMatchObject({ from: 5, to: SCHEMA_VERSION, applied: [6, 7, 8, 9, 10, 11, 12, 13, 14] });
     expect(d.query("SELECT * FROM applicant_answers ORDER BY key").all()).toEqual(legacy);
     saveAnswer({ key: "notice_period", value: "Duas semanas", language: "pt-br" }, d);
     expect(resolveAnswer(listAnswerVariants(d), "notice_period", "pt-BR")).toMatchObject({ value: "Duas semanas", fallback: false });

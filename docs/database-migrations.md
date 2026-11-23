@@ -99,3 +99,10 @@ A migração 10 (`job triage`) adiciona `jobs.shortlisted_at` e marca vagas
 existentes como triadas, preservando sua shortlist. Faz snapshot antes do
 backfill. Novas gravações deixam a coluna nula; somente a ação explícita de
 mover para a shortlist a preenche. Reabrir o banco não tria vagas novas.
+
+A migração 14 (`company research cache`) cria a tabela vazia `company_research`
+(`id`, `company_key` único, `company_name`, `fetched_at`, `sources_json`,
+`network_note`, `summary_md`). É aditiva: não gera snapshot nem altera
+`companies`, que continua sendo a tabela do fluxo de recrutadores e não expira.
+O backup e a restauração do workspace incluem a tabela sem código próprio. Veja
+[features-e-fluxos.md](features-e-fluxos.md#12-cache-de-pesquisa-de-empresas).

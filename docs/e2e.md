@@ -111,6 +111,11 @@ and a reload mid-trail keeps the progress. The manual variant skips the agent
 steps, registers a job and an application by hand without any prompt, and checks
 that skipped steps and the hidden checklist survive app restarts.
 
+`interview-prep.spec.ts` runs the interview-prep skill twice for the same company
+with the fake ACP agent: the first run researches and writes the company research
+cache, the second reads it (`fresh: true`) without researching again, and
+**Refresh** invalidates the entry so the third run researches and writes it back.
+
 Keep journeys independent; do not rely on test ordering or share databases. Use
 accessible locators and real pointer events for drag and drop. Read database state
 only to verify persistence; perform the action under test through the UI. Existing
