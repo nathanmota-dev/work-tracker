@@ -54,6 +54,12 @@ export const skills = [
     fields: [],
   },
   {
+    id: "followup",
+    name: "Draft a follow-up",
+    description: "Draft a follow-up or thank-you note from what you already sent. You send it yourself.",
+    fields: [],
+  },
+  {
     id: "experience-bank",
     name: "Capture experience",
     description: "Organize achievements and project experience.",

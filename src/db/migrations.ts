@@ -76,6 +76,7 @@ export const MIGRATIONS: readonly Migration[] = [
   // Additive: existing descriptions are not rewritten and stay "Not checked" until edited.
   { version: 14, name: "posting integrity guard", up: ensureCurrentSchema },
   { version: 15, name: "company research cache", up: ensureCurrentSchema },
+  { version: 16, name: "follow-up drafts", up: ensureCurrentSchema },
 ];
 
 /** Keeps pre-triage jobs in the shortlist; very old workspaces may lack `scouted_at`. */

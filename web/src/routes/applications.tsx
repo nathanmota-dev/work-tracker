@@ -12,6 +12,7 @@ import { ApplicationReview } from "@/components/application-review"
 import { JobLinkDialog } from "@/components/job-link-dialog"
 import { PreparationQueue } from "@/components/preparation-queue"
 import { QuietApplications } from "@/components/quiet-applications"
+import { FollowupsDue } from "@/components/followups-due"
 import {
   ApplicationBoardView,
   BoardDialogs,
@@ -70,6 +71,17 @@ function ApplicationDetailsSheet({
   )
 }
 
+/** Preparation queue, follow-ups due and quiet applications, each shown only when it has items. */
+function ApplicationBanners() {
+  return (
+    <>
+      <PreparationQueue />
+      <FollowupsDue />
+      <QuietApplications />
+    </>
+  )
+}
+
 /**
  * Every application in one place, from first draft to the final board stage,
  * as a list or a board. The layout, search and review filter live in the URL.
@@ -120,8 +132,7 @@ export function ApplicationsPage() {
         open={!!search.review}
         onOpenChange={(review) => update({ review })}
       />
-      <PreparationQueue />
-      <QuietApplications />
+      <ApplicationBanners />
       <Tabs value={layout} onValueChange={(view) => update({ view })}>
         <TabsList aria-label="Applications layout">
           <TabsTrigger value="list">List</TabsTrigger>

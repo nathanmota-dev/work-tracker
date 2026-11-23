@@ -129,6 +129,22 @@ describe("api bridge", () => {
       await expect(request({}, invalid)).rejects.toThrow("Unsupported API request")
     await expect(request({}, "application-board/quiet", {})).rejects.toThrow("Unsupported API request")
   })
+  it("allows follow-up reads per application, the candidate scan and the two status writes", async () => {
+    connectApiBridge({ address: "http://127.0.0.1:4000", token: "fixture" })
+    const fetch = vi.fn(async () => new Response("[]"))
+    vi.stubGlobal("fetch", fetch)
+    const request = electron.handlers.get("api:request")!
+    for (const path of ["followups", "followups?application_id=12", "followups/candidates", "followups/candidates?days=14"])
+      expect(await request({}, path)).toEqual([])
+    expect(fetch).toHaveBeenCalledWith(expect.objectContaining({ pathname: "/api/followups", search: "?application_id=12&token=fixture" }), expect.objectContaining({ method: "GET" }))
+    for (const write of ["followups/sent", "followups/discard"]) {
+      expect(await request({}, write, { id: 3 })).toEqual([])
+      expect(fetch).toHaveBeenLastCalledWith(expect.objectContaining({ pathname: `/api/${write}` }), expect.objectContaining({ method: "POST", body: '{"id":3}' }))
+    }
+    for (const invalid of ["followups?application_id=0", "followups?application_id=1&x=2", "followups/candidates?days=", "followups/sent", "followups/other"])
+      await expect(request({}, invalid)).rejects.toThrow("Unsupported API request")
+    await expect(request({}, "followups", {})).rejects.toThrow("Unsupported API request")
+  })
   it("allows reading the cached research of one company and invalidating it", async () => {
     connectApiBridge({ address: "http://127.0.0.1:4000", token: "fixture" })
     const fetch = vi.fn(async () => new Response("{}"))

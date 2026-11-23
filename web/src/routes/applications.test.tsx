@@ -9,12 +9,14 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest"
 import { ApplicationsPage } from "./applications"
 import { useApi, type Row } from "@/lib/api"
 import { openApply } from "@/lib/preparation"
+import { prepareSkill } from "@/lib/agent"
 import { desktopDouble } from "@/test/doubles"
 vi.mock("@/lib/api", async (original) => ({
   ...(await original<typeof import("@/lib/api")>()),
   useApi: vi.fn(),
 }))
 vi.mock("@/lib/preparation", () => ({ openApply: vi.fn() }))
+vi.mock("@/lib/agent", async (original) => ({ ...(await original<typeof import("@/lib/agent")>()), prepareSkill: vi.fn() }))
 // Radix Select measures and scrolls its listbox; jsdom implements neither.
 Element.prototype.scrollIntoView = vi.fn()
 Element.prototype.hasPointerCapture = vi.fn(() => false)
@@ -229,4 +231,33 @@ it("highlights pending deadlines and sorts applications by them", () => {
   expect(order()).toEqual(["View Undated", "View Overdue draft", "View Sent"])
   fireEvent.click(screen.getByRole("button", { name: "Sort by deadline" }))
   expect(order()).toEqual(["View Sent", "View Overdue draft", "View Undated"])
+})
+it("shows follow-ups due and drafts one in place through the agent panel", async () => {
+  const candidates = {
+    days: 10,
+    follow_ups: [{ id: 30, company_name: "Quiet Co", role_title: "Quiet role", stage_name: "Applied", last_activity_at: "2026-11-01T00:00:00.000Z", days_quiet: 12, sent_count: 1, has_draft: true }],
+    thank_yous: [{ id: 31, company_name: "Interview Co", role_title: null, stage_name: "Technical interview", stage_event_id: 77, occurred_at: "2026-11-20T00:00:00.000Z" }],
+  }
+  let due = candidates
+  vi.mocked(useApi).mockImplementation(((path: string) => ({
+    data: path === "followups/candidates" ? due : rows,
+    loading: false,
+    error: "",
+    refresh,
+  })) as typeof useApi)
+  const { rerender } = render(<ApplicationsPage />)
+  expect(screen.getByText("1 follow-up due · 1 thank-you note due")).toBeInTheDocument()
+  fireEvent.click(screen.getByRole("button", { name: "Review follow-ups due" }))
+  const dialog = within(screen.getByRole("dialog", { name: "Follow-ups due" }))
+  expect(dialog.getByText("Applied · quiet for 12 days · 1 of 2 follow-ups sent")).toBeInTheDocument()
+  expect(dialog.getByText("Draft saved")).toBeInTheDocument()
+  fireEvent.click(dialog.getByRole("button", { name: "Draft follow-up for Quiet Co — Quiet role" }))
+  expect(prepareSkill).toHaveBeenLastCalledWith("followup", { applicationId: "30", kind: "follow_up" })
+  expect(screen.queryByRole("dialog", { name: "Follow-ups due" })).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole("button", { name: "Review follow-ups due" }))
+  fireEvent.click(screen.getByRole("button", { name: "Draft thank-you for Interview Co" }))
+  expect(prepareSkill).toHaveBeenLastCalledWith("followup", { applicationId: "31", kind: "thank_you", stage: "Technical interview", stageEventId: "77" })
+  due = { days: 10, follow_ups: [], thank_yous: [] }
+  rerender(<ApplicationsPage />)
+  expect(screen.queryByText(/due$/)).not.toBeInTheDocument()
 })

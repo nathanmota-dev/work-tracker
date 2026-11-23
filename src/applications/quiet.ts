@@ -20,14 +20,17 @@ const CANDIDATES = `FROM applications a JOIN application_stages s ON s.id = a.cu
 
 /**
  * Every dated fact of the scoped applications: the submission, the application
- * date, board events and journey transitions. `updated_at` is deliberately
+ * date, board events, journey transitions and sent follow-up or thank-you
+ * messages, so a sent message restarts the clock. `updated_at` is deliberately
  * left out because any edit changes it, so it is not an activity clock.
  */
 const datesSql = (scope: string) => `WITH scope(id) AS (${scope})
   SELECT a.id AS application_id, 'submitted_at' AS source, a.submitted_at AS value FROM applications a JOIN scope USING (id)
   UNION ALL SELECT a.id, 'applied_at', a.applied_at FROM applications a JOIN scope USING (id)
   UNION ALL SELECT e.application_id, 'event #' || e.id, e.occurred_at FROM application_events e JOIN scope ON scope.id = e.application_id
-  UNION ALL SELECT t.application_id, 'transition #' || t.id, t.occurred_at FROM application_transitions t JOIN scope ON scope.id = t.application_id`;
+  UNION ALL SELECT t.application_id, 'transition #' || t.id, t.occurred_at FROM application_transitions t JOIN scope ON scope.id = t.application_id
+  UNION ALL SELECT f.application_id, 'follow-up #' || f.id, f.sent_at FROM followup_drafts f JOIN scope ON scope.id = f.application_id
+    WHERE f.status = 'sent'`;
 
 /** Latest readable date and the dates that could not be read. */
 function readClock(sources: DateSource[]): { last: number | null; unreadable: string[] } {
@@ -50,7 +53,7 @@ function groupDates(rows: DateSource[]): Map<number, DateSource[]> {
 
 /**
  * Most recent activity of one application: the latest of its submission,
- * application date, board events and journey transitions, as ISO text. Null
+ * application date, board events, journey transitions and sent messages, as ISO text. Null
  * when it has no readable date.
  */
 export function lastActivityAt(d: Database, applicationId: number): string | null {

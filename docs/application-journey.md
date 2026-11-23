@@ -272,7 +272,8 @@ jornada.
   arquivadas nunca entram, porque nada foi enviado ou já foram fechadas.
 - **Relógio de atividade:** a data mais recente entre `submitted_at`,
   `applied_at`, `application_events.occurred_at` e
-  `application_transitions.occurred_at` (`lastActivityAt` em
+  `application_transitions.occurred_at` e `followup_drafts.sent_at` dos
+  follow-ups e agradecimentos marcados como enviados (`lastActivityAt` em
   `src/applications/quiet.ts`). `updated_at` não conta, porque muda a cada
   edição. Os dias são inteiros (`floor`): com o limiar de 60, quem está há
   exatamente 60 dias entra.
@@ -309,3 +310,62 @@ Superfícies:
   contagem e depois mostra o que foi fechado e o que ficou em `skipped`.
 - Dashboard: `overview().quiet` conta as candidatas do limiar padrão e aparece
   no painel da jornada como link para Applications.
+
+## Follow-ups e agradecimentos
+
+O agente redige um **follow-up** para uma candidatura em silêncio ou um
+**agradecimento** depois de uma etapa de entrevista. O usuário copia o texto,
+envia por conta própria e marca como enviado; nenhuma ação do app envia
+mensagem, lê caixa de entrada, muda etapa ou arquiva candidatura.
+
+- **Rascunhos (schema v16):** tabela `followup_drafts` com `application_id`,
+  `kind` (`follow_up` | `thank_you`), `channel` (`email` | `linkedin` |
+  `portal`), `subject` (só em e-mail), `body_md`, `status` (`draft` | `sent` |
+  `discarded`), `stage_event_id` (evento de etapa respondido por um
+  agradecimento), `created_at` e `sent_at`. O SQL fica em
+  `src/db/followup-schema.ts`, dentro de `FEATURE_SCHEMA_SQL`.
+- **Gravação:** `saveFollowup` (`src/followups/store.ts`) exige corpo de 60 a
+  120 palavras (sem contar o assunto), tipo e canal válidos, assunto em e-mail e
+  nenhum assunto em LinkedIn ou portal. O `stage_event_id`, quando informado,
+  precisa ser um evento da mesma candidatura e só vale para agradecimento.
+- **Teto de dois:** com 2 follow-ups enviados, um novo follow-up é recusado ao
+  salvar e ao marcar como enviado (409), com a mensagem "2 follow-ups were
+  already sent for application #N; do not offer a third one.". Agradecimentos
+  não entram no teto.
+- **Estados:** `draft → sent` grava `sent_at` uma única vez (marcar de novo não
+  muda nada) e `draft → discarded` é definitivo; um enviado não pode ser
+  descartado. Descartar ou deixar um rascunho sem enviar não altera contagens
+  nem o relógio de silêncio.
+- **Relógio:** um follow-up ou agradecimento enviado conta como atividade em
+  `lastActivityAt`, então a candidatura sai da lista de devidos e da varredura
+  de silêncio até ficar parada de novo.
+- **Follow-ups devidos:** a varredura de silêncio com limiar de 10 dias (mínimo
+  7) menos as candidaturas que já têm 2 enviados, com `sent_count` e
+  `has_draft` por item.
+- **Agradecimentos devidos:** a mudança mais recente de cada candidatura ativa
+  para uma etapa de categoria `recruiter`, `technical` ou `assessment`
+  (`moved` ou `created`) nos últimos 7 dias, sem rascunho ou envio de
+  agradecimento para aquele evento. Um rascunho descartado oferece o
+  agradecimento de novo.
+
+Superfícies:
+
+- API: `GET /api/followups[?application_id=N]`, `GET
+  /api/followups/candidates[?days=N]` (`{ days, follow_ups, thank_yous }`),
+  `POST /api/followups/sent` e `POST /api/followups/discard` com `{ id }`. As
+  escritas emitem `changed` com `table: "followup_drafts"` só quando algo mudou.
+- CLI: `work-tracker followup save --application-id --kind --channel --file
+  [--subject --stage-event]`, `work-tracker followup list [--application-id]` e
+  `work-tracker followup candidates [--days N]`.
+- Skill `work-tracker-followup`: lê `application show`, o currículo e a carta
+  enviados, `answer list` e `followup list`; escreve no idioma da vaga, no
+  formato do canal e sem afirmações fora dos documentos enviados; grava com
+  `followup save` e registra `activity log --kind followup --skill followup`.
+- Applications: o banner "N follow-ups due" (e "N thank-you notes due") abre a
+  lista com "Draft follow-up" e "Draft thank-you", que abrem o painel do agente
+  na própria página com a candidatura preenchida.
+- Detalhe da candidatura no quadro: a seção **Follow-ups** lista rascunhos e
+  enviados com "Copy", "Mark as sent" e "Discard", e as ações "Draft follow-up"
+  (desabilitada com "2 follow-ups already sent" no teto) e "Draft thank-you",
+  que responde ao evento de entrevista mais recente.
+

@@ -9,6 +9,7 @@ const SKILLS = [
   "resume-tailor",
   "deep-scout",
   "interview-prep",
+  "followup",
 ];
 
 const DELIM = "\n\n---\nAdditional context from the user (honor this):\n";
@@ -57,6 +58,20 @@ describe("buildSkillPrompt — interview-prep", () => {
   });
   test("flags a missing application id", () => {
     expect(buildSkillPrompt("interview-prep", {})).toContain("(none provided)");
+  });
+});
+
+describe("buildSkillPrompt — followup", () => {
+  test("names the application, the kind and only the details that were given", () => {
+    const prompt = buildSkillPrompt("work-tracker-followup", { applicationId: "4", kind: "thank_you", stage: "Technical interview", stageEventId: "17", interviewers: " " });
+    expect(prompt).toContain("work-tracker-followup skill to draft a thank-you note (kind thank_you) for application #4");
+    expect(prompt).toContain("Stage: Technical interview. Stage event: 17.");
+    expect(prompt).not.toContain("Interviewers");
+    expect(prompt).toContain("`work-tracker followup save` and never send it");
+  });
+  test("defaults to a follow-up and flags a missing application id", () => {
+    const prompt = buildSkillPrompt("followup", {});
+    expect(prompt).toContain("a follow-up (kind follow_up) for application #(none provided).");
   });
 });
 

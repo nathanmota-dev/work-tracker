@@ -16,6 +16,7 @@ import { outreachCmd } from "./outreach.ts";
 import { importJourneyCmd } from "./import-journey.ts";
 import { matchCmd } from "./match.ts";
 import { interviewPrepCmd } from "./interview-prep.ts";
+import { followupCmd } from "./followup.ts";
 import { companyResearchCmd } from "./company-research.ts";
 import { detectPortalCmd } from "./detect-portal.ts";
 import { exportCmd } from "./export.ts";
@@ -41,6 +42,7 @@ vi.mock("./outreach.ts", () => ({ outreachCmd: vi.fn() }));
 vi.mock("./import-journey.ts", () => ({ importJourneyCmd: vi.fn() }));
 vi.mock("./match.ts", () => ({ matchCmd: vi.fn() }));
 vi.mock("./interview-prep.ts", () => ({ interviewPrepCmd: vi.fn() }));
+vi.mock("./followup.ts", () => ({ followupCmd: vi.fn() }));
 vi.mock("./company-research.ts", () => ({ companyResearchCmd: vi.fn() }));
 vi.mock("./detect-portal.ts", () => ({ detectPortalCmd: vi.fn() }));
 vi.mock("./export.ts", () => ({ exportCmd: vi.fn() }));
@@ -78,6 +80,13 @@ test.each([
   expect(handler).toHaveBeenCalledWith("add", { name: "Person" });
   expect(closeMcp).toHaveBeenCalledOnce();
   expect(closeDb).toHaveBeenCalledOnce();
+});
+test("dispatches followup subcommands lazily", async () => {
+  await runCli(["followup", "candidates", "--days", "14"]);
+  expect(followupCmd).toHaveBeenCalledWith("candidates", { days: "14" });
+  await runCli(["followup"]);
+  expect(followupCmd).toHaveBeenLastCalledWith("", {});
+  expect(closeDb).toHaveBeenCalledTimes(2);
 });
 test("dispatches interview-prep subcommands lazily", async () => {
   await runCli(["interview-prep", "save", "--stage", "Final"]);

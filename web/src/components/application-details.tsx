@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/sheet"
 import { Field, LoadState } from "@/components/workspace-ui"
 import { ApplicationSummary } from "@/components/application-card"
+import { FollowupsPanel } from "@/components/followups-panel"
 import { date, openExternal, subscribe } from "@/lib/api"
 import {
   ARCHIVE_REASONS,
@@ -267,6 +268,7 @@ export function ApplicationDetails({
               </p>
             </div>
           )}
+          <FollowupsPanel application={application} events={timeline.details?.events} />
           <Timeline {...timeline} />
         </div>
       </SheetContent>

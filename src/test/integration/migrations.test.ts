@@ -162,7 +162,7 @@ test("v10 triage backfills existing rows once and leaves subsequent inserts new"
   const d = workspace("triage-v9");
   d.exec("INSERT INTO jobs (title, company_name) VALUES ('Existing', 'Acme'); UPDATE meta SET value = '9' WHERE key = 'schema_version'; DELETE FROM schema_migrations WHERE version = 10;");
   const result = migrateDatabase(d, { backupDir });
-  expect(result.applied).toEqual([10, 11, 12, 13, 14, 15]);
+  expect(result.applied).toEqual([10, 11, 12, 13, 14, 15, 16]);
   expect(result.backup).toBeTruthy();
   expect(value(d, "SELECT shortlisted_at FROM jobs")).toEqual(expect.any(String));
   d.exec("INSERT INTO jobs (title, company_name) VALUES ('New', 'Acme')");
@@ -176,7 +176,7 @@ test("v13 deadlines add nullable columns to a v12 workspace, keep IDs and data, 
   d.exec(`ALTER TABLE jobs DROP COLUMN deadline; ALTER TABLE applications DROP COLUMN deadline;
     UPDATE meta SET value = '12' WHERE key = 'schema_version'; DELETE FROM schema_migrations WHERE version = 13;`);
   const before = dump(d, ["jobs", "applications", "application_events", "interviews"]);
-  expect(migrateDatabase(d, { backupDir })).toMatchObject({ from: 12, to: SCHEMA_VERSION, applied: [13, 14, 15] });
+  expect(migrateDatabase(d, { backupDir })).toMatchObject({ from: 12, to: SCHEMA_VERSION, applied: [13, 14, 15, 16] });
   const after = dump(d, ["jobs", "applications", "application_events", "interviews"]);
   expect(after.jobs).toEqual(before.jobs!.map((row) => ({ ...row, deadline: null })));
   expect(after.applications).toEqual(before.applications!.map((row) => ({ ...row, deadline: null })));
@@ -193,7 +193,7 @@ test("v15 company research adds an empty cache table to a v14 workspace without 
   d.exec(`INSERT INTO companies (id, name, urn_id, notes) VALUES (5, 'Acme Corp', '1234', 'Recruiter notes');
     DROP TABLE company_research; UPDATE meta SET value = '14' WHERE key = 'schema_version'; DELETE FROM schema_migrations WHERE version = 15;`);
   const before = dump(d, ["companies", "jobs", "applications"]);
-  expect(migrateDatabase(d, { backupDir })).toMatchObject({ from: 14, to: SCHEMA_VERSION, applied: [15], backup: null });
+  expect(migrateDatabase(d, { backupDir })).toMatchObject({ from: 14, to: SCHEMA_VERSION, applied: [15, 16], backup: null });
   expect(dump(d, ["companies", "jobs", "applications"])).toEqual(before);
   expect(all(d, "SELECT name FROM pragma_table_info('company_research') ORDER BY cid")).toEqual(
     ["id", "company_key", "company_name", "fetched_at", "sources_json", "network_note", "summary_md"].map((name) => ({ name })),
@@ -202,5 +202,20 @@ test("v15 company research adds an empty cache table to a v14 workspace without 
   expect(() => d.exec("INSERT INTO company_research (company_key, company_name, fetched_at, sources_json) VALUES ('acme-corp', 'acme corp', 'x', '{}')")).toThrow(/UNIQUE/);
   expect(migrateDatabase(d, { backupDir })).toMatchObject({ mode: "current", applied: [] });
   expect(value(d, "SELECT COUNT(*) FROM company_research")).toBe(1);
+  d.close();
+});
+
+test("v16 adds an empty follow-up drafts table to a v15 workspace without touching its records", () => {
+  const d = workspace("followups-v15", seedJourney);
+  d.exec(`DROP TABLE followup_drafts; UPDATE meta SET value = '15' WHERE key = 'schema_version'; DELETE FROM schema_migrations WHERE version = 16;`);
+  const before = dump(d);
+  expect(migrateDatabase(d, { backupDir })).toMatchObject({ from: 15, to: SCHEMA_VERSION, applied: [16], backup: null });
+  expect(dump(d)).toEqual(before);
+  expect(value(d, "SELECT COUNT(*) FROM followup_drafts")).toBe(0);
+  expect(all(d, "PRAGMA index_list(followup_drafts)").map((index) => index.name)).toContain("idx_followup_drafts_application");
+  expect(() => d.exec("INSERT INTO followup_drafts (application_id, kind, channel, body_md, created_at) VALUES (40, 'nudge', 'email', 'x', 'now')")).toThrow();
+  d.exec("INSERT INTO followup_drafts (application_id, kind, channel, body_md, created_at) VALUES (40, 'follow_up', 'email', 'x', 'now')");
+  expect(value(d, "SELECT status FROM followup_drafts")).toBe("draft");
+  expect(migrateDatabase(d, { backupDir })).toMatchObject({ mode: "current", applied: [] });
   d.close();
 });

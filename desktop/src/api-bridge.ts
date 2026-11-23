@@ -28,6 +28,8 @@ const reads = new Set([
   "resume-sources",
   "preparation-batches",
   "interview-preps",
+  "followups",
+  "followups/candidates",
 ])
 const writes = new Set([
   "integrations",
@@ -84,6 +86,8 @@ const writes = new Set([
   "application-board/stages/reorder",
   "application-board/stages/set-archived",
   "application-board/quiet/resolve",
+  "followups/sent",
+  "followups/discard",
   "company-research/invalidate",
   "workspace-backup/create",
   "workspace-backup/inspect",
@@ -132,8 +136,9 @@ export function registerApiBridge(backend: BackendControl) {
       const batchReview = body === undefined && /^preparation-batches\/review\/[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(path)
       const applicationPacks = body === undefined && /^interview-preps\/[1-9]\d*$/.test(path)
       const quietScan = body === undefined && /^application-board\/quiet(\?days=[1-9]\d{0,3})?$/.test(path)
+      const followups = body === undefined && /^followups(\?application_id=[1-9]\d*|\/candidates\?days=[1-9]\d{0,3})$/.test(path)
       const companyResearch = body === undefined && /^company-research\?company=[^&#]{1,600}$/.test(path)
-      if (!(body === undefined ? reads : writes).has(path) && !batchReview && !applicationPacks && !quietScan && !companyResearch)
+      if (!(body === undefined ? reads : writes).has(path) && !batchReview && !applicationPacks && !quietScan && !companyResearch && !followups)
         throw new Error("Unsupported API request")
       if (!connection)
         throw new Error(unavailable ?? "Backend is starting. Please retry in a moment.")
