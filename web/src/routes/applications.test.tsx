@@ -201,3 +201,32 @@ it("filters the list to records that need review while the review is open", asyn
   expect(screen.queryByText("Clean role")).not.toBeInTheDocument()
   expect(screen.getByRole("button", { name: "View Legacy role" })).toBeInTheDocument()
 })
+it("shows the quiet-applications banner in both list and board layouts", () => {
+  const quiet = { days: 60, items: [{ id: 30, company_name: "Quiet Co", role_title: "Quiet role", stage_name: "Applied", stage_category: "applied", applied_at: null, last_activity_at: "2026-07-01T00:00:00.000Z", days_quiet: 90 }], skipped: [] }
+  vi.mocked(useApi).mockImplementation(((path: string) => ({
+    data: path === "application-board/quiet" ? quiet : rows,
+    loading: false,
+    error: "",
+    refresh,
+  })) as typeof useApi)
+  render(<ApplicationsPage />)
+  expect(screen.getByText("1 application quiet for 60+ days")).toBeInTheDocument()
+  fireEvent.mouseDown(screen.getByRole("tab", { name: "Board" }))
+  expect(screen.getByRole("tab", { name: "Board" })).toHaveAttribute("aria-selected", "true")
+  expect(screen.getByText("1 application quiet for 60+ days")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Review quiet applications" })).toBeInTheDocument()
+})
+it("highlights pending deadlines and sorts applications by them", () => {
+  rows = [
+    { id: 4, job_title: "Undated", keyword_score: null },
+    { id: 5, job_title: "Overdue draft", keyword_score: null, deadline: "2026-11-20", deadline_level: "overdue", deadline_days: -3 },
+    { id: 6, job_title: "Sent", keyword_score: null, deadline: "2026-11-10", deadline_level: "none", deadline_days: null },
+  ]
+  render(<ApplicationsPage />)
+  expect(screen.getByText("Overdue")).toBeInTheDocument()
+  expect(screen.getByText("2026-11-10")).toBeInTheDocument()
+  const order = () => screen.getAllByRole("button", { name: /^View / }).map((button) => button.getAttribute("aria-label"))
+  expect(order()).toEqual(["View Undated", "View Overdue draft", "View Sent"])
+  fireEvent.click(screen.getByRole("button", { name: "Sort by deadline" }))
+  expect(order()).toEqual(["View Sent", "View Overdue draft", "View Undated"])
+})

@@ -48,12 +48,19 @@ const dependencies: Record<string, string[]> = {
   "applications/summary": ["applications"],
   jobs: ["jobs", "applications"],
   "application-board": ["applications", "application_stages", "application_events"],
+  "application-board/quiet": ["applications", "application_stages", "application_events"],
   "acp/providers": ["integrations"],
   "integrations/status": ["integrations", "applicant_answers", "profile"],
   "onboarding/status": ["integrations", "applicant_answers", "jobs", "applications", "onboarding_state"],
   "acp/permissions": ["agent_permissions"],
   "preparation-batches": ["preparation_batches", "jobs"],
   "interview-preps": ["interview_preps"],
+}
+/** Dependency entry of a read path: parameterized paths share their base entry. */
+function dependencyKey(path: string) {
+  if (path.startsWith("preparation-batches/")) return "preparation-batches"
+  if (path.startsWith("interview-preps/")) return "interview-preps"
+  return path.split("?")[0]
 }
 export function useApi<T>(path: string) {
   const [data, setData] = useState<T>()
@@ -68,7 +75,7 @@ export function useApi<T>(path: string) {
           ((path === "acp/permissions" || path.startsWith("preparation-batches")) && (event.type === "hello" || event.type === "connection" && event.live === true)) || event.type === "changed" &&
           (!event.table ||
             event.table === "unknown" ||
-            (dependencies[path.startsWith("preparation-batches/") ? "preparation-batches" : path.startsWith("interview-preps/") ? "interview-preps" : path] ?? [path]).includes(String(event.table)))
+            (dependencies[dependencyKey(path)] ?? [path]).includes(String(event.table)))
         )
           refresh()
       }),

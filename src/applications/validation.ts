@@ -1,4 +1,5 @@
 import { now } from "../db/index.ts";
+import { parseDeadline } from "../deadlines/urgency.ts";
 import { ROLE_TYPES } from "./types.ts";
 import type { ApplicationFields } from "./types.ts";
 
@@ -60,6 +61,13 @@ function stack(value: unknown): string[] {
     throw new ApplicationBoardError("Stack must be a list of technologies.");
   return [...new Set(items.map((item: string) => item.trim()).filter(Boolean))];
 }
+function deadline(value: unknown): string | null {
+  const text = optionalText(value);
+  if (!text) return null;
+  const date = parseDeadline(text);
+  if (!date) throw new ApplicationBoardError("Enter the deadline as a valid date.");
+  return date;
+}
 function appliedAt(value: unknown): string {
   const timestamp = optionalText(value) ?? now();
   if (Number.isNaN(Date.parse(timestamp)))
@@ -84,6 +92,7 @@ export function fields(body: Body, partial: boolean): Partial<ApplicationFields>
         : choice(body.role_type, ROLE_TYPES, "role type");
   }
   if (has("stack")) values.stack = stack(body.stack);
+  if (has("deadline")) values.deadline = deadline(body.deadline);
   if (has("applied_at")) values.applied_at = appliedAt(body.applied_at);
   return values;
 }

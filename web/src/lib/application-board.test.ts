@@ -3,6 +3,7 @@ import {
   faviconUrl,
   localDateTime,
   matchesApplication,
+  quietPath,
   type TrackedApplication,
 } from "./application-board"
 
@@ -13,6 +14,10 @@ const application = {
   stack: ["React", "TypeScript"],
 } as TrackedApplication
 describe("application display helpers", () => {
+  it("reads the quiet scan without a query for the default threshold", () => {
+    expect(quietPath(60)).toBe("application-board/quiet")
+    expect(quietPath(90)).toBe("application-board/quiet?days=90")
+  })
   it("searches accents, role type and technologies without requiring optional fields", () => {
     for (const query of ["SAO JOSE", "senior", "front-end", "typescript", ""])
       expect(matchesApplication(application, query)).toBe(true)

@@ -1,11 +1,11 @@
 import { expect, test } from "vitest";
 import { databaseDouble } from "../test/doubles.ts";
-import { ensureCurrentSchema } from "./current-schema.ts";
-import { APPLICATION_BOARD_INDEX_SQL, COLUMN_MIGRATIONS, DEFAULT_APPLICATION_STAGES, SCHEMA_SQL } from "./schema.ts";
+import { ALL_COLUMN_MIGRATIONS, ensureCurrentSchema } from "./current-schema.ts";
+import { APPLICATION_BOARD_INDEX_SQL, DEFAULT_APPLICATION_STAGES, SCHEMA_SQL } from "./schema.ts";
 
 test("creates the schema, adds only missing columns, then board indexes, stages and the budget seed", () => {
   const d = databaseDouble();
-  const existing = Object.values(COLUMN_MIGRATIONS).flatMap((columns) => Object.keys(columns));
+  const existing = ALL_COLUMN_MIGRATIONS.flatMap((migrations) => Object.values(migrations)).flatMap((columns) => Object.keys(columns));
   d.statement.all.mockReturnValue(existing.filter((c) => c !== "external_url").map((name) => ({ name })));
   d.statement.get.mockReturnValue(undefined);
   ensureCurrentSchema(d.asDatabase);
@@ -18,6 +18,17 @@ test("creates the schema, adds only missing columns, then board indexes, stages 
   expect(sql.at(-1)).toContain("INSERT INTO outreach_budget");
   expect(d.statement.run).toHaveBeenCalledTimes(DEFAULT_APPLICATION_STAGES.length);
   expect(d.statement.run).toHaveBeenCalledWith("applied", "Applied", "applied", 0, expect.any(String), expect.any(String));
+});
+test("adds the deadline columns to an older workspace", () => {
+  const d = databaseDouble();
+  const existing = ALL_COLUMN_MIGRATIONS.flatMap((migrations) => Object.values(migrations)).flatMap((columns) => Object.keys(columns));
+  d.statement.all.mockReturnValue(existing.filter((c) => c !== "deadline").map((name) => ({ name })));
+  ensureCurrentSchema(d.asDatabase);
+  const sql = d.exec.mock.calls.map(([statement]) => String(statement));
+  expect(sql.filter((statement) => statement.startsWith("ALTER TABLE"))).toEqual([
+    "ALTER TABLE jobs ADD COLUMN deadline TEXT",
+    "ALTER TABLE applications ADD COLUMN deadline TEXT",
+  ]);
 });
 test("keeps an existing budget row", () => {
   const d = databaseDouble();

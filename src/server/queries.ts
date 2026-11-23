@@ -1,7 +1,10 @@
 import { db } from "../db/index.ts";
 import { now } from "../db/index.ts";
 import { dueAttempts, getBudget } from "../outreach/store.ts";
+import { applicationPendingSql, pendingDeadlines, pendingLevel } from "../deadlines/queries.ts";
+import { deadlineUrgency, localToday } from "../deadlines/urgency.ts";
 import { applicationSummary, phaseSql, viewSql } from "../applications/journey-summary.ts";
+import { quietApplications } from "../applications/quiet.ts";
 
 /** Parse a breakdown_json blob into a normalized array of {label, value} items. */
 function parseBreakdown(raw: string | null | undefined): Array<{ label: string; value: string }> | null {
@@ -54,6 +57,9 @@ export const queries = {
       breakdown: parseBreakdown(latest?.breakdown_json),
       ...(counts as object),
       journey: applicationSummary(d),
+      /** Submitted applications without activity for the default sweep threshold. */
+      quiet: quietApplications(d).items.length,
+      deadlines: pendingDeadlines(d),
     };
   },
 
@@ -123,11 +129,13 @@ export const queries = {
 
   /** Saved jobs with their latest application attempt, when one exists. */
   jobs() {
-    return db()
+    const today = localToday();
+    const rows = db()
       .query(`
         SELECT j.id, j.linkedin_job_id, j.title, j.company_name, j.location, j.work_type,
                j.comp, j.fit, j.status, j.link, j.scouted_at, j.shortlisted_at, j.archived_at, j.description,
-               j.description_guard_json, j.requirements_json, j.source, j.source_job_id,
+               j.description_guard_json, j.requirements_json, j.source, j.source_job_id, j.deadline,
+               EXISTS (SELECT 1 FROM applications s WHERE s.job_id = j.id AND s.submission_status = 'submitted') AS sent,
                a.id AS application_id, a.origin AS application_origin,
                CASE WHEN a.id IS NULL THEN NULL ELSE ${phaseSql()} END AS application_phase,
                CASE WHEN a.id IS NULL THEN NULL ELSE ${viewSql()} END AS application_view
@@ -137,7 +145,12 @@ export const queries = {
           ORDER BY COALESCE(attempt, 0) DESC, id DESC LIMIT 1)
         ORDER BY j.scouted_at DESC
       `)
-      .all();
+      .all() as Array<{ id: number; deadline: string | null; sent: number; archived_at: string | null }>;
+    return rows.map(({ sent, ...job }) => ({
+      ...job,
+      deadline_level: pendingLevel(job.deadline, !sent && !job.archived_at, today),
+      deadline_days: sent || job.archived_at ? null : deadlineUrgency(job.deadline, today).daysLeft,
+    }));
   },
 
   metrics() {
@@ -160,7 +173,8 @@ export const queries = {
   },
 
   applications() {
-    return db()
+    const today = localToday();
+    const rows = db()
       .query(`
         SELECT a.id, a.job_id, COALESCE(a.role_title, j.title) AS job_title,
                COALESCE(a.company_name, j.company_name) AS company_name,
@@ -169,11 +183,17 @@ export const queries = {
                a.portal, a.external_url, a.fields_filled_json, a.unfilled_json,
                a.origin, a.attempt, a.preparation_status, a.fill_status, a.submission_status,
                a.submitted_at, a.review_reason, a.tracking_status, j.linkedin_job_id,
+               COALESCE(a.deadline, j.deadline) AS deadline, ${applicationPendingSql()} AS pending,
                ${phaseSql()} AS phase, ${viewSql()} AS view
         FROM applications a LEFT JOIN jobs j ON j.id = a.job_id
         ORDER BY a.id DESC
       `)
-      .all();
+      .all() as Array<{ id: number; deadline: string | null; pending: number }>;
+    return rows.map(({ pending, ...row }) => ({
+      ...row,
+      deadline_level: pendingLevel(row.deadline, !!pending, today),
+      deadline_days: pending ? deadlineUrgency(row.deadline, today).daysLeft : null,
+    }));
   },
 
   applicationSummary() {

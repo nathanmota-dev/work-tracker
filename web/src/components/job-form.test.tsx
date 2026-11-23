@@ -80,3 +80,29 @@ it("accepts a LinkedIn source ID for description retrieval and submits optional 
   await waitFor(() => expect(onSaved).toHaveBeenCalled())
   expect(request).toHaveBeenCalledWith("jobs/create", expect.objectContaining({ source: "linkedin", source_job_id: "42", requirements_json: '["React"]', location: "Remote" }))
 })
+
+it("saves an application deadline and sorts the list by it", async () => {
+  jobs = [
+    { id: 1, title: "Undated Engineer", company_name: "Synthetic Corp", scouted_at: "2026-11-03" },
+    { id: 2, title: "Later Engineer", company_name: "Synthetic Corp", deadline: "2026-12-20", deadline_level: "upcoming", deadline_days: 27, scouted_at: "2026-11-02" },
+    { id: 3, title: "Late Engineer", company_name: "Synthetic Corp", deadline: "2026-11-20", deadline_level: "overdue", deadline_days: -3, scouted_at: "2026-11-01" },
+  ]
+  render(<JobsPage />)
+  await screen.findByText("Undated Engineer")
+  expect(screen.getByText("Overdue")).toBeInTheDocument()
+  expect(screen.getByText("Due in 27 days")).toBeInTheDocument()
+  const titles = () => screen.getAllByText(/ Engineer$/).map(cell => cell.textContent)
+  const before = titles()
+  fireEvent.click(screen.getByRole("button", { name: "Sort by deadline" }))
+  expect(titles()).toEqual(["Late Engineer", "Later Engineer", "Undated Engineer"])
+  fireEvent.click(screen.getByRole("button", { name: "Sorted by deadline" }))
+  expect(titles()).toEqual(before)
+  fireEvent.click(screen.getByRole("button", { name: "Add job" }))
+  expect(screen.getByLabelText("Application deadline")).toHaveAttribute("type", "date")
+  fill("Role title", "Dated Engineer")
+  fill("Company name", "Synthetic Corp")
+  fill("Application deadline", "2026-12-01")
+  fireEvent.click(screen.getByRole("button", { name: "Save job" }))
+  await screen.findByRole("button", { name: "Edit job" })
+  expect(request).toHaveBeenCalledWith("jobs/create", expect.objectContaining({ title: "Dated Engineer", deadline: "2026-12-01" }))
+})

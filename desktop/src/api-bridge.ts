@@ -83,6 +83,7 @@ const writes = new Set([
   "application-board/stages/save",
   "application-board/stages/reorder",
   "application-board/stages/set-archived",
+  "application-board/quiet/resolve",
   "workspace-backup/create",
   "workspace-backup/inspect",
   "workspace-backup/restore",
@@ -129,7 +130,8 @@ export function registerApiBridge(backend: BackendControl) {
     async (_event, path: string, body?: unknown) => {
       const batchReview = body === undefined && /^preparation-batches\/review\/[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(path)
       const applicationPacks = body === undefined && /^interview-preps\/[1-9]\d*$/.test(path)
-      if (!(body === undefined ? reads : writes).has(path) && !batchReview && !applicationPacks)
+      const quietScan = body === undefined && /^application-board\/quiet(\?days=[1-9]\d{0,3})?$/.test(path)
+      if (!(body === undefined ? reads : writes).has(path) && !batchReview && !applicationPacks && !quietScan)
         throw new Error("Unsupported API request")
       if (!connection)
         throw new Error(unavailable ?? "Backend is starting. Please retry in a moment.")

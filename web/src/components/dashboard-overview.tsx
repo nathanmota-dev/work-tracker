@@ -7,9 +7,11 @@ import {
   Empty,
   Status,
 } from "@/components/workspace-ui"
+import { DeadlinePanel } from "@/components/deadline-panel"
 import { MetricChart } from "@/components/metric-chart"
 import { JourneyCounts, JourneyOverlaps } from "@/components/journey-summary"
 import { Button } from "@/components/ui/button"
+import { QUIET_STALE_DAYS } from "@/lib/application-board"
 import {
   summaryStep,
   type ApplicationSummary,
@@ -60,7 +62,7 @@ function OverviewStats({ data }: { data: Row }) {
 
 const journey = (data: Row) => data.journey as ApplicationSummary | undefined
 
-function ApplicationJourney({ summary }: { summary: ApplicationSummary }) {
+function ApplicationJourney({ summary, quiet }: { summary: ApplicationSummary; quiet: number }) {
   const step = summaryStep(summary)
   return (
     <Panel
@@ -79,6 +81,13 @@ function ApplicationJourney({ summary }: { summary: ApplicationSummary }) {
           archived
         </p>
         <JourneyOverlaps summary={summary} />
+        {quiet > 0 && (
+          <p className="text-xs">
+            <Link to="/applications" className="hover:underline">
+              {quiet} {quiet === 1 ? "application" : "applications"} quiet for {QUIET_STALE_DAYS}+ days
+            </Link>
+          </p>
+        )}
       </div>
     </Panel>
   )
@@ -182,8 +191,9 @@ export function DashboardOverview() {
       <LoadState {...overview} retry={overview.refresh} />
       {overview.data && <OverviewStats data={overview.data} />}
       {overview.data && journey(overview.data) && (
-        <ApplicationJourney summary={journey(overview.data)!} />
+        <ApplicationJourney summary={journey(overview.data)!} quiet={Number(overview.data.quiet ?? 0)} />
       )}
+      {overview.data && <DeadlinePanel items={Array.isArray(overview.data.deadlines) ? (overview.data.deadlines as Row[]) : []} />}
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <Panel title="Profile visibility">
           <LoadState {...metrics} retry={metrics.refresh} />

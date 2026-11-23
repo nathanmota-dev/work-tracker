@@ -6,7 +6,7 @@
 import { DOCUMENT_SCHEMA_SQL } from "./document-schema.ts";
 import { BATCH_SCHEMA_SQL } from "./batch-schema.ts";
 import { FEATURE_SCHEMA_SQL } from "./feature-schema.ts";
-export const SCHEMA_VERSION = 13;
+export const SCHEMA_VERSION = 14;
 
 /** Bookkeeping tables the migration runner needs before any migration runs. */
 export const MIGRATION_TABLES_SQL = /* sql */ `
@@ -294,9 +294,11 @@ export const COLUMN_MIGRATIONS: Record<string, Record<string, string>> = {
     recovery_json: "TEXT NOT NULL DEFAULT '{}'",
   },
   jobs: {
-    shortlisted_at: "TEXT", archived_at: "TEXT", description: "TEXT", source: "TEXT", source_job_id: "TEXT",
-    // Posting integrity guard result (schema v13); see src/postings/description.ts.
-    description_guard_json: "TEXT",
+    shortlisted_at: "TEXT",
+    archived_at: "TEXT",
+    description: "TEXT",
+    source: "TEXT",
+    source_job_id: "TEXT",
   },
   applications: {
     preparation_run_id: "TEXT REFERENCES application_runs(id)",

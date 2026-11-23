@@ -64,6 +64,17 @@ it("shows counters, navigation and empty activity/calendar", () => {
   expect(screen.getByText("A clear calendar")).toBeInTheDocument()
   expect(screen.getByText("A fresh start")).toBeInTheDocument()
 })
+it("lists pending deadlines with a discreet empty state", () => {
+  const { unmount } = render(<DashboardOverview />)
+  expect(screen.getByText("No deadlines close")).toBeInTheDocument()
+  unmount()
+  ;(records.overview as Record<string, unknown>).deadlines = [
+    { kind: "job", id: 1, title: "Closing role", company: "Acme", deadline: "2026-10-17", level: "soon", days_left: 3 },
+  ]
+  render(<DashboardOverview />)
+  expect(screen.getByRole("link", { name: "Closing role" })).toHaveAttribute("href", "/jobs")
+  expect(screen.getByText("Due in 3 days")).toBeInTheDocument()
+})
 it("filters interviews and limits upcoming conversations and activity", () => {
   records.interviews = [
     { id: -1, company: "Past", scheduled_at: "2026-01-01" },
@@ -128,4 +139,14 @@ it.each([
   }
   render(<DashboardOverview />)
   expect(screen.getByRole("link", { name })).toHaveAttribute("href", href)
+})
+it("links quiet applications to Applications only when some are quiet", () => {
+  const instance = render(<DashboardOverview />)
+  expect(screen.queryByText(/quiet for 60\+ days/)).not.toBeInTheDocument()
+  records.overview = { ...(records.overview as object), quiet: 2 }
+  instance.rerender(<DashboardOverview />)
+  expect(screen.getByRole("link", { name: "2 applications quiet for 60+ days" })).toHaveAttribute("href", "/applications")
+  records.overview = { ...(records.overview as object), quiet: 1 }
+  instance.rerender(<DashboardOverview />)
+  expect(screen.getByRole("link", { name: "1 application quiet for 60+ days" })).toBeInTheDocument()
 })

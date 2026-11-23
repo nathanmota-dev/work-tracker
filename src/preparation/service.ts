@@ -19,6 +19,7 @@ import { fillReview } from "./fill-review.ts";
 import { missingForPreparation } from "../jobs/preparation.ts";
 import { planTransition } from "../applications/journey.ts";
 import { assertPortalFree } from "./batch-store.ts";
+import { contactIdentity } from "../answers/store.ts";
 import { jobId, jobRecord, savePastedDescription, type PreparationJob as Job } from "./jobs.ts";
 
 export type PreparationAgent = Pick<SessionManager, "run" | "cancel"> & Partial<Pick<SessionManager, "subscribe" | "isRunning">>;
@@ -60,7 +61,7 @@ export class PreparationService {
     if (cached) return cached;
     const project = join(paths.artifacts, "base", snapshot.version, "project");
     writeSnapshot(snapshot, project);
-    const result = await compileLatex(project, snapshot.config.mainFile, snapshot.config.engine, signal);
+    const result = await compileLatex(project, snapshot.config.mainFile, snapshot.config.engine, signal, { layout: { identity: contactIdentity() } });
     writeFileSync(join(dirname(project), "compile.log"), result.log);
     return addArtifact(null, "base", result.path, result.check, snapshot.version);
   }
@@ -205,7 +206,7 @@ export class PreparationService {
     const baseline = artifactFile(preview.id);
     const basePath = join(root, "base.pdf");
     copyFileSync(baseline.path, basePath);
-    addArtifact(id, "base", basePath, { pages: preview.pages, text: baseline.text, warnings: snapshot.warnings });
+    addArtifact(id, "base", basePath, { pages: preview.pages, text: baseline.text, warnings: [...new Set([...snapshot.warnings, ...preview.warnings])] });
     addCheckpoint(id, "sources");
     const texFiles = snapshot.files.filter(file => file.name.endsWith(".tex")).map(file => ({ name: file.name, text: file.bytes.toString("utf8").replaceAll("\r\n", "\n") }));
     return { manifest: { ...manifest, manifestPath }, texFiles, basePages: preview.pages };
@@ -217,7 +218,8 @@ export class PreparationService {
       this.phase(id, "compiling");
       try {
         validateTailoredSources(sources);
-        const compiled = await compileLatex(manifest.project, manifest.mainFile, manifest.engine, signal);
+        // Layout findings the base PDF already has belong to the user's template, not to the tailoring.
+        const compiled = await compileLatex(manifest.project, manifest.mainFile, manifest.engine, signal, { layout: { identity: contactIdentity(), baseline: join(dirname(manifest.manifestPath), "base.pdf") } });
         writeFileSync(join(dirname(manifest.manifestPath), "compile.log"), compiled.log);
         return { compiled, report: readTailoringOutput(manifest) };
       } catch (error) {
@@ -230,7 +232,7 @@ export class PreparationService {
   }
   /** Register the validated PDF and its application together, so a failure leaves no partial change. */
   private complete(id: string, job: Job, { manifest, basePages }: GenerationSources, { compiled, report }: { compiled: Awaited<ReturnType<typeof compileLatex>>; report: string }): void {
-    if (compiled.check.pages > basePages) compiled.check.warnings.push(`The tailored resume has ${compiled.check.pages} pages; the base has ${basePages}. Review its length.`);
+    if (compiled.check.pages > basePages) compiled.check.warnings.unshift(`The tailored resume has ${compiled.check.pages} pages; the base has ${basePages}. Review its length.`);
     const pdfPath = join(dirname(manifest.manifestPath), "resume.pdf");
     copyFileSync(compiled.path, pdfPath);
     const current = runRecord(id);

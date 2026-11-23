@@ -39,7 +39,7 @@ Write API (used by skills):
   work-tracker outreach blocked --company-urn <n>                List people blocked for a company
   work-tracker outreach budget [set: --plan --remaining --allotment --rollover-cap --reserve-floor]
   work-tracker outreach withdraw --id <n>                        Withdraw pending invite (browser) + block
-  work-tracker job save --title <t> --company <c> [--linkedin-id --source --source-id --location --work-type --comp --fit --link --status --requirements --description]
+  work-tracker job save --title <t> --company <c> [--linkedin-id --source --source-id --location --work-type --comp --fit --link --status --requirements --description --deadline YYYY-MM-DD]
   work-tracker job update --id <n> [same job fields]
   work-tracker job list                     List jobs, including archived_at
   work-tracker metric record [--search-appearances --profile-views --post-impressions --connections --score]
@@ -50,6 +50,7 @@ Write API (used by skills):
       Reuses the job's latest application; --new-attempt explicitly applies again after a submission
   work-tracker application update --id <n> [--status --portal --external-url --fields --unfilled]
   work-tracker application show --id <n>                        Print the application, its job and submitted documents as JSON
+  work-tracker application quiet [--days N]                     List submitted applications without activity for N days (default 60, min 7) as JSON
   work-tracker interview-prep save --application-id <n> --stage <s> --file <pack.md> [--when --format --interviewers]
       Store an interview preparation pack (Markdown); earlier packs of the stage stay as history
   work-tracker interview-prep list [--application-id <n>]       List stored packs

@@ -8,6 +8,7 @@ import { applyStatus, journeyRecord, openApplication, resolveJob, transition } f
 import { JourneyError } from "../applications/journey.ts";
 import { applicationReviewCmd, REVIEW_SUBCOMMANDS } from "./application-review.ts";
 import { applicationShowCmd } from "./interview-prep.ts";
+import { quietApplications, quietDays } from "../applications/quiet.ts";
 
 export { jobCmd } from "./jobs.ts";
 
@@ -119,6 +120,10 @@ export async function applicationCmd(sub: string, flags: Flags): Promise<void> {
   }
   if (sub === "show") return applicationShowCmd(flags);
   const d = db();
+  if (sub === "quiet") {
+    try { console.log(JSON.stringify(quietApplications(d, { days: quietDays(flags.days) }), null, 2)); } catch (error) { fail(error); }
+    return;
+  }
   if (sub === "add") {
     let result: { id: number; created: boolean; attempt: number | null };
     try {

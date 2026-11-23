@@ -22,6 +22,7 @@ import {
 import { saveJob } from "../jobs/store.ts";
 import { JourneyError } from "../applications/journey.ts";
 import { applicationShowCmd } from "./interview-prep.ts";
+import { quietApplications } from "../applications/quiet.ts";
 vi.mock("../db/index.ts", () => ({
   db: vi.fn(),
   now: () => "2026-10-10T12:00:00Z",
@@ -36,6 +37,10 @@ vi.mock("../applications/journey-store.ts", () => ({
 }));
 vi.mock("../jobs/store.ts", () => ({ saveJob: vi.fn() }));
 vi.mock("./interview-prep.ts", () => ({ applicationShowCmd: vi.fn() }));
+vi.mock("../applications/quiet.ts", async (original) => ({
+  ...(await original<typeof import("../applications/quiet.ts")>()),
+  quietApplications: vi.fn(() => ({ days: 90, items: [], skipped: [] })),
+}));
 let d: ReturnType<typeof databaseDouble>, output: ReturnType<typeof cliSpies>;
 beforeEach(() => {
   vi.mocked(saveJob).mockReset().mockReturnValue({ job: { id: 4 } as any, created: true, existing: false, missing: [] });
@@ -123,6 +128,16 @@ test("interviews and applications bind optional fields and defaults", async () =
     $status: "completed",
     $notes: "fixture",
   });
+});
+test("application quiet prints the scan as JSON and rejects a threshold below the minimum", async () => {
+  await applicationCmd("quiet", { days: "90" });
+  expect(quietApplications).toHaveBeenLastCalledWith(d.asDatabase, { days: 90 });
+  expect(output.log).toHaveBeenLastCalledWith(JSON.stringify({ days: 90, items: [], skipped: [] }, null, 2));
+  await applicationCmd("quiet", {});
+  expect(quietApplications).toHaveBeenLastCalledWith(d.asDatabase, { days: 60 });
+  await expect(applicationCmd("quiet", { days: "3" })).rejects.toThrow("exit:1");
+  expect(output.error).toHaveBeenLastCalledWith("error: Days without activity must be a whole number from 7 to 3650.");
+  expect(notifyChange).not.toHaveBeenCalled();
 });
 test("application add resolves local or external job IDs and reuses the job's application", async () => {
   await applicationCmd("add", { "job-id": "2", "keyword-score": "0", status: "draft" });
