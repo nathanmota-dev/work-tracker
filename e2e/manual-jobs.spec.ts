@@ -57,3 +57,39 @@ test('Jobs: create, correct a failed save, deduplicate, edit and prepare an exte
   await workspace.ready('Application')
   await expect(page.getByLabel('Additional context')).toHaveValue('Synthetic context before the first application')
 })
+
+test('Jobs: a role with a close deadline shows its urgency in Jobs and on the Dashboard', async ({ workspace, page }) => {
+  const inDays = (days: number) => {
+    const at = new Date()
+    at.setDate(at.getDate() + days)
+    return `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}-${String(at.getDate()).padStart(2, '0')}`
+  }
+  await workspace.go('Jobs')
+  for (const [title, deadline] of [['Closing Engineer', inDays(3)], ['Late Engineer', inDays(-2)], ['Open Engineer', '']] as const) {
+    await page.getByRole('button', { name: 'Add job', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'Add job' })
+    await dialog.getByLabel('Role title').fill(title)
+    await dialog.getByLabel('Company name').fill('Synthetic Corp')
+    if (deadline) await dialog.getByLabel('Application deadline').fill(deadline)
+    await dialog.getByRole('button', { name: 'Save job' }).click()
+    await expect(page.getByRole('dialog').getByRole('button', { name: 'Edit job' })).toBeVisible()
+    await page.getByRole('dialog').getByRole('button', { name: 'Close' }).click()
+  }
+  expect(workspace.query('SELECT title, deadline FROM jobs ORDER BY id')).toEqual([
+    { title: 'Closing Engineer', deadline: inDays(3) },
+    { title: 'Late Engineer', deadline: inDays(-2) },
+    { title: 'Open Engineer', deadline: null },
+  ])
+  await page.getByRole('tab', { name: /^Shortlist/ }).click()
+  await expect(page.getByText('Due in 3 days', { exact: true })).toBeVisible()
+  await expect(page.getByText('Overdue', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Sort by deadline' }).click()
+  await expect(page.getByRole('button', { name: 'Sorted by deadline' })).toHaveAttribute('aria-pressed', 'true')
+  await workspace.go('Dashboard')
+  const deadlines = panel(page, 'Deadlines')
+  await expect(deadlines.getByRole('link')).toHaveText(['Late Engineer', 'Closing Engineer'])
+  await expect(deadlines.getByText('Overdue', { exact: true })).toBeVisible()
+  await expect(deadlines.getByText('Due in 3 days', { exact: true })).toBeVisible()
+  await deadlines.getByRole('link', { name: 'Closing Engineer' }).click()
+  await workspace.ready('Jobs')
+})

@@ -9,7 +9,7 @@ import type { PreparationField } from "@/lib/application-board"
 
 const fields = {
   title: "Role title", company_name: "Company name", link: "Job link", location: "Location",
-  work_type: "Work type", comp: "Compensation", source: "Source", source_job_id: "Source job ID",
+  work_type: "Work type", comp: "Compensation", deadline: "Application deadline", source: "Source", source_job_id: "Source job ID",
   linkedin_job_id: "LinkedIn job ID", fit: "Fit", status: "Status",
   requirements_json: "Requirements (JSON)", description: "Job description",
 }
@@ -57,7 +57,7 @@ export function JobForm({ job, onClose, onSaved }: {
             {key === "description" || key === "requirements_json" ? (
               <Textarea value={draft[key]} onChange={e => setDraft(previous => ({ ...previous, [key]: e.target.value }))} />
             ) : (
-              <Input type={key === "link" ? "url" : "text"} required={key === "title" || key === "company_name"}
+              <Input type={key === "link" ? "url" : key === "deadline" ? "date" : "text"} required={key === "title" || key === "company_name"}
                 value={draft[key]} onChange={e => setDraft(previous => ({ ...previous, [key]: e.target.value }))} />
             )}
           </Field>

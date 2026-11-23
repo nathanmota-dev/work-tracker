@@ -25,6 +25,7 @@ const applications: board.TrackedApplication[] = Array.from({ length: 5_000 }, (
   comp: null,
   company_url: null,
   notes: null,
+  deadline: null,
   applied_at: "2026-01-01T00:00:00.000Z",
   current_stage_id: 1,
   tracking_status: "active",

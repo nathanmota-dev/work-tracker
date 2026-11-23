@@ -6,7 +6,7 @@ import { type Flags, str } from "./flags.ts";
 const columns: Record<string, string> = {
   "linkedin-id": "linkedin_job_id", title: "title", company: "company_name", location: "location",
   "work-type": "work_type", comp: "comp", fit: "fit", requirements: "requirements_json",
-  status: "status", link: "link", description: "description", source: "source", "source-id": "source_job_id",
+  status: "status", link: "link", description: "description", source: "source", "source-id": "source_job_id", deadline: "deadline",
 };
 
 /** CLI writes use exactly the same validation and identity rules as the manual form. */

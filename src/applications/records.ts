@@ -13,7 +13,7 @@ type ApplicationRow = Omit<TrackedApplication, "stack"> & {
   stack_json: string | null;
 };
 const applicationColumns = `id, job_id, origin, attempt, submission_status, submitted_at, company_name, external_url,
-  role_title, role_type, stack_json, comp, company_url, notes, applied_at, current_stage_id, tracking_status, archive_reason,
+  role_title, role_type, stack_json, comp, company_url, notes, deadline, applied_at, current_stage_id, tracking_status, archive_reason,
   archived_at, created_at, updated_at`;
 
 function decodeApplication(row: ApplicationRow): TrackedApplication {
