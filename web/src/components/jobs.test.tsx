@@ -168,3 +168,34 @@ it("archives selected new roles and keeps failed bulk actions retryable", async 
   await screen.findByRole("tab", { name: "Archived (3)" })
   expect(request).toHaveBeenCalledWith("jobs/archive", { id: 3 })
 })
+
+it("shows the triage score column, sorts by score and keeps the triage note in the details", async () => {
+  jobs = [
+    { id: 1, title: "Plain", company_name: "Acme", archived_at: null, ranking_status: null },
+    { id: 3, title: "Middle", company_name: "Acme", archived_at: null, ranking_status: "scored", ranking_overall: 60, ranking_verdict: "Good Fit" },
+    { id: 4, title: "Urgent", company_name: "Acme", archived_at: null, ranking_status: "scored", ranking_overall: 60, ranking_verdict: "Good Fit", closing_soon: true },
+    { id: 5, title: "Top", company_name: "Acme", archived_at: null, ranking_status: "scored", ranking_overall: 82, ranking_verdict: "Strong Fit" },
+    { id: 6, title: "Blocked", company_name: "Acme", archived_at: null, ranking_status: "gave_up", ranking_attempts: 4 },
+    { id: 7, title: "Broken", company_name: "Acme", archived_at: null, ranking_status: "unreachable", ranking_attempts: 1 },
+    { id: 8, title: "Closed", company_name: "Acme", archived_at: null, ranking_status: "expired", ranking_expired_reason: "deadline" },
+  ]
+  render(<JobsPage />)
+  await screen.findByText("Plain")
+  expect(screen.getByRole("columnheader", { name: "Score" })).toBeInTheDocument()
+  expect(screen.getByText("82 · Strong fit")).toBeInTheDocument()
+  expect(screen.getByText("🔥 Closing soon")).toBeInTheDocument()
+  expect(screen.getByText("Check manually")).toBeInTheDocument()
+  expect(screen.getByText("Unreachable (attempt 1)")).toBeInTheDocument()
+  expect(screen.getByText("Expired (deadline passed)")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Rank new roles" })).toBeInTheDocument()
+  const order = () => screen.getAllByRole("button", { name: /^View / }).map(button => button.getAttribute("aria-label"))
+  fireEvent.click(screen.getByRole("button", { name: "Sort by score" }))
+  expect(screen.getByRole("button", { name: "Sorted by score" })).toHaveAttribute("aria-pressed", "true")
+  expect(order().slice(0, 3)).toEqual(["View Top", "View Urgent", "View Middle"])
+  fireEvent.click(screen.getByRole("button", { name: "Sorted by score" }))
+  expect(order()[0]).toBe("View Plain")
+  fireEvent.click(screen.getByRole("button", { name: "View Top" }))
+  const details = within(screen.getByRole("dialog"))
+  expect(details.getByText("title")).toBeInTheDocument()
+  for (const key of ["ranking overall", "ranking status", "ranking verdict", "closing soon"]) expect(details.queryByText(key)).not.toBeInTheDocument()
+})

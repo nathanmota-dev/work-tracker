@@ -162,6 +162,12 @@ Adjustments generate a new version from the batch's frozen sources. Failed chang
 keep previous documents and approvals, and interrupted fills still require a portal
 review before retrying.
 
+`job-ranking.spec.ts` selects four saved jobs and chooses **Rank selected**: one
+with a passed deadline is skipped as expired without a read, and the synthetic ACP
+agent stores the others through `work-tracker ranking save` (two scored, one
+unreachable). It checks the plan and run summaries, the scores computed in code,
+the Score column states, sorting by score and the ranking detail.
+
 `application-review-center.spec.ts` selects five synthetic jobs, recovers agent and
 transport failures, requests an adjustment, restarts the app, reviews and fills each
 item, and confirms submissions individually. It uses the existing isolated

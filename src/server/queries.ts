@@ -5,6 +5,13 @@ import { applicationPendingSql, pendingDeadlines, pendingLevel } from "../deadli
 import { deadlineUrgency, localToday } from "../deadlines/urgency.ts";
 import { applicationSummary, phaseSql, viewSql } from "../applications/journey-summary.ts";
 import { quietApplications } from "../applications/quiet.ts";
+import { rankingState, type RankingState } from "../rankings/list.ts";
+import type { RankingStatus } from "../rankings/types.ts";
+
+/** Ranking state of a job row, derived from its deadline on every read. */
+function rankingFields(state: RankingState) {
+  return { ranking_status: state.status, ranking_expired_reason: state.expired_reason, closing_soon: state.closing_soon };
+}
 
 /** Parse a breakdown_json blob into a normalized array of {label, value} items. */
 function parseBreakdown(raw: string | null | undefined): Array<{ label: string; value: string }> | null {
@@ -138,16 +145,20 @@ export const queries = {
                EXISTS (SELECT 1 FROM applications s WHERE s.job_id = j.id AND s.submission_status = 'submitted') AS sent,
                a.id AS application_id, a.origin AS application_origin,
                CASE WHEN a.id IS NULL THEN NULL ELSE ${phaseSql()} END AS application_phase,
-               CASE WHEN a.id IS NULL THEN NULL ELSE ${viewSql()} END AS application_view
+               CASE WHEN a.id IS NULL THEN NULL ELSE ${viewSql()} END AS application_view,
+               r.status AS ranking_saved, r.overall AS ranking_overall, r.verdict AS ranking_verdict,
+               r.fetch_attempts AS ranking_attempts
         FROM jobs j
+        LEFT JOIN job_rankings r ON r.job_id = j.id
         LEFT JOIN applications a ON a.id = (
           SELECT id FROM applications WHERE job_id = j.id
           ORDER BY COALESCE(attempt, 0) DESC, id DESC LIMIT 1)
         ORDER BY j.scouted_at DESC
       `)
-      .all() as Array<{ id: number; deadline: string | null; sent: number; archived_at: string | null }>;
-    return rows.map(({ sent, ...job }) => ({
+      .all() as Array<{ id: number; deadline: string | null; sent: number; archived_at: string | null; ranking_saved: RankingStatus | null }>;
+    return rows.map(({ sent, ranking_saved, ...job }) => ({
       ...job,
+      ...rankingFields(rankingState(ranking_saved, job.deadline, today)),
       deadline_level: pendingLevel(job.deadline, !sent && !job.archived_at, today),
       deadline_days: sent || job.archived_at ? null : deadlineUrgency(job.deadline, today).daysLeft,
     }));
