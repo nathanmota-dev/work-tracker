@@ -103,6 +103,20 @@ require('node:readline').createInterface({ input: process.stdin }).on('line', as
       } else if (/work-tracker-recruiter-outreach/.test(text)) {
         cli(['recruiter', 'add', '--name', person.name, '--username', person.username, '--company', 'Example Company', '--status', 'pending']);
         cli(['outreach', 'log', '--username', person.username, '--company-urn', '1234', '--company', 'Example Company', '--state', 'invited', '--channel', 'connect_note']);
+      } else if (/work-tracker-interview-prep/.test(text)) {
+        // Like the skill: read the company research cache first, research and write back only on a miss.
+        const id = text.match(/application #(\d+)/)[1];
+        const { company } = JSON.parse(cli(['application', 'show', '--id', id]));
+        const cached = JSON.parse(cli(['company-research', 'get', '--company', company]));
+        if (!cached.fresh) {
+          log({ kind: 'research', company });
+          const research = join(home, 'research.json');
+          fs.writeFileSync(research, JSON.stringify({ sources: { website: { url: 'https://example.com/about', notes: 'Synthetic mission' } }, summary: 'Synthetic research' }));
+          cli(['company-research', 'save', '--company', company, '--file', research]);
+        }
+        const pack = join(home, 'pack.md');
+        fs.writeFileSync(pack, `# ${company}\n\n${cached.fresh ? 'Reused cached research.' : 'Fresh research.'}\n`);
+        cli(['interview-prep', 'save', '--application-id', id, '--stage', text.match(/Stage: ([^.]+)\./)?.[1] ?? 'Recruiter screen', '--file', pack]);
       } else if (/work-tracker-experience-bank/.test(text)) {
         fs.mkdirSync(join(home, 'experience'), { recursive: true });
         fs.writeFileSync(join(home, 'experience', 'synthetic.md'), '# Synthetic achievement\nBuilt a React app.\n');

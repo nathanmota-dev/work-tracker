@@ -16,6 +16,7 @@ import { outreachCmd } from "./outreach.ts";
 import { importJourneyCmd } from "./import-journey.ts";
 import { matchCmd } from "./match.ts";
 import { interviewPrepCmd } from "./interview-prep.ts";
+import { companyResearchCmd } from "./company-research.ts";
 import { detectPortalCmd } from "./detect-portal.ts";
 import { exportCmd } from "./export.ts";
 import { fetchProfile } from "./fetch-profile.ts";
@@ -40,6 +41,7 @@ vi.mock("./outreach.ts", () => ({ outreachCmd: vi.fn() }));
 vi.mock("./import-journey.ts", () => ({ importJourneyCmd: vi.fn() }));
 vi.mock("./match.ts", () => ({ matchCmd: vi.fn() }));
 vi.mock("./interview-prep.ts", () => ({ interviewPrepCmd: vi.fn() }));
+vi.mock("./company-research.ts", () => ({ companyResearchCmd: vi.fn() }));
 vi.mock("./detect-portal.ts", () => ({ detectPortalCmd: vi.fn() }));
 vi.mock("./export.ts", () => ({ exportCmd: vi.fn() }));
 vi.mock("./fetch-profile.ts", () => ({ fetchProfile: vi.fn() }));
@@ -81,6 +83,12 @@ test("dispatches interview-prep subcommands lazily", async () => {
   await runCli(["interview-prep", "save", "--stage", "Final"]);
   expect(interviewPrepCmd).toHaveBeenCalledWith("save", { stage: "Final" });
   expect(closeDb).toHaveBeenCalledOnce();
+});
+test("dispatches company-research subcommands lazily", async () => {
+  await runCli(["company-research", "get", "--company", "Acme Corp", "--allow-stale"]);
+  expect(companyResearchCmd).toHaveBeenCalledWith("get", { company: "Acme Corp", "allow-stale": true });
+  await runCli(["company-research"]);
+  expect(companyResearchCmd).toHaveBeenLastCalledWith("", {});
 });
 test.each([
   ["metric", metricCmd],

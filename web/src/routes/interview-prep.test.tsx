@@ -1,11 +1,12 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { InterviewPrepPage } from "./interview-prep"
-import { useApi, useConnection } from "@/lib/api"
+import { request, useApi, useConnection } from "@/lib/api"
 import { cancelAgent, clearAgent, runAgent, useAgent } from "@/lib/agent"
 
 vi.mock("@/lib/api", async (original) => ({
   ...(await original<typeof import("@/lib/api")>()),
+  request: vi.fn(),
   useApi: vi.fn(),
   useConnection: vi.fn(),
 }))
@@ -43,12 +44,17 @@ const packs = [
 const idle = { running: false, status: "Ready", messages: [], draft: null }
 let apps: unknown
 let stored: unknown
+let research: Record<string, unknown>
+const refreshResearch = vi.fn()
 beforeEach(() => {
   apps = applications
   stored = packs
+  research = { "company-research?company=Acme": { found: true, fresh: true, age_days: 3 } }
+  refreshResearch.mockReset()
+  vi.mocked(request).mockReset().mockResolvedValue({ removed: true })
   vi.mocked(useApi).mockImplementation((key: string) => ({
-    data: key === "applications" ? apps : key === "acp/providers" ? providers : key.startsWith("interview-preps") ? stored : undefined,
-    error: "", loading: false, refresh: vi.fn(),
+    data: key === "applications" ? apps : key === "acp/providers" ? providers : key.startsWith("interview-preps") ? stored : research[key],
+    error: "", loading: false, refresh: key.startsWith("company-research") ? refreshResearch : vi.fn(),
   }) as never)
   vi.mocked(useConnection).mockReturnValue(true)
   vi.mocked(useAgent).mockReturnValue(idle as never)
@@ -110,6 +116,50 @@ describe("InterviewPrepPage", () => {
     render(<InterviewPrepPage />)
     expect(screen.getByRole("button", { name: "Run agent" })).toBeDisabled()
     expect(runAgent).not.toHaveBeenCalled()
+  })
+
+  it("shows how old the cached company research is and refreshes it on request", async () => {
+    render(<InterviewPrepPage />)
+    expect(screen.getByText("Company research cached 3 days ago")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }))
+    expect(request).toHaveBeenCalledWith("company-research/invalidate", { company: "Acme" })
+    await waitFor(() => expect(refreshResearch).toHaveBeenCalled())
+    expect(screen.getByRole("button", { name: "Refresh" })).toBeEnabled()
+  })
+
+  it("labels today, one day, expired and unknown ages and follows the selected company", () => {
+    research = {
+      "company-research?company=Acme": { found: true, fresh: true, age_days: 0 },
+      "company-research?company=Globex": { found: true, fresh: false, age_days: 1 },
+    }
+    render(<InterviewPrepPage />)
+    expect(screen.getByText("Company research cached today")).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText("Application"), { target: { value: "6" } })
+    expect(screen.getByText("Company research cached 1 day ago (expired)")).toBeInTheDocument()
+    research["company-research?company=Globex"] = { found: true, fresh: false, age_days: null }
+    fireEvent.change(screen.getByLabelText("Application"), { target: { value: "4" } })
+    fireEvent.change(screen.getByLabelText("Application"), { target: { value: "6" } })
+    expect(screen.getByText("Company research cached on an unknown date (expired)")).toBeInTheDocument()
+  })
+
+  it("stays silent without cached research or company and reports a failed refresh", async () => {
+    research = { "company-research?company=Acme": { found: false, fresh: false, age_days: null } }
+    const { unmount } = render(<InterviewPrepPage />)
+    expect(screen.queryByText(/Company research cached/)).not.toBeInTheDocument()
+    unmount()
+    apps = [{ id: 8, company_name: null, job_title: "Untitled", tracking_status: "active" }]
+    const second = render(<InterviewPrepPage />)
+    expect(screen.queryByRole("button", { name: "Refresh" })).not.toBeInTheDocument()
+    second.unmount()
+    apps = applications
+    research = { "company-research?company=Acme": { found: true, fresh: true, age_days: 5 } }
+    vi.mocked(request).mockRejectedValueOnce(new Error("Backend unavailable.")).mockRejectedValueOnce("offline")
+    render(<InterviewPrepPage />)
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }))
+    expect(await screen.findByText("Backend unavailable.")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }))
+    expect(await screen.findByText("offline")).toBeInTheDocument()
+    expect(refreshResearch).not.toHaveBeenCalled()
   })
 
   it("cancels a running agent", () => {

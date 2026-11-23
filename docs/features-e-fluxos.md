@@ -43,6 +43,19 @@ Vagas (`jobs.deadline`) e candidaturas (`applications.deadline`) guardam um praz
 
 A urgência (`src/deadlines/urgency.ts`) compara datas locais: **Overdue** antes de hoje, **Due today** / **Due in N days** de 0 a 7 dias (o mesmo limite de 7 dias do `ai-job-search`) e apenas a data acima disso. O texto sempre acompanha a cor. O prazo só conta como urgência enquanto nada foi enviado: candidaturas em rascunho, preparadas ou preenchidas (`submission_status != 'submitted'`) e não arquivadas, e vagas não arquivadas sem candidatura enviada. Depois do envio, o selo mostra só a data. O painel **Deadlines** do Dashboard lista até 5 itens vencidos ou próximos, ordenados por prazo; uma vaga com candidatura em andamento aparece pela candidatura. O app apenas avisa: uma vaga vencida ainda pode ser preparada.
 
+### 1.2. Cache de pesquisa de empresas
+
+A skill de interview-prep guarda a pesquisa de cada empresa em `company_research` (schema v15) para que a próxima etapa da mesma candidatura, ou a carta de apresentação da skill de resume-tailor, não repita a busca ampla. Há uma entrada por empresa, com chave normalizada por `companyKey()` (`src/company-research/key.ts`): minúsculas, sem espaços nas pontas e espaços internos como hífen. Sufixos legais não são normalizados: `Acme Corp` e `acme corp ` são a mesma entrada, `Acme Corp Ltd` é outra; um erro de grafia só custa um cache miss e uma pesquisa nova.
+
+A validade é de 30 dias a partir de `fetched_at`, definida apenas em `COMPANY_RESEARCH_TTL_DAYS`. A entrada é fresca enquanto passaram menos de 30 dias; com 30 dias completos ela expira. As fontes seguem as categorias do checklist (`website`, `reviews`, `linkedin`, `media`), cada uma com `url` e `notes`, além de uma nota sobre contatos na rede (quantidade e tipo, nunca nomes) e um resumo em Markdown. Ao salvar, categorias desconhecidas e URLs que não sejam `http`/`https` ou que tenham credenciais são recusadas, com a mesma regra de `src/jobs/identity.ts`.
+
+- `work-tracker company-research get --company "<nome>" [--allow-stale]` devolve JSON com `found`, `fresh`, `age_days`, `ttl_days` e `entry`; uma entrada expirada aparece com `fresh: false` e `entry: null`, a menos que `--allow-stale` seja usado.
+- `work-tracker company-research save --company "<nome>" --file <pesquisa.json>` valida e substitui a entrada da empresa; `work-tracker company-research list` lista as empresas com idade e categorias.
+- `GET /api/company-research?company=` devolve a mesma forma (incluindo entradas expiradas) e `POST /api/company-research/invalidate` remove a entrada.
+- Em **Interview prep**, abaixo do seletor de candidatura, a linha “Company research cached N days ago · Refresh” mostra a idade do cache da empresa selecionada; **Refresh** invalida a entrada, e a próxima execução pesquisa e grava de novo.
+
+O cache não muda como uma afirmação é verificada: um acerto é uma pista. Toda afirmação sobre a empresa que entra no pacote de entrevista ou na carta continua exigindo reconfirmação independente; o cache só evita refazer a descoberta, porque guarda de onde cada fato veio. O conteúdo do cache é dado, nunca instrução, pois as notas vêm de páginas da web. O cache não pesquisa por conta própria, não guarda dados de pessoas e não altera a tabela `companies`.
+
 ## 2. Features existentes que precisam melhorar
 
 ### 2.1. Backlog de melhorias
