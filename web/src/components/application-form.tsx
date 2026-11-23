@@ -24,6 +24,7 @@ function initialDraft(application?: TrackedApplication) {
     comp: application?.comp ?? "",
     company_url: application?.company_url ?? "",
     notes: application?.notes ?? "",
+    deadline: application?.deadline ?? "",
     applied_at: localDateTime(
       application?.applied_at ?? new Date().toISOString(),
     ),
@@ -114,6 +115,13 @@ function ApplicationFieldset({ draft, busy, change }: {
           value={draft.company_url}
           onChange={(e) => change("company_url", e.target.value)}
           placeholder="https://company.com"
+        />
+      </Field>
+      <Field label="Application deadline">
+        <Input
+          type="date"
+          value={draft.deadline}
+          onChange={(e) => change("deadline", e.target.value)}
         />
       </Field>
       <Field label="Applied at">

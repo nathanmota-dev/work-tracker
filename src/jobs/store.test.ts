@@ -24,6 +24,15 @@ test.each([null, [], { title: 1 }, { link: "bad" }, { link: "ftp://x.test" }, { 
   expect(d.query("SELECT * FROM jobs").all()).toEqual([]);
 });
 
+test("deadlines accept only real calendar dates", () => {
+  expect(saveJob(d, { ...draft, deadline: " 2026-12-01 " }).job.deadline).toBe("2026-12-01");
+  const { job } = saveJob(d, { ...draft, title: "Other", deadline: "" });
+  expect(job.deadline).toBeNull();
+  for (const deadline of ["2026-13-40", "2026-02-31", "tomorrow", "01/12/2026"])
+    expect(() => saveJob(d, { ...draft, title: "Bad", deadline })).toThrow("Enter the deadline as a valid date.");
+  expect(d.query("SELECT COUNT(*) AS n FROM jobs").get()).toEqual({ n: 2 });
+});
+
 test("URL normalization preserves job parameters, ports and SPA routes", () => {
   expect(normalizeLink("https://WWW.Jobs.test/a/?b=2&job=1&utm_source=search#top")).toBe("jobs.test/a?b=2&job=1");
   expect(normalizeLink("https://jobs.test:8000/#/job/1")).not.toBe(normalizeLink("https://jobs.test:8001/#/job/2"));

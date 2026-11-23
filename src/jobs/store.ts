@@ -1,12 +1,13 @@
 import type { Database } from "../db/sqlite.ts";
 import { now } from "../db/index.ts";
 import { missingForPreparation } from "./preparation.ts";
+import { parseDeadline } from "../deadlines/urgency.ts";
 import { linkedinJobId, normalizeLink, webUrl } from "./identity.ts";
 
 export class JobError extends Error {
   constructor(message: string, public status = 400, public existingId?: number) { super(message); }
 }
-const fields = ["title", "company_name", "location", "work_type", "comp", "fit", "requirements_json", "status", "link", "description", "source", "source_job_id", "linkedin_job_id"] as const;
+const fields = ["title", "company_name", "location", "work_type", "comp", "fit", "requirements_json", "status", "link", "description", "source", "source_job_id", "linkedin_job_id", "deadline"] as const;
 type Field = typeof fields[number];
 export type Job = Record<Field, string | null> & { id: number; archived_at: string | null; shortlisted_at: string | null };
 type Input = Partial<Record<Field, string | null>>;
@@ -22,6 +23,7 @@ function inputFields(body: unknown): Input {
   }
   if (input.link && !webUrl(input.link)) throw new JobError("Enter a valid HTTP or HTTPS job URL without credentials.");
   if (input.link) input.link = webUrl(input.link)!.href;
+  if (input.deadline && !parseDeadline(input.deadline)) throw new JobError("Enter the deadline as a valid date.");
   if (input.requirements_json) {
     try { JSON.parse(input.requirements_json); } catch { throw new JobError("Requirements must be valid JSON."); }
   }

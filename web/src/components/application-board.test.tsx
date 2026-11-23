@@ -90,6 +90,7 @@ const record = (id: number, company_name: string): TrackedApplication => ({
   comp: null,
   company_url: null,
   notes: null,
+  deadline: null,
   applied_at: at,
   current_stage_id: 1,
   tracking_status: "active",

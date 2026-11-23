@@ -198,8 +198,16 @@ work-tracker job save \
   --linkedin-id {id} --title "{Role}" --company "{Company}" \
   --location "{City}" --work-type "{remote|hybrid|onsite}" \
   --comp "{comp if known}" --fit "{strong|good|stretch}" \
-  --link "https://www.linkedin.com/jobs/view/{id}/"
+  --link "https://www.linkedin.com/jobs/view/{id}/" \
+  [--deadline YYYY-MM-DD]
 ```
+
+Pass `--deadline` **only** when the posting itself states an application closing
+date ("Apply by", "Applications close on", a closing date field). Convert that
+date to `YYYY-MM-DD`. Never infer, estimate or invent a deadline — not from the
+posting age, a "reposted" label, a hiring timeline or a typical window. When the
+posting states no closing date, omit the flag. Work Tracker flags roles due within
+7 days and overdue roles on the Dashboard.
 
 Log the scout run (always pass `--kind` — a bare `work-tracker activity log`
 silently inserts an empty, uncategorized row):
