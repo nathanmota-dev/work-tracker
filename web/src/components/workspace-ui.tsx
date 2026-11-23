@@ -202,11 +202,14 @@ export function Details({
   title,
   onClose,
   children,
+  omit = [],
 }: {
   row: Row | null
   title: string
   onClose: () => void
   children?: ReactNode
+  /** Keys shown by a dedicated child component instead of the raw list. */
+  omit?: string[]
 }) {
   return (
     <Dialog
@@ -222,7 +225,7 @@ export function Details({
         </DialogHeader>
         <dl className="space-y-4">
           {Object.entries(row ?? {})
-            .filter(([, v]) => v != null && v !== "")
+            .filter(([key, v]) => v != null && v !== "" && !omit.includes(key))
             .map(([key, value]) => (
               <div
                 key={key}

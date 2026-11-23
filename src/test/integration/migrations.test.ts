@@ -82,7 +82,7 @@ test("opening a v2 workspace keeps IDs, links, history and artifacts; reopening 
     { id: 34, job_id: null, current_stage_id: 1, resume_path: null },
   ]);
   expect(all(d, "PRAGMA foreign_key_check")).toEqual([]);
-  expect(all(d, "SELECT version FROM schema_migrations")).toEqual([3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14].map((version) => ({ version })));
+  expect(all(d, "SELECT version FROM schema_migrations")).toEqual(MIGRATIONS.map((step) => ({ version: step.version })));
   expect(all(d, "PRAGMA table_info(applications)").map((c) => c.name)).toContain("preparation_run_id");
   const migrated = dump(d, [...legacyTables, "schema_migrations", "meta"]);
   closeDb();
@@ -162,7 +162,7 @@ test("v10 triage backfills existing rows once and leaves subsequent inserts new"
   const d = workspace("triage-v9");
   d.exec("INSERT INTO jobs (title, company_name) VALUES ('Existing', 'Acme'); UPDATE meta SET value = '9' WHERE key = 'schema_version'; DELETE FROM schema_migrations WHERE version = 10;");
   const result = migrateDatabase(d, { backupDir });
-  expect(result.applied).toEqual([10, 11, 12, 13, 14]);
+  expect(result.applied).toEqual([10, 11, 12, 13, 14, 15]);
   expect(result.backup).toBeTruthy();
   expect(value(d, "SELECT shortlisted_at FROM jobs")).toEqual(expect.any(String));
   d.exec("INSERT INTO jobs (title, company_name) VALUES ('New', 'Acme')");
@@ -176,7 +176,7 @@ test("v13 deadlines add nullable columns to a v12 workspace, keep IDs and data, 
   d.exec(`ALTER TABLE jobs DROP COLUMN deadline; ALTER TABLE applications DROP COLUMN deadline;
     UPDATE meta SET value = '12' WHERE key = 'schema_version'; DELETE FROM schema_migrations WHERE version = 13;`);
   const before = dump(d, ["jobs", "applications", "application_events", "interviews"]);
-  expect(migrateDatabase(d, { backupDir })).toMatchObject({ from: 12, to: SCHEMA_VERSION, applied: [13, 14] });
+  expect(migrateDatabase(d, { backupDir })).toMatchObject({ from: 12, to: SCHEMA_VERSION, applied: [13, 14, 15] });
   const after = dump(d, ["jobs", "applications", "application_events", "interviews"]);
   expect(after.jobs).toEqual(before.jobs!.map((row) => ({ ...row, deadline: null })));
   expect(after.applications).toEqual(before.applications!.map((row) => ({ ...row, deadline: null })));
@@ -188,12 +188,12 @@ test("v13 deadlines add nullable columns to a v12 workspace, keep IDs and data, 
   d.close();
 });
 
-test("v14 company research adds an empty cache table to a v13 workspace without touching companies", () => {
-  const d = workspace("company-research-v13", seedJourney);
+test("v15 company research adds an empty cache table to a v14 workspace without touching companies", () => {
+  const d = workspace("company-research-v14", seedJourney);
   d.exec(`INSERT INTO companies (id, name, urn_id, notes) VALUES (5, 'Acme Corp', '1234', 'Recruiter notes');
-    DROP TABLE company_research; UPDATE meta SET value = '13' WHERE key = 'schema_version'; DELETE FROM schema_migrations WHERE version = 14;`);
+    DROP TABLE company_research; UPDATE meta SET value = '14' WHERE key = 'schema_version'; DELETE FROM schema_migrations WHERE version = 15;`);
   const before = dump(d, ["companies", "jobs", "applications"]);
-  expect(migrateDatabase(d, { backupDir })).toMatchObject({ from: 13, to: SCHEMA_VERSION, applied: [14], backup: null });
+  expect(migrateDatabase(d, { backupDir })).toMatchObject({ from: 14, to: SCHEMA_VERSION, applied: [15], backup: null });
   expect(dump(d, ["companies", "jobs", "applications"])).toEqual(before);
   expect(all(d, "SELECT name FROM pragma_table_info('company_research') ORDER BY cid")).toEqual(
     ["id", "company_key", "company_name", "fetched_at", "sources_json", "network_note", "summary_md"].map((name) => ({ name })),

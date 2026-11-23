@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { PREPARATION_FIELDS } from "@/components/job-link-dialog"
 import { request, type Row } from "@/lib/api"
 import type { PreparationField } from "@/lib/application-board"
+import { parsePostingGuard } from "@/components/posting-check"
 
 const fields = {
   title: "Role title", company_name: "Company name", link: "Job link", location: "Location",
@@ -15,6 +16,11 @@ const fields = {
 }
 type Draft = Record<keyof typeof fields, string>
 export type JobSaveResult = { job: Row; existing: boolean; missing: PreparationField[] }
+
+/** The verdict of the posting check on a description saved with this form, if any. */
+export function postingNotice(result: JobSaveResult): string {
+  return parsePostingGuard(result.job.description_guard_json)?.verdict ?? ""
+}
 
 function preparationMissing(draft: Draft): PreparationField[] {
   const missing: PreparationField[] = []

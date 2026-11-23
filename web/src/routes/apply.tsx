@@ -107,7 +107,7 @@ function ApplyWorkspace({ search, review, reviewLocked = false }: { search: Revi
           {!review && (run?.status === "running" || run?.status === "waiting_for_sign_in") && <Button variant="outline" disabled={pending} onClick={() => void action("cancel")}>Cancel</Button>}
           {details.data?.applicationStatus === "filled" && details.data.uploadedRunId === pdfRun?.id && <Button variant="outline" disabled={reviewBusy} onClick={() => void action("submitted")}>I submitted in the browser</Button>}
         </div>
-        <ApplyReadiness generate={review ? [] : generateBlocks} fill={fillBlocks} testing={integrations.testing} error={integrations.testError || integrations.error} test={testAvailability} correct={correct} />
+        <ApplyReadiness guard={job.description_guard_json} description={job.description} generate={review ? [] : generateBlocks} fill={fillBlocks} testing={integrations.testing} error={integrations.testError || integrations.error} test={testAvailability} correct={correct} />
         {details.data?.busy && run?.status !== "running" && <p className="text-xs text-muted-foreground">Another execution is active. You can review these files while it finishes.</p>}
 
         {!job.description && !job.linkedin_job_id && !descriptionDirty && <p role="status" className="text-xs text-muted-foreground">This job has no description yet. Paste it under Job description before generating.</p>}

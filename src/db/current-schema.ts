@@ -1,9 +1,10 @@
 import type { Database } from "./sqlite.ts";
 import { SCHEMA_SQL, COLUMN_MIGRATIONS, APPLICATION_BOARD_INDEX_SQL, DEFAULT_APPLICATION_STAGES } from "./schema.ts";
 import { DEADLINE_COLUMNS } from "./deadline-schema.ts";
+import { POSTING_GUARD_COLUMNS } from "./posting-guard-schema.ts";
 
 /** Every additive column migration, including the ones feature modules keep apart. */
-export const ALL_COLUMN_MIGRATIONS: Record<string, Record<string, string>>[] = [COLUMN_MIGRATIONS, DEADLINE_COLUMNS];
+export const ALL_COLUMN_MIGRATIONS: Record<string, Record<string, string>>[] = [COLUMN_MIGRATIONS, DEADLINE_COLUMNS, POSTING_GUARD_COLUMNS];
 
 /** Add any declared columns that don't yet exist. */
 function applyColumnMigrations(d: Database): void {

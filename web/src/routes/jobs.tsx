@@ -25,7 +25,8 @@ import {
 import { useApi, request, text, type Row } from "@/lib/api"
 import { openApply } from "@/lib/preparation"
 import { prepareSkill } from "@/lib/agent"
-import { JobForm, type JobSaveResult } from "@/components/job-form"
+import { JobForm, postingNotice, type JobSaveResult } from "@/components/job-form"
+import { PostingCheck } from "@/components/posting-check"
 import { useWorkspaceState } from "@/lib/workspace-state"
 import { applyLabel } from "@/lib/application-journey"
 
@@ -48,6 +49,7 @@ function JobDetailActions({
       {error && (
         <p role="alert" className="text-sm text-destructive">{error}</p>
       )}
+      {selected && <PostingCheck guard={selected.description_guard_json} description={selected.description} />}
       <div className="flex flex-wrap gap-2">
         <ExternalLink value={selected?.link} label="View opportunity" />
         <Button
@@ -156,6 +158,7 @@ function useJobs() {
   const selected = api.data?.find((row) => row.id === selectedId) ?? null
   const [editing, setEditing] = useState<Row | "new" | null>(null)
   const [notice, setNotice] = useState("")
+  const [posting, setPosting] = useState("")
   const [deleting, setDeleting] = useState<Row | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
@@ -197,6 +200,7 @@ function useJobs() {
   }
   function edit(job: Row | "new" | null) {
     setNotice("")
+    setPosting("")
     setError("")
     setSelectedId(null)
     setEditing(job)
@@ -204,17 +208,18 @@ function useJobs() {
   function saved(result: JobSaveResult) {
     setEditing(null)
     setNotice(result.existing ? `Job #${result.job.id} already exists. Its saved content was preserved.` : "Job saved.")
+    setPosting(result.existing ? "" : postingNotice(result))
     api.refresh()
     // Show the saved job in its tab: added jobs skip triage, edits keep theirs.
     const view = result.job.archived_at ? "archived" : result.job.shortlisted_at ? "shortlist" : "new"
     update({ selected: String(result.job.id), view })
   }
-  return { api, selected, deleting, busy, error, active, archived, editing, notice,
+  return { api, selected, deleting, busy, error, active, archived, editing, notice, posting,
     setSelectedId, edit, setDeleting, setError, actions, saved, mutate }
 }
 
 export function JobsPage() {
-  const { api, selected, deleting, busy, error, active, archived, editing, notice,
+  const { api, selected, deleting, busy, error, active, archived, editing, notice, posting,
     setSelectedId, edit, setDeleting, setError, actions, saved, mutate } = useJobs()
   const { update } = useWorkspaceState("jobs")
   const [arrived, setArrived] = useState<number[]>([])
@@ -235,6 +240,7 @@ export function JobsPage() {
       }} />
       <LoadState {...api} retry={api.refresh} />
       {notice && <p role="status" className="text-sm">{notice}</p>}
+      {posting && <p role="status" aria-label="Saved posting check" className="text-sm">{posting}</p>}
       {editing && <JobForm job={editing === "new" ? undefined : editing} onClose={() => edit(null)} onSaved={saved} />}
       {error && !deleting && !selected && (
         <p role="alert" className="text-sm text-destructive">
@@ -255,6 +261,7 @@ export function JobsPage() {
       )}
       <Details
         row={selected}
+        omit={["description_guard_json"]}
         title={text(selected?.title)}
         onClose={() => setSelectedId(null)}
       >

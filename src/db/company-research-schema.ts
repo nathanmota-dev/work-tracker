@@ -1,5 +1,5 @@
 /**
- * Company research cache (schema v14). One row per normalized company name,
+ * Company research cache (schema v15). One row per normalized company name,
  * written by the interview-prep skill so later runs reuse the discovery work.
  * Kept apart from `companies`, which belongs to the recruiter flow and never expires.
  */
