@@ -60,6 +60,10 @@ O cache não muda como uma afirmação é verificada: um acerto é uma pista. To
 
 Candidaturas enviadas e paradas há 10 dias ou mais, com menos de 2 follow-ups enviados, aparecem no banner **N follow-ups due** de Applications; mudanças para uma etapa de entrevista nos últimos 7 dias oferecem um agradecimento. "Draft follow-up" ou "Draft thank-you" abre o painel do agente com a skill `work-tracker-followup`, que redige de 60 a 120 palavras no idioma e no canal da candidatura (e-mail com assunto, LinkedIn mais curto, portal em texto simples) usando só o que o currículo e a carta enviados já dizem, e grava com `work-tracker followup save`. O usuário copia o texto no detalhe da candidatura, envia por conta própria e clica em **Mark as sent**, o que reinicia o relógio de silêncio. Depois de 2 follow-ups enviados o terceiro não é oferecido e o CLI o recusa. Nada é enviado pelo app. Detalhes em [application-journey.md](application-journey.md#follow-ups-e-agradecimentos).
 
+### 1.4. Portões eliminatórios de idioma e elegibilidade
+
+Em **Profile → Deal-breakers** o usuário declara os idiomas em que trabalha (com nível) e a sua elegibilidade para trabalhar. **Check requirements**, no detalhe ou na seleção de Jobs, roda a skill `work-tracker-requirements-check`, que extrai as exigências de idioma e de elegibilidade de cada vaga com o trecho literal; o código compara com o perfil e marca a vaga como `pass`, `flag` ou `fail` (ou `pass` não verificado quando o anúncio é silencioso). A lista mostra o selo com texto, **Hide failed** (ligado em New) recolhe as reprovadas sem apagá-las, e o Apply pede confirmação antes de preparar uma vaga `fail`. O portão avisa e filtra, nunca decide pelo usuário. Detalhes em [manual-jobs.md](manual-jobs.md#portões-eliminatórios-idioma-e-elegibilidade).
+
 ## 2. Features existentes que precisam melhorar
 
 ### 2.1. Backlog de melhorias

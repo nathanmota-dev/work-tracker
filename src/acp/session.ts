@@ -51,6 +51,8 @@ function baseSkillPrompt(skill: string, params: Record<string, string>): string 
       return interviewPrepPrompt(params);
     case "followup":
       return followupPrompt(params);
+    case "requirements-check":
+      return `Use the work-tracker-requirements-check skill for these saved jobs: ${params.jobIds?.trim() || "(none provided)"}. Quote the posting for every language and eligibility requirement and store each check with \`work-tracker job gate\`. Never archive or delete a job.`;
     default:
       return params.prompt ?? skill;
   }

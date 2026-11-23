@@ -2,6 +2,7 @@ import { db } from "../db/index.ts";
 import { notifyChange } from "../db/notify.ts";
 import { saveJob } from "../jobs/store.ts";
 import { guardVerdict } from "../postings/description.ts";
+import { gateVerdict } from "../gates/stored.ts";
 import { type Flags, str } from "./flags.ts";
 
 const columns: Record<string, string> = {
@@ -13,10 +14,15 @@ const columns: Record<string, string> = {
 /** CLI writes use exactly the same validation and identity rules as the manual form. */
 export async function jobCmd(sub: string, flags: Flags): Promise<void> {
   if (sub === "list") {
-    // Agents see the verdict only: the stored excerpts quote content hidden from the reader.
+    // Agents see the verdicts only: the stored excerpts quote content hidden from the reader.
     const jobs = db().query("SELECT * FROM jobs ORDER BY scouted_at DESC, id DESC").all() as Record<string, unknown>[];
-    console.log(JSON.stringify(jobs.map(({ description_guard_json, ...job }) => ({ ...job, guard_verdict: guardVerdict(description_guard_json) })), null, 2));
+    console.log(JSON.stringify(jobs.map(({ description_guard_json, gate_json, ...job }) =>
+      ({ ...job, guard_verdict: guardVerdict(description_guard_json), gate_verdict: gateVerdict(gate_json) })), null, 2));
     return;
+  }
+  if (sub === "gate") {
+    const { jobGateCmd } = await import("./gates.ts");
+    return jobGateCmd(flags);
   }
   if (sub === "save" || sub === "update") {
     const id = str(flags, "id");

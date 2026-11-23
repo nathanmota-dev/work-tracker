@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Empty, Page, PageSection, Panel } from "@/components/workspace-ui"
 import { ResumeSources } from "@/components/resume-sources"
+import { DealBreakers } from "@/components/deal-breakers"
 import { prepareSkill } from "@/lib/agent"
 import { ProfilePage } from "./profile"
 import { AnswersPage } from "./answers"
@@ -79,11 +80,12 @@ export function ProfileHub() {
       path="profile"
       title="Profile"
       description="Everything your applications and your agent know about you."
-      tabs={[["linkedin", "LinkedIn"], ["resume", "Base resume"], ["answers", "Answers"], ["experiences", "Experiences"]]}
+      tabs={[["linkedin", "LinkedIn"], ["resume", "Base resume"], ["answers", "Answers"], ["experiences", "Experiences"], ["deal-breakers", "Deal-breakers"]]}
     >
       {(tab) => tab === "resume" ? <BaseResume />
         : tab === "answers" ? <AnswersPage />
         : tab === "experiences" ? <Experiences />
+        : tab === "deal-breakers" ? <DealBreakers />
         : <ProfilePage />}
     </Hub>
   )

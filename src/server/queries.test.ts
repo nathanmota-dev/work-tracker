@@ -243,6 +243,18 @@ test.each(["jobs", "applications"] as const)("%s adds the pending deadline urgen
   expect(sent).not.toHaveProperty(name === "jobs" ? "sent" : "pending");
   expect(queries[name]()).toEqual([]);
 });
+test("jobs report the requirement verdict and whether a pass is unverified, never the stored quotes", () => {
+  const gate = (verdict: string, unverified: boolean) => JSON.stringify({ verdict, unverified, extraction: { languages: [] }, language: { findings: [{ quote: "Fluent Russian" }] } });
+  d.statement.all.mockReturnValueOnce([
+    { id: 1, sent: 0, archived_at: null, deadline: null, gate_json: null },
+    { id: 2, sent: 0, archived_at: null, deadline: null, gate_json: gate("fail", false) },
+    { id: 3, sent: 0, archived_at: null, deadline: null, gate_json: gate("pass", true) },
+  ]);
+  const rows = queries.jobs() as Record<string, unknown>[];
+  expect(rows.map(({ gate_verdict, gate_unverified }) => [gate_verdict, gate_unverified])).toEqual([["unchecked", false], ["fail", false], ["pass", true]]);
+  expect(rows.every((row) => !("gate_json" in row))).toBe(true);
+  expect(JSON.stringify(rows)).not.toContain("Fluent Russian");
+});
 test("activity binds the default/custom limit and profile returns existing identity", () => {
   d.statement.all.mockReturnValue([{ summary: "saved" }]);
   expect(queries.activity()).toEqual([{ summary: "saved" }]);

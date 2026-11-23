@@ -10,6 +10,7 @@ const SKILLS = [
   "deep-scout",
   "interview-prep",
   "followup",
+  "requirements-check",
 ];
 
 const DELIM = "\n\n---\nAdditional context from the user (honor this):\n";
@@ -72,6 +73,16 @@ describe("buildSkillPrompt — followup", () => {
   test("defaults to a follow-up and flags a missing application id", () => {
     const prompt = buildSkillPrompt("followup", {});
     expect(prompt).toContain("a follow-up (kind follow_up) for application #(none provided).");
+  });
+});
+
+describe("buildSkillPrompt — requirements-check", () => {
+  test("names the jobs, asks for quotes and never removes a job", () => {
+    const prompt = buildSkillPrompt("work-tracker-requirements-check", { jobIds: " 3,5 " });
+    expect(prompt).toContain("work-tracker-requirements-check skill for these saved jobs: 3,5.");
+    expect(prompt).toContain("`work-tracker job gate`");
+    expect(prompt).toContain("Never archive or delete a job.");
+    expect(buildSkillPrompt("requirements-check", {})).toContain("saved jobs: (none provided).");
   });
 });
 

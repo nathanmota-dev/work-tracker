@@ -5,6 +5,7 @@ import { applicationPendingSql, pendingDeadlines, pendingLevel } from "../deadli
 import { deadlineUrgency, localToday } from "../deadlines/urgency.ts";
 import { applicationSummary, phaseSql, viewSql } from "../applications/journey-summary.ts";
 import { quietApplications } from "../applications/quiet.ts";
+import { gateUnverified, gateVerdict } from "../gates/stored.ts";
 
 /** Parse a breakdown_json blob into a normalized array of {label, value} items. */
 function parseBreakdown(raw: string | null | undefined): Array<{ label: string; value: string }> | null {
@@ -134,7 +135,7 @@ export const queries = {
       .query(`
         SELECT j.id, j.linkedin_job_id, j.title, j.company_name, j.location, j.work_type,
                j.comp, j.fit, j.status, j.link, j.scouted_at, j.shortlisted_at, j.archived_at, j.description,
-               j.description_guard_json, j.requirements_json, j.source, j.source_job_id, j.deadline,
+               j.description_guard_json, j.gate_json, j.requirements_json, j.source, j.source_job_id, j.deadline,
                EXISTS (SELECT 1 FROM applications s WHERE s.job_id = j.id AND s.submission_status = 'submitted') AS sent,
                a.id AS application_id, a.origin AS application_origin,
                CASE WHEN a.id IS NULL THEN NULL ELSE ${phaseSql()} END AS application_phase,
@@ -145,9 +146,12 @@ export const queries = {
           ORDER BY COALESCE(attempt, 0) DESC, id DESC LIMIT 1)
         ORDER BY j.scouted_at DESC
       `)
-      .all() as Array<{ id: number; deadline: string | null; sent: number; archived_at: string | null }>;
-    return rows.map(({ sent, ...job }) => ({
+      .all() as Array<{ id: number; deadline: string | null; sent: number; archived_at: string | null; gate_json: string | null }>;
+    // The verdict only: the stored check's quotes are read per job through /api/gates/jobs/:id.
+    return rows.map(({ sent, gate_json, ...job }) => ({
       ...job,
+      gate_verdict: gateVerdict(gate_json),
+      gate_unverified: gateUnverified(gate_json),
       deadline_level: pendingLevel(job.deadline, !sent && !job.archived_at, today),
       deadline_days: sent || job.archived_at ? null : deadlineUrgency(job.deadline, today).daysLeft,
     }));

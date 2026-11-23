@@ -14,6 +14,8 @@ import { applyLabel, nextStep } from "@/lib/application-journey"
 import { DeadlineBadge, DeadlineSort } from "@/components/deadline-badge"
 import { byDeadline } from "@/lib/deadline"
 import { NextStepAction, originLabel, phaseLabel } from "@/components/application-list"
+import { RowGateBadge } from "@/components/gate-badge"
+import { CheckRequirements, useHideFailed } from "@/components/gate-filter"
 
 /** The job's latest application attempt, shaped like an Applications row. */
 export function linkedApplication(job: Row): Row | undefined {
@@ -98,6 +100,11 @@ export function jobColumns(actions: (row: Row) => ReactNode, arrived: number[] =
       key: "fit",
       label: "Fit",
       render: (r) => <Status value={r.fit} />,
+    },
+    {
+      key: "gate_verdict",
+      label: "Requirements",
+      render: (r) => <RowGateBadge row={r} />,
     },
     {
       key: "status",
@@ -207,8 +214,9 @@ export function JobTabs({
   const [byDue, setByDue] = useState(false)
   const fresh = active.filter(row => !row.shortlisted_at)
   const shortlist = active.filter(row => !!row.shortlisted_at)
-  const listed = view === "archived" ? archived : view === "shortlist" ? shortlist : fresh
-  const rows = byDue ? byDeadline(listed) : listed
+  const all = view === "archived" ? archived : view === "shortlist" ? shortlist : fresh
+  const failed = useHideFailed(view, all)
+  const rows = byDue ? byDeadline(failed.rows) : failed.rows
   return (
     <Tabs value={view} onValueChange={view => update({ view, page: 0, q: "", status: "", selected: "", selection: [] })}>
       <TabsList aria-label="Job archive filter">
@@ -219,7 +227,10 @@ export function JobTabs({
         </TabsTrigger>
       </TabsList>
       <TabsContent value={view}>
-        <DeadlineSort className="mb-4" active={byDue} onToggle={() => setByDue(value => !value)} />
+        <div className="mb-4 flex flex-wrap items-center gap-4">
+          <DeadlineSort active={byDue} onToggle={() => setByDue(value => !value)} />
+          {failed.control}
+        </div>
         {view === "archived" && (
           <p className="mb-4 text-sm text-muted-foreground">
             Archived roles stay saved and are excluded from future shortlists.
@@ -231,9 +242,12 @@ export function JobTabs({
           selectionRows={rows}
           rowKey={row => String(row.id)} rowLabel={row => text(row.title)}
           canSelect={() => true} busy={false} selectAllLabel="Select all filtered results"
-          action={(jobs, clear) => view === "new"
-            ? <JobTriage jobs={jobs} onMutate={onMutate} onDone={clear} />
-            : <BatchPreparation jobs={jobs} onCreated={clear} />}
+          action={(jobs, clear) => <>
+            {view === "new"
+              ? <JobTriage jobs={jobs} onMutate={onMutate} onDone={clear} />
+              : <BatchPreparation jobs={jobs} onCreated={clear} />}
+            {view !== "archived" && <CheckRequirements jobs={jobs} />}
+          </>}
           rows={rows}
           noun={view === "archived" ? "Archived opportunities" : "Opportunities"}
           empty={view === "archived" ? undefined : <NextStepHint fallback={view === "new" ? "Search LinkedIn above or add a job by hand to start your list." : "Move roles from New to build your shortlist."} />}

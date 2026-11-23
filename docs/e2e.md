@@ -117,6 +117,13 @@ with the fake ACP agent: the first run researches and writes the company researc
 cache, the second reads it (`fresh: true`) without researching again, and
 **Refresh** invalidates the entry so the third run researches and writes it back.
 
+`requirement-gates.spec.ts` declares languages in Profile → Deal-breakers (including
+a refused duplicate), runs Check requirements on two saved jobs with the fake ACP
+agent, which stores a quoted extraction through `work-tracker job gate`, and checks
+the `Flag` and `Fail` badges, that Hide failed collapses the failed job in New
+without deleting it, the quoted reason in the job detail, and that Apply asks for
+Prepare anyway before Generate resume is enabled.
+
 Keep journeys independent; do not rely on test ordering or share databases. Use
 accessible locators and real pointer events for drag and drop. Read database state
 only to verify persistence; perform the action under test through the UI. Existing

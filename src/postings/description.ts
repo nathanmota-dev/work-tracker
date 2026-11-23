@@ -68,6 +68,8 @@ export function guardVerdict(json: unknown): string {
  */
 export function saveGuardedDescription(d: Database, jobId: number, raw: string): { description: string | null; guard: StoredGuard | null } {
   const { description, guardJson, guard } = guardDescription(raw);
-  if (description) d.query("UPDATE jobs SET description = ?, description_guard_json = ? WHERE id = ?").run(description, guardJson, jobId);
+  // A requirements check quotes the description it read, so a different text clears it.
+  if (description) d.query("UPDATE jobs SET gate_json = CASE WHEN description IS ? THEN gate_json END, description = ?, description_guard_json = ? WHERE id = ?")
+    .run(description, description, guardJson, jobId);
   return { description, guard };
 }

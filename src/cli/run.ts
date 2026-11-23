@@ -41,7 +41,13 @@ Write API (used by skills):
   work-tracker outreach withdraw --id <n>                        Withdraw pending invite (browser) + block
   work-tracker job save --title <t> --company <c> [--linkedin-id --source --source-id --location --work-type --comp --fit --link --status --requirements --description --deadline YYYY-MM-DD]
   work-tracker job update --id <n> [same job fields]
-  work-tracker job list                     List jobs, including archived_at
+  work-tracker job list                     List jobs, including archived_at, guard_verdict and gate_verdict
+  work-tracker job gate --id <n> [--file <extraction.json>]
+      Store the requirements-check extraction and print the pass/flag/fail verdict; without --file, print the stored check
+  work-tracker gates profile                Print declared languages and work eligibility as JSON
+  work-tracker gates language save --language <name> --level <level> [--notes]   Declare a language (updates it by name)
+  work-tracker gates language remove --language <name>
+  work-tracker gates eligibility set --status <citizen_or_resident|needs_permission|none>   none turns the gate off
   work-tracker metric record [--search-appearances --profile-views --post-impressions --connections --score]
   work-tracker score record --value <n> [--signals <json>]
   work-tracker interview add --company <c> [--when --stage --status --note]
@@ -128,6 +134,10 @@ const commands: Record<string, Command> = {
   followup: async ([sub], flags) => {
     const { followupCmd } = await import("./followup.ts");
     await followupCmd(sub ?? "", flags);
+  },
+  gates: async (positionals, flags) => {
+    const { gatesCmd } = await import("./gates.ts");
+    await gatesCmd(positionals, flags);
   },
   "company-research": async ([sub], flags) => {
     const { companyResearchCmd } = await import("./company-research.ts");

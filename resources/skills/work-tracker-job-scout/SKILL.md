@@ -227,6 +227,18 @@ work-tracker activity log --kind scout --skill work-tracker-job-scout --summary 
 
 > If `work-tracker` isn't installed, just present the shortlist tables (below).
 
+### 5b2. Check deal-breakers for the new roles
+
+Language and eligibility requirements are hard filters, separate from fit. After
+saving, offer to check the roles you just saved with the
+`work-tracker-requirements-check` skill, or, when you already read each saved
+description, follow its Steps 2 to 4 for them in this run: extract the language
+and eligibility requirements **with the literal quote** and store each with
+`work-tracker job gate --id <id> --file <extraction.json>`. Do not research
+international-applicant pages here; a silent posting is stored as silent and
+reads as unverified. Report a `fail` with its quote instead of leaving the role
+out of the shortlist: the user decides.
+
 ### 5c. Surface already-blocked contacts (outreach memory)
 
 When you research a company, check whether the user has people already **blocked**

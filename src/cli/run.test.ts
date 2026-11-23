@@ -17,6 +17,7 @@ import { importJourneyCmd } from "./import-journey.ts";
 import { matchCmd } from "./match.ts";
 import { interviewPrepCmd } from "./interview-prep.ts";
 import { followupCmd } from "./followup.ts";
+import { gatesCmd } from "./gates.ts";
 import { companyResearchCmd } from "./company-research.ts";
 import { detectPortalCmd } from "./detect-portal.ts";
 import { exportCmd } from "./export.ts";
@@ -43,6 +44,7 @@ vi.mock("./import-journey.ts", () => ({ importJourneyCmd: vi.fn() }));
 vi.mock("./match.ts", () => ({ matchCmd: vi.fn() }));
 vi.mock("./interview-prep.ts", () => ({ interviewPrepCmd: vi.fn() }));
 vi.mock("./followup.ts", () => ({ followupCmd: vi.fn() }));
+vi.mock("./gates.ts", () => ({ gatesCmd: vi.fn() }));
 vi.mock("./company-research.ts", () => ({ companyResearchCmd: vi.fn() }));
 vi.mock("./detect-portal.ts", () => ({ detectPortalCmd: vi.fn() }));
 vi.mock("./export.ts", () => ({ exportCmd: vi.fn() }));
@@ -79,6 +81,11 @@ test.each([
   await runCli([command, "add", "--name", "Person"]);
   expect(handler).toHaveBeenCalledWith("add", { name: "Person" });
   expect(closeMcp).toHaveBeenCalledOnce();
+  expect(closeDb).toHaveBeenCalledOnce();
+});
+test("dispatches gates subcommands lazily with both positionals", async () => {
+  await runCli(["gates", "language", "save", "--language", "Spanish", "--level", "Native"]);
+  expect(gatesCmd).toHaveBeenCalledWith(["language", "save"], { language: "Spanish", level: "Native" });
   expect(closeDb).toHaveBeenCalledOnce();
 });
 test("dispatches followup subcommands lazily", async () => {

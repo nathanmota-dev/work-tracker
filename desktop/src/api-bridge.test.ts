@@ -158,4 +158,21 @@ describe("api bridge", () => {
       await expect(request({}, invalid)).rejects.toThrow("Unsupported API request")
     await expect(request({}, "company-research?company=Acme", {})).rejects.toThrow("Unsupported API request")
   })
+  it("allows the gate profile, its two writes and the stored check of one job", async () => {
+    connectApiBridge({ address: "http://127.0.0.1:4000", token: "fixture" })
+    const fetch = vi.fn(async () => new Response("{}"))
+    vi.stubGlobal("fetch", fetch)
+    const request = electron.handlers.get("api:request")!
+    for (const path of ["gates/profile", "gates/jobs/12"]) {
+      expect(await request({}, path)).toEqual({})
+      expect(fetch).toHaveBeenLastCalledWith(expect.objectContaining({ pathname: `/api/${path}` }), expect.objectContaining({ method: "GET" }))
+    }
+    for (const write of ["gates/languages", "gates/eligibility"]) {
+      expect(await request({}, write, { eligibility: null })).toEqual({})
+      expect(fetch).toHaveBeenLastCalledWith(expect.objectContaining({ pathname: `/api/${write}` }), expect.objectContaining({ method: "POST" }))
+    }
+    for (const invalid of ["gates/jobs/0", "gates/jobs/1?x=2", "gates/jobs/abc", "gates/languages", "gates"])
+      await expect(request({}, invalid)).rejects.toThrow("Unsupported API request")
+    await expect(request({}, "gates/jobs/3", {})).rejects.toThrow("Unsupported API request")
+  })
 })
