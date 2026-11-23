@@ -115,4 +115,18 @@ describe("api bridge", () => {
       await expect(request({}, invalid)).rejects.toThrow("Unsupported API request")
     await expect(request({}, "interview-preps", {})).rejects.toThrow("Unsupported API request")
   })
+  it("allows the quiet scan with an optional numeric threshold and its resolve write", async () => {
+    connectApiBridge({ address: "http://127.0.0.1:4000", token: "fixture" })
+    const fetch = vi.fn(async () => new Response("{}"))
+    vi.stubGlobal("fetch", fetch)
+    const request = electron.handlers.get("api:request")!
+    expect(await request({}, "application-board/quiet")).toEqual({})
+    expect(await request({}, "application-board/quiet?days=90")).toEqual({})
+    expect(fetch).toHaveBeenLastCalledWith(expect.objectContaining({ pathname: "/api/application-board/quiet", search: "?days=90&token=fixture" }), expect.objectContaining({ method: "GET" }))
+    expect(await request({}, "application-board/quiet/resolve", { ids: [1] })).toEqual({})
+    expect(fetch).toHaveBeenLastCalledWith(expect.objectContaining({ pathname: "/api/application-board/quiet/resolve" }), expect.objectContaining({ method: "POST", body: '{"ids":[1]}' }))
+    for (const invalid of ["application-board/quiet?days=", "application-board/quiet?days=0", "application-board/quiet?days=12345", "application-board/quiet?days=9&x=1", "application-board/quiet/resolve"])
+      await expect(request({}, invalid)).rejects.toThrow("Unsupported API request")
+    await expect(request({}, "application-board/quiet", {})).rejects.toThrow("Unsupported API request")
+  })
 })

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { db, now } from "../db/index.ts";
 import type { Database } from "../db/sqlite.ts";
-import { ARCHIVE_REASONS, STAGE_CATEGORIES } from "./types.ts";
+import { STAGE_CATEGORIES } from "./types.ts";
 import type {
   ApplicationActions,
   ApplicationBoard,
@@ -10,6 +10,8 @@ import type {
   ApplicationStage,
   JobLinkOptions,
   JobLinkResult,
+  QuietApplications,
+  QuietResolution,
   ReviewItem,
   TrackedApplication,
 } from "./types.ts";
@@ -26,6 +28,9 @@ import {
 } from "./records.ts";
 import { openApplication, resolveJob, startTracking, transition } from "./journey-store.ts";
 import { jobLinkOptions, linkJob } from "./job-link.ts";
+import { archive, trackedChanges } from "./archive.ts";
+import { quietApplications, quietDays } from "./quiet.ts";
+import { resolveQuiet } from "./quiet-resolve.ts";
 import { reconcileReviews, refreshReview, resolveReview, reviewItems } from "./review.ts";
 import {
   ApplicationBoardError,
@@ -48,12 +53,13 @@ type Result = {
     | ApplicationDetails
     | JobLinkOptions
     | JobLinkResult
+    | QuietApplications
+    | QuietResolution
     | { items: ReviewItem[]; fixed?: number[] }
     | { item: ReviewItem | null };
   changed: string[];
 };
 type Handler = (d: Database, body: Body) => Result;
-const trackedChanges = ["applications", "application_events"];
 
 export function listApplicationBoard(d = db()): ApplicationBoard {
   return d.transaction(() => ({
@@ -220,18 +226,12 @@ function move(d: Database, body: Body): Result {
   event(d, current, target, "moved", current.current_stage_id);
   return { value: application(d, current.id), changed: [...trackedChanges] };
 }
-function archive(d: Database, body: Body): Result {
-  const current = application(d, body.id);
-  requireActive(current);
-  const reason = choice(body.reason, ARCHIVE_REASONS, "archive reason");
-  const note = optionalText(body.note);
-  const at = now();
-  d.query(
-    "UPDATE applications SET tracking_status = 'archived', archive_reason = ?, archived_at = ?, updated_at = ? WHERE id = ?",
-  ).run(reason, at, at, current.id);
-  const target = stage(d, current.current_stage_id);
-  event(d, current, target, "archived", current.current_stage_id, reason, note);
-  return { value: application(d, current.id), changed: [...trackedChanges] };
+function quiet(d: Database, body: Body): Result {
+  return { value: quietApplications(d, { days: quietDays(body.days) }), changed: [] };
+}
+function quietResolve(d: Database, body: Body): Result {
+  const value = resolveQuiet(d, { ids: body.ids, days: quietDays(body.days) });
+  return { value, changed: value.resolved.length ? [...trackedChanges] : [] };
 }
 function reopen(d: Database, body: Body): Result {
   const current = application(d, body.id);
@@ -270,6 +270,8 @@ const handlers: Record<keyof ApplicationActions, Handler> = {
   move,
   archive,
   reopen,
+  quiet,
+  "quiet/resolve": quietResolve,
 };
 
 export function executeApplicationAction(

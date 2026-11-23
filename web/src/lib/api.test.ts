@@ -76,6 +76,8 @@ it.each([
   ["recruiters/due", "outreach_attempts"],
   ["applications", "jobs"],
   ["application-board", "application_events"],
+  ["application-board/quiet", "application_events"],
+  ["application-board/quiet?days=90", "applications"],
   ["custom", "custom"],
 ])(
   "refreshes %s only for relevant tables and global changes",

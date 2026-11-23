@@ -3,9 +3,14 @@ import { db } from "../db/index.ts";
 import { dueAttempts, getBudget } from "../outreach/store.ts";
 import { databaseDouble } from "../test/doubles.ts";
 import { queries } from "./queries.ts";
+import { quietApplications } from "../applications/quiet.ts";
+import type { QuietApplications } from "../applications/types.ts";
 vi.mock("../db/index.ts", () => ({
   db: vi.fn(),
   now: () => "2026-10-10T12:00:00Z",
+}));
+vi.mock("../applications/quiet.ts", () => ({
+  quietApplications: vi.fn(() => ({ days: 60, items: [], skipped: [] })),
 }));
 vi.mock("../outreach/store.ts", () => ({
   dueAttempts: vi.fn(),
@@ -28,6 +33,7 @@ test("missing profile scans and score return explicit empty states", () => {
     recruiters: 0,
     jobs: 0,
     journey: expect.objectContaining({ total: 0 }),
+    quiet: 0,
     deadlines: [],
   });
   expect(queries.profile()).toBeNull();
@@ -87,8 +93,19 @@ test("overview merges counts with the latest scored breakdown", () => {
     recruiters: 5,
     accepted: 2,
     journey: expect.objectContaining({ total: 0 }),
+    quiet: 0,
     deadlines: [],
   });
+});
+test("overview counts quiet applications with the default sweep threshold", () => {
+  vi.mocked(quietApplications).mockReturnValueOnce({
+    days: 60,
+    items: [{ id: 1 }, { id: 2 }] as QuietApplications["items"],
+    skipped: [{ id: 3, company_name: null, role_title: null, reason: "Unreadable date" }],
+  });
+  d.statement.get.mockReturnValueOnce(undefined).mockReturnValueOnce({});
+  expect(queries.overview()).toMatchObject({ quiet: 2 });
+  expect(quietApplications).toHaveBeenLastCalledWith(d.asDatabase);
 });
 test("due recruiter actions use username and URN fallbacks", () => {
   vi.mocked(dueAttempts).mockReturnValue([

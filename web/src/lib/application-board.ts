@@ -1,14 +1,19 @@
 import { request } from "@/lib/api"
+import { QUIET_STALE_DAYS } from "../../../src/applications/types"
 import type {
   ApplicationActions,
   ApplicationDetails,
   ApplicationStage,
   JobLinkOptions,
   JobLinkResult,
+  QuietApplications,
+  QuietResolution,
   ReviewItem,
   TrackedApplication,
 } from "../../../src/applications/types"
 export {
+  QUIET_MIN_DAYS,
+  QUIET_STALE_DAYS,
   ROLE_TYPES,
   STAGE_CATEGORIES,
   ARCHIVE_REASONS,
@@ -27,6 +32,10 @@ export type {
   JobLinkOptions,
   JobLinkResult,
   PreparationField,
+  QuietApplication,
+  QuietApplications,
+  QuietResolution,
+  QuietSkipped,
   ReviewDecision,
   ReviewItem,
   RoleType,
@@ -40,6 +49,8 @@ type ReviewResults = {
   review: { items: ReviewItem[] }
   "review/resolve": { item: ReviewItem | null }
   "review/reconcile": { items: ReviewItem[]; fixed: number[] }
+  quiet: QuietApplications
+  "quiet/resolve": QuietResolution
 }
 type ActionResults = {
   [K in keyof ApplicationActions]: K extends keyof ReviewResults
@@ -57,6 +68,10 @@ export function boardAction<K extends keyof ApplicationActions>(
   body: ApplicationActions[K],
 ): Promise<ActionResults[K]> {
   return request<ActionResults[K]>(`application-board/${action}`, body)
+}
+/** Read path of the quiet-application scan; the default threshold has no query. */
+export function quietPath(days: number) {
+  return `application-board/quiet${days === QUIET_STALE_DAYS ? "" : `?days=${days}`}`
 }
 export function normalizeSearch(value: string) {
   return value
