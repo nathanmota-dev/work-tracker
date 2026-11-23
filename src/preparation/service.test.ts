@@ -421,6 +421,23 @@ test("generates a validated PDF, snapshots inputs and only then updates the appl
     table: "applications",
   });
 });
+test("reviews the tailored PDF against its base and lists the page count first", async () => {
+  d.statement.all.mockImplementation(() => [{ key: "email", value: "ada@example.com" }]);
+  vi.mocked(cachedPreview).mockReturnValue({ ...pdf, warnings: ["A date range uses a non-ASCII dash."] });
+  vi.mocked(compileLatex).mockResolvedValue({ path: "/compiled.pdf", log: "ok", check: { pages: 2, text: "resume", warnings: ["Page 1 ends on an entry header."] } });
+  service.generate({ jobId: 1, provider: "agent", applicationId: 2 });
+  await settle();
+  expect(compileLatex).toHaveBeenCalledWith(expect.stringMatching(/project$/), "resume.tex", "pdflatex", expect.any(AbortSignal), {
+    layout: { identity: { email: "ada@example.com", phone: undefined }, baseline: expect.stringMatching(/^\/artifacts\/applications\/1\/.+\/base\.pdf$/) },
+  });
+  expect(addArtifact).toHaveBeenCalledWith(expect.any(String), "base", expect.stringMatching(/base\.pdf$/), expect.objectContaining({ warnings: ["A date range uses a non-ASCII dash."] }));
+  expect(addArtifact).toHaveBeenCalledWith(expect.any(String), "tailored", expect.any(String), expect.objectContaining({ warnings: [expect.stringContaining("2 pages"), "Page 1 ends on an entry header."] }));
+});
+test("compiles the base preview with the text-layer identity", async () => {
+  vi.mocked(cachedPreview).mockReturnValue(null);
+  await service.preview();
+  expect(compileLatex).toHaveBeenCalledWith(expect.stringMatching(/base\/v1\/project$/), "resume.tex", "pdflatex", expect.any(AbortSignal), { layout: { identity: { email: undefined, phone: undefined } } });
+});
 test("creates an application only when generation has no existing application", async () => {
   run.application_id = null;
   vi.mocked(latestForJob).mockReturnValue(undefined);
@@ -674,7 +691,7 @@ test("retrying compilation reuses the tailored sources without running the agent
   expect(acp.run).not.toHaveBeenCalled();
   expect(snapshotSources).not.toHaveBeenCalled();
   expect(fs.cpSync).not.toHaveBeenCalled();
-  expect(compileLatex).toHaveBeenCalledWith("/artifacts/r/project", "resume.tex", "pdflatex", expect.any(AbortSignal));
+  expect(compileLatex).toHaveBeenCalledWith("/artifacts/r/project", "resume.tex", "pdflatex", expect.any(AbortSignal), { layout: { identity: { email: undefined, phone: undefined }, baseline: "/artifacts/r/base.pdf" } });
   expect(run.status).toBe("completed");
   expect(addCheckpoint).toHaveBeenCalledWith("r", "compiled");
   expect(openApplication).not.toHaveBeenCalled();
