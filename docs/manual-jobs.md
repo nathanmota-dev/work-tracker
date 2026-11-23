@@ -87,7 +87,7 @@ Em **Profile → Deal-breakers**:
 - **Languages you work in**: cada idioma com o nível em texto livre (“Native”, “C1”, “B1/B2 (conversational)”) e notas opcionais. O nome é único sem diferenciar maiúsculas e espaços; para mudar o nível, use **Edit level**. Um idioma não declarado conta como “não”: uma vaga que o exige reprova.
 - **Work eligibility**: “Citizen or permanent resident”, “I need a visa or work permit” ou **Not set**, que desliga o portão de elegibilidade.
 
-Sem idiomas e sem elegibilidade, os dois portões ficam desligados, nada reprova e a página explica como ligá-los. O mesmo perfil está no CLI: `work-tracker gates profile`, `gates language save --language --level [--notes]` (atualiza pelo nome), `gates language remove --language` e `gates eligibility set --status citizen_or_resident|needs_permission|none`. A API é `GET /api/gates/profile`, `POST /api/gates/languages` (com `action: "remove"` para remover) e `POST /api/gates/eligibility`. Os dados ficam nas tabelas `candidate_languages` e `gate_profile` (schema v17).
+Sem idiomas e sem elegibilidade, os dois portões ficam desligados, nada reprova e a página explica como ligá-los. O mesmo perfil está no CLI: `work-tracker gates profile`, `gates language save --language --level [--notes]` (atualiza pelo nome), `gates language remove --language` e `gates eligibility set --status citizen_or_resident|needs_permission|none`. A API é `GET /api/gates/profile`, `POST /api/gates/languages` (com `action: "remove"` para remover) e `POST /api/gates/eligibility`. Os dados ficam nas tabelas `candidate_languages` e `gate_profile` (schema v18).
 
 ### Como a verificação roda
 
@@ -113,6 +113,7 @@ Silêncio não é permissão. Uma extração sem `quote` num item que pesa no ve
 - Na lista de Jobs, a coluna **Requirements** mostra `Fail`, `Flag`, `Pass`, `Pass (unverified)` ou `Not checked`, sempre com texto, não só cor. No detalhe, cada portão aparece com a razão e o trecho citado.
 - **Hide failed**, ligado por padrão em New, recolhe as vagas reprovadas: elas continuam contadas (“1 hidden”), voltam ao desligar o filtro e **nunca são apagadas nem arquivadas**.
 - No Apply, uma vaga `fail` mostra o aviso com a citação e só libera **Generate resume** depois de **Prepare anyway**: o usuário pode saber algo sobre a própria situação que o perfil não registra.
+- Na triagem em lote, `work-tracker ranking candidates` e `GET /api/rankings/candidates` deixam as vagas `fail` de fora e as listam em `gate_failed`, com a razão citada; a prévia da execução mostra “N failed deal-breakers”.
 - Para agentes, `work-tracker job list` e `GET /api/jobs` trazem `gate_verdict` (`pass`, `flag`, `fail` ou `unchecked`), sem os trechos de `gate_json`. `GET /api/gates/jobs/:id` e `work-tracker job gate --id <n>` (sem `--file`) devolvem a verificação completa.
 
 O portão **avisa e filtra; não decide pelo usuário**. Ele não busca vagas, não pontua e não cobre localização, relocação ou viagens.

@@ -31,6 +31,7 @@ it("builds the candidate preview path and describes the plan", () => {
   expect(previewText(base)).toBe("10 roles will be ranked, 2 deferred.")
   expect(previewText({ ...base, items: [{ job_id: 1 }], deferred: 0, expired: 1, already_ranked: 3 })).toBe("1 role will be ranked, 0 deferred. Skipped: 3 already ranked, 1 expired by deadline.")
   expect(previewText({ ...base, items: [], deferred: 0 })).toBe("Nothing new to rank.")
+  expect(previewText({ ...base, items: [{ job_id: 1 }], deferred: 0, gate_failed: [{ job_id: 2 }, { job_id: 3 }] })).toBe("1 role will be ranked, 0 deferred. Skipped: 2 failed deal-breakers.")
 })
 
 it("summarizes only the rankings the run stored", () => {

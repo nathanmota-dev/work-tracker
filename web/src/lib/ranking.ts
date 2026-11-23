@@ -11,6 +11,7 @@ export type RankingCandidates = {
   deferred: number
   expired: number
   already_ranked: number
+  gate_failed?: Row[]
 }
 
 /** Ranking state of a job as text; color is never the only signal. */
@@ -54,6 +55,7 @@ export function previewText(preview: RankingCandidates) {
   const skipped = [
     preview.already_ranked ? `${preview.already_ranked} already ranked` : "",
     preview.expired ? `${preview.expired} expired by deadline` : "",
+    preview.gate_failed?.length ? `${preview.gate_failed.length} failed deal-breakers` : "",
   ].filter(Boolean).join(", ")
   const plan = preview.items.length
     ? `${preview.items.length} ${preview.items.length === 1 ? "role" : "roles"} will be ranked, ${preview.deferred} deferred.`

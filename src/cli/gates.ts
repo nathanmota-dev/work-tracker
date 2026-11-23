@@ -6,15 +6,17 @@ import { jobGate, saveGate } from "../gates/store.ts";
 import { GateError, type GateProfile } from "../gates/types.ts";
 import { type Flags, str } from "./flags.ts";
 
-function fail(message: string): never {
+/** Print the error the user can act on and stop with exit code 1. */
+const fail: (message: string) => never = (message) => {
   console.error(`error: ${message}`);
-  process.exit(1);
-}
+  return process.exit(1);
+};
 
+/** Validation, missing-file and JSON errors are explained; anything else is shown as is. */
 function known(error: unknown): string {
-  if (error instanceof GateError || (error as NodeJS.ErrnoException).code === "ENOENT") return (error as Error).message;
   if (error instanceof SyntaxError) return `the extraction file is not valid JSON: ${error.message}`;
-  return String(error);
+  const expected = error instanceof GateError || (error as NodeJS.ErrnoException).code === "ENOENT";
+  return expected ? (error as Error).message : String(error);
 }
 
 async function changed(table: string, profile: GateProfile): Promise<void> {

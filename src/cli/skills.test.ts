@@ -189,6 +189,8 @@ test("the job-ranking skill is bundled, queries candidates, saves one job at a t
   expect(skill).toContain("**triage scores from the posting text only**");
   expect(skill).toContain("Do **not** compute the overall score or the verdict");
   expect(skill).toContain("No company research, no salary lookup");
+  expect(skill).toContain("`gate_failed` lists each with its quoted `reason`");
+  expect(skill).toContain("never rank or shortlist them");
   prepareWorkspace();
   for (const agent of [".claude", ".agents", ".opencode"])
     expect(cpSync).toHaveBeenCalledWith(source, `/private/workspace/${agent}/skills`, { recursive: true });

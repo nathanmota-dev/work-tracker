@@ -3,7 +3,7 @@ import type { Database } from "../db/sqlite.ts";
 import { insertJob, memoryDatabase } from "../test/memory-db.ts";
 import { saveLanguage, setEligibility } from "./profile-store.ts";
 import { gateUnverified, gateVerdict, jobGate, parseStoredGate, saveGate } from "./store.ts";
-import { reevaluateGates } from "./stored.ts";
+import { gateFailReason, reevaluateGates } from "./stored.ts";
 
 vi.mock("../db/index.ts", () => ({ db: vi.fn(), now: () => "2026-11-23T12:00:00.000Z" }));
 
@@ -75,4 +75,16 @@ test("a changed description clears the stored check", async () => {
   saveGate(job, russian, d);
   saveJob(d, { description: "English and Russian" }, job);
   expect(column()).toBeNull();
+});
+
+test("the fail reason quotes each failing finding and is null otherwise", () => {
+  expect(gateFailReason(null)).toBeNull();
+  saveLanguage({ language: "Spanish", level: "Native" }, d);
+  saveGate(job, russian, d);
+  expect(gateFailReason(column())).toBe('Requires Russian (fluent), which is not in your languages. "Fluent Russian required"');
+  setEligibility("needs_permission", d);
+  saveGate(job, { languages: [], eligibility: { ...silent, requires_clearance: true, quote: "Secret clearance" } }, d);
+  expect(gateFailReason(column())).toBe('Requires a security clearance, which usually depends on citizenship. "Secret clearance"');
+  saveGate(job, { languages: [], eligibility: silent }, d);
+  expect(gateFailReason(column())).toBeNull();
 });

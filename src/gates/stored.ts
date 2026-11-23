@@ -23,6 +23,19 @@ export function gateUnverified(json: unknown): boolean {
   return parseStoredGate(json)?.unverified === true;
 }
 
+/**
+ * Why a job failed its requirements check: each failing finding with the
+ * posting text it quotes. Null when the job did not fail.
+ */
+export function gateFailReason(json: unknown): string | null {
+  const gate = parseStoredGate(json);
+  if (gate?.verdict !== "fail") return null;
+  return [...gate.language.findings, ...gate.eligibility.findings]
+    .filter((finding) => finding.verdict === "fail")
+    .map((finding) => (finding.quote ? `${finding.note} "${finding.quote}"` : finding.note))
+    .join(" ");
+}
+
 export function buildStoredGate(extraction: GateExtraction, profile: GateProfile, checkedAt: string): StoredGate {
   return { version: 1, ...evaluateGates(extraction, profile, checkedAt), extraction };
 }
