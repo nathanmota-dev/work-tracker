@@ -38,6 +38,8 @@ export interface ApplicationFields {
   comp: string | null;
   company_url: string | null;
   notes: string | null;
+  /** Local application deadline, `YYYY-MM-DD`. */
+  deadline: string | null;
   applied_at: string;
 }
 export type CreateApplication = Pick<

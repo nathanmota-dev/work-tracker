@@ -34,6 +34,7 @@ test("missing profile scans and score return explicit empty states", () => {
     jobs: 0,
     journey: expect.objectContaining({ total: 0 }),
     quiet: 0,
+    deadlines: [],
   });
   expect(queries.profile()).toBeNull();
 });
@@ -93,6 +94,7 @@ test("overview merges counts with the latest scored breakdown", () => {
     accepted: 2,
     journey: expect.objectContaining({ total: 0 }),
     quiet: 0,
+    deadlines: [],
   });
 });
 test("overview counts quiet applications with the default sweep threshold", () => {
@@ -216,10 +218,8 @@ test("outreach aggregates active company blocks, default funnel states, due acti
 
 test.each([
   "recruiters",
-  "jobs",
   "metrics",
   "interviews",
-  "applications",
   "answers",
 ] as const)("%s forwards rows and supports empty results", (name) => {
   const rows = [{ id: 1 }];
@@ -227,6 +227,21 @@ test.each([
   expect(queries[name]()).toBe(rows);
   expect(queries[name]()).toEqual([]);
   expect(d.statement.all).toHaveBeenCalledWith();
+});
+test.each(["jobs", "applications"] as const)("%s adds the pending deadline urgency to each row", (name) => {
+  const pending = name === "jobs" ? { sent: 0, archived_at: null } : { pending: 1 };
+  d.statement.all
+    .mockReturnValueOnce([{ id: 1, deadline: "2000-01-01", ...pending }, { id: 2, deadline: null, ...pending }])
+    .mockReturnValueOnce([{ id: 3, deadline: "2000-01-01", ...(name === "jobs" ? { sent: 1, archived_at: null } : { pending: 0 }) }])
+    .mockReturnValueOnce([]);
+  expect(queries[name]()).toEqual([
+    expect.objectContaining({ id: 1, deadline_level: "overdue", deadline_days: expect.any(Number) }),
+    expect.objectContaining({ id: 2, deadline_level: "none", deadline_days: null }),
+  ]);
+  const [sent] = queries[name]();
+  expect(sent).toMatchObject({ id: 3, deadline_level: "none", deadline_days: null });
+  expect(sent).not.toHaveProperty(name === "jobs" ? "sent" : "pending");
+  expect(queries[name]()).toEqual([]);
 });
 test("activity binds the default/custom limit and profile returns existing identity", () => {
   d.statement.all.mockReturnValue([{ summary: "saved" }]);

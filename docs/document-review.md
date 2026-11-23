@@ -39,3 +39,44 @@ Os testes usam PDFs e fontes genéricos, workspaces temporários e agentes/porta
 sintéticos; não executam candidaturas reais.
 
 O checklist do preenchimento no portal está descrito em [fill-review.md](fill-review.md).
+
+## Verificações automáticas do PDF
+
+Depois de compilar, o app confere o PDF sozinho e lista os avisos abaixo do
+visualizador. Os avisos não bloqueiam a geração nem a aprovação e não alteram o
+LaTeX; servem para indicar onde olhar antes de aprovar.
+
+- **Número de páginas:** o PDF adaptado com mais páginas que o base aparece primeiro.
+- **LaTeX:** um `Overfull \hbox` ou `\vbox` no log vira um aviso de conteúdo transbordando.
+- **Layout**, medido pela posição das palavras (`pdftotext -bbox`):
+  - página que termina num cabeçalho de seção ou de experiência cujo conteúdo
+    continua na página seguinte (entrada órfã). A comparação usa onde o **texto**
+    começa, depois do marcador da lista, e a margem esquerda do documento inteiro;
+  - buraco no meio da página (mais de 100 pt entre linhas consecutivas);
+  - página que não é a última terminando antes de 75% da altura, e última página
+    mais de 35% vazia;
+  - texto do corpo dentro da faixa do número de página (90 pt do rodapé);
+  - página sem texto.
+- **Camada de texto**, o que um ATS lê:
+  - glifos de uso privado (U+E000 a U+F8FF), comuns em ícones de fontes, e o
+    caractere de substituição U+FFFD;
+  - e-mail e telefone cadastrados em Settings → Answers presentes como texto. A
+    comparação normaliza espaços, NFC e as substituições tipográficas do LaTeX; o
+    telefone também é aceito com outra formatação ou sem o código do país. Sem
+    resposta cadastrada, essa parte não roda;
+  - intervalos de datas ligados por travessão não ASCII (por exemplo, o U+2013 que o
+    LaTeX gera de `--`), que o Workday descartou junto com a data. O aviso cita o
+    ponto de código; use um hífen ASCII. Faixas de valores (`EUR 1500–2000`) não contam.
+
+O número de páginas não é refeito pelo layout. No PDF adaptado, o app roda as mesmas
+verificações também no PDF base da geração e mostra apenas o que o base não tem:
+avisos que vêm do template do usuário aparecem sob Base PDF e não são atribuídos à
+adaptação. Os limites foram calibrados para templates de uma coluna; um template
+com margens incomuns pode gerar avisos que não se aplicam. Em texto corrido com
+recuo de parágrafo (como na classe `article`), a última linha de um parágrafo no fim
+da página seguida de um parágrafo recuado na próxima também é lida como entrada órfã.
+
+Sem um `pdftotext` com suporte a `-bbox` (ou quando o Poppler 26.01 a 26.04 aborta
+num PDF cujos metadados têm campos vazios, como o `hyperref` grava sem `pdftitle`),
+o layout não é medido e aparece um único aviso "Layout check skipped: …". A geração
+termina normalmente e a camada de texto continua verificada.

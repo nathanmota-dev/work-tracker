@@ -94,6 +94,7 @@ test("creates a minimal application and snapshots the initial stage in history",
     null,
     null,
     null,
+    null,
     "2026-10-14T12:00:00.000Z",
     1,
   ]);
@@ -163,6 +164,8 @@ test.each([
   { applied_at: "bad" },
   { role_type: "invalid" },
   { notes: 12 },
+  { deadline: "2026-02-31" },
+  { deadline: 20261201 },
   { company_url: "file:///tmp" },
 ])("rejects invalid fields %j", (fields) => {
   expect(() =>
@@ -196,6 +199,12 @@ test("partial edits clear supplied optional fields and preserve omitted data", (
   );
   expect(writes()).toEqual([[null, "[]", "2026-10-14T12:00:00.000Z", 1]]);
   expect(() => act("update", { id: 1 })).toThrow("at least one");
+});
+test("deadline is validated, trimmed and clearable", () => {
+  act("update", { id: 1, deadline: " 2026-12-01 " });
+  expect(writes()).toEqual([["2026-12-01", "2026-10-14T12:00:00.000Z", 1]]);
+  act("update", { id: 1, deadline: "" });
+  expect(writes()[1]).toEqual([null, "2026-10-14T12:00:00.000Z", 1]);
 });
 test("moves once, preserves history names and skips same-stage moves", () => {
   act("move", { id: 1, stage_id: 3, expected_stage_id: 2 });

@@ -5,6 +5,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Records, type Column } from "@/components/records"
 import { JourneyCounts } from "@/components/journey-summary"
 import { NextStepHint } from "@/components/get-started"
+import { DeadlineBadge, DeadlineSort } from "@/components/deadline-badge"
+import { byDeadline } from "@/lib/deadline"
 import { Status, controlClass } from "@/components/workspace-ui"
 import { text, date, type Row } from "@/lib/api"
 import {
@@ -75,6 +77,7 @@ function columns(onPrepare: (row: Row) => void): Column[] {
       label: "Keyword score",
       render: (r) => (r.keyword_score == null ? "—" : `${r.keyword_score}%`),
     },
+    { key: "deadline", label: "Deadline", render: (r) => <DeadlineBadge row={r} /> },
     { key: "portal", label: "Portal" },
     {
       key: "applied_at",
@@ -106,12 +109,14 @@ export function ApplicationList({
 }) {
   const [view, setView] = useState<ViewFilter>("all")
   const [origin, setOrigin] = useState("")
+  const [byDue, setByDue] = useState(false)
   const counts = countRows(rows)
-  const visible = rows.filter(
+  const filtered = rows.filter(
     (row) =>
       (view === "all" || (row.view ?? "preparation") === view) &&
       (!origin || (row.origin ?? "unknown") === origin),
   )
+  const visible = byDue ? byDeadline(filtered) : filtered
   return (
     <div className="space-y-4">
       <JourneyCounts phases={counts.phases} />
@@ -137,19 +142,22 @@ export function ApplicationList({
         onSelect={onSelect}
         columns={columns(onPrepare)}
         action={
-          <SelectControl
-            aria-label="Filter by origin"
-            className={controlClass}
-            value={origin}
-            onChange={(e) => setOrigin(e.target.value)}
-          >
-            <option value="">All origins</option>
-            {(Object.keys(ORIGINS) as ApplicationOrigin[]).map((key) => (
-              <option key={key} value={key}>
-                {ORIGINS[key]}
-              </option>
-            ))}
-          </SelectControl>
+          <div className="flex flex-wrap items-center gap-2">
+            <DeadlineSort active={byDue} onToggle={() => setByDue((value) => !value)} />
+            <SelectControl
+              aria-label="Filter by origin"
+              className={controlClass}
+              value={origin}
+              onChange={(e) => setOrigin(e.target.value)}
+            >
+              <option value="">All origins</option>
+              {(Object.keys(ORIGINS) as ApplicationOrigin[]).map((key) => (
+                <option key={key} value={key}>
+                  {ORIGINS[key]}
+                </option>
+              ))}
+            </SelectControl>
+          </div>
         }
       />
     </div>

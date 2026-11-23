@@ -92,7 +92,7 @@ require('node:readline').createInterface({ input: process.stdin }).on('line', as
           fs.writeFileSync(manifest.resultPath, JSON.stringify({ versionId: manifest.versionId, pdfHash: manifest.pdfHash, pdfPath: manifest.pdfPath, fields, unfilled, externalUrl: manifest.url, portal: 'generic' }));
         } else {
           const file = join(manifest.project, manifest.mainFile);
-          fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace('Base resume.', state.agent === 'invalid-latex' ? '\\undefinedE2ECommand' : 'Tailored resume.'));
+          fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace('Base resume.', state.agent === 'invalid-latex' ? '\\undefinedE2ECommand' : state.agent === 'layout-hole' ? 'Tailored resume.\\par\\vspace{250pt}Detail pushed down by a gap.\\par' : 'Tailored resume.'));
           fs.writeFileSync(manifest.selectionPath, JSON.stringify({ language: 'en', selectedProjects: ['React'] }));
           fs.writeFileSync(manifest.reportPath, 'Emphasized React and TypeScript experience.');
         }

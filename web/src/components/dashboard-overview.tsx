@@ -7,6 +7,7 @@ import {
   Empty,
   Status,
 } from "@/components/workspace-ui"
+import { DeadlinePanel } from "@/components/deadline-panel"
 import { MetricChart } from "@/components/metric-chart"
 import { JourneyCounts, JourneyOverlaps } from "@/components/journey-summary"
 import { Button } from "@/components/ui/button"
@@ -192,6 +193,7 @@ export function DashboardOverview() {
       {overview.data && journey(overview.data) && (
         <ApplicationJourney summary={journey(overview.data)!} quiet={Number(overview.data.quiet ?? 0)} />
       )}
+      {overview.data && <DeadlinePanel items={Array.isArray(overview.data.deadlines) ? (overview.data.deadlines as Row[]) : []} />}
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <Panel title="Profile visibility">
           <LoadState {...metrics} retry={metrics.refresh} />

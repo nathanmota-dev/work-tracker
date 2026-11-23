@@ -40,6 +40,9 @@ test('Apply: real PDFs, generation/regeneration/history, filling, submission and
   await page.getByRole('button', { name: 'Save description' }).click()
   await page.getByLabel('Additional context').fill('Focus on testing')
   await generate(workspace)
+  // The base's own layout findings stay on the base; a clean tailoring adds none.
+  await expect(panel(page, 'Base PDF')).toContainText('Page 1 ends')
+  await expect(panel(page, 'Tailored PDF').getByRole('listitem')).toHaveCount(0)
   // Classic scrollbars consume layout width. At this viewport, zoom crosses
   // the vertical overflow threshold and must not trigger a resize/render loop.
   await workspace.resize(1200)
@@ -152,6 +155,19 @@ test('Apply: real PDFs, generation/regeneration/history, filling, submission and
   await workspace.restart()
   await workspace.go('Applications')
   await expect(workspace.page.getByRole('cell', { name: 'Submitted', exact: true })).toBeVisible()
+})
+
+test('Apply: the review lists layout problems the tailoring introduced, not the base ones', async ({ workspace, page }) => {
+  test.setTimeout(120_000)
+  await selectJob(workspace)
+  workspace.setScenario({ agent: 'layout-hole' })
+  await page.getByRole('button', { name: 'Generate resume', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Approve this version', exact: true })).toBeEnabled({ timeout: 90_000 })
+  await expect(panel(page, 'Tailored PDF').locator('.react-pdf__Page__textContent')).toContainText('Detail pushed down by a gap.')
+  const warnings = panel(page, 'Tailored PDF').getByRole('listitem')
+  await expect(warnings).toHaveCount(1)
+  await expect(warnings).toHaveText(/^Page 1 has a \d+ pt gap at y=\d+/)
+  await expect(panel(page, 'Base PDF')).not.toContainText('pt gap')
 })
 
 test('Apply: failed regeneration preserves PDF; cancel and sign-in retry keep application identity', async ({ workspace, page }) => {

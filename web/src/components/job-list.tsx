@@ -11,6 +11,8 @@ import { useWorkspaceState } from "@/lib/workspace-state"
 import { text, date, type Row } from "@/lib/api"
 import { openApply } from "@/lib/preparation"
 import { applyLabel, nextStep } from "@/lib/application-journey"
+import { DeadlineBadge, DeadlineSort } from "@/components/deadline-badge"
+import { byDeadline } from "@/lib/deadline"
 import { NextStepAction, originLabel, phaseLabel } from "@/components/application-list"
 
 /** The job's latest application attempt, shaped like an Applications row. */
@@ -101,6 +103,11 @@ export function jobColumns(actions: (row: Row) => ReactNode, arrived: number[] =
       key: "status",
       label: "Status",
       render: (r) => <Status value={r.status} />,
+    },
+    {
+      key: "deadline",
+      label: "Deadline",
+      render: (r) => <DeadlineBadge row={r} />,
     },
     {
       key: "application_phase",
@@ -197,9 +204,11 @@ export function JobTabs({
 }) {
   const { search, update } = useWorkspaceState("jobs")
   const view = search.view ?? "new"
+  const [byDue, setByDue] = useState(false)
   const fresh = active.filter(row => !row.shortlisted_at)
   const shortlist = active.filter(row => !!row.shortlisted_at)
-  const rows = view === "archived" ? archived : view === "shortlist" ? shortlist : fresh
+  const listed = view === "archived" ? archived : view === "shortlist" ? shortlist : fresh
+  const rows = byDue ? byDeadline(listed) : listed
   return (
     <Tabs value={view} onValueChange={view => update({ view, page: 0, q: "", status: "", selected: "", selection: [] })}>
       <TabsList aria-label="Job archive filter">
@@ -210,6 +219,7 @@ export function JobTabs({
         </TabsTrigger>
       </TabsList>
       <TabsContent value={view}>
+        <DeadlineSort className="mb-4" active={byDue} onToggle={() => setByDue(value => !value)} />
         {view === "archived" && (
           <p className="mb-4 text-sm text-muted-foreground">
             Archived roles stay saved and are excluded from future shortlists.

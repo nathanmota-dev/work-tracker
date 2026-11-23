@@ -75,7 +75,7 @@ function details(d: Database, body: Body): Result {
     changed: [],
   };
 }
-const cardColumns = ["company_name", "external_url", "role_title", "role_type", "stack_json", "comp", "company_url", "notes", "applied_at"] as const;
+const cardColumns = ["company_name", "external_url", "role_title", "role_type", "stack_json", "comp", "company_url", "notes", "deadline", "applied_at"] as const;
 type CardRow = Record<(typeof cardColumns)[number], string | null>;
 
 /**

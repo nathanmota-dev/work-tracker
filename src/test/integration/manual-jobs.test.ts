@@ -92,3 +92,33 @@ test("invalid drafts, preparation requirements, collisions and failed writes nev
   expect(broadcast).not.toHaveBeenCalled();
   expect(acp.run).not.toHaveBeenCalled();
 });
+
+test("deadlines saved by the CLI and the API reach the job list, applications and the Dashboard", async () => {
+  const { localToday } = await import("../../deadlines/urgency.ts");
+  const inDays = (days: number) => { const at = new Date(); at.setDate(at.getDate() + days); return localToday(at); };
+  const get = async (path: string) => (await handle(new Request(`http://localhost/api/${path}?token=secret`))).json() as Promise<any>;
+  const output = vi.spyOn(console, "log").mockImplementation(() => {});
+  try {
+    await expect(jobCmd("save", { title: "Bad date", company: "Synthetic Corp", deadline: "2026-13-40" })).rejects.toThrow("Enter the deadline as a valid date.");
+    await jobCmd("save", { title: "CLI dated", company: "Synthetic Corp", deadline: "2026-12-01" });
+    output.mockClear();
+    await jobCmd("list", {});
+    expect(JSON.parse(String(output.mock.calls[0]![0]))).toEqual([expect.objectContaining({ title: "CLI dated", deadline: "2026-12-01" })]);
+  } finally { output.mockRestore(); }
+  const soon = (await call("jobs/create", { ...draft, deadline: inDays(3) })).body.job.id;
+  const overdue = (await call("jobs/create", { title: "Late", company_name: "Synthetic Corp", deadline: inDays(-1) })).body.job.id;
+  const archived = (await call("jobs/create", { title: "Archived", company_name: "Synthetic Corp", deadline: inDays(1) })).body.job.id;
+  await call("jobs/create", { title: "No deadline", company_name: "Synthetic Corp" });
+  db().query("UPDATE jobs SET archived_at = 'then' WHERE id = ?").run(archived);
+  db().query("DELETE FROM jobs WHERE title = 'CLI dated'").run();
+  const levels = Object.fromEntries((await get("jobs")).map((job: any) => [job.title, [job.deadline_level, job.deadline_days]]));
+  expect(levels).toEqual({ "External Engineer": ["soon", 3], Late: ["overdue", -1], Archived: ["none", null], "No deadline": ["none", null] });
+  expect((await get("overview")).deadlines.map((item: any) => [item.kind, item.id, item.level])).toEqual([["job", overdue, "overdue"], ["job", soon, "soon"]]);
+  db().query("INSERT INTO applications (job_id, status) VALUES (?, 'draft')").run(soon);
+  expect((await get("overview")).deadlines[1]).toMatchObject({ kind: "application", title: "External Engineer", level: "soon" });
+  expect((await get("applications"))[0]).toMatchObject({ deadline: inDays(3), deadline_level: "soon" });
+  db().query("UPDATE applications SET submission_status = 'submitted' WHERE job_id = ?").run(soon);
+  expect((await get("overview")).deadlines.map((item: any) => item.id)).toEqual([overdue]);
+  expect((await get("applications"))[0]).toMatchObject({ deadline_level: "none", deadline_days: null });
+  expect((await get("jobs")).find((job: any) => job.id === soon).deadline_level).toBe("none");
+});
