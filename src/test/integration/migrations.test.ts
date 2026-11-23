@@ -82,7 +82,7 @@ test("opening a v2 workspace keeps IDs, links, history and artifacts; reopening 
     { id: 34, job_id: null, current_stage_id: 1, resume_path: null },
   ]);
   expect(all(d, "PRAGMA foreign_key_check")).toEqual([]);
-  expect(all(d, "SELECT version FROM schema_migrations")).toEqual([{ version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }, { version: 7 }, { version: 8 }, { version: 9 }, { version: 10 }, { version: 11 }, { version: 12 }]);
+  expect(all(d, "SELECT version FROM schema_migrations")).toEqual([{ version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }, { version: 7 }, { version: 8 }, { version: 9 }, { version: 10 }, { version: 11 }, { version: 12 }, { version: 13 }]);
   expect(all(d, "PRAGMA table_info(applications)").map((c) => c.name)).toContain("preparation_run_id");
   const migrated = dump(d, [...legacyTables, "schema_migrations", "meta"]);
   closeDb();
@@ -108,7 +108,7 @@ test("a failure in a later step rolls back the whole run; a retry applies each s
   expect(migrateDatabase(d, { backupDir, migrations: fixed, target: next + 1 })).toMatchObject({ mode: "migrated", from: SCHEMA_VERSION, applied: [next, next + 1] });
   expect(migrateDatabase(d, { backupDir, migrations: fixed, target: next + 1 })).toMatchObject({ mode: "current", applied: [] });
   expect(value(d, "SELECT COUNT(*) FROM companies WHERE name = 'Added once'")).toBe(1);
-  expect(all(d, "SELECT version FROM schema_migrations ORDER BY version")).toEqual([3, 4, 5, 6, 7, 8, 9, 10, 11, 12, next, next + 1].map((version) => ({ version })));
+  expect(all(d, "SELECT version FROM schema_migrations ORDER BY version")).toEqual([3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, next, next + 1].map((version) => ({ version })));
   expect(value(d, "SELECT notes FROM applications WHERE id = 40")).toBe("migrated");
   d.close();
 });
@@ -162,7 +162,7 @@ test("v10 triage backfills existing rows once and leaves subsequent inserts new"
   const d = workspace("triage-v9");
   d.exec("INSERT INTO jobs (title, company_name) VALUES ('Existing', 'Acme'); UPDATE meta SET value = '9' WHERE key = 'schema_version'; DELETE FROM schema_migrations WHERE version = 10;");
   const result = migrateDatabase(d, { backupDir });
-  expect(result.applied).toEqual([10, 11, 12]);
+  expect(result.applied).toEqual([10, 11, 12, 13]);
   expect(result.backup).toBeTruthy();
   expect(value(d, "SELECT shortlisted_at FROM jobs")).toEqual(expect.any(String));
   d.exec("INSERT INTO jobs (title, company_name) VALUES ('New', 'Acme')");

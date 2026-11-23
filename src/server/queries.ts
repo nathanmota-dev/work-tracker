@@ -127,7 +127,7 @@ export const queries = {
       .query(`
         SELECT j.id, j.linkedin_job_id, j.title, j.company_name, j.location, j.work_type,
                j.comp, j.fit, j.status, j.link, j.scouted_at, j.shortlisted_at, j.archived_at, j.description,
-               j.requirements_json, j.source, j.source_job_id,
+               j.description_guard_json, j.requirements_json, j.source, j.source_job_id,
                a.id AS application_id, a.origin AS application_origin,
                CASE WHEN a.id IS NULL THEN NULL ELSE ${phaseSql()} END AS application_phase,
                CASE WHEN a.id IS NULL THEN NULL ELSE ${viewSql()} END AS application_view

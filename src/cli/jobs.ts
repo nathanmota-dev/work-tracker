@@ -1,6 +1,7 @@
 import { db } from "../db/index.ts";
 import { notifyChange } from "../db/notify.ts";
 import { saveJob } from "../jobs/store.ts";
+import { guardVerdict } from "../postings/description.ts";
 import { type Flags, str } from "./flags.ts";
 
 const columns: Record<string, string> = {
@@ -12,7 +13,9 @@ const columns: Record<string, string> = {
 /** CLI writes use exactly the same validation and identity rules as the manual form. */
 export async function jobCmd(sub: string, flags: Flags): Promise<void> {
   if (sub === "list") {
-    console.log(JSON.stringify(db().query("SELECT * FROM jobs ORDER BY scouted_at DESC, id DESC").all(), null, 2));
+    // Agents see the verdict only: the stored excerpts quote content hidden from the reader.
+    const jobs = db().query("SELECT * FROM jobs ORDER BY scouted_at DESC, id DESC").all() as Record<string, unknown>[];
+    console.log(JSON.stringify(jobs.map(({ description_guard_json, ...job }) => ({ ...job, guard_verdict: guardVerdict(description_guard_json) })), null, 2));
     return;
   }
   if (sub === "save" || sub === "update") {
@@ -32,6 +35,7 @@ export async function jobCmd(sub: string, flags: Flags): Promise<void> {
     await notifyChange("jobs", sub === "save" ? { key: String(result.job.id), status: result.existing ? "existing" : "saved", job: result.job } : undefined);
     console.log(result.job.archived_at ? `job #${result.job.id} remains archived`
       : `job #${result.job.id} ${result.existing ? "already exists" : sub === "update" ? "updated" : "saved"}`);
+    if (body.description && result.job.description_guard_json && !result.existing) console.log(guardVerdict(result.job.description_guard_json));
     return;
   }
   console.error(`unknown job subcommand: ${sub}`);

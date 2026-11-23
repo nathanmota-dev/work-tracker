@@ -7,6 +7,7 @@ import { ApplicationBoardError, id, optionalText, type Body } from "./validation
 export { normalizeLink, linkedinJobId } from "../jobs/identity.ts";
 import { normalizeLink, linkedinJobId } from "../jobs/identity.ts";
 import { saveJob, shortlistJob } from "../jobs/store.ts";
+import { saveGuardedDescription } from "../postings/description.ts";
 export { missingForPreparation } from "../jobs/preparation.ts";
 import { missingForPreparation } from "../jobs/preparation.ts";
 
@@ -106,8 +107,8 @@ export function linkJob(d: Database, body: Body): JobLinkResult {
   const linked = applicationFor(d, job.id);
   if (linked !== null)
     throw new ApplicationBoardError(`Job #${job.id} already has application #${linked}. Review both records instead of linking another one.`, 409);
-  const description = optionalText(body.description);
-  if (description && !job.description) d.query("UPDATE jobs SET description = ? WHERE id = ?").run(description, job.id);
+  const pasted = optionalText(body.description);
+  const description = pasted && !job.description ? saveGuardedDescription(d, job.id, pasted).description : null;
   d.query(`UPDATE applications SET job_id = ?, attempt = 1,
       company_name = COALESCE(company_name, ?), role_title = COALESCE(role_title, ?), external_url = COALESCE(external_url, ?),
       comp = COALESCE(comp, ?), updated_at = ? WHERE id = ?`)

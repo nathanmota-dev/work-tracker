@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button"
 import { correctionLink, diagnosticBlocks, integrationLabels, type Target, type IntegrationStatus } from "@/lib/integrations"
 import { getStartedLink, type StepId } from "@/lib/onboarding"
+import { PostingCheck } from "@/components/posting-check"
 /** @property [step] Get started step that walks through this correction. */
 export type ApplyBlock = { message: string; label: string; href?: string; action?: "description" | "model" | "review"; step?: StepId }
 export type ReadinessInput = {
@@ -32,8 +33,10 @@ export function applyBlocks(input: ReadinessInput, operation: "generate" | "fill
   }
   return blocks
 }
-export function ApplyReadiness({ generate, fill, testing, error, test, correct }: { generate: ApplyBlock[]; fill: ApplyBlock[]; testing: boolean; error: string; test: () => void; correct: (action: "description" | "model" | "review") => void }) {
+/** @property [guard] Stored posting check of the saved description, shown with it. */
+export function ApplyReadiness({ generate, fill, testing, error, test, correct, guard, description }: { generate: ApplyBlock[]; fill: ApplyBlock[]; testing: boolean; error: string; test: () => void; correct: (action: "description" | "model" | "review") => void; guard?: unknown; description?: unknown }) {
   return <div className="mt-4 space-y-3 rounded-lg border p-3 text-sm" aria-label="Apply readiness">
+    <PostingCheck guard={guard} description={description} />
     {([ ["Generate", generate], ["Fill", fill] ] as const).map(([label, blocks]) => blocks.length > 0 && <div key={label}><p className="font-medium">{label} is blocked</p><ul className="mt-2 space-y-2">{blocks.map((block, i) => <li key={i}>{block.message} {block.href ? <a className="underline" href={block.href}>{block.label}</a> : <button className="underline" onClick={() => block.action && correct(block.action)}>{block.label}</button>}{block.step && <> · <a className="underline" href={getStartedLink(block.step)}>Get started guide</a></>}</li>)}</ul></div>)}
     <p>Test the selected agent and Chrome before filling. LinkedIn uses a separate session when fetching a missing job description. Portal sign-in may still be needed in the browser.</p>
     <Button variant="outline" size="sm" disabled={testing} onClick={test}>{testing ? "Testing availability…" : "Test availability again"}</Button>

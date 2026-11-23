@@ -2,13 +2,16 @@ import type { Database } from "../db/sqlite.ts";
 import { now } from "../db/index.ts";
 import { missingForPreparation } from "./preparation.ts";
 import { linkedinJobId, normalizeLink, webUrl } from "./identity.ts";
+import { guardDescription } from "../postings/description.ts";
 
 export class JobError extends Error {
   constructor(message: string, public status = 400, public existingId?: number) { super(message); }
 }
 const fields = ["title", "company_name", "location", "work_type", "comp", "fit", "requirements_json", "status", "link", "description", "source", "source_job_id", "linkedin_job_id"] as const;
 type Field = typeof fields[number];
-export type Job = Record<Field, string | null> & { id: number; archived_at: string | null; shortlisted_at: string | null };
+/** Columns written on save: the input fields plus the guard result, which input can never set. */
+const columns = [...fields, "description_guard_json"] as const;
+export type Job = Record<Field, string | null> & { id: number; archived_at: string | null; shortlisted_at: string | null; description_guard_json: string | null };
 type Input = Partial<Record<Field, string | null>>;
 
 function inputFields(body: unknown): Input {
@@ -60,6 +63,18 @@ function requireMinimum(input: Input): void {
   if (!input.title || !input.company_name) throw new JobError("Add a role title and company name before saving.");
 }
 
+/**
+ * A provided description is saved only as the guard's cleaned text. An unchanged,
+ * already checked description keeps its result; a legacy one is checked on its next edit.
+ */
+function guardedInput(input: Input, provided: Input, current: Job | undefined): Input & { description_guard_json: string | null } {
+  const kept = { ...input, description_guard_json: current?.description_guard_json ?? null };
+  if (provided.description === undefined) return kept;
+  if (current?.description_guard_json && provided.description === current.description) return kept;
+  const { description, guardJson } = guardDescription(provided.description);
+  return { ...input, description, description_guard_json: guardJson };
+}
+
 /** One transaction serializes identity checks and writes across API and CLI processes. */
 export function saveJob(d: Database, body: unknown, updateId?: number, rediscover = false) {
   const provided = inputFields(body);
@@ -78,10 +93,11 @@ export function saveJob(d: Database, body: unknown, updateId?: number, rediscove
     requireMinimum(input);
     if (current && d.query("SELECT 1 FROM application_runs WHERE job_id = ? AND status = 'running'").get(current.id))
       throw new JobError("Finish or cancel this job's active preparation before editing it.", 409);
-    const values = fields.map(key => input[key] ?? (key === "status" ? "saved" : null));
+    const guarded = guardedInput(input, provided, current);
+    const values = columns.map(key => guarded[key] ?? (key === "status" ? "saved" : null));
     const job = current
-      ? d.query(`UPDATE jobs SET ${fields.map(key => `${key} = ?`).join(", ")} WHERE id = ? RETURNING id`).get(...values, current.id)
-      : d.query(`INSERT INTO jobs (${fields.join(", ")}) VALUES (${fields.map(() => "?").join(", ")}) RETURNING id`).get(...values);
+      ? d.query(`UPDATE jobs SET ${columns.map(key => `${key} = ?`).join(", ")} WHERE id = ? RETURNING id`).get(...values, current.id)
+      : d.query(`INSERT INTO jobs (${columns.join(", ")}) VALUES (${columns.map(() => "?").join(", ")}) RETURNING id`).get(...values);
     return result(d, (job as { id: number }).id, !current, false);
   })();
 }
