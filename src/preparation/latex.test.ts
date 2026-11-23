@@ -8,6 +8,8 @@ import {
   inspectPdf,
   runCommand,
 } from "./latex.ts";
+import { reviewWarnings } from "./pdf-review.ts";
+vi.mock("./pdf-review.ts", () => ({ reviewWarnings: vi.fn() }));
 vi.mock("../acp/process.ts", () => ({
   spawnOwned: vi.fn(),
   stopOwned: vi.fn(),
@@ -23,6 +25,7 @@ beforeEach(() => {
   vi.mocked(stopOwned).mockClear();
   vi.mocked(readFileSync).mockReturnValue(Buffer.from("%PDF-fixture"));
   vi.mocked(mkdirSync).mockReturnValue(undefined);
+  vi.mocked(reviewWarnings).mockReset().mockResolvedValue(["Page 1 has no text."]);
 });
 test("passes literal arguments/environment and collects bounded combined output", async () => {
   const promise = runCommand("tool", ["path with spaces"], "/project");
@@ -129,6 +132,16 @@ test.each([
     });
   },
 );
+test("reviews layout and text only when asked, and lists LaTeX overflow first", async () => {
+  automatic("Pages: 1", "resume text", "Overfull \\vbox");
+  expect((await inspectPdf("/p.pdf")).warnings).toEqual([]);
+  expect(reviewWarnings).not.toHaveBeenCalled();
+  const signal = new AbortController().signal;
+  const layout = { identity: { email: "a@example.com" }, baseline: "/base.pdf" };
+  const result = await compileLatex("/project", "resume.tex", "pdflatex", signal, { layout });
+  expect(reviewWarnings).toHaveBeenCalledWith("/project/output/resume.pdf", "resume text", layout, signal);
+  expect(result.check.warnings).toEqual([expect.stringContaining("overflowing"), "Page 1 has no text."]);
+});
 test("reports each dependency independently including unavailable commands", async () => {
   automatic();
   const good = await dependencyStatus("xelatex");

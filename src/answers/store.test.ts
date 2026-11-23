@@ -1,7 +1,7 @@
 import { beforeEach, expect, test, vi } from "vitest";
 import { databaseDouble } from "../test/doubles.ts";
 import { db } from "../db/index.ts";
-import { deleteAnswer, listAnswerVariants, parseAnswer, saveAnswer } from "./store.ts";
+import { contactIdentity, deleteAnswer, listAnswerVariants, parseAnswer, saveAnswer } from "./store.ts";
 import { handleAnswer } from "./http.ts";
 vi.mock("../db/index.ts", () => ({ db: vi.fn(), now: () => "fixture-time" }));
 let d: ReturnType<typeof databaseDouble>;
@@ -32,4 +32,10 @@ test("HTTP reports failed saves without broadcasting success and permits retry",
   expect((await handleAnswer("/api/answer", new Request("http://localhost"), broadcast)).status).toBe(404);
   expect((await handleAnswer("/api/answers/catalog", new Request("http://localhost"), broadcast)).status).toBe(200);
   expect((await handleAnswer("/api/answers/variants", new Request("http://localhost"), broadcast)).status).toBe(200);
+});
+test("reads the default email and phone answers for the resume text-layer check", () => {
+  d.statement.all.mockReturnValueOnce([{ key: "email", value: " ada@example.com " }, { key: "phone", value: "  " }]);
+  expect(contactIdentity()).toEqual({ email: "ada@example.com", phone: undefined });
+  expect(d.query).toHaveBeenCalledWith(expect.stringContaining("key IN ('email', 'phone')"));
+  expect(contactIdentity()).toEqual({ email: undefined, phone: undefined });
 });

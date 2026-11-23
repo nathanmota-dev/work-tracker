@@ -12,6 +12,13 @@ export function listAnswerVariants(d: Database = db()): StoredAnswer[] {
     ORDER BY category, key, language`).all() as StoredAnswer[];
 }
 
+/** The default email and phone answers, for checking that a resume's text layer carries them. */
+export function contactIdentity(d: Database = db()): { email?: string; phone?: string } {
+  const rows = d.query("SELECT key, value FROM applicant_answers WHERE key IN ('email', 'phone')").all() as { key: string; value: string | null }[];
+  const value = (key: string) => rows.find(row => row.key === key)?.value?.trim() || undefined;
+  return { email: value("email"), phone: value("phone") };
+}
+
 export function parseAnswer(input: unknown) {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new AnswerError("Provide an answer object.");
   const body = input as Record<string, unknown>;
