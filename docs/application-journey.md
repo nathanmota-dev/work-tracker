@@ -258,3 +258,54 @@ aparece recolhido como "Base resume configured / missing". Após confirmar o
 envio, "View it on the board" abre `/applications?view=board` com o card
 destacado.
 
+
+## Candidaturas sem resposta
+
+A varredura lista candidaturas enviadas que ficaram em silêncio e permite
+fechá-las em lote como **No response**, sempre com confirmação. Não muda o
+schema, as etapas configuráveis, os motivos de arquivamento nem o modelo da
+jornada.
+
+- **Candidatas:** `tracking_status = 'active'`, `submission_status =
+  'submitted'` e etapa atual de categoria diferente de **Offer** (uma oferta em
+  silêncio não é falta de resposta). Rascunhos, preparadas, preenchidas e
+  arquivadas nunca entram, porque nada foi enviado ou já foram fechadas.
+- **Relógio de atividade:** a data mais recente entre `submitted_at`,
+  `applied_at`, `application_events.occurred_at` e
+  `application_transitions.occurred_at` (`lastActivityAt` em
+  `src/applications/quiet.ts`). `updated_at` não conta, porque muda a cada
+  edição. Os dias são inteiros (`floor`): com o limiar de 60, quem está há
+  exatamente 60 dias entra.
+- **Limiar:** padrão de 60 dias (`STALE_DAYS`), ajustável de 7 (`MIN_DAYS`) a
+  3650. Valor inválido ou menor que 7 devolve 400 na API e erro no CLI.
+- **Datas ilegíveis:** nunca são adivinhadas. Se uma data recente legível já
+  prova atividade, a candidatura simplesmente não está em silêncio; senão, ela
+  vai para `skipped` com o motivo (data ilegível ou nenhuma data) e fica aberta.
+- **Fechamento:** `quiet/resolve` recebe os IDs escolhidos (todos ou uma
+  seleção) e, numa transação, revalida cada um contra a varredura atual. Quem
+  continua em silêncio é arquivado pela mesma função `archive` do quadro, com
+  motivo `no_response` e a nota `Closed by quiet sweep (N days without
+  activity)`; cada fechamento registra um evento `archived`. Quem teve atividade
+  entre a listagem e a confirmação volta em `skipped` como "No longer quiet", e
+  quem já foi arquivado como "Already archived". Repetir a ação não duplica
+  eventos e só emite `changed` (`applications`, `application_events`) quando
+  algo foi fechado.
+- **Reabrir:** continua sendo a ação atual do quadro e devolve a candidatura à
+  etapa em que estava. O evento `reopened` reinicia o relógio.
+
+Superfícies:
+
+- API: `GET /api/application-board/quiet[?days=N]` devolve `{ days, items,
+  skipped }`, com `id`, `company_name`, `role_title`, `stage_name`,
+  `stage_category`, `applied_at`, `last_activity_at` e `days_quiet` por item,
+  do mais silencioso para o menos. `POST /api/application-board/quiet/resolve`
+  com `{ ids, days? }` devolve `{ resolved, skipped: [{ id, reason }] }`.
+- CLI: `work-tracker application quiet [--days N]` imprime a varredura em JSON
+  (usada pelas skills de follow-up).
+- Applications: nos modos List e Board, o banner "N applications quiet for 60+
+  days" aparece só quando há candidatas; "Review" abre a tabela (empresa, cargo,
+  etapa, enviada em, dias sem atividade) com seleção por linha e "Select all", o
+  campo do limiar e "Close selected as No response", que pede confirmação com a
+  contagem e depois mostra o que foi fechado e o que ficou em `skipped`.
+- Dashboard: `overview().quiet` conta as candidatas do limiar padrão e aparece
+  no painel da jornada como link para Applications.

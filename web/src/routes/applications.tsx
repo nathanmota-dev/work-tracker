@@ -11,6 +11,7 @@ import {
 import { ApplicationReview } from "@/components/application-review"
 import { JobLinkDialog } from "@/components/job-link-dialog"
 import { PreparationQueue } from "@/components/preparation-queue"
+import { QuietApplications } from "@/components/quiet-applications"
 import {
   ApplicationBoardView,
   BoardDialogs,
@@ -120,6 +121,7 @@ export function ApplicationsPage() {
         onOpenChange={(review) => update({ review })}
       />
       <PreparationQueue />
+      <QuietApplications />
       <Tabs value={layout} onValueChange={(view) => update({ view })}>
         <TabsList aria-label="Applications layout">
           <TabsTrigger value="list">List</TabsTrigger>

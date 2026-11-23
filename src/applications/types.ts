@@ -20,6 +20,11 @@ export const ARCHIVE_REASONS = {
   hired: "Hired",
 } as const;
 
+/** Days without activity after which a submitted application counts as quiet. */
+export const QUIET_STALE_DAYS = 60;
+/** Smallest sweep threshold, so a sweep never closes applications sent days ago. */
+export const QUIET_MIN_DAYS = 7;
+
 export type RoleType = keyof typeof ROLE_TYPES;
 export type StageCategory = keyof typeof STAGE_CATEGORIES;
 export type ArchiveReason = keyof typeof ARCHIVE_REASONS;
@@ -107,6 +112,41 @@ export interface ApplicationActions {
   "stages/save": { id?: number; name: string; category?: StageCategory };
   "stages/reorder": { ids: number[] };
   "stages/set-archived": { id: number; archived: boolean };
+  /** Read-only scan; `days` defaults to 60 and must be at least 7. */
+  quiet: { days?: number };
+  /** Close the selected quiet applications as "No response". */
+  "quiet/resolve": { ids: number[]; days?: number };
+}
+
+/** A submitted, active application with no activity for at least the threshold. */
+export interface QuietApplication {
+  id: number;
+  company_name: string | null;
+  role_title: string | null;
+  stage_name: string;
+  stage_category: StageCategory;
+  applied_at: string | null;
+  last_activity_at: string;
+  days_quiet: number;
+}
+/** A candidate left out because its dates cannot be read; it is never guessed. */
+export interface QuietSkipped {
+  id: number;
+  company_name: string | null;
+  role_title: string | null;
+  reason: string;
+}
+export interface QuietApplications {
+  /** Threshold the scan used, in days without activity. */
+  days: number;
+  items: QuietApplication[];
+  skipped: QuietSkipped[];
+}
+
+/** Outcome of closing quiet applications; `skipped` explains each ID left open. */
+export interface QuietResolution {
+  resolved: number[];
+  skipped: { id: number; reason: string }[];
 }
 
 /** Fields Apply needs to prepare a resume for a job. */

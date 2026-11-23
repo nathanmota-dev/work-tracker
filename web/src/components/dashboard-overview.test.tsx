@@ -129,3 +129,13 @@ it.each([
   render(<DashboardOverview />)
   expect(screen.getByRole("link", { name })).toHaveAttribute("href", href)
 })
+it("links quiet applications to Applications only when some are quiet", () => {
+  const instance = render(<DashboardOverview />)
+  expect(screen.queryByText(/quiet for 60\+ days/)).not.toBeInTheDocument()
+  records.overview = { ...(records.overview as object), quiet: 2 }
+  instance.rerender(<DashboardOverview />)
+  expect(screen.getByRole("link", { name: "2 applications quiet for 60+ days" })).toHaveAttribute("href", "/applications")
+  records.overview = { ...(records.overview as object), quiet: 1 }
+  instance.rerender(<DashboardOverview />)
+  expect(screen.getByRole("link", { name: "1 application quiet for 60+ days" })).toBeInTheDocument()
+})

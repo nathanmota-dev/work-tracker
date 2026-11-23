@@ -11,10 +11,10 @@ vi.mock("./store.ts", async (original) => ({
   listApplicationBoard: vi.fn(),
 }));
 const broadcast = vi.fn();
-const call = (action = "", method = "POST", body = "{}") =>
+const call = (action = "", method = "POST", body = "{}", query = "") =>
   handleApplicationBoard(
     `/api/application-board${action ? `/${action}` : ""}`,
-    new Request("http://local", {
+    new Request(`http://local/api/application-board${action ? `/${action}` : ""}${query}`, {
       method,
       ...(method === "POST" ? { body } : {}),
     }),
@@ -52,6 +52,7 @@ test.each([
   "stages/save",
   "stages/reorder",
   "stages/set-archived",
+  "quiet/resolve",
 ])("dispatches %s and only broadcasts returned changes", async (action) => {
   vi.mocked(executeApplicationAction).mockReturnValue({
     value: [],
@@ -64,6 +65,26 @@ test.each([
     [{ type: "changed", table: "applications" }],
     [{ type: "changed", table: "application_events" }],
   ]);
+});
+test("scans quiet applications with GET and the query string, without notifying", async () => {
+  vi.mocked(executeApplicationAction).mockReturnValue({
+    value: { days: 90, items: [], skipped: [] },
+    changed: [],
+  });
+  const response = await call("quiet", "GET", undefined, "?days=90&token=secret");
+  expect(await response.json()).toEqual({ days: 90, items: [], skipped: [] });
+  expect(executeApplicationAction).toHaveBeenLastCalledWith("quiet", { days: "90" });
+  await call("quiet", "GET");
+  expect(executeApplicationAction).toHaveBeenLastCalledWith("quiet", {});
+  expect((await call("quiet", "POST")).status).toBe(405);
+  expect((await call("quiet/resolve", "GET")).status).toBe(405);
+  vi.mocked(executeApplicationAction).mockImplementation(() => {
+    throw new ApplicationBoardError("Days without activity must be a whole number from 7 to 3650.");
+  });
+  const invalid = await call("quiet", "GET", undefined, "?days=3");
+  expect(invalid.status).toBe(400);
+  expect(await invalid.json()).toEqual({ error: "Days without activity must be a whole number from 7 to 3650." });
+  expect(broadcast).not.toHaveBeenCalled();
 });
 test("does not notify for no-op or failures and preserves domain status", async () => {
   await call("move");

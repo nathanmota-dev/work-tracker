@@ -2,6 +2,7 @@ import { db } from "../db/index.ts";
 import { now } from "../db/index.ts";
 import { dueAttempts, getBudget } from "../outreach/store.ts";
 import { applicationSummary, phaseSql, viewSql } from "../applications/journey-summary.ts";
+import { quietApplications } from "../applications/quiet.ts";
 
 /** Parse a breakdown_json blob into a normalized array of {label, value} items. */
 function parseBreakdown(raw: string | null | undefined): Array<{ label: string; value: string }> | null {
@@ -54,6 +55,8 @@ export const queries = {
       breakdown: parseBreakdown(latest?.breakdown_json),
       ...(counts as object),
       journey: applicationSummary(d),
+      /** Submitted applications without activity for the default sweep threshold. */
+      quiet: quietApplications(d).items.length,
     };
   },
 
