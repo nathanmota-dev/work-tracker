@@ -2,6 +2,8 @@ import { db } from "../db/index.ts";
 import { notifyChange } from "../db/notify.ts";
 import { saveJob } from "../jobs/store.ts";
 import { guardVerdict } from "../postings/description.ts";
+import { rankingState } from "../rankings/list.ts";
+import type { RankingStatus } from "../rankings/types.ts";
 import { gateVerdict } from "../gates/stored.ts";
 import { type Flags, str } from "./flags.ts";
 
@@ -15,9 +17,15 @@ const columns: Record<string, string> = {
 export async function jobCmd(sub: string, flags: Flags): Promise<void> {
   if (sub === "list") {
     // Agents see the verdicts only: the stored excerpts quote content hidden from the reader.
-    const jobs = db().query("SELECT * FROM jobs ORDER BY scouted_at DESC, id DESC").all() as Record<string, unknown>[];
-    console.log(JSON.stringify(jobs.map(({ description_guard_json, gate_json, ...job }) =>
-      ({ ...job, guard_verdict: guardVerdict(description_guard_json), gate_verdict: gateVerdict(gate_json) })), null, 2));
+    const jobs = db().query(`SELECT j.*, r.status AS ranking_status, r.overall AS ranking_overall
+      FROM jobs j LEFT JOIN job_rankings r ON r.job_id = j.id ORDER BY j.scouted_at DESC, j.id DESC`).all() as Record<string, unknown>[];
+    console.log(JSON.stringify(jobs.map(({ description_guard_json, gate_json, ranking_status, ...job }) => ({
+      ...job,
+      guard_verdict: guardVerdict(description_guard_json),
+      gate_verdict: gateVerdict(gate_json),
+      // A passed deadline reads as expired, exactly like the dashboard.
+      ranking_status: rankingState((ranking_status ?? null) as RankingStatus | null, (job.deadline ?? null) as string | null).status,
+    })), null, 2));
     return;
   }
   if (sub === "gate") {

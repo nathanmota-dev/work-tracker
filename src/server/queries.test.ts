@@ -243,6 +243,18 @@ test.each(["jobs", "applications"] as const)("%s adds the pending deadline urgen
   expect(sent).not.toHaveProperty(name === "jobs" ? "sent" : "pending");
   expect(queries[name]()).toEqual([]);
 });
+test("jobs derives the ranking state from the saved ranking and the deadline", () => {
+  d.statement.all.mockReturnValueOnce([
+    { id: 1, deadline: null, sent: 0, archived_at: null, ranking_saved: "scored", ranking_overall: 78 },
+    { id: 2, deadline: "2000-01-01", sent: 0, archived_at: null, ranking_saved: "scored", ranking_overall: 90 },
+    { id: 3, deadline: null, sent: 0, archived_at: null, ranking_saved: null },
+  ]);
+  const [scored, lapsed, unranked] = queries.jobs();
+  expect(scored).toMatchObject({ ranking_status: "scored", ranking_overall: 78, ranking_expired_reason: null, closing_soon: false });
+  expect(scored).not.toHaveProperty("ranking_saved");
+  expect(lapsed).toMatchObject({ ranking_status: "expired", ranking_expired_reason: "deadline" });
+  expect(unranked).toMatchObject({ ranking_status: null, closing_soon: false });
+});
 test("jobs report the requirement verdict and whether a pass is unverified, never the stored quotes", () => {
   const gate = (verdict: string, unverified: boolean) => JSON.stringify({ verdict, unverified, extraction: { languages: [] }, language: { findings: [{ quote: "Fluent Russian" }] } });
   d.statement.all.mockReturnValueOnce([

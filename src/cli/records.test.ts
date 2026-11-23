@@ -79,8 +79,8 @@ test("job list reports the posting and requirement verdicts without the stored q
   await jobCmd("list", {});
   const listed = JSON.parse(String(output.log.mock.calls[0]![0])) as Record<string, unknown>[];
   expect(listed).toEqual([
-    { id: 2, title: "Old", guard_verdict: "Not checked", gate_verdict: "unchecked" },
-    { id: 3, title: "Checked", guard_verdict: "Not checked", gate_verdict: "fail" },
+    { id: 2, title: "Old", guard_verdict: "Not checked", gate_verdict: "unchecked", ranking_status: null },
+    { id: 3, title: "Checked", guard_verdict: "Not checked", gate_verdict: "fail", ranking_status: null },
   ]);
 });
 test("job gate is handled by the gates command", async () => {

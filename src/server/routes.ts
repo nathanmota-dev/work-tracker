@@ -19,6 +19,7 @@ import { handleOnboarding } from "../onboarding/http.ts";
 import { handleInterviewPreps } from "../interview-prep/http.ts";
 import { handleFollowups } from "../followups/http.ts";
 import { handleCompanyResearch } from "../company-research/http.ts";
+import { handleRankings } from "../rankings/http.ts";
 import { handleGates } from "../gates/http.ts";
 
 type Acp = Pick<SessionManager, "run" | "cancel"> & Partial<Pick<SessionManager, "isRunning" | "permissions">>;
@@ -130,6 +131,7 @@ export async function routeApi(path: string, req: Request, context: Context): Pr
   if (path === "/api/answer" || path.startsWith("/api/answer/") || path.startsWith("/api/answers/")) return handleAnswer(path, req, context.broadcast);
   if (path === "/api/interview-preps" || path.startsWith("/api/interview-preps/")) return handleInterviewPreps(path, req);
   if (path === "/api/followups" || path.startsWith("/api/followups/")) return handleFollowups(path, req, context.broadcast);
+  if (path === "/api/rankings" || path.startsWith("/api/rankings/")) return handleRankings(path, req);
   if (path === "/api/company-research" || path.startsWith("/api/company-research/")) return handleCompanyResearch(path, req, context.broadcast);
   if (path.startsWith("/api/gates/")) return handleGates(path, req, context.broadcast);
   if (path.startsWith("/api/onboarding/")) return handleOnboarding(path, req, context.broadcast);

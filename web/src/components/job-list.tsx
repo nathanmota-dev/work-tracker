@@ -16,6 +16,8 @@ import { byDeadline } from "@/lib/deadline"
 import { NextStepAction, originLabel, phaseLabel } from "@/components/application-list"
 import { RowGateBadge } from "@/components/gate-badge"
 import { CheckRequirements, useHideFailed } from "@/components/gate-filter"
+import { RankNewRoles, RankSelected, RankingRunSummary, RankingScore } from "@/components/job-ranking-action"
+import { byScore } from "@/lib/ranking"
 
 /** The job's latest application attempt, shaped like an Applications row. */
 export function linkedApplication(job: Row): Row | undefined {
@@ -100,6 +102,11 @@ export function jobColumns(actions: (row: Row) => ReactNode, arrived: number[] =
       key: "fit",
       label: "Fit",
       render: (r) => <Status value={r.fit} />,
+    },
+    {
+      key: "ranking_overall",
+      label: "Score",
+      render: (r) => <RankingScore row={r} />,
     },
     {
       key: "gate_verdict",
@@ -211,12 +218,13 @@ export function JobTabs({
 }) {
   const { search, update } = useWorkspaceState("jobs")
   const view = search.view ?? "new"
-  const [byDue, setByDue] = useState(false)
+  const [order, setOrder] = useState<"saved" | "deadline" | "score">("saved")
   const fresh = active.filter(row => !row.shortlisted_at)
   const shortlist = active.filter(row => !!row.shortlisted_at)
   const all = view === "archived" ? archived : view === "shortlist" ? shortlist : fresh
   const failed = useHideFailed(view, all)
-  const rows = byDue ? byDeadline(failed.rows) : failed.rows
+  const listed = failed.rows
+  const rows = order === "deadline" ? byDeadline(listed) : order === "score" ? byScore(listed) : listed
   return (
     <Tabs value={view} onValueChange={view => update({ view, page: 0, q: "", status: "", selected: "", selection: [] })}>
       <TabsList aria-label="Job archive filter">
@@ -227,10 +235,15 @@ export function JobTabs({
         </TabsTrigger>
       </TabsList>
       <TabsContent value={view}>
-        <div className="mb-4 flex flex-wrap items-center gap-4">
-          <DeadlineSort active={byDue} onToggle={() => setByDue(value => !value)} />
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <DeadlineSort active={order === "deadline"} onToggle={() => setOrder(value => value === "deadline" ? "saved" : "deadline")} />
+          <Button size="sm" variant="outline" aria-pressed={order === "score"} onClick={() => setOrder(value => value === "score" ? "saved" : "score")}>
+            {order === "score" ? "Sorted by score" : "Sort by score"}
+          </Button>
           {failed.control}
         </div>
+        {view === "new" && <RankNewRoles />}
+        {view !== "archived" && <RankingRunSummary />}
         {view === "archived" && (
           <p className="mb-4 text-sm text-muted-foreground">
             Archived roles stay saved and are excluded from future shortlists.
@@ -242,12 +255,13 @@ export function JobTabs({
           selectionRows={rows}
           rowKey={row => String(row.id)} rowLabel={row => text(row.title)}
           canSelect={() => true} busy={false} selectAllLabel="Select all filtered results"
-          action={(jobs, clear) => <>
-            {view === "new"
-              ? <JobTriage jobs={jobs} onMutate={onMutate} onDone={clear} />
-              : <BatchPreparation jobs={jobs} onCreated={clear} />}
-            {view !== "archived" && <CheckRequirements jobs={jobs} />}
-          </>}
+          action={(jobs, clear) => view === "archived"
+            ? <BatchPreparation jobs={jobs} onCreated={clear} />
+            : <>
+              {view === "new" ? <JobTriage jobs={jobs} onMutate={onMutate} onDone={clear} /> : <BatchPreparation jobs={jobs} onCreated={clear} />}
+              <RankSelected jobs={jobs} />
+              <CheckRequirements jobs={jobs} />
+            </>}
           rows={rows}
           noun={view === "archived" ? "Archived opportunities" : "Opportunities"}
           empty={view === "archived" ? undefined : <NextStepHint fallback={view === "new" ? "Search LinkedIn above or add a job by hand to start your list." : "Move roles from New to build your shortlist."} />}

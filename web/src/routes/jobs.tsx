@@ -27,6 +27,7 @@ import { openApply } from "@/lib/preparation"
 import { prepareSkill } from "@/lib/agent"
 import { JobForm, postingNotice, type JobSaveResult } from "@/components/job-form"
 import { PostingCheck } from "@/components/posting-check"
+import { RankingDetail } from "@/components/ranking-detail"
 import { GateDetails } from "@/components/gate-badge"
 import { useWorkspaceState } from "@/lib/workspace-state"
 import { applyLabel } from "@/lib/application-journey"
@@ -92,6 +93,7 @@ function JobDetailActions({
           Restore this role before preparing a new application.
         </p>
       )}
+      {selected && <RankingDetail jobId={selected.id} />}
       {selected && (
         <JobApplication job={selected} />
       )}
@@ -273,7 +275,7 @@ export function JobsPage() {
       )}
       <Details
         row={selected}
-        omit={["description_guard_json", "gate_verdict", "gate_unverified"]}
+        omit={["description_guard_json", "gate_verdict", "gate_unverified", "ranking_status", "ranking_overall", "ranking_verdict", "ranking_attempts", "ranking_expired_reason", "closing_soon"]}
         title={text(selected?.title)}
         onClose={() => setSelectedId(null)}
       >

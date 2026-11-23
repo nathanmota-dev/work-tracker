@@ -51,6 +51,8 @@ function baseSkillPrompt(skill: string, params: Record<string, string>): string 
       return interviewPrepPrompt(params);
     case "followup":
       return followupPrompt(params);
+    case "job-ranking":
+      return rankingPrompt(params);
     case "requirements-check":
       return `Use the work-tracker-requirements-check skill for these saved jobs: ${params.jobIds?.trim() || "(none provided)"}. Quote the posting for every language and eligibility requirement and store each check with \`work-tracker job gate\`. Never archive or delete a job.`;
     default:
@@ -81,6 +83,16 @@ function followupPrompt(params: Record<string, string>): string {
   return `Use the work-tracker-followup skill to draft a ${thankYou ? "thank-you note (kind thank_you)" : "follow-up (kind follow_up)"} for application #${params.applicationId ?? "(none provided)"}.${
     details.length ? ` ${details.join(". ")}.` : ""
   } Store the draft with \`work-tracker followup save\` and never send it; I will send it myself.`;
+}
+
+function rankingPrompt(params: Record<string, string>): string {
+  const ids = params.jobIds?.split(",").map((id) => id.trim()).filter((id) => /^[1-9]\d*$/.test(id)) ?? [];
+  const limit = /^[1-9]\d{0,2}$/.test(params.limit?.trim() ?? "") ? params.limit!.trim() : "";
+  const all = params.all === "true";
+  const flags = [limit && `--limit ${limit}`, all && "--all", ids.length && `--job-ids ${ids.join(",")}`].filter(Boolean).join(" ");
+  return `Use the work-tracker-job-ranking skill to triage ${ids.length ? `the selected jobs #${ids.join(", #")}` : "my new saved roles"}${
+    all ? ", re-ranking jobs that were already ranked" : ""
+  }. Start with \`work-tracker ranking candidates${flags ? ` ${flags}` : ""}\` and store each posting with \`work-tracker ranking save\` right after scoring it. These are triage scores from the posting text only.`;
 }
 
 function profileTarget(params: Record<string, string>): string {

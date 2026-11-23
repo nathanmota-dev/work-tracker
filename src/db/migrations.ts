@@ -77,8 +77,10 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 14, name: "posting integrity guard", up: ensureCurrentSchema },
   { version: 15, name: "company research cache", up: ensureCurrentSchema },
   { version: 16, name: "follow-up drafts", up: ensureCurrentSchema },
+  // Additive: no job is ranked until the triage skill runs.
+  { version: 17, name: "job rankings", up: ensureCurrentSchema },
   // Additive: existing jobs keep gate_json null and read as "Not checked".
-  { version: 17, name: "requirement gates", up: ensureCurrentSchema },
+  { version: 18, name: "requirement gates", up: ensureCurrentSchema },
 ];
 
 /** Keeps pre-triage jobs in the shortlist; very old workspaces may lack `scouted_at`. */

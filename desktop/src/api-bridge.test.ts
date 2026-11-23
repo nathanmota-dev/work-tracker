@@ -145,6 +145,18 @@ describe("api bridge", () => {
       await expect(request({}, invalid)).rejects.toThrow("Unsupported API request")
     await expect(request({}, "followups", {})).rejects.toThrow("Unsupported API request")
   })
+  it("allows reading rankings and previewing ranking candidates with a selection or all", async () => {
+    connectApiBridge({ address: "http://127.0.0.1:4000", token: "fixture" })
+    const fetch = vi.fn(async () => new Response("[]"))
+    vi.stubGlobal("fetch", fetch)
+    const request = electron.handlers.get("api:request")!
+    for (const path of ["rankings", "rankings/candidates", "rankings/candidates?all=true", "rankings/candidates?job_ids=1,2", "rankings/candidates?all=true&job_ids=3"])
+      expect(await request({}, path)).toEqual([])
+    expect(fetch).toHaveBeenLastCalledWith(expect.objectContaining({ pathname: "/api/rankings/candidates", search: "?all=true&job_ids=3&token=fixture" }), expect.objectContaining({ method: "GET" }))
+    for (const invalid of ["rankings/candidates?job_ids=0", "rankings/candidates?all=1", "rankings/candidates?limit=5", "rankings/candidates?job_ids=1&x=2", "rankings/other"])
+      await expect(request({}, invalid)).rejects.toThrow("Unsupported API request")
+    await expect(request({}, "rankings", {})).rejects.toThrow("Unsupported API request")
+  })
   it("allows reading the cached research of one company and invalidating it", async () => {
     connectApiBridge({ address: "http://127.0.0.1:4000", token: "fixture" })
     const fetch = vi.fn(async () => new Response("{}"))
