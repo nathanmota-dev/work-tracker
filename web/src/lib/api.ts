@@ -64,12 +64,15 @@ const dependencies: Record<string, string[]> = {
   "gates/jobs": ["jobs", "candidate_languages", "gate_profile"],
   "profile-sources": ["profile_imports"],
   "resume-variants": ["resume_variants"],
+  "ats/best": ["jobs", "resume_variants"],
+  "ats/jobs": ["jobs", "resume_variants", "application_runs", "applications"],
 }
 /** Dependency entry of a read path: parameterized paths share their base entry. */
 function dependencyKey(path: string) {
   if (path.startsWith("preparation-batches/")) return "preparation-batches"
   if (path.startsWith("interview-preps/")) return "interview-preps"
   if (path.startsWith("gates/jobs/")) return "gates/jobs"
+  if (path.startsWith("ats/jobs/")) return "ats/jobs"
   return path.split("?")[0]
 }
 export function useApi<T>(path: string) {

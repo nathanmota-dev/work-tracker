@@ -53,6 +53,12 @@ A coluna **Score** mostra a nota de triagem como texto (“78 · Strong fit”),
 
 Dimensões, pesos, faixas e a regra de desistência estão em [features-e-fluxos.md](features-e-fluxos.md#14-triagem-em-lote-das-vagas-salvas).
 
+## Nota ATS dos currículos
+
+A coluna **Resume match** mostra o currículo salvo que melhor cobre as palavras-chave de cada vaga (“82 · Back-End · C#, .NET”) e a faixa em texto: “Strong match” (≥ 70, verde), “Partial match” (50–69, amarelo) ou “Weak match” (< 50, vermelho). Sem variantes prontas, a nota é a do currículo base. Uma descrição com menos de 3 termos reconhecidos mostra “Not enough keywords”. **Sort: Best resume match** ordena pela nota. O detalhe da vaga lista a nota de cada currículo com os termos ausentes e cobertos, obrigatórios primeiro.
+
+É uma estimativa de cobertura de palavras-chave, como fazem os filtros de ATS baseados em palavras-chave, e não uma previsão de contratação. A coluna **Score** continua sendo a triagem do perfil inteiro; as duas notas medem coisas diferentes. Editar a descrição, regenerar ou arquivar uma variante atualiza as notas na leitura seguinte. Detalhes do vocabulário, pesos e cache em [features-e-fluxos.md](features-e-fluxos.md#17-nota-ats-de-cada-currículo-por-vaga).
+
 ## Verificação de integridade da descrição
 
 Toda descrição de vaga passa por uma guarda determinística (`src/postings/guard/`, portada do `tools/posting_guard.py` do `ai-job-search`) antes de ser gravada: no formulário de vaga, em `POST /api/jobs/create|update`, em `work-tracker job save|update --description`, na descrição colada no Apply, na descrição obtida do LinkedIn por `ensureDescription` e na vaga criada ou vinculada a partir de uma candidatura manual. Só o **texto limpo** é gravado em `jobs.description`; o resultado (veredito, contagens e trechos curtos, no máximo dez por classe) fica em `jobs.description_guard_json`.

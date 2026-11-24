@@ -5,13 +5,17 @@ import { publish, type Row } from "@/lib/api"
 
 const request = vi.fn()
 let jobs: Row[]
+let best: unknown[]
 beforeEach(() => {
+  best = []
   jobs = [
     { id: 1, title: "Engineer", company_name: "Acme", status: "saved", archived_at: null },
     { id: 2, title: "Old role", company_name: "Other", status: "applied", archived_at: "2026-01-01T12:00:00Z" },
   ]
   request.mockReset().mockImplementation(async (path: string, body?: { id: number }) => {
     if (path === "jobs") return structuredClone(jobs)
+    if (path === "ats/best") return structuredClone(best)
+    if (path.startsWith("ats/jobs/")) return { job_id: 1, keywords: [], documents: [] }
     const job = jobs.find((row) => row.id === body?.id)!
     if (path === "jobs/archive") job.archived_at = "2026-10-11T12:00:00Z"
     if (path === "jobs/restore") job.archived_at = null
@@ -231,4 +235,30 @@ it("collapses failed jobs in New, shows each requirements verdict and checks req
   fireEvent.click(details.getByRole("button", { name: "Check requirements" }))
   expect(prepareSkill).toHaveBeenLastCalledWith("requirements-check", { jobIds: "3" })
   prepareSkill.mockRestore()
+})
+
+it("shows each job's best resume match, sorts by it and colors the triage badge", async () => {
+  jobs = [
+    { id: 1, title: "Plain", company_name: "Acme", archived_at: null },
+    { id: 3, title: "Node role", company_name: "Acme", archived_at: null, ranking_status: "scored", ranking_overall: 50, ranking_verdict: "Moderate Fit" },
+    { id: 4, title: "C# role", company_name: "Acme", archived_at: null, ranking_status: "scored", ranking_overall: 80, ranking_verdict: "Strong Fit" },
+    { id: 5, title: "Vague role", company_name: "Acme", archived_at: null },
+  ]
+  best = [
+    { job_id: 3, document_key: "variant:n", variant_id: "n", label: "Back-End · Node.js", score: 55, band: "partial" },
+    { job_id: 4, document_key: "variant:c", variant_id: "c", label: "Back-End · C#", score: 90, band: "strong" },
+    { job_id: 5, document_key: "variant:c", variant_id: "c", label: "Back-End · C#", score: null, band: null },
+  ]
+  render(<JobsPage />)
+  expect(await screen.findByText("90 · Back-End · C#")).toBeInTheDocument()
+  expect(screen.getByRole("columnheader", { name: "Resume match" })).toBeInTheDocument()
+  expect(screen.getByText("90 · Back-End · C#").parentElement).toHaveTextContent("Strong match")
+  expect(screen.getByText("55 · Back-End · Node.js").parentElement).toHaveAttribute("data-tone", "warn")
+  expect(screen.getByText("Not enough keywords")).toBeInTheDocument()
+  expect(screen.getByText("80 · Strong fit")).toHaveAttribute("data-tone", "good")
+  expect(screen.getByText("50 · Moderate fit")).toHaveAttribute("data-tone", "warn")
+  choose("Sort jobs", "Sort: Best resume match")
+  expect(screen.getAllByRole("button", { name: /^View / }).map(button => button.getAttribute("aria-label"))).toEqual(["View C# role", "View Node role", "View Plain", "View Vague role"])
+  fireEvent.click(screen.getByRole("button", { name: "View C# role" }))
+  expect(within(screen.getByRole("dialog")).queryByText("ats match")).not.toBeInTheDocument()
 })

@@ -12,6 +12,7 @@ beforeEach(() => {
   jobs = []
   request.mockReset().mockImplementation(async (path: string, body: Row) => {
     if (path === "jobs") return structuredClone(jobs)
+    if (path.startsWith("ats/")) return []
     const existing = jobs.find(job => job.link && job.link === body.link)
     const job = path === "jobs/update" ? { ...jobs.find(job => job.id === body.id), ...body } : existing ?? { ...body, id: jobs.length + 1 }
     if (!existing || path === "jobs/update") jobs = [...jobs.filter(row => row.id !== job.id), job]
@@ -34,6 +35,7 @@ it("saves a draft after correcting a failure, edits it and opens preparation wit
   fill("Role title", "External Engineer")
   fill("Company name", "Synthetic Corp")
   expect(screen.getByText("Missing for preparation: job link, job description.")).toBeInTheDocument()
+  await waitFor(() => expect(request).toHaveBeenCalledWith("ats/best", undefined))
   request.mockRejectedValueOnce(new Error("Enter a valid job URL"))
   fireEvent.click(screen.getByRole("button", { name: "Save job" }))
   expect(await screen.findByRole("alert")).toHaveTextContent("Enter a valid job URL")

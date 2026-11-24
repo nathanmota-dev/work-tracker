@@ -24,6 +24,7 @@ import { handleGates } from "../gates/http.ts";
 import { handleProfileSources } from "../profile/http.ts";
 import { VariantService } from "../variants/service.ts";
 import { handleVariants } from "../variants/http.ts";
+import { handleAts } from "../ats/http.ts";
 
 type Acp = Pick<SessionManager, "run" | "cancel"> & Partial<Pick<SessionManager, "isRunning" | "permissions">>;
 type Broadcast = (event: unknown) => void;
@@ -135,6 +136,7 @@ export async function routeApi(path: string, req: Request, context: Context): Pr
   if (path === "/api/interview-preps" || path.startsWith("/api/interview-preps/")) return handleInterviewPreps(path, req);
   if (path === "/api/followups" || path.startsWith("/api/followups/")) return handleFollowups(path, req, context.broadcast);
   if (path === "/api/rankings" || path.startsWith("/api/rankings/")) return handleRankings(path, req);
+  if (path.startsWith("/api/ats/")) return handleAts(path, req);
   if (path === "/api/company-research" || path.startsWith("/api/company-research/")) return handleCompanyResearch(path, req, context.broadcast);
   if (path.startsWith("/api/gates/")) return handleGates(path, req, context.broadcast);
   if (path === "/api/profile-sources" || path.startsWith("/api/profile-sources/")) return handleProfileSources(path, req, context.broadcast);

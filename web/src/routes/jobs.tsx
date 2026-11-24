@@ -19,7 +19,6 @@ import {
   JobApplication,
   JobStats,
   JobTabs,
-  jobColumns,
   linkedApplication,
 } from "@/components/job-list"
 import { useApi, request, text, type Row } from "@/lib/api"
@@ -28,6 +27,9 @@ import { prepareSkill } from "@/lib/agent"
 import { JobForm, postingNotice, type JobSaveResult } from "@/components/job-form"
 import { PostingCheck } from "@/components/posting-check"
 import { RankingDetail } from "@/components/ranking-detail"
+import { ResumeMatchDetail } from "@/components/resume-match-detail"
+import { jobColumns } from "@/components/job-columns"
+import { useAtsBest, withAtsMatch } from "@/lib/ats"
 import { GateDetails } from "@/components/gate-badge"
 import { useWorkspaceState } from "@/lib/workspace-state"
 import { applyLabel } from "@/lib/application-journey"
@@ -94,6 +96,7 @@ function JobDetailActions({
         </p>
       )}
       {selected && <RankingDetail jobId={selected.id} />}
+      {selected && <ResumeMatchDetail jobId={selected.id} />}
       {selected && (
         <JobApplication job={selected} />
       )}
@@ -176,8 +179,10 @@ function useJobs() {
   const [deleting, setDeleting] = useState<Row | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
-  const active = api.data?.filter((row) => !row.archived_at) ?? []
-  const archived = api.data?.filter((row) => !!row.archived_at) ?? []
+  const ats = useAtsBest()
+  const rows = withAtsMatch(api.data ?? [], ats.data)
+  const active = rows.filter((row) => !row.archived_at)
+  const archived = rows.filter((row) => !!row.archived_at)
 
   async function mutate(action: "archive" | "restore" | "delete" | "shortlist", row: Row) {
     setBusy(true)
@@ -275,7 +280,7 @@ export function JobsPage() {
       )}
       <Details
         row={selected}
-        omit={["description_guard_json", "gate_verdict", "gate_unverified", "ranking_status", "ranking_overall", "ranking_verdict", "ranking_attempts", "ranking_expired_reason", "closing_soon"]}
+        omit={["ats_match", "description_guard_json", "gate_verdict", "gate_unverified", "ranking_status", "ranking_overall", "ranking_verdict", "ranking_attempts", "ranking_expired_reason", "closing_soon"]}
         title={text(selected?.title)}
         onClose={() => setSelectedId(null)}
       >

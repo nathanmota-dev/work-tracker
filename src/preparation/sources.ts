@@ -4,6 +4,7 @@ import { isAbsolute, relative, resolve, join, dirname } from "node:path";
 import { loadConfig, saveConfig } from "../paths.ts";
 import type { ResumeSourcesConfig } from "./types.ts";
 import { isFolder, profileEvidence } from "../profile/evidence.ts";
+import { canonicalSkill } from "../ats/vocabulary.ts";
 
 export class PreparationError extends Error {
   constructor(message: string, public status = 400) { super(message); }
@@ -55,14 +56,13 @@ export function parseResumeData(text: string, extension: string): Record<string,
   for (const key of ["education", "work", "projects", "skills", "techStack"]) {
     if (result[key] !== undefined && !Array.isArray(result[key])) throw new PreparationError(`${key} must be an array.`);
   }
-  const aliases: Record<string, string> = { Node: "Node.js", Next: "Next.js", NextJs: "Next.js", ReactJs: "React", PostrgreSQL: "PostgreSQL", TailwindCSS: "Tailwind CSS", "Amazon S3": "AWS S3", "Amazon EC2": "AWS EC2" };
   const libraries = /^(shadcn[./]ui|nextauth|three\.js|react-icons|@next\/mdx|styled-components|remixicon|swiperjs|scrollreveal|next-intl|framer(?: motion)?)$/i;
   function normalize(obj: unknown): void {
     if (!obj || typeof obj !== "object") return;
     for (const [key, entry] of Object.entries(obj)) {
       if (["skills", "techStack"].includes(key) && Array.isArray(entry)) {
         if (!entry.every(item => typeof item === "string")) throw new PreparationError(`${key} must contain technology names.`);
-        (obj as Record<string, unknown>)[key] = [...new Set(entry.map(item => aliases[item] ?? item.trim()).filter(item => item && !libraries.test(item)))];
+        (obj as Record<string, unknown>)[key] = [...new Set(entry.map(canonicalSkill).filter(item => item && !libraries.test(item)))];
       } else if (Array.isArray(entry)) entry.forEach(normalize);
     }
   }

@@ -1,24 +1,23 @@
-import { useState, type ReactNode } from "react"
+import { useState } from "react"
 import { Archive, ArchiveRestore, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { SelectControl } from "@/components/ui/select-control"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { Stats, Status, controlClass } from "@/components/workspace-ui"
+import { Stats, controlClass } from "@/components/workspace-ui"
 import { type Column } from "@/components/records"
 import { MultiSelectRecords } from "@/components/multi-select-records"
 import { NextStepHint } from "@/components/get-started"
 import { BatchPreparation } from "@/components/batch-preparation"
 import { useWorkspaceState } from "@/lib/workspace-state"
-import { text, date, type Row } from "@/lib/api"
+import { text, type Row } from "@/lib/api"
 import { openApply } from "@/lib/preparation"
 import { applyLabel, nextStep } from "@/lib/application-journey"
-import { DeadlineBadge } from "@/components/deadline-badge"
 import { byDeadline } from "@/lib/deadline"
 import { NextStepAction, originLabel, phaseLabel } from "@/components/application-list"
-import { RowGateBadge } from "@/components/gate-badge"
 import { CheckRequirements, useHideFailed } from "@/components/gate-filter"
-import { RankNewRoles, RankSelected, RankingRunSummary, RankingScore } from "@/components/job-ranking-action"
+import { RankNewRoles, RankSelected, RankingRunSummary } from "@/components/job-ranking-action"
 import { byScore } from "@/lib/ranking"
+import { byAtsMatch } from "@/lib/ats"
 
 /** The job's latest application attempt, shaped like an Applications row. */
 export function linkedApplication(job: Row): Row | undefined {
@@ -79,73 +78,6 @@ export function JobStats({ jobs }: { jobs: Row[] }) {
       ]}
     />
   )
-}
-
-export function jobColumns(actions: (row: Row) => ReactNode, arrived: number[] = []): Column[] {
-  return [
-    {
-      key: "title",
-      label: "Opportunity",
-      render: (r) => (
-        <div>
-          <div className="flex items-center gap-2">
-            <p className="font-medium">{text(r.title)}</p>
-            {arrived.includes(Number(r.id)) && <span className="rounded bg-primary/10 px-2 text-xs text-primary">Just added</span>}
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {text(r.company_name)}
-          </p>
-        </div>
-      ),
-    },
-    { key: "location", label: "Location" },
-    { key: "work_type", label: "Work type" },
-    {
-      key: "fit",
-      label: "Fit",
-      render: (r) => <Status value={r.fit} />,
-    },
-    {
-      key: "ranking_overall",
-      label: "Score",
-      render: (r) => <RankingScore row={r} />,
-    },
-    {
-      key: "gate_verdict",
-      label: "Requirements",
-      render: (r) => <RowGateBadge row={r} />,
-    },
-    {
-      key: "status",
-      label: "Status",
-      render: (r) => <Status value={r.status} />,
-    },
-    {
-      key: "deadline",
-      label: "Deadline",
-      render: (r) => <DeadlineBadge row={r} />,
-    },
-    {
-      key: "application_phase",
-      label: "Application",
-      render: (r) =>
-        linkedApplication(r) ? <Status value={phaseLabel(r.application_phase)} /> : "—",
-    },
-    {
-      key: "scouted_at",
-      label: "Saved",
-      render: (r) => (
-        <span className="text-xs text-muted-foreground">
-          {date(r.scouted_at)}
-        </span>
-      ),
-    },
-    {
-      key: "actions",
-      label: "Actions",
-      render: actions,
-    },
-  ]
 }
 
 function PrepareJob({ row, busy }: { row: Row; busy: boolean }) {
@@ -220,13 +152,13 @@ export function JobTabs({
 }) {
   const { search, update } = useWorkspaceState("jobs")
   const view = search.view ?? "new"
-  const [order, setOrder] = useState<"saved" | "deadline" | "score">("saved")
+  const [order, setOrder] = useState<"saved" | "deadline" | "score" | "match">("saved")
   const fresh = active.filter(row => !row.shortlisted_at)
   const shortlist = active.filter(row => !!row.shortlisted_at)
   const all = view === "archived" ? archived : view === "shortlist" ? shortlist : fresh
   const failed = useHideFailed(view, all)
   const listed = failed.rows
-  const rows = order === "deadline" ? byDeadline(listed) : order === "score" ? byScore(listed) : listed
+  const rows = order === "deadline" ? byDeadline(listed) : order === "score" ? byScore(listed) : order === "match" ? byAtsMatch(listed) : listed
   return (
     <Tabs value={view} onValueChange={view => update({ view, page: 0, q: "", status: "", selected: "", selection: [] })}>
       <TabsList aria-label="Job archive filter">
@@ -251,6 +183,7 @@ export function JobTabs({
               <option value="saved">Sort: Recently saved</option>
               <option value="deadline">Sort: Soonest deadline</option>
               <option value="score">Sort: Highest score</option>
+              <option value="match">Sort: Best resume match</option>
             </SelectControl>
             {failed.control}
             {view === "new" && <RankNewRoles />}

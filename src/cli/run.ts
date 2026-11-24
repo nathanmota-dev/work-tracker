@@ -29,6 +29,8 @@ Usage:
   work-tracker profile sources        Print the profile folder's files, import status and conflicts as JSON
   work-tracker profile import [--force]   Extract the folder's LinkedIn export and reference PDFs (--force: all again)
   work-tracker variant list [--archived]  Print the saved resumes (role, stacks, status, PDF and stale flag) as JSON
+  work-tracker ats best                   Print each job's best resume by ATS keyword score as JSON
+  work-tracker ats score --job-id <n>     Print every resume's ATS keyword score for one job, with covered and missing terms
 
 Write API (used by skills):
   work-tracker recruiter add --name <n> [--company --username --title --location --degree --status --note]
@@ -131,6 +133,10 @@ const commands: Record<string, Command> = {
   variant: async ([sub], flags) => {
     const { variantCmd } = await import("./variants.ts");
     variantCmd(sub ?? "", flags);
+  },
+  ats: async ([sub], flags) => {
+    const { atsCmd } = await import("./ats.ts");
+    atsCmd(sub ?? "", flags);
   },
   recruiter: ([sub], flags) => recruiterCmd(sub ?? "", flags),
   outreach: async ([sub], flags) => {
