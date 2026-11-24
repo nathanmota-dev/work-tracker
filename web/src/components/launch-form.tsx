@@ -149,9 +149,8 @@ export function WorkspaceActions({ agent, onError }: { agent: ReturnType<typeof 
 // Resume tailoring, interview prep and follow-ups run from their own pages, which collect the application first.
 export const launchSkills = skills.filter(s => s.id !== "resume-tailor" && s.id !== "interview-prep" && s.id !== "followup")
 
-export function SkillPicker({ skill, description, disabled, onSkill }: {
+export function SkillPicker({ skill, disabled, onSkill }: {
   skill: string
-  description: string
   disabled: boolean
   onSkill: (skill: string) => void
 }) {

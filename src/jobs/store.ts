@@ -102,8 +102,19 @@ export function saveJob(d: Database, body: unknown, updateId?: number, rediscove
       : d.query(`INSERT INTO jobs (${columns.join(", ")}) VALUES (${columns.map(() => "?").join(", ")}) RETURNING id`).get(...values);
     // A requirements check quotes the description it read; a new description needs a new check.
     if (current && (guarded.description ?? null) !== current.description) d.query("UPDATE jobs SET gate_json = NULL WHERE id = ?").run(current.id);
+    if (current && (guarded.link ?? null) !== current.link) syncApplicationLinks(d, current.id, current.link, guarded.link ?? null);
     return result(d, (job as { id: number }).id, !current, false);
   })();
+}
+
+/**
+ * Unsubmitted applications follow the job's new link unless they hold a different one;
+ * a submitted application keeps the link it was sent through.
+ */
+function syncApplicationLinks(d: Database, jobId: number, previous: string | null, link: string | null): void {
+  d.query(`UPDATE applications SET external_url = ?, updated_at = ?
+    WHERE job_id = ? AND submission_status = 'not_submitted' AND (external_url IS NULL OR external_url = ?)`)
+    .run(link, now(), jobId, previous);
 }
 
 /** A role the user chose (by hand or by applying) skips triage; archived roles stay archived. */
