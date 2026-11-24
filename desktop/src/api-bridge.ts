@@ -40,6 +40,7 @@ const reads = new Set([
 const writes = new Set([
   "integrations",
   "integrations/test",
+  "integrations/install",
   "onboarding/preferences",
   "browser/login",
   "jobs/create",
@@ -105,6 +106,7 @@ const writes = new Set([
   "gates/eligibility",
   "profile-sources/import",
   "profile-sources/choice",
+  "profile-sources/upload",
   "company-research/invalidate",
   "workspace-backup/create",
   "workspace-backup/inspect",

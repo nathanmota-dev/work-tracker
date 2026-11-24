@@ -89,4 +89,12 @@ export interface ProfileSourcesState {
   linkedin: { experiences: number; education: number; skills: number; languages: number; entries: LinkedInExperience[] } | null;
   conflicts: ProfileConflict[];
   warnings: string[];
+  /** True while files of the folder are still being imported in the background. */
+  importing?: boolean;
 }
+/**
+ * One uploaded file. `added` wrote it to the profile folder; `unchanged` found
+ * the same bytes there already; `replace_required` wrote nothing because it
+ * would replace different resume data and `replace` was not set.
+ */
+export interface UploadResult { file: string; kind: "pdf" | "data"; status: "added" | "unchanged" | "replace_required" }

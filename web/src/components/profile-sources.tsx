@@ -1,10 +1,11 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { LoadState, Panel } from "@/components/workspace-ui"
+import { ProfileUpload } from "@/components/profile-upload"
 import { KIND_LABELS, STATUS_LABELS, chooseSource, importAgain, useProfileSources, type ChoiceSource, type LinkedInExperience, type ProfileConflict, type ProfileSourcesState } from "@/lib/profile-sources"
 
 function Files({ state }: { state: ProfileSourcesState }) {
-  if (!state.assets.length) return <p className="text-sm">No data file or PDFs found in the profile folder yet.</p>
+  if (!state.assets.length) return <p className="text-sm">No files in your profile yet. Add your resume PDF, your LinkedIn PDF or your resume data.</p>
   return <ul className="space-y-2 text-sm" aria-label="Profile files">
     {state.assets.map(asset => <li key={asset.file} className="flex flex-wrap items-baseline gap-x-3 border-b pb-2 last:border-0">
       <span className="font-medium break-all">{asset.file}</span>
@@ -59,11 +60,12 @@ export function ProfileSources() {
     finally { setBusy(false) }
   }
   const state = api.data
-  return <Panel title="Profile sources" action={state?.profileDir ? <Button size="sm" variant="outline" disabled={busy} onClick={() => void run(importAgain)}>{busy ? "Working…" : "Import again"}</Button> : undefined}>
-    <p className="mb-4 text-sm text-muted-foreground">Tailored resumes use everything in your profile folder as evidence: the data file, your LinkedIn export (profile → More → Save to PDF) and resumes you already have as PDFs.</p>
+  return <Panel title="Profile sources" action={state?.profileDir && state.assets.length ? <Button size="sm" variant="outline" disabled={busy} onClick={() => void run(importAgain)}>{busy ? "Working…" : "Reimport all"}</Button> : undefined}>
+    <p className="mb-4 text-sm text-muted-foreground">Tailored resumes use everything in your profile as evidence: your resume data, your LinkedIn export (profile → More → Save to PDF) and resumes you already have as PDFs. Files you place in the profile folder are imported automatically.</p>
     <LoadState loading={api.loading && !state} error={api.error} retry={api.refresh} />
     {state && <div className="space-y-4">
-      {!state.profileDir && <p className="text-sm">Choose a profile folder in Resume sources to use your LinkedIn export and other resumes.</p>}
+      <ProfileUpload disabled={busy} onUploaded={api.refresh} />
+      {state.importing && <p role="status" className="text-sm text-muted-foreground">Importing your files…</p>}
       <Files state={state} />
       {state.linkedin && <Extracted linkedin={state.linkedin} />}
       {state.conflicts.length > 0 && <Conflicts conflicts={state.conflicts} busy={busy} choose={(conflict, source) => void run(() => chooseSource(conflict.key, source))} />}

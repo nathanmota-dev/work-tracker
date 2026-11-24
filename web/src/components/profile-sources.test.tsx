@@ -55,7 +55,7 @@ it("decides a conflict, defers it and counts the decided ones", async () => {
 it("imports again and shows failures", async () => {
   vi.mocked(request).mockRejectedValueOnce(new Error("pdftotext missing"))
   render(<ProfileSources />)
-  fireEvent.click(screen.getByRole("button", { name: "Import again" }))
+  fireEvent.click(screen.getByRole("button", { name: "Reimport all" }))
   expect(await screen.findByRole("alert")).toHaveTextContent("pdftotext missing")
   expect(request).toHaveBeenCalledWith("profile-sources/import", { force: true })
   expect(refresh).not.toHaveBeenCalled()
@@ -66,14 +66,20 @@ it("explains an empty or missing profile folder and refreshes after the sources 
   vi.mocked(subscribe).mockImplementation(fn => { listener = fn; return () => {} })
   state = { ...state, profileDir: "", assets: [], linkedin: null, conflicts: [], warnings: [] }
   render(<ProfileSources />)
-  expect(screen.getByText(/Choose a profile folder in Resume sources/)).toBeInTheDocument()
-  expect(screen.getByText("No data file or PDFs found in the profile folder yet.")).toBeInTheDocument()
-  expect(screen.queryByRole("button", { name: "Import again" })).toBeNull()
+  expect(screen.getByText("No files in your profile yet. Add your resume PDF, your LinkedIn PDF or your resume data.")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Add files" })).toBeEnabled()
+  expect(screen.queryByRole("button", { name: "Reimport all" })).toBeNull()
   listener({ type: "other" })
   expect(refresh).not.toHaveBeenCalled()
   listener({ type: "resume-sources-changed" })
   expect(refresh).toHaveBeenCalledOnce()
   expect(publish).not.toHaveBeenCalled()
+})
+
+it("shows that files are being imported in the background", () => {
+  state = { ...state, importing: true }
+  render(<ProfileSources />)
+  expect(screen.getByRole("status")).toHaveTextContent("Importing your files…")
 })
 
 it("counts undecided conflicts of any loaded state", () => {

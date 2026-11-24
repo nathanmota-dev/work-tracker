@@ -11,6 +11,7 @@ vi.mock("../paths.ts", () => ({
   loadConfig: vi.fn(),
   paths: { chromeProfile: "/private/chrome/profile" },
 }));
+vi.mock("./install/browser.ts", () => ({ defaultChrome: () => "google-chrome" }));
 let p: ReturnType<typeof processDouble>;
 beforeEach(() => {
   vi.resetModules();

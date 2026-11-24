@@ -6,7 +6,8 @@ import { onboardingStatus } from "./status.ts";
 import { readPreferences, recordVerification, savePreferences } from "./store.ts";
 import { handleOnboarding } from "./http.ts";
 
-const fake = vi.hoisted(() => ({ executable: vi.fn(), snapshot: vi.fn(), tools: vi.fn(), sources: vi.fn(), read: vi.fn() }));
+const fake = vi.hoisted(() => ({ executable: vi.fn(), snapshot: vi.fn(), tools: vi.fn(), sources: vi.fn(), read: vi.fn(), install: vi.fn(() => [] as { name: string; state: string }[]) }));
+vi.mock("../mcp/install/index.ts", () => ({ installStates: fake.install }));
 vi.mock("../db/index.ts", () => ({ db: vi.fn(), now: () => "2026-10-30T12:00:00.000Z" }));
 vi.mock("../integrations/http.ts", () => ({ executable: fake.executable }));
 vi.mock("../integrations/config.ts", async original => ({
@@ -54,6 +55,11 @@ test("an empty workspace lists every real requirement and starts at the agent st
   ]);
   expect(status.steps[1]!.items).toEqual([{ key: "sources", ready: false, reason: "not_configured" }, { key: "tools", ready: false, reason: "latexmk, pdfinfo" }]);
   expect(status.steps[2]!.items[0]).toEqual({ key: "first_name", ready: false, reason: "missing", target: "first_name" });
+});
+test("a missing MCP that the app is installing is not reported as missing", async () => {
+  fake.install.mockReturnValue([{ name: "linkedin", state: "installing" }, { name: "chrome", state: "failed" }]);
+  const [, linkedin, chrome] = (await onboardingStatus(d)).steps[0]!.items;
+  expect([linkedin!.reason, chrome!.reason]).toEqual(["installing", "missing_executable"]);
 });
 
 test("a partly configured workspace keeps skipped agent steps and points at the next pending one", async () => {

@@ -7,5 +7,7 @@ export default defineConfig({
     environment: "node",
     include: ["src/test/integration/**/*.test.ts"],
     testTimeout: 20000,
+    // Backends started by these tests never download MCP servers.
+    env: { WORK_TRACKER_SKIP_MCP_INSTALL: "1" },
   },
 });

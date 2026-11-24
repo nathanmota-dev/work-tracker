@@ -11,7 +11,7 @@ await ensureTestDisplay();
 
 const home = mkdtempSync(join(tmpdir(), 'work-tracker-apply-smoke-'));
 const repository = join(home, 'repository');
-const env = { ...process.env, WORK_TRACKER_HOME: home, WORK_TRACKER_REPO_ROOT: repository, APPIMAGE_EXTRACT_AND_RUN: '1', PATH: [join(homedir(), '.local', 'bin'), process.env.PATH].join(delimiter) };
+const env = { ...process.env, WORK_TRACKER_HOME: home, WORK_TRACKER_REPO_ROOT: repository, APPIMAGE_EXTRACT_AND_RUN: '1', WORK_TRACKER_SKIP_MCP_INSTALL: '1', PATH: [join(homedir(), '.local', 'bin'), process.env.PATH].join(delimiter) };
 const command = process.argv[2] ?? resolve('node_modules/.bin/electron');
 const args = process.argv.length > 2 ? process.argv.slice(3) : ['.', '--no-sandbox'];
 let child, socket;

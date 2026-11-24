@@ -1,6 +1,7 @@
 import type { PreparationService } from "./service.ts";
 import { PreparationError, saveSources, sourcesConfig } from "./sources.ts";
 import { ensureProfileImported } from "../profile/import.ts";
+import { syncProfileWatch } from "../profile/watch.ts";
 import { pdfBytes } from "./store.ts";
 import { JourneyError } from "../applications/journey.ts";
 export async function handlePreparation(path: string, req: Request, service: PreparationService): Promise<Response> {
@@ -11,7 +12,7 @@ export async function handlePreparation(path: string, req: Request, service: Pre
     switch (path) {
       case "/api/resume-sources":
         if (service.isBusy) throw new PreparationError("Finish or cancel the active execution before changing sources.", 409);
-        saveSources(body); return Response.json(await service.sourcesState());
+        saveSources(body); syncProfileWatch(); return Response.json(await service.sourcesState());
       case "/api/resume-sources/preview": return Response.json(await service.preview());
       case "/api/application-preparation/details": return Response.json(service.details(body));
       case "/api/application-preparation/description": service.description(body); return Response.json({ ok: true });

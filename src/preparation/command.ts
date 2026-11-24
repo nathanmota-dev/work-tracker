@@ -2,10 +2,10 @@ import { spawnOwned, stopOwned } from "../acp/process.ts";
 import { agentEnvironment } from "../cli/skills.ts";
 
 /** Run a tool with literal arguments; resolves with its combined, bounded output. */
-export async function runCommand(command: string, args: string[], cwd?: string, signal?: AbortSignal, timeoutMs = 90000): Promise<string> {
+export async function runCommand(command: string, args: string[], cwd?: string, signal?: AbortSignal, timeoutMs = 90000, env: Record<string, string> = {}): Promise<string> {
   signal?.throwIfAborted();
   return new Promise((resolve, reject) => {
-    const child = spawnOwned(command, args, { cwd, env: agentEnvironment() });
+    const child = spawnOwned(command, args, { cwd, env: { ...agentEnvironment(), ...env } });
     let output = "";
     let failure: Error | undefined;
     const abort = () => { failure = new Error("Cancelled"); stopOwned(child); };

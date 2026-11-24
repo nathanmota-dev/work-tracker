@@ -92,6 +92,13 @@ describe("repository resume defaults", () => {
     vi.mocked(loadConfig).mockReturnValue({ resumeSources: { ...saved, dataFile: "" } as never });
     expect(sourcesConfig().profileDir).toBe("");
   });
+  test("keeps an uploaded profile saved before any LaTeX project is chosen", () => {
+    vi.mocked(loadConfig).mockReturnValue({ resumeSources: { projectDir: "", mainFile: "resume.tex", dataFile: "/wt/profile/resume-data.json", engine: "pdflatex", profileDir: "/wt/profile" } });
+    expect(sourcesConfig()).toEqual({ projectDir: "", mainFile: "resume.tex", dataFile: "/wt/profile/resume-data.json", engine: "pdflatex", profileDir: "/wt/profile" });
+    files.add(join(root, "base/latex/resume.tex"));
+    vi.mocked(loadConfig).mockReturnValue({ resumeSources: { projectDir: "", mainFile: "resume.tex", dataFile: "", engine: "pdflatex", profileDir: "/wt/profile" } });
+    expect(sourcesConfig()).toMatchObject({ projectDir: join(root, "base/latex"), dataFile: "", profileDir: "/wt/profile" });
+  });
   test("uses the current repository for CLI callers without a desktop root", () => {
     vi.stubEnv("WORK_TRACKER_REPO_ROOT", undefined);
     files.add(join(process.cwd(), "base/latex/resume.tex"));

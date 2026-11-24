@@ -63,6 +63,7 @@ const dependencies: Record<string, string[]> = {
   "gates/profile": ["candidate_languages", "gate_profile"],
   "gates/jobs": ["jobs", "candidate_languages", "gate_profile"],
   "profile-sources": ["profile_imports"],
+  "resume-sources": ["resume_sources", "profile_imports"],
   "resume-variants": ["resume_variants"],
   "ats/best": ["jobs", "resume_variants"],
   "ats/jobs": ["jobs", "resume_variants", "application_runs", "applications"],
