@@ -100,6 +100,8 @@ export function saveJob(d: Database, body: unknown, updateId?: number, rediscove
     const job = current
       ? d.query(`UPDATE jobs SET ${columns.map(key => `${key} = ?`).join(", ")} WHERE id = ? RETURNING id`).get(...values, current.id)
       : d.query(`INSERT INTO jobs (${columns.join(", ")}) VALUES (${columns.map(() => "?").join(", ")}) RETURNING id`).get(...values);
+    // A requirements check quotes the description it read; a new description needs a new check.
+    if (current && (guarded.description ?? null) !== current.description) d.query("UPDATE jobs SET gate_json = NULL WHERE id = ?").run(current.id);
     return result(d, (job as { id: number }).id, !current, false);
   })();
 }

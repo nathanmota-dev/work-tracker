@@ -12,6 +12,7 @@ import { PreparationQueue } from "../preparation/batch-queue.ts";
 import { handleInterviewPreps } from "../interview-prep/http.ts";
 import { handleFollowups } from "../followups/http.ts";
 import { handleRankings } from "../rankings/http.ts";
+import { handleGates } from "../gates/http.ts";
 import { handleCompanyResearch } from "../company-research/http.ts";
 
 vi.mock("../applications/http.ts", () => ({ handleApplicationBoard: vi.fn() }));
@@ -26,6 +27,7 @@ vi.mock("../preparation/batch-queue.ts", () => ({ PreparationQueue: vi.fn() }));
 vi.mock("../interview-prep/http.ts", () => ({ handleInterviewPreps: vi.fn() }));
 vi.mock("../followups/http.ts", () => ({ handleFollowups: vi.fn() }));
 vi.mock("../rankings/http.ts", () => ({ handleRankings: vi.fn() }));
+vi.mock("../gates/http.ts", () => ({ handleGates: vi.fn() }));
 vi.mock("../company-research/http.ts", () => ({ handleCompanyResearch: vi.fn() }));
 vi.mock("./queries.ts", () => ({ queries: {} }));
 
@@ -141,4 +143,13 @@ test("serves and invalidates the company research cache through its handler", as
   const invalidate = new Request("http://localhost/api/company-research/invalidate", { method: "POST" });
   expect(await routeApi("/api/company-research/invalidate", invalidate, { acp, broadcast })).toBe(ok);
   expect(handleCompanyResearch).toHaveBeenLastCalledWith("/api/company-research/invalidate", invalidate, broadcast);
+});
+
+test("serves the requirement gates through their handler with the broadcaster", async () => {
+  vi.mocked(handleGates).mockResolvedValue(ok);
+  for (const path of ["/api/gates/profile", "/api/gates/languages", "/api/gates/jobs/4"]) {
+    const req = new Request(`http://localhost${path}`);
+    expect(await routeApi(path, req, { acp, broadcast })).toBe(ok);
+    expect(handleGates).toHaveBeenLastCalledWith(path, req, broadcast);
+  }
 });

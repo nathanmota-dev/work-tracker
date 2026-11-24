@@ -14,6 +14,8 @@ import { applyLabel, nextStep } from "@/lib/application-journey"
 import { DeadlineBadge, DeadlineSort } from "@/components/deadline-badge"
 import { byDeadline } from "@/lib/deadline"
 import { NextStepAction, originLabel, phaseLabel } from "@/components/application-list"
+import { RowGateBadge } from "@/components/gate-badge"
+import { CheckRequirements, useHideFailed } from "@/components/gate-filter"
 import { RankNewRoles, RankSelected, RankingRunSummary, RankingScore } from "@/components/job-ranking-action"
 import { byScore } from "@/lib/ranking"
 
@@ -105,6 +107,11 @@ export function jobColumns(actions: (row: Row) => ReactNode, arrived: number[] =
       key: "ranking_overall",
       label: "Score",
       render: (r) => <RankingScore row={r} />,
+    },
+    {
+      key: "gate_verdict",
+      label: "Requirements",
+      render: (r) => <RowGateBadge row={r} />,
     },
     {
       key: "status",
@@ -214,7 +221,9 @@ export function JobTabs({
   const [order, setOrder] = useState<"saved" | "deadline" | "score">("saved")
   const fresh = active.filter(row => !row.shortlisted_at)
   const shortlist = active.filter(row => !!row.shortlisted_at)
-  const listed = view === "archived" ? archived : view === "shortlist" ? shortlist : fresh
+  const all = view === "archived" ? archived : view === "shortlist" ? shortlist : fresh
+  const failed = useHideFailed(view, all)
+  const listed = failed.rows
   const rows = order === "deadline" ? byDeadline(listed) : order === "score" ? byScore(listed) : listed
   return (
     <Tabs value={view} onValueChange={view => update({ view, page: 0, q: "", status: "", selected: "", selection: [] })}>
@@ -226,11 +235,12 @@ export function JobTabs({
         </TabsTrigger>
       </TabsList>
       <TabsContent value={view}>
-        <div className="mb-4 flex flex-wrap gap-2">
+        <div className="mb-4 flex flex-wrap items-center gap-2">
           <DeadlineSort active={order === "deadline"} onToggle={() => setOrder(value => value === "deadline" ? "saved" : "deadline")} />
           <Button size="sm" variant="outline" aria-pressed={order === "score"} onClick={() => setOrder(value => value === "score" ? "saved" : "score")}>
             {order === "score" ? "Sorted by score" : "Sort by score"}
           </Button>
+          {failed.control}
         </div>
         {view === "new" && <RankNewRoles />}
         {view !== "archived" && <RankingRunSummary />}
@@ -250,6 +260,7 @@ export function JobTabs({
             : <>
               {view === "new" ? <JobTriage jobs={jobs} onMutate={onMutate} onDone={clear} /> : <BatchPreparation jobs={jobs} onCreated={clear} />}
               <RankSelected jobs={jobs} />
+              <CheckRequirements jobs={jobs} />
             </>}
           rows={rows}
           noun={view === "archived" ? "Archived opportunities" : "Opportunities"}

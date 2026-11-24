@@ -7,7 +7,8 @@ import { SelectControl } from "@/components/ui/select-control"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Page, Panel, Field, LoadState, Status, ExternalLink, controlClass } from "@/components/workspace-ui"
 import { ApplicationEmpty, ApplicationStepper } from "@/components/application-stepper"
-import { ApplyReadiness, applyBlocks } from "@/components/apply-readiness"
+import { ApplyReadiness, applyBlocks, type ApplyAction } from "@/components/apply-readiness"
+import { useGateConfirmation } from "@/lib/gates"
 import { useIntegrations, type Target } from "@/lib/integrations"
 import { AgentConversation } from "@/components/agent-conversation"
 import { DocumentReview } from "@/components/document-review"
@@ -38,6 +39,7 @@ function ApplyWorkspace({ search, review, reviewLocked = false }: { search: Revi
   const [notice, setNotice] = useState("")
   const [pending, setPending] = useState(false)
   const [preview, setPreview] = useState<PdfArtifact>()
+  const gate = useGateConfirmation(search.jobId)
   const pdfTab = route.pdfTab ?? "base"
   const setPdfTab = (pdfTab: string) => update({ pdfTab })
   const refreshSources = sources.refresh
@@ -55,12 +57,12 @@ function ApplyWorkspace({ search, review, reviewLocked = false }: { search: Revi
   const reviewBusy = (!!review && pdfRun?.id !== run?.id) || reviewLocked || pending || details.loading || !details.data || pdfRun?.status === "running" // Review stays possible while a batch runs another execution.
   const archived = !!details.data?.job.archived_at
   const missingTools = sources.data?.dependencies.some(d => !d.available) ?? true
-  const readiness = { live, busy: (!!review && pdfRun?.id !== run?.id) || busy || integrations.testing, archived, submitted: details.data?.applicationStatus === "submitted", sources: !!sources.data?.config.projectDir, tools: !missingTools, descriptionDirty, linkedinNeeded: !details.data?.job.description && !!details.data?.job.linkedin_job_id, descriptionMissing: !details.data?.job.description && !details.data?.job.linkedin_job_id, tailored: !!tailored && !!version, approved: !!version?.approvedAt, provider: selectedProvider?.id, model, invalidModel: !!model && !selectedProvider?.models.includes(model), integrations: integrations.data }
+  const readiness = { live, busy: (!!review && pdfRun?.id !== run?.id) || busy || integrations.testing, archived, submitted: details.data?.applicationStatus === "submitted", sources: !!sources.data?.config.projectDir, tools: !missingTools, descriptionDirty, gateUnconfirmed: gate.unconfirmed, linkedinNeeded: !details.data?.job.description && !!details.data?.job.linkedin_job_id, descriptionMissing: !details.data?.job.description && !details.data?.job.linkedin_job_id, tailored: !!tailored && !!version, approved: !!version?.approvedAt, provider: selectedProvider?.id, model, invalidModel: !!model && !selectedProvider?.models.includes(model), integrations: integrations.data }
   const generateBlocks = applyBlocks(readiness, "generate")
   const fillBlocks = applyBlocks({ ...readiness, provider: pdfRun?.provider ?? selectedProvider?.id, model: pdfRun?.model ?? "", invalidModel: false }, "fill")
   const steps = applicationSteps({ description: !readiness.descriptionMissing && !descriptionDirty, approved: readiness.approved, filled: ["filled", "needs_input"].includes(details.data?.applicationStatus ?? ""), submitted: readiness.submitted || details.data?.journey?.submission_status === "submitted", generate: review ? [] : generateBlocks, fill: fillBlocks })
-  function correct(action: "description" | "model" | "review") {
-    if (action === "review") document.getElementById("document-review")?.scrollIntoView?.()
+  function correct(action: ApplyAction) {
+    if (action === "review" || action === "gate") document.getElementById(action === "gate" ? "requirements-warning" : "document-review")?.scrollIntoView?.()
     else if (action === "description") { const textarea = document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Job description"]'); if (textarea?.parentElement?.parentElement instanceof HTMLDetailsElement) textarea.parentElement.parentElement.open = true; textarea?.focus() }
     else { setModel(""); document.querySelector<HTMLElement>('[aria-label="Model"]')?.focus() }
   }
@@ -107,7 +109,7 @@ function ApplyWorkspace({ search, review, reviewLocked = false }: { search: Revi
           {!review && (run?.status === "running" || run?.status === "waiting_for_sign_in") && <Button variant="outline" disabled={pending} onClick={() => void action("cancel")}>Cancel</Button>}
           {details.data?.applicationStatus === "filled" && details.data.uploadedRunId === pdfRun?.id && <Button variant="outline" disabled={reviewBusy} onClick={() => void action("submitted")}>I submitted in the browser</Button>}
         </div>
-        <ApplyReadiness guard={job.description_guard_json} description={job.description} generate={review ? [] : generateBlocks} fill={fillBlocks} testing={integrations.testing} error={integrations.testError || integrations.error} test={testAvailability} correct={correct} />
+        <ApplyReadiness gate={gate.readiness} guard={job.description_guard_json} description={job.description} generate={review ? [] : generateBlocks} fill={fillBlocks} testing={integrations.testing} error={integrations.testError || integrations.error} test={testAvailability} correct={correct} />
         {details.data?.busy && run?.status !== "running" && <p className="text-xs text-muted-foreground">Another execution is active. You can review these files while it finishes.</p>}
 
         {!job.description && !job.linkedin_job_id && !descriptionDirty && <p role="status" className="text-xs text-muted-foreground">This job has no description yet. Paste it under Job description before generating.</p>}

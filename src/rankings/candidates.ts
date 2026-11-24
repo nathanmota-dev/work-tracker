@@ -1,6 +1,7 @@
 import type { Database } from "../db/sqlite.ts";
 import { deadlineUrgency, localToday } from "../deadlines/urgency.ts";
 import { guardVerdict } from "../postings/description.ts";
+import { gateFailReason } from "../gates/stored.ts";
 import { DEFAULT_LIMIT, MAX_LIMIT, RankingError, type RankingStatus } from "./types.ts";
 
 export interface CandidateOptions {
@@ -27,7 +28,16 @@ export interface RankingCandidate {
   fetch_attempts: number;
 }
 
+/** A job left out because it failed the requirements check (#76), with the quoted reason. */
+export interface GateFailedJob {
+  job_id: number;
+  title: string | null;
+  company: string | null;
+  reason: string;
+}
+
 /**
+ * @property gate_failed Jobs never ranked or shortlisted because they failed a deal-breaker; the user decides.
  * @property eligible Jobs this run could rank; `items` holds the first `limit` of them.
  * @property deferred Eligible jobs beyond the limit, left for the next run.
  * @property expired Jobs skipped without a fetch because their saved deadline passed.
@@ -41,10 +51,11 @@ export interface RankingCandidates {
   deferred: number;
   expired: number;
   already_ranked: number;
+  gate_failed: GateFailedJob[];
 }
 
 type Row = Omit<RankingCandidate, "closing_soon" | "guard_verdict" | "fetch_attempts"> & {
-  description_guard_json: string | null; scouted_at: string | null; ranked_at: string | null; fetch_attempts: number | null;
+  description_guard_json: string | null; gate_json: string | null; scouted_at: string | null; ranked_at: string | null; fetch_attempts: number | null;
 };
 
 export function rankingLimit(value: unknown): number {
@@ -81,15 +92,21 @@ export function rankingCandidates(d: Database, options: CandidateOptions = {}): 
   const ids = options.jobIds;
   const rows = d.query(`
     SELECT j.id AS job_id, j.title, j.company_name AS company, j.link, j.linkedin_job_id, j.deadline, j.description,
-           j.description_guard_json, j.scouted_at, r.status AS previous_status, r.fetch_attempts, r.ranked_at
+           j.description_guard_json, j.gate_json, j.scouted_at, r.status AS previous_status, r.fetch_attempts, r.ranked_at
     FROM jobs j LEFT JOIN job_rankings r ON r.job_id = j.id
     WHERE j.archived_at IS NULL
       AND NOT EXISTS (SELECT 1 FROM applications a WHERE a.job_id = j.id AND a.submission_status = 'submitted')
       ${ids ? `AND j.id IN (${ids.map(() => "?").join(", ")})` : ""}
   `).all(...(ids ?? [])) as unknown as Row[];
   const open = rows.filter((row) => deadlineUrgency(row.deadline, today).level !== "overdue");
-  const eligible = order(open.filter((row) => all || !row.previous_status || row.previous_status === "unreachable"), all);
-  const items = eligible.slice(0, limit).map(({ description_guard_json, scouted_at: _scouted, ranked_at: _ranked, ...row }) => ({
+  // A failed deal-breaker is listed apart with its reason, never ranked into the shortlist.
+  const failed = open.flatMap((row) => {
+    const reason = gateFailReason(row.gate_json);
+    return reason ? [{ job_id: row.job_id, title: row.title, company: row.company, reason }] : [];
+  });
+  const passed = open.filter((row) => !failed.some((job) => job.job_id === row.job_id));
+  const eligible = order(passed.filter((row) => all || !row.previous_status || row.previous_status === "unreachable"), all);
+  const items = eligible.slice(0, limit).map(({ description_guard_json, gate_json: _gate, scouted_at: _scouted, ranked_at: _ranked, ...row }) => ({
     ...row,
     fetch_attempts: row.fetch_attempts ?? 0,
     closing_soon: deadlineUrgency(row.deadline, today).level === "soon",
@@ -97,6 +114,6 @@ export function rankingCandidates(d: Database, options: CandidateOptions = {}): 
   }));
   return {
     limit, all, items, eligible: eligible.length, deferred: eligible.length - items.length,
-    expired: rows.length - open.length, already_ranked: open.length - eligible.length,
+    expired: rows.length - open.length, already_ranked: passed.length - eligible.length, gate_failed: failed,
   };
 }

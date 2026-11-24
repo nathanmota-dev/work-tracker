@@ -75,3 +75,45 @@ Onde o veredito aparece:
 Vagas salvas antes da guarda (schema v14) não são reescritas pela migração e mostram “Not checked” até a próxima edição da descrição. Antes de gerar um currículo, `ensureDescription` aplica a guarda a uma descrição ainda não verificada, de modo que o agente só recebe texto limpo.
 
 O que a guarda não faz: não valida o conteúdo semântico da vaga, não busca páginas e não altera as permissões de ferramentas do agente (ver [agent-permissions.md](agent-permissions.md)). Ela pega as classes de ataque que deixam rastro; uma manipulação escrita para parecer natural a um humano e a um agente não deixa nenhum. **Instrução em nível de prompt não é uma sandbox**: a seção “Trust boundary” das skills e a guarda reduzem o risco, e as decisões de ferramenta do agente continuam passando pela aprovação descrita em `agent-permissions.md`.
+
+## Portões eliminatórios (idioma e elegibilidade)
+
+Dois filtros duros rodam **antes** de pontuar ou preparar uma vaga, portados das seções *Eligibility Gate* e *Language Gate* do `ai-job-search`. Eles não são dimensões de score: dizem se a vaga tem uma exigência que nenhuma candidatura contorna.
+
+### Como declarar
+
+Em **Profile → Deal-breakers**:
+
+- **Languages you work in**: cada idioma com o nível em texto livre (“Native”, “C1”, “B1/B2 (conversational)”) e notas opcionais. O nome é único sem diferenciar maiúsculas e espaços; para mudar o nível, use **Edit level**. Um idioma não declarado conta como “não”: uma vaga que o exige reprova.
+- **Work eligibility**: “Citizen or permanent resident”, “I need a visa or work permit” ou **Not set**, que desliga o portão de elegibilidade.
+
+Sem idiomas e sem elegibilidade, os dois portões ficam desligados, nada reprova e a página explica como ligá-los. O mesmo perfil está no CLI: `work-tracker gates profile`, `gates language save --language --level [--notes]` (atualiza pelo nome), `gates language remove --language` e `gates eligibility set --status citizen_or_resident|needs_permission|none`. A API é `GET /api/gates/profile`, `POST /api/gates/languages` (com `action: "remove"` para remover) e `POST /api/gates/eligibility`. Os dados ficam nas tabelas `candidate_languages` e `gate_profile` (schema v18).
+
+### Como a verificação roda
+
+**Check requirements**, no detalhe da vaga ou na seleção de vagas em Jobs, abre a skill `work-tracker-requirements-check` no painel do agente. A skill lê a descrição salva (já limpa pela verificação de integridade), extrai cada idioma exigido **para o trabalho** e o que o anúncio diz sobre cidadania, residência, habilitação de segurança e patrocínio de visto, **sempre com o trecho literal**, e grava com `work-tracker job gate --id <n> --file extraction.json`. O idioma em que o anúncio está escrito não é exigência. A comparação de nível é julgamento da skill (`bar_above_declared`), não uma escala CEFR. A `work-tracker-job-scout` oferece a mesma verificação para as vagas que acabou de salvar.
+
+O **veredito é calculado no código** (`src/gates/evaluate.ts`) a partir da extração e do perfil, e fica em `jobs.gate_json`:
+
+| Portão | Anúncio | Veredito |
+| --- | --- | --- |
+| Idioma | exige idioma ausente dos seus idiomas | `fail` |
+| Idioma | exige idioma declarado em nível que parece maior (ou incerto) | `flag` |
+| Idioma | exige idioma declarado em nível igual ou menor, ou não exige idioma | `pass` |
+| Elegibilidade (precisa de permissão) | exige cidadania, residência permanente ou habilitação de segurança | `fail` |
+| Elegibilidade (precisa de permissão) | nomeia sua autorização, aceita estrangeiros ou patrocina visto, para esta vaga | `pass` |
+| Elegibilidade (precisa de permissão) | silencioso, ou só uma declaração geral da empresa | `pass` **não verificado** |
+| Elegibilidade (precisa de permissão) | a lista da empresa existe e não inclui esta vaga | `flag` |
+| Elegibilidade (cidadão ou residente) | exige habilitação de segurança | `flag` |
+
+Silêncio não é permissão. Uma extração sem `quote` num item que pesa no veredito é recusada com mensagem clara. Mudar idiomas ou elegibilidade reavalia todas as verificações gravadas, sem chamar o agente; mudar a descrição da vaga apaga a verificação dela, porque os trechos citados deixam de valer.
+
+### O que cada veredito mostra
+
+- Na lista de Jobs, a coluna **Requirements** mostra `Fail`, `Flag`, `Pass`, `Pass (unverified)` ou `Not checked`, sempre com texto, não só cor. No detalhe, cada portão aparece com a razão e o trecho citado.
+- **Hide failed**, ligado por padrão em New, recolhe as vagas reprovadas: elas continuam contadas (“1 hidden”), voltam ao desligar o filtro e **nunca são apagadas nem arquivadas**.
+- No Apply, uma vaga `fail` mostra o aviso com a citação e só libera **Generate resume** depois de **Prepare anyway**: o usuário pode saber algo sobre a própria situação que o perfil não registra.
+- Na triagem em lote, `work-tracker ranking candidates` e `GET /api/rankings/candidates` deixam as vagas `fail` de fora e as listam em `gate_failed`, com a razão citada; a prévia da execução mostra “N failed deal-breakers”.
+- Para agentes, `work-tracker job list` e `GET /api/jobs` trazem `gate_verdict` (`pass`, `flag`, `fail` ou `unchecked`), sem os trechos de `gate_json`. `GET /api/gates/jobs/:id` e `work-tracker job gate --id <n>` (sem `--file`) devolvem a verificação completa.
+
+O portão **avisa e filtra; não decide pelo usuário**. Ele não busca vagas, não pontua e não cobre localização, relocação ou viagens.

@@ -140,6 +140,18 @@ require('node:readline').createInterface({ input: process.stdin }).on('line', as
         const pack = join(home, 'pack.md');
         fs.writeFileSync(pack, `# ${company}\n\n${cached.fresh ? 'Reused cached research.' : 'Fresh research.'}\n`);
         cli(['interview-prep', 'save', '--application-id', id, '--stage', text.match(/Stage: ([^.]+)\./)?.[1] ?? 'Recruiter screen', '--file', pack]);
+      } else if (/work-tracker-requirements-check/.test(text)) {
+        // Like the skill, quote each requirement of the saved description and store the extraction.
+        const ids = text.match(/saved jobs: ([\d,]+)/)[1].split(',');
+        const jobs = JSON.parse(cli(['job', 'list']));
+        for (const id of ids) {
+          const description = jobs.find(row => String(row.id) === id)?.description ?? '';
+          const languages = [...description.matchAll(/[^.]*\bfluent (\w+)[^.]*\./gi)].map(([quote, language]) => ({ language, stated_bar: 'fluent', bar_above_declared: true, quote: quote.trim() }));
+          const citizen = description.match(/[^.]*citizen[^.]*\./i)?.[0].trim();
+          const file = join(home, `gate-${id}.json`);
+          fs.writeFileSync(file, JSON.stringify({ languages, eligibility: { requires_citizenship_or_pr: !!citizen, requires_clearance: false, names_permit_or_sponsors: false, program_confirmed: 'unknown', ...(citizen ? { quote: citizen } : {}) } }));
+          cli(['job', 'gate', '--id', id, '--file', file]);
+        }
       } else if (/work-tracker-experience-bank/.test(text)) {
         fs.mkdirSync(join(home, 'experience'), { recursive: true });
         fs.writeFileSync(join(home, 'experience', 'synthetic.md'), '# Synthetic achievement\nBuilt a React app.\n');

@@ -72,7 +72,11 @@ Em Jobs, **Rank selected** (na seleção múltipla de New e Shortlist), **Rank n
 - **Candidatas:** vagas ativas sem candidatura enviada, sem ranking `scored`, `expired` ou `gave_up` (as `unreachable` voltam), em ordem de prazo e depois das salvas mais recentes, até o limite (padrão 10). O que passa do limite é **adiado** e entra na próxima execução. `--all` (“Rank all again”) repontua tudo começando pelas pontuadas há mais tempo, substituindo notas e listas sem acumulá-las.
 - **Prazo:** uma vaga com prazo vencido aparece como **Expired** sem ser lida, e uma com prazo em até 7 dias traz 🔥 “Closing soon” e vence o desempate. Ao contrário do original, essa expiração é derivada na leitura e nunca gravada, para que um prazo corrigido depois se reflita na hora; vaga sem prazo nunca é inferida como expirada.
 
-A tabela é `job_rankings` (uma linha por vaga, migração v17). Os portões eliminatórios (#76) ainda não estão na `main`; a exclusão das vagas com `gate_verdict = fail` da shortlist fica para quem fizer o merge por último.
+A tabela é `job_rankings` (uma linha por vaga, migração v17). Vagas que reprovaram nos portões eliminatórios (`gate_verdict = fail`, ver 1.5) nunca são candidatas: `ranking candidates` as lista à parte em `gate_failed`, com a razão citada, e a skill as relata separadas, sem pontuá-las nem colocá-las na shortlist.
+
+### 1.5. Portões eliminatórios de idioma e elegibilidade
+
+Em **Profile → Deal-breakers** o usuário declara os idiomas em que trabalha (com nível) e a sua elegibilidade para trabalhar. **Check requirements**, no detalhe ou na seleção de Jobs, roda a skill `work-tracker-requirements-check`, que extrai as exigências de idioma e de elegibilidade de cada vaga com o trecho literal; o código compara com o perfil e marca a vaga como `pass`, `flag` ou `fail` (ou `pass` não verificado quando o anúncio é silencioso). A lista mostra o selo com texto, **Hide failed** (ligado em New) recolhe as reprovadas sem apagá-las, e o Apply pede confirmação antes de preparar uma vaga `fail`. A triagem em lote (1.4) não pontua vagas `fail` e as lista à parte com a razão. O portão avisa e filtra, nunca decide pelo usuário. Detalhes em [manual-jobs.md](manual-jobs.md#portões-eliminatórios-idioma-e-elegibilidade).
 
 ## 2. Features existentes que precisam melhorar
 

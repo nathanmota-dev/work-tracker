@@ -23,6 +23,8 @@ import { saveJob } from "../jobs/store.ts";
 import { JourneyError } from "../applications/journey.ts";
 import { applicationShowCmd } from "./interview-prep.ts";
 import { quietApplications } from "../applications/quiet.ts";
+import { jobGateCmd } from "./gates.ts";
+vi.mock("./gates.ts", () => ({ jobGateCmd: vi.fn() }));
 vi.mock("../db/index.ts", () => ({
   db: vi.fn(),
   now: () => "2026-10-10T12:00:00Z",
@@ -70,6 +72,21 @@ test("job commands map fields through shared validation and report existing reco
   expect(notifyChange).toHaveBeenCalledWith("jobs", expect.objectContaining({ status: "existing" }));
   for (const id of [undefined, "0", "-1", "1.5", "9007199254740992", "bad"])
     await expect(jobCmd("update", id ? { id } : {})).rejects.toThrow("positive job id");
+});
+test("job list reports the posting and requirement verdicts without the stored quotes", async () => {
+  const gate = JSON.stringify({ verdict: "fail", unverified: false, extraction: { languages: [] } });
+  d.statement.all.mockReturnValueOnce([{ id: 2, title: "Old", description_guard_json: null, gate_json: null }, { id: 3, title: "Checked", description_guard_json: null, gate_json: gate }]);
+  await jobCmd("list", {});
+  const listed = JSON.parse(String(output.log.mock.calls[0]![0])) as Record<string, unknown>[];
+  expect(listed).toEqual([
+    { id: 2, title: "Old", guard_verdict: "Not checked", gate_verdict: "unchecked", ranking_status: null },
+    { id: 3, title: "Checked", guard_verdict: "Not checked", gate_verdict: "fail", ranking_status: null },
+  ]);
+});
+test("job gate is handled by the gates command", async () => {
+  await jobCmd("gate", { id: "3", file: "/gate.json" });
+  expect(jobGateCmd).toHaveBeenCalledWith({ id: "3", file: "/gate.json" });
+  expect(saveJob).not.toHaveBeenCalled();
 });
 test("metrics and scores preserve zero, optional dates and nulls", async () => {
   await metricCmd({

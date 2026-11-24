@@ -89,3 +89,27 @@ test("parses job ids without duplicates and rejects anything else", () => {
   expect(rankingJobIds("3,1,3")).toEqual([3, 1]);
   for (const value of ["0", "1,", "a", "1;2", 3]) expect(() => rankingJobIds(value)).toThrow("comma-separated list");
 });
+
+test("jobs that failed the requirements check are listed apart with the quoted reason and never ranked", async () => {
+  const { saveGate } = await import("../gates/store.ts");
+  const { saveLanguage, setEligibility } = await import("../gates/profile-store.ts");
+  saveLanguage({ language: "Spanish", level: "Native" }, d);
+  setEligibility("needs_permission", d);
+  const silent = { requires_citizenship_or_pr: false, requires_clearance: false, names_permit_or_sponsors: false };
+  const russian = job("Russian role", { company_name: "Acme" });
+  saveGate(russian, { languages: [{ language: "Russian", stated_bar: "fluent", bar_above_declared: true, quote: "Fluent Russian required." }], eligibility: silent }, d);
+  const citizens = job("Citizens only");
+  saveGate(citizens, { languages: [], eligibility: { ...silent, requires_citizenship_or_pr: true, quote: "Must be a citizen." } }, d);
+  const flagged = job("Flagged");
+  saveGate(flagged, { languages: [{ language: "Spanish", bar_above_declared: true, quote: "Fluent Spanish." }], eligibility: silent }, d);
+  job("Unchecked");
+  const result = candidates();
+  expect(titles(result).sort()).toEqual(["Flagged", "Unchecked"]);
+  expect(result).toMatchObject({ eligible: 2, already_ranked: 0 });
+  expect(result.gate_failed).toEqual(expect.arrayContaining([
+    { job_id: russian, title: "Russian role", company: "Acme", reason: 'Requires Russian (fluent), which is not in your languages. "Fluent Russian required."' },
+    { job_id: citizens, title: "Citizens only", company: "Example Corp", reason: 'Requires citizenship or permanent residency. "Must be a citizen."' },
+  ]));
+  expect(candidates({ all: true, jobIds: [russian] })).toMatchObject({ items: [], eligible: 0, gate_failed: [{ job_id: russian }] });
+  expect(result.items.every((item) => !("gate_json" in item))).toBe(true);
+});

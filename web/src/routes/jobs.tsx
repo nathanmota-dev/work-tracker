@@ -28,6 +28,7 @@ import { prepareSkill } from "@/lib/agent"
 import { JobForm, postingNotice, type JobSaveResult } from "@/components/job-form"
 import { PostingCheck } from "@/components/posting-check"
 import { RankingDetail } from "@/components/ranking-detail"
+import { GateDetails } from "@/components/gate-badge"
 import { useWorkspaceState } from "@/lib/workspace-state"
 import { applyLabel } from "@/lib/application-journey"
 
@@ -51,6 +52,7 @@ function JobDetailActions({
         <p role="alert" className="text-sm text-destructive">{error}</p>
       )}
       {selected && <PostingCheck guard={selected.description_guard_json} description={selected.description} />}
+      {selected && <GateDetails jobId={selected.id} />}
       <div className="flex flex-wrap gap-2">
         <ExternalLink value={selected?.link} label="View opportunity" />
         <Button
@@ -74,6 +76,16 @@ function JobDetailActions({
           }}
         >
           Assess fit
+        </Button>
+        <Button
+          variant="outline"
+          disabled={busy}
+          onClick={() => {
+            close()
+            prepareSkill("requirements-check", { jobIds: text(selected?.id) })
+          }}
+        >
+          Check requirements
         </Button>
       </div>
       {!!selected?.archived_at && (
@@ -263,7 +275,7 @@ export function JobsPage() {
       )}
       <Details
         row={selected}
-        omit={["description_guard_json", "ranking_status", "ranking_overall", "ranking_verdict", "ranking_attempts", "ranking_expired_reason", "closing_soon"]}
+        omit={["description_guard_json", "gate_verdict", "gate_unverified", "ranking_status", "ranking_overall", "ranking_verdict", "ranking_attempts", "ranking_expired_reason", "closing_soon"]}
         title={text(selected?.title)}
         onClose={() => setSelectedId(null)}
       >

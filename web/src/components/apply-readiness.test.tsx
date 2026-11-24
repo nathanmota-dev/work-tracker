@@ -29,3 +29,28 @@ it("renders corrections and re-test actions", () => {
   fireEvent.click(screen.getByRole("button", { name: "Test availability again" })); expect(test).toHaveBeenCalledOnce()
   expect(screen.getByRole("alert")).toHaveTextContent("test failed")
 })
+it("a failed requirements check blocks generation until the user confirms the quoted warning", () => {
+  expect(applyBlocks({ ...ready, gateUnconfirmed: true }, "generate")).toEqual([{ message: expect.stringContaining("failed a deal-breaker check"), label: "Review requirements", action: "gate" }])
+  expect(applyBlocks({ ...ready, gateUnconfirmed: true }, "fill")).toEqual([])
+  const gate = {
+    verdict: "fail", unverified: false,
+    language: { status: "pass", summary: "", findings: [{ verdict: "pass", note: "Requires Spanish; you declared Native.", quote: "Spanish" }] },
+    eligibility: { status: "fail", summary: "", findings: [{ verdict: "fail", note: "Requires citizenship or permanent residency.", quote: "Must be a citizen or permanent resident." }] },
+  } as never
+  const confirm = vi.fn(), correct = vi.fn()
+  const props = { generate: applyBlocks({ ...ready, gateUnconfirmed: true }, "generate"), fill: [], testing: false, error: "", test: vi.fn(), correct }
+  const { rerender } = render(<ApplyReadiness {...props} gate={{ value: gate, confirmed: false, confirm }} />)
+  const warning = screen.getByRole("alert", { name: "Deal-breaker warning" })
+  expect(warning).toHaveTextContent("Fail: this job failed your deal-breakers.")
+  expect(warning).toHaveTextContent("Requires citizenship or permanent residency. “Must be a citizen or permanent resident.”".replace(/[“”]/g, ""))
+  expect(warning).not.toHaveTextContent("Requires Spanish")
+  fireEvent.click(screen.getByRole("button", { name: "Review requirements" }))
+  expect(correct).toHaveBeenCalledWith("gate")
+  fireEvent.click(screen.getByRole("button", { name: "Prepare anyway" }))
+  expect(confirm).toHaveBeenCalledOnce()
+  rerender(<ApplyReadiness {...props} generate={[]} gate={{ value: gate, confirmed: true, confirm }} />)
+  expect(screen.getByRole("alert", { name: "Deal-breaker warning" })).toHaveTextContent("You confirmed preparing this job anyway.")
+  expect(screen.queryByRole("button", { name: "Prepare anyway" })).toBeNull()
+  rerender(<ApplyReadiness {...props} generate={[]} gate={{ value: { ...(gate as object), verdict: "flag" } as never, confirmed: false, confirm }} />)
+  expect(screen.queryByRole("alert", { name: "Deal-breaker warning" })).toBeNull()
+})

@@ -10,7 +10,7 @@ export const launchSkillIds = ["job-scout", "deep-scout", "profile-optimizer", "
 /** Only existing workspace controls are accepted; malformed URLs are harmless. */
 export function validateWorkspaceSearch(path: string, search: Record<string, unknown>): WorkspaceSearch {
   if (path === "dashboard") return { step: choice(search.step, [...ONBOARDING_STEPS], "") || undefined }
-  if (path === "profile") return { ...validateWorkspaceSearch("answers", search), tab: choice(search.tab, ["linkedin", "resume", "answers", "experiences"], "linkedin") }
+  if (path === "profile") return { ...validateWorkspaceSearch("answers", search), tab: choice(search.tab, ["linkedin", "resume", "answers", "experiences", "deal-breakers"], "linkedin") }
   if (path === "contacts") return { ...validateWorkspaceSearch("search", search), tab: choice(search.tab, ["people", "follow-ups"], "people") }
   const records = {
     q: string(search.q), status: string(search.status),

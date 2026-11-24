@@ -146,7 +146,7 @@ test("interview-prep and resume-tailor read the company research cache without w
 
 test("every skill that reads postings or pages declares the trust boundary and how to read the posting check", async () => {
   const real = await vi.importActual<typeof import("node:fs")>("node:fs");
-  const skills = ["job-scout", "resume-tailor", "portal-filler", "interview-prep", "recruiter-outreach", "followup", "job-ranking"];
+  const skills = ["job-scout", "resume-tailor", "portal-filler", "interview-prep", "recruiter-outreach", "followup", "job-ranking", "requirements-check"];
   for (const skill of skills) {
     const text = real.readFileSync(join(process.cwd(), "resources/skills", `work-tracker-${skill}`, "SKILL.md"), "utf8");
     const section = text.slice(text.indexOf("## Trust boundary"));
@@ -189,6 +189,28 @@ test("the job-ranking skill is bundled, queries candidates, saves one job at a t
   expect(skill).toContain("**triage scores from the posting text only**");
   expect(skill).toContain("Do **not** compute the overall score or the verdict");
   expect(skill).toContain("No company research, no salary lookup");
+  expect(skill).toContain("`gate_failed` lists each with its quoted `reason`");
+  expect(skill).toContain("never rank or shortlist them");
+  prepareWorkspace();
+  for (const agent of [".claude", ".agents", ".opencode"])
+    expect(cpSync).toHaveBeenCalledWith(source, `/private/workspace/${agent}/skills`, { recursive: true });
+});
+
+test("the requirements-check skill is bundled, stores checks through the CLI and never removes a job", async () => {
+  const fs = await vi.importActual<typeof import("node:fs")>("node:fs");
+  vi.stubEnv("WORK_TRACKER_RESOURCES", undefined);
+  vi.mocked(existsSync).mockImplementation((path) => fs.existsSync(path));
+  const source = findSkillsSource();
+  const skill = fs.readFileSync(join(source, "work-tracker-requirements-check", "SKILL.md"), "utf8");
+  expect(skill).toMatch(/^---\nname: work-tracker-requirements-check\ndescription: >-\n/);
+  expect(skill).toContain("Use the private Work Tracker workspace");
+  for (const command of ["work-tracker gates profile", "work-tracker job list", "work-tracker job gate --id <job id> --file <extraction.json>", "work-tracker activity log --kind requirements_check"])
+    expect(skill).toContain(command);
+  for (const rule of ["Silence is not permission", "is not role-level permission", "The language the ad is written in is **not** a requirement", "by the company name", "Never archive, delete or shortlist a job"])
+    expect(skill).toContain(rule);
+  const scout = fs.readFileSync(join(source, "work-tracker-job-scout", "SKILL.md"), "utf8");
+  expect(scout).toContain("work-tracker-requirements-check");
+  expect(scout).toContain("Do not research\ninternational-applicant pages here");
   prepareWorkspace();
   for (const agent of [".claude", ".agents", ".opencode"])
     expect(cpSync).toHaveBeenCalledWith(source, `/private/workspace/${agent}/skills`, { recursive: true });

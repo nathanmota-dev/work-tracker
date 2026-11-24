@@ -199,3 +199,32 @@ it("shows the triage score column, sorts by score and keeps the triage note in t
   expect(details.getByText("title")).toBeInTheDocument()
   for (const key of ["ranking overall", "ranking status", "ranking verdict", "closing soon"]) expect(details.queryByText(key)).not.toBeInTheDocument()
 })
+
+it("collapses failed jobs in New, shows each requirements verdict and checks requirements from the detail and a selection", async () => {
+  const prepareSkill = vi.spyOn(await import("@/lib/agent"), "prepareSkill").mockImplementation(() => {})
+  jobs = [
+    { id: 1, title: "Engineer", company_name: "Acme", status: "saved", archived_at: null, gate_verdict: "pass", gate_unverified: true },
+    { id: 3, title: "Russian role", company_name: "Acme", status: "saved", archived_at: null, gate_verdict: "fail", gate_unverified: false },
+  ]
+  const fallback = request.getMockImplementation()!
+  request.mockImplementation(async (path: string, body?: { id: number }) => (path === "gates/jobs/3"
+    ? { gate: { verdict: "fail", unverified: false, language: { status: "fail", summary: "Requires a language you do not declare: Russian.", findings: [{ verdict: "fail", note: "Requires Russian.", quote: "Fluent Russian required" }] }, eligibility: { status: "off", summary: "Set your work eligibility to enable the eligibility gate.", findings: [] } } }
+    : fallback(path, body)))
+  render(<JobsPage />)
+  expect(await screen.findByText("Pass (unverified)")).toBeInTheDocument()
+  expect(screen.queryByText("Russian role")).not.toBeInTheDocument()
+  expect(screen.getByRole("tab", { name: "New (2)" })).toBeInTheDocument()
+  expect(screen.getByRole("status", { name: "Failed jobs" })).toHaveTextContent("(1 hidden)")
+  fireEvent.click(screen.getByRole("checkbox", { name: /Hide failed/ }))
+  expect(screen.getByText("Fail")).toBeInTheDocument()
+  fireEvent.click(screen.getByRole("checkbox", { name: "Select Russian role" }))
+  fireEvent.click(screen.getByRole("button", { name: "Check requirements" }))
+  expect(prepareSkill).toHaveBeenLastCalledWith("requirements-check", { jobIds: "3" })
+  fireEvent.click(screen.getByRole("button", { name: "View Russian role" }))
+  const details = within(screen.getByRole("dialog"))
+  expect(await details.findByRole("status", { name: "Requirements check" })).toHaveTextContent("Fluent Russian required")
+  expect(details.queryByText("gate_verdict")).not.toBeInTheDocument()
+  fireEvent.click(details.getByRole("button", { name: "Check requirements" }))
+  expect(prepareSkill).toHaveBeenLastCalledWith("requirements-check", { jobIds: "3" })
+  prepareSkill.mockRestore()
+})

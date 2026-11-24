@@ -41,7 +41,7 @@ Selecting candidates is a query. Never run `work-tracker job list` to pick jobs 
 work-tracker ranking candidates [--limit N] [--all] [--job-ids 1,2,3]
 ```
 
-It returns `items` (each with `job_id`, `title`, `company`, `link`, `linkedin_job_id`, `deadline`, `closing_soon`, `description`, `guard_verdict`, `previous_status` and `fetch_attempts`) plus the counts `eligible`, `deferred`, `expired` and `already_ranked`. Archived jobs and jobs with a submitted application are never candidates. Jobs whose saved deadline already passed are counted as `expired` and are not fetched: Work Tracker shows them as Expired from the date alone. Jobs that were unreachable on an earlier run come back as candidates to retry.
+It returns `items` (each with `job_id`, `title`, `company`, `link`, `linkedin_job_id`, `deadline`, `closing_soon`, `description`, `guard_verdict`, `previous_status` and `fetch_attempts`) plus the counts `eligible`, `deferred`, `expired` and `already_ranked`. Archived jobs and jobs with a submitted application are never candidates. Jobs whose saved deadline already passed are counted as `expired` and are not fetched: Work Tracker shows them as Expired from the date alone. Jobs that were unreachable on an earlier run come back as candidates to retry. Jobs that failed the requirements check (`gate_verdict` is `fail`) are never candidates: `gate_failed` lists each with its quoted `reason`. Report them apart, under "Failed deal-breakers", with that reason; never rank or shortlist them, and leave the decision to the user.
 
 If `items` is empty, say there is nothing new to rank, report `expired` and `already_ranked`, suggest `all` when the user changed their profile, and stop.
 

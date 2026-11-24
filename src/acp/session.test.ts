@@ -11,6 +11,7 @@ const SKILLS = [
   "interview-prep",
   "followup",
   "job-ranking",
+  "requirements-check",
 ];
 
 const DELIM = "\n\n---\nAdditional context from the user (honor this):\n";
@@ -88,6 +89,16 @@ describe("buildSkillPrompt — job-ranking", () => {
     expect(prompt).toContain("the selected jobs #3, #5, re-ranking jobs that were already ranked");
     expect(prompt).toContain("`work-tracker ranking candidates --limit 20 --all --job-ids 3,5`");
     expect(buildSkillPrompt("job-ranking", { limit: "0", all: "yes" })).toContain("`work-tracker ranking candidates` and");
+  });
+});
+
+describe("buildSkillPrompt — requirements-check", () => {
+  test("names the jobs, asks for quotes and never removes a job", () => {
+    const prompt = buildSkillPrompt("work-tracker-requirements-check", { jobIds: " 3,5 " });
+    expect(prompt).toContain("work-tracker-requirements-check skill for these saved jobs: 3,5.");
+    expect(prompt).toContain("`work-tracker job gate`");
+    expect(prompt).toContain("Never archive or delete a job.");
+    expect(buildSkillPrompt("requirements-check", {})).toContain("saved jobs: (none provided).");
   });
 });
 

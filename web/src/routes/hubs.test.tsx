@@ -19,6 +19,7 @@ vi.mock("./search", async () => ({ SearchPage: await page("Find people", "People
 vi.mock("./launch", async () => ({ LaunchPage: await page("Agent console", "Console content") }))
 vi.mock("./activity", async () => ({ ActivityPage: await page("Activity", "History content") }))
 vi.mock("@/components/resume-sources", () => ({ ResumeSources: () => <div>Resume configuration</div> }))
+vi.mock("@/components/deal-breakers", () => ({ DealBreakers: () => <div>Deal-breakers configuration</div> }))
 vi.mock("@/lib/agent", () => ({ prepareSkill: vi.fn() }))
 
 describe("hub search parameters", () => {
@@ -26,6 +27,7 @@ describe("hub search parameters", () => {
     expect(validateWorkspaceSearch("contacts", { tab: "people", keywords: "Engineer", company: "Acme" })).toMatchObject({ tab: "people", keywords: "Engineer", company: "Acme" })
     expect(validateWorkspaceSearch("profile", { tab: "answers", field: "email", returnTo: "/apply?jobId=1" })).toEqual({ tab: "answers", field: "email", returnTo: "/apply?jobId=1" })
     expect(validateWorkspaceSearch("launch", { tab: "history", query: "draft" })).toMatchObject({ tab: "history", query: "draft" })
+    expect(validateWorkspaceSearch("profile", { tab: "deal-breakers" })).toMatchObject({ tab: "deal-breakers" })
   })
 })
 
@@ -64,5 +66,7 @@ describe("hub layout", () => {
     expect(screen.getByText("Capture what your resume leaves out")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Update experiences" }))
     expect(prepareSkill).toHaveBeenCalledWith("experience-bank")
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Deal-breakers" }))
+    expect(screen.getByText("Deal-breakers configuration")).toBeInTheDocument()
   })
 })

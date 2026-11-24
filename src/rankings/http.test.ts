@@ -12,7 +12,7 @@ beforeEach(() => {
   vi.mocked(db).mockReturnValue("db" as never);
   vi.mocked(listRankings).mockReturnValue([]);
   vi.mocked(rankingCandidates).mockReturnValue({
-    limit: 10, all: false, eligible: 1, deferred: 0, expired: 0, already_ranked: 0,
+    limit: 10, all: false, eligible: 1, deferred: 0, expired: 0, already_ranked: 0, gate_failed: [],
     items: [{ job_id: 1, title: "Engineer", company: "Acme", link: null, linkedin_job_id: null, deadline: null, closing_soon: false,
       description: "Posting text", guard_verdict: "clean", previous_status: null, fetch_attempts: 0 }],
   });

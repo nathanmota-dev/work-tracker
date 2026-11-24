@@ -24,6 +24,12 @@ export const skills = [
     fields: ["jobIds"],
   },
   {
+    id: "requirements-check",
+    name: "Check requirements",
+    description: "Compare the languages and work eligibility saved jobs require with your deal-breakers.",
+    fields: ["jobIds"],
+  },
+  {
     id: "resume-tailor",
     name: "Tailor your resume",
     description: "Create tailored resumes, cover letters and match reports.",

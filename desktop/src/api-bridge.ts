@@ -32,6 +32,7 @@ const reads = new Set([
   "followups/candidates",
   "rankings",
   "rankings/candidates",
+  "gates/profile",
 ])
 const writes = new Set([
   "integrations",
@@ -90,6 +91,8 @@ const writes = new Set([
   "application-board/quiet/resolve",
   "followups/sent",
   "followups/discard",
+  "gates/languages",
+  "gates/eligibility",
   "company-research/invalidate",
   "workspace-backup/create",
   "workspace-backup/inspect",
@@ -141,7 +144,8 @@ export function registerApiBridge(backend: BackendControl) {
       const followups = body === undefined && /^followups(\?application_id=[1-9]\d*|\/candidates\?days=[1-9]\d{0,3})$/.test(path)
       const companyResearch = body === undefined && /^company-research\?company=[^&#]{1,600}$/.test(path)
       const rankings = body === undefined && /^rankings\/candidates\?(all=true(&job_ids=[1-9]\d*(,[1-9]\d*)*)?|job_ids=[1-9]\d*(,[1-9]\d*)*)$/.test(path)
-      if (!(body === undefined ? reads : writes).has(path) && !batchReview && !applicationPacks && !quietScan && !companyResearch && !followups && !rankings)
+      const jobGate = body === undefined && /^gates\/jobs\/[1-9]\d*$/.test(path)
+      if (!(body === undefined ? reads : writes).has(path) && !batchReview && !applicationPacks && !quietScan && !companyResearch && !followups && !rankings && !jobGate)
         throw new Error("Unsupported API request")
       if (!connection)
         throw new Error(unavailable ?? "Backend is starting. Please retry in a moment.")
