@@ -21,6 +21,9 @@ vi.mock("@/components/agent-conversation", () => ({
   AgentConversation: ({ messages }: { messages: { text: string }[] }) =>
     <div>{messages.map((message, index) => <p key={index}>{message.text}</p>)}</div>,
 }))
+vi.mock("@/components/ui/date-picker", () => ({
+  DatePicker: ({ value, onChange, disabled }: { value: string; onChange: (value: string) => void; disabled?: boolean }) => <input aria-label="Date" type="date" value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)} />,
+}))
 vi.mock("@/components/ui/select-control", () => ({
   SelectControl: (props: React.ComponentProps<"select">) => <select {...props} />,
 }))
@@ -95,7 +98,7 @@ describe("InterviewPrepPage", () => {
 
   it("shows saved packs newest first with the latest expanded", () => {
     render(<InterviewPrepPage />)
-    expect(screen.getByText("Final round")).toBeInTheDocument()
+    expect(screen.getAllByText("Final round").length).toBeGreaterThan(1)
     expect(screen.getByText("Recruiter screen", { selector: "summary" })).toBeInTheDocument()
     expect(screen.getByText("Why Acme?")).toBeInTheDocument()
   })

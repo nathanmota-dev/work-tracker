@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { SelectControl } from "@/components/ui/select-control"
@@ -119,10 +120,9 @@ function ApplicationFieldset({ draft, busy, change }: {
         />
       </Field>
       <Field label="Application deadline">
-        <Input
-          type="date"
+        <DatePicker
           value={draft.deadline}
-          onChange={(e) => change("deadline", e.target.value)}
+          onChange={(value) => change("deadline", value)}
         />
       </Field>
       <Field label="Applied at">

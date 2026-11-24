@@ -8,6 +8,7 @@ import {
   WorkspaceActions,
   type AgentSelection,
 } from "@/components/launch-form"
+import { DatePicker } from "@/components/ui/date-picker"
 import { SelectControl } from "@/components/ui/select-control"
 import { Input } from "@/components/ui/input"
 import { Empty, Field, LoadState, Page, Panel, Status, controlClass } from "@/components/workspace-ui"
@@ -83,11 +84,12 @@ export function InterviewPrepPage() {
               </Field>
               {typeof selected?.company_name === "string" && selected.company_name.trim() && <CompanyResearchNote key={selected.company_name} company={selected.company_name} />}
               <Field label="Stage">
-                <Input className={controlClass} list="interview-stages" value={draft.stage} disabled={agent.running} onChange={(e) => set("stage")(e.target.value)} required />
-                <datalist id="interview-stages">{STAGES.map((stage) => <option key={stage} value={stage} />)}</datalist>
+                <SelectControl className={controlClass} value={draft.stage} disabled={agent.running} onChange={(e) => set("stage")(e.target.value)}>
+                  {[...STAGES, ...(STAGES.includes(draft.stage) || !draft.stage ? [] : [draft.stage])].map((stage) => <option key={stage} value={stage}>{stage}</option>)}
+                </SelectControl>
               </Field>
               <Field label="Date">
-                <Input className={controlClass} type="date" value={draft.date} disabled={agent.running} onChange={(e) => set("date")(e.target.value)} />
+                <DatePicker value={draft.date} disabled={agent.running} onChange={set("date")} />
               </Field>
               <Field label="Format">
                 <Input className={controlClass} placeholder="Phone, video, onsite" value={draft.format} disabled={agent.running} onChange={(e) => set("format")(e.target.value)} />
