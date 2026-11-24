@@ -4,8 +4,8 @@ import type { Database } from "../db/sqlite.ts";
 import type { FillChecklistItem, FillPendingReason, FillReview } from "./types.ts";
 
 const REASONS: Record<FillPendingReason, string> = {
-  "no-stored-answer": "No saved answer for this field. Add one in Answers, then fill again.",
-  "invalid-answer": "The saved answer is invalid. Correct it in Answers, then fill again.",
+  "no-stored-answer": "No saved answer for this field. Add it in Profile, then fill again.",
+  "invalid-answer": "The saved answer is invalid. Correct it in Profile, then fill again.",
   ambiguous: "The question matches more than one saved answer. Answer it in the portal yourself.",
   "eeo-human-only": "Demographic question. It is never filled automatically; answer it in the portal yourself.",
   "no-match": "No saved answer matches this question. Answer it in the portal yourself.",

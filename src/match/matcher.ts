@@ -50,6 +50,8 @@ export interface MatchResult {
 /** Lowercase, strip required-markers/punctuation, collapse whitespace. */
 export function normalize(label: string): string {
   return label
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // "Endereço" matches "endereco"
     .toLowerCase()
     .replace(/\*+/g, " ") // greenhouse "Field *" required markers
     .replace(/\(required\)|\(optional\)/g, " ")
@@ -91,7 +93,7 @@ function scoreSpec(norm: string, spec: KeySpec): Candidate | null {
     if (norm === s) {
       return { spec, confidence: 1.0, reason: "exact" }; // can't beat exact
     }
-    if (norm.includes(s) || s.includes(norm)) {
+    if (` ${norm} `.includes(` ${s} `) || ` ${s} `.includes(` ${norm} `)) {
       // Weight by synonym specificity: a multi-word phrase ("require
       // sponsorship") is a far stronger signal than an incidental single-word
       // hit ("location" inside a long sentence). Caps below the 1.0 exact tier.

@@ -124,3 +124,11 @@ describe("matchLabels", () => {
     ]);
   });
 });
+
+test("Portuguese portal labels match the saved profile answers", () => {
+  const labels = ["Nome completo *", "Data de nascimento *", "Estado/Região *", "Cidade *", "Bairro *", "Endereço *", "CEP *", "Idiomas", "Aceita contratação CLT? *", "Cargo pretendido", "Nível de experiência *", "Gênero *", "Pretensão salarial"];
+  const answers = { full_name: "A B", birth_date: "1990-01-02", state: "SP", city: "Ribeirão Preto", neighborhood: "Centro", address: "Rua 1", postal_code: "14000-000", languages: "Português", accepts_clt: "Sim", desired_role: "Engenheiro", experience_level: "Pleno", salary_expectation: "10000" };
+  const result = matchLabels(labels, { answers });
+  expect(result.matched.map(m => m.key)).toEqual(["full_name", "birth_date", "state", "city", "neighborhood", "address", "postal_code", "languages", "accepts_clt", "desired_role", "experience_level", "salary_expectation"]);
+  expect(result.unfilled).toEqual([{ label: "Gênero *", skip: "eeo-human-only", key: "eeo_gender" }]);
+});

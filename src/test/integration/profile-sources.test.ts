@@ -88,7 +88,8 @@ test("generation imports the folder with Poppler and the agent's profile.json ca
   const { listAnswerVariants } = await import("../../answers/store.ts");
   expect(Object.fromEntries(listAnswerVariants().map(row => [row.key, [row.value, row.autofill_source]]))).toEqual({
     first_name: ["Alex", "linkedin"], last_name: ["Example", "linkedin"], full_name: ["Alex Example", "linkedin"], email: ["alex@example.com", "linkedin"],
-    location: ["Lisbon, Portugal", "linkedin"], linkedin_url: ["https://www.linkedin.com/in/alex-ex/", "linkedin"],
+    location: ["Lisbon, Portugal", "linkedin"], city: ["Lisbon", "linkedin"], country: ["Portugal", "linkedin"],
+    summary: [expect.any(String), "linkedin"], languages: [expect.stringContaining("English"), "linkedin"], linkedin_url: ["https://www.linkedin.com/in/alex-ex/", "linkedin"],
   });
   expect(profileSourcesState().about).toMatchObject({ headline: "Senior Software Engineer at Northwind Labs", currentCompany: "Northwind Labs", skills: ["TypeScript", "React", "PostgreSQL"] });
 }, 90000);

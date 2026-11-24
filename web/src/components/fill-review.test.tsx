@@ -14,7 +14,7 @@ beforeEach(() => {
     items: [
       { label: "Email", key: "email", answer: "candidate@example.com", result: "filled", reason: null, reasonText: null, correctionKey: "email" },
       { label: "Resume", key: "resume", answer: "", result: "filled", reason: null, reasonText: null, correctionKey: null },
-      { label: "Phone", key: "phone", answer: null, result: "pending", reason: "no-stored-answer", reasonText: "No saved answer for this field. Add one in Answers, then fill again.", correctionKey: "phone" },
+      { label: "Phone", key: "phone", answer: null, result: "pending", reason: "no-stored-answer", reasonText: "No saved answer for this field. Add it in Profile, then fill again.", correctionKey: "phone" },
       { label: "Gender", key: "eeo_gender", answer: null, result: "pending", reason: "eeo-human-only", reasonText: "Demographic question. Answer it yourself.", correctionKey: null },
     ],
     filled: 2, pending: 2, instruction: "Work Tracker never submits.",

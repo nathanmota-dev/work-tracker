@@ -15,7 +15,7 @@ test("takes each field from the data file first, then LinkedIn, then the resume 
   const data = { name: "Alex  Data Example", contact: { email: "alex@data.example", tel: "", social: [{ name: "GitHub", url: "https://github.com/alex-data" }] }, locationLink: "https://www.google.com/maps/place/Ribeir%C3%A3o+Preto+-+SP", personalWebsiteUrl: "#" };
   expect(values(personalFromSources(data, linkedin(), [{ text: resume }]))).toEqual({
     first_name: "Alex (data)", last_name: "Data Example (data)", full_name: "Alex Data Example (data)", email: "alex@data.example (data)", phone: "(16) 99993-6596 (resume)",
-    location: "Ribeirão Preto - SP (data)", linkedin_url: "https://www.linkedin.com/in/alex/ (linkedin)", github_url: "https://github.com/alex-data (data)", portfolio_url: "https://alex.dev (linkedin)",
+    location: "Ribeirão Preto - SP (data)", city: "Ribeirão Preto (data)", state: "SP (data)", summary: "Builds web platforms. (linkedin)", languages: "English · Native (linkedin)", linkedin_url: "https://www.linkedin.com/in/alex/ (linkedin)", github_url: "https://github.com/alex-data (data)", portfolio_url: "https://alex.dev (linkedin)",
   });
 });
 
@@ -24,7 +24,7 @@ test("skips invalid values and single-word names; no source suggests nothing", (
   expect(values(personalFromSources(data, null, []))).toEqual({ location: "Porto (data)" });
   expect(personalFromSources(null, null, [])).toEqual([]);
   const partial = values(personalFromSources({ locationLink: "https://maps.example/maps/place/%E0%A4%A" }, linkedin({ contact: undefined as never, location: "" }), []));
-  expect(partial).toEqual({ first_name: "Alex (linkedin)", last_name: "Example (linkedin)", full_name: "Alex Example (linkedin)" });
+  expect(partial).toEqual({ first_name: "Alex (linkedin)", last_name: "Example (linkedin)", full_name: "Alex Example (linkedin)", summary: "Builds web platforms. (linkedin)", languages: "English · Native (linkedin)" });
 });
 
 test("reads only the header of a resume PDF", () => {
@@ -38,4 +38,20 @@ test("summarizes the profile from LinkedIn and the data file's skills", () => {
   });
   expect(aboutFromSources({ skills: ["React"] }, null)).toMatchObject({ headline: "", skills: ["React"], currentCompany: "" });
   expect(aboutFromSources(null, null)).toBeNull();
+});
+
+test("place parts split a location into city, state and country", async () => {
+  const { placeParts } = await import("./personal.ts");
+  expect(placeParts("Ribeirão Preto, São Paulo, Brazil")).toEqual({ city: "Ribeirão Preto", state: "São Paulo", country: "Brazil" });
+  expect(placeParts("Ribeirão Preto - SP")).toEqual({ city: "Ribeirão Preto", state: "SP" });
+  expect(placeParts("Porto, Portugal")).toEqual({ city: "Porto", country: "Portugal" });
+  expect(placeParts("Remote")).toEqual({});
+});
+
+test("city, state and country come from the one source that gave the location", () => {
+  const data = { location: "Porto" };
+  const mixed = values(personalFromSources(data, linkedin(), []));
+  expect(mixed).toMatchObject({ location: "Porto (data)" });
+  expect(mixed).not.toHaveProperty("country");
+  expect(values(personalFromSources(null, linkedin({ location: "Lisbon, Portugal" }), []))).toMatchObject({ city: "Lisbon (linkedin)", country: "Portugal (linkedin)" });
 });

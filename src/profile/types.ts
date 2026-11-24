@@ -83,7 +83,7 @@ export interface ProfileSources {
   resolved: ResolvedValue[];
 }
 
-export type PersonalKey = "first_name" | "last_name" | "full_name" | "email" | "phone" | "location" | "linkedin_url" | "github_url" | "portfolio_url";
+export type PersonalKey = "first_name" | "last_name" | "full_name" | "email" | "phone" | "location" | "city" | "state" | "country" | "summary" | "languages" | "linkedin_url" | "github_url" | "portfolio_url";
 /** Where a personal detail came from: the data file, the LinkedIn export or another resume PDF. */
 export type PersonalSource = "data" | "linkedin" | "resume";
 export interface PersonalField { key: PersonalKey; value: string; source: PersonalSource }

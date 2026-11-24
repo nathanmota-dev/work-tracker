@@ -12,7 +12,7 @@ test("maps filled, missing, ambiguous and demographic fields to readable reasons
     ["Phone", "pending", null], ["Gender", "pending", null], ["Favorite color", "pending", null], ["First name / Last name", "pending", null], ["Salary", "pending", null],
   ]);
   expect(items.map(item => item.reason)).toEqual([null, null, null, "no-stored-answer", "eeo-human-only", "no-match", "ambiguous", "invalid-answer"]);
-  expect(items[3]!.reasonText).toBe("No saved answer for this field. Add one in Answers, then fill again.");
+  expect(items[3]!.reasonText).toBe("No saved answer for this field. Add it in Profile, then fill again.");
   expect(items[4]!.reasonText).toMatch(/^Demographic question\. It is never filled automatically/);
   expect(items[6]!.reasonText).toMatch(/more than one saved answer/);
   expect(items.map(item => item.correctionKey)).toEqual(["email", null, null, "phone", null, null, null, "salary_expectation"]);

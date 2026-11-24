@@ -16,6 +16,26 @@ for the candidate's review and manual submission. If sign-in is pending, report
 that fact and let the candidate retry after signing in; do not write a completed
 result.
 
+## Work fast: few browser round trips
+
+Each Chrome MCP call is slow, so plan the whole form before touching it:
+
+1. Run `work-tracker answer list` once, then one `take_snapshot` of the form. Scroll
+   with `evaluate_script` only if fields are missing; do not re-snapshot per field.
+2. Run `work-tracker match --labels '[...]'` once with **every** visible label,
+   including Portuguese ones (accents are handled).
+3. Fill all text, textarea, date and native select fields with one `fill_form` call
+   (uid + value pairs). Do not call `fill` field by field. Open a combobox or
+   custom dropdown only for fields that need it, one click for the dropdown and one
+   for the option.
+4. Upload the PDF with `upload_file`, then take one `take_snapshot` at the end to
+   verify every value and the attached filename. Take at most one screenshot.
+5. Use `job.title` from the manifest for "desired role" style fields
+   (`desired_role`, "Cargo pretendido") when no saved answer exists, and say so in
+   the result. Leave photo fields empty.
+6. Write `resultPath` as soon as the final snapshot confirms the values. Do not
+   keep exploring the page after that.
+
 After filling, write a JSON object to `resultPath`:
 
 ```json

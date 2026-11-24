@@ -1,7 +1,7 @@
 import { KEY_SPECS, type Category } from "../match/synonyms";
 
 export const CATEGORY_LABELS: Record<Category, string> = {
-  contact: "Identity and contact", eligibility: "Eligibility", links: "Links",
+  contact: "Identity and contact", eligibility: "Eligibility", profile: "Professional profile", links: "Links",
   eeo: "Human review", custom: "Custom",
 };
 const LABELS: Record<string, string> = {
@@ -9,6 +9,10 @@ const LABELS: Record<string, string> = {
   email: "Email", phone: "Phone", location: "Location",
   work_authorization: "Work authorization", requires_sponsorship: "Requires sponsorship",
   salary_expectation: "Salary expectation", notice_period: "Notice period",
+  birth_date: "Birth date", country: "Country", state: "State / region", city: "City", neighborhood: "Neighborhood",
+  address: "Street address", postal_code: "Postal code (CEP)", desired_role: "Desired role", experience_level: "Experience level",
+  professional_category: "Professional category", summary: "Professional summary", languages: "Languages",
+  accepts_clt: "Accepts CLT hiring", social_links: "Other social links",
   linkedin_url: "LinkedIn profile", github_url: "GitHub profile", portfolio_url: "Portfolio website",
   eeo_gender: "Gender", eeo_race: "Race / ethnicity", eeo_veteran: "Veteran status", eeo_disability: "Disability status",
 };
@@ -34,6 +38,8 @@ export function validateAnswer(key: string, value: string | null): string | null
       return `Enter a complete HTTP or HTTPS ${LABELS[key] ?? "website"} URL.`;
     }
   }
+  if (key === "birth_date" && !/^(\d{4}-\d{2}-\d{2}|\d{2}\/\d{2}\/\d{4})$/.test(value.trim()))
+    return "Enter a date such as 1990-12-31 or 31/12/1990.";
   if (key === "phone" && (!/^[+\d\s().-]+$/.test(value) || value.replace(/\D/g, "").length < 7))
     return "Enter a phone number with at least seven digits, including the country code.";
   return null;

@@ -5,9 +5,11 @@ export const SOURCE_LABELS: Record<PersonalSource, string> = { data: "From your 
 
 /** Sections of the profile, in order; `manual` fields never come from a resume. */
 export const PROFILE_SECTIONS: { title: string; keys: string[]; manual?: boolean }[] = [
-  { title: "Personal information", keys: ["first_name", "last_name", "full_name", "email", "phone", "location"] },
-  { title: "Links", keys: ["linkedin_url", "github_url", "portfolio_url"] },
-  { title: "Needs your answer", keys: ["work_authorization", "requires_sponsorship", "salary_expectation", "notice_period"], manual: true },
+  { title: "Personal information", keys: ["first_name", "last_name", "full_name", "email", "phone", "birth_date"] },
+  { title: "Address", keys: ["location", "country", "state", "city", "neighborhood", "address", "postal_code"] },
+  { title: "Professional profile", keys: ["desired_role", "experience_level", "professional_category", "summary", "languages", "salary_expectation"] },
+  { title: "Links", keys: ["linkedin_url", "github_url", "portfolio_url", "social_links"] },
+  { title: "Needs your answer", keys: ["work_authorization", "requires_sponsorship", "notice_period", "accepts_clt"], manual: true },
 ]
 
 export interface ProfileValue { value: string; origin: string }
