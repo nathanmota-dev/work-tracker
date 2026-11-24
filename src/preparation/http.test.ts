@@ -2,12 +2,15 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { handlePreparation } from "./http.ts";
 import { PreparationError, saveSources } from "./sources.ts";
 import { pdfBytes } from "./store.ts";
+import { ensureProfileImported } from "../profile/import.ts";
 import type { PreparationService } from "./service.ts";
 vi.mock("./sources.ts", async (original) => ({
   ...(await original<typeof import("./sources.ts")>()),
   saveSources: vi.fn(),
+  sourcesConfig: vi.fn(() => ({ profileDir: "/profile" })),
 }));
 vi.mock("./store.ts", () => ({ pdfBytes: vi.fn() }));
+vi.mock("../profile/import.ts", () => ({ ensureProfileImported: vi.fn() }));
 const service = {
   isBusy: false,
   sourcesState: vi.fn(),
@@ -49,6 +52,8 @@ test.each([
   expect(service[method]).toHaveBeenCalledOnce();
   if (!["preview"].includes(method))
     expect(service[method]).toHaveBeenCalledWith({ jobId: 1 });
+  // Generation reads the profile folder's PDFs first; other operations never import.
+  expect(vi.mocked(ensureProfileImported).mock.calls).toEqual(["generate", "retry"].includes(method) ? [["/profile"]] : []);
 });
 test("reads/saves sources and rejects updates while busy", async () => {
   expect((await call("resume-sources", "", "GET")).status).toBe(200);

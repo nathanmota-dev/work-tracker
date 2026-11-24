@@ -554,7 +554,7 @@ Ordem proposta para discussão, baseada no [inventário de features e fluxos](fe
 
 **Critério de conclusão:** Um usuário sem projeto próprio cria uma base válida a partir de dados reais; conteúdo de exemplo não é enviado como se fosse experiência do candidato.
 
-**Arquivos-base:** [base/latex/resume.example.tex](../base/latex/resume.example.tex), [base/data/resume-data.example.ts](../base/data/resume-data.example.ts), [src/preparation/sources.ts](../src/preparation/sources.ts), [web/src/components/resume-sources.tsx](../web/src/components/resume-sources.tsx).
+**Arquivos-base:** [base/latex/resume.example.tex](../base/latex/resume.example.tex), [base/data/resume-data.example.json](../base/data/resume-data.example.json), [src/preparation/sources.ts](../src/preparation/sources.ts), [web/src/components/resume-sources.tsx](../web/src/components/resume-sources.tsx).
 
 ## Feature 47 — Criar banco visual de experiências
 

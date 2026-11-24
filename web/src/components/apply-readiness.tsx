@@ -3,6 +3,7 @@ import { correctionLink, diagnosticBlocks, integrationLabels, type Target, type 
 import { getStartedLink, type StepId } from "@/lib/onboarding"
 import { PostingCheck } from "@/components/posting-check"
 import type { StoredGate } from "@/lib/gates"
+import { undecidedConflicts, useProfileSources } from "@/lib/profile-sources"
 export type ApplyAction = "description" | "model" | "review" | "gate"
 /** @property [step] Get started step that walks through this correction. */
 export type ApplyBlock = { message: string; label: string; href?: string; action?: ApplyAction; step?: StepId }
@@ -53,8 +54,19 @@ export function GateWarning({ gate, confirmed, onConfirm }: { gate?: StoredGate 
   </div>
 }
 /** @property [guard] Stored posting check of the saved description, shown with it. */
-export function ApplyReadiness({ generate, fill, testing, error, test, correct, guard, description, gate }: { generate: ApplyBlock[]; fill: ApplyBlock[]; testing: boolean; error: string; test: () => void; correct: (action: ApplyAction) => void; guard?: unknown; description?: unknown; gate?: { value?: StoredGate | null; confirmed: boolean; confirm: () => void } }) {
+/** Undecided profile conflicts warn without blocking: the base resume keeps its value meanwhile. */
+export function ProfileConflictsWarning({ count }: { count: number }) {
+  if (!count) return null
+  return <p role="status">Your profile has {count} undecided {count === 1 ? "conflict" : "conflicts"} between your data file and LinkedIn. <a className="underline" href="#/profile?tab=resume">Decide in Profile → Base resume</a></p>
+}
+function ProfileConflicts() {
+  const profile = useProfileSources()
+  return <ProfileConflictsWarning count={undecidedConflicts(profile.data).length} />
+}
+/** @property [profile] Warn about undecided profile conflicts before generating. */
+export function ApplyReadiness({ generate, fill, testing, error, test, correct, guard, description, gate, profile = false }: { generate: ApplyBlock[]; fill: ApplyBlock[]; testing: boolean; error: string; test: () => void; correct: (action: ApplyAction) => void; guard?: unknown; description?: unknown; gate?: { value?: StoredGate | null; confirmed: boolean; confirm: () => void }; profile?: boolean }) {
   return <div className="mt-4 space-y-3 rounded-lg border p-3 text-sm" aria-label="Apply readiness">
+    {profile && <ProfileConflicts />}
     <PostingCheck guard={guard} description={description} />
     {gate && <GateWarning gate={gate.value} confirmed={gate.confirmed} onConfirm={gate.confirm} />}
     {([ ["Generate", generate], ["Fill", fill] ] as const).map(([label, blocks]) => blocks.length > 0 && <div key={label}><p className="font-medium">{label} is blocked</p><ul className="mt-2 space-y-2">{blocks.map((block, i) => <li key={i}>{block.message} {block.href ? <a className="underline" href={block.href}>{block.label}</a> : <button className="underline" onClick={() => block.action && correct(block.action)}>{block.label}</button>}{block.step && <> · <a className="underline" href={getStartedLink(block.step)}>Get started guide</a></>}</li>)}</ul></div>)}

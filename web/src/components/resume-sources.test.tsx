@@ -26,6 +26,7 @@ beforeEach(() => {
       mainFile: "resume.tex",
       dataFile: "",
       engine: "pdflatex",
+      profileDir: "",
     },
     dependencies: [{ command: "latexmk", available: true }],
     preview: null,
@@ -68,6 +69,7 @@ it("handles source selection, cancelled picker and picker errors", async () => {
   desktop.chooseSource
     .mockResolvedValueOnce("/new")
     .mockResolvedValueOnce(null)
+    .mockResolvedValueOnce("/profile")
     .mockRejectedValueOnce(new Error("picker failed"))
   render(<ResumeSources />)
   fireEvent.click(screen.getAllByRole("button", { name: "Browse" })[0]!)
@@ -76,9 +78,12 @@ it("handles source selection, cancelled picker and picker errors", async () => {
   )
   fireEvent.click(screen.getAllByRole("button", { name: "Browse" })[1]!)
   await waitFor(() => expect(desktop.chooseSource).toHaveBeenCalledWith("data"))
-  expect(
-    screen.getByLabelText("Optional data file (.ts or .json)"),
-  ).toHaveValue("")
+  expect(screen.getByLabelText("Optional data file (.json)")).toHaveValue("")
+  fireEvent.click(screen.getAllByRole("button", { name: "Browse" })[2]!)
+  await waitFor(() =>
+    expect(screen.getByLabelText("Profile folder")).toHaveValue("/profile"),
+  )
+  expect(desktop.chooseSource).toHaveBeenLastCalledWith("folder")
   fireEvent.click(screen.getAllByRole("button", { name: "Browse" })[1]!)
   expect(await screen.findByRole("alert")).toHaveTextContent("picker failed")
 })
@@ -93,7 +98,7 @@ it("saves a draft, generates its preview and emits refresh notifications", async
   )
   expect(request).toHaveBeenCalledWith(
     "resume-sources",
-    expect.objectContaining({ mainFile: "main.tex" }),
+    expect.objectContaining({ mainFile: "main.tex", profileDir: "" }),
   )
   expect(request).toHaveBeenCalledWith("resume-sources/preview", {})
   expect(onPreview).toHaveBeenCalledWith(artifact)

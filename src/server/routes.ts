@@ -21,6 +21,7 @@ import { handleFollowups } from "../followups/http.ts";
 import { handleCompanyResearch } from "../company-research/http.ts";
 import { handleRankings } from "../rankings/http.ts";
 import { handleGates } from "../gates/http.ts";
+import { handleProfileSources } from "../profile/http.ts";
 
 type Acp = Pick<SessionManager, "run" | "cancel"> & Partial<Pick<SessionManager, "isRunning" | "permissions">>;
 type Broadcast = (event: unknown) => void;
@@ -134,6 +135,7 @@ export async function routeApi(path: string, req: Request, context: Context): Pr
   if (path === "/api/rankings" || path.startsWith("/api/rankings/")) return handleRankings(path, req);
   if (path === "/api/company-research" || path.startsWith("/api/company-research/")) return handleCompanyResearch(path, req, context.broadcast);
   if (path.startsWith("/api/gates/")) return handleGates(path, req, context.broadcast);
+  if (path === "/api/profile-sources" || path.startsWith("/api/profile-sources/")) return handleProfileSources(path, req, context.broadcast);
   if (path.startsWith("/api/onboarding/")) return handleOnboarding(path, req, context.broadcast);
   if (path === "/api/integrations" || path.startsWith("/api/integrations/")) return handleIntegrations(path, req, () => !!context.acp.isRunning || !!context.preparation?.isBusy || chromeLoginOpening(), context.broadcast);
   if (path === "/api/acp/permissions" || path.startsWith("/api/acp/permissions/")) return handlePermissions(path, req, context.acp.permissions);

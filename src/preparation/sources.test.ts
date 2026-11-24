@@ -5,29 +5,16 @@ vi.mock("../paths.ts", () => ({
   loadConfig: vi.fn(() => ({})),
   saveConfig: vi.fn(),
 }));
+vi.mock("../profile/evidence.ts", () => ({ isFolder: vi.fn(() => false), profileEvidence: vi.fn() }));
 import { loadConfig, saveConfig } from "../paths.ts";
+import { isFolder, profileEvidence } from "../profile/evidence.ts";
 import { parseResumeData, sourcesConfig } from "./sources.ts";
 
 describe("static resume inputs", () => {
-  test("accepts existing TypeScript data and normalizes frameworks without running it", () => {
-    const data = parseResumeData(
-      'export const RESUME_DATA = { skills: ["ReactJs", "NextJs", "Shadcn/ui"], projects: [{ techStack: ["Node", "TailwindCSS", "next-intl"] }] } as const;',
-      ".ts",
-    );
+  test("accepts JSON, normalizes frameworks and rejects malformed array shapes", () => {
+    const data = parseResumeData('{"skills":["ReactJs","NextJs","Shadcn/ui"],"projects":[{"techStack":["Node","TailwindCSS","next-intl"]}]}', ".json");
     expect(data.skills).toEqual(["React", "Next.js"]);
     expect(data.projects).toEqual([{ techStack: ["Node.js", "Tailwind CSS"] }]);
-  });
-  test.each([
-    'import x from "secret"; export const RESUME_DATA = {};',
-    "export const RESUME_DATA = process.exit();",
-    "export const RESUME_DATA = { x: (() => 1)() };",
-    "export const RESUME_DATA = { ...process.env };",
-    'export const RESUME_DATA = { ["email"]: "x" };',
-    "export const RESUME_DATA = { __proto__: {} };",
-  ])("rejects executable input: %s", (source) =>
-    expect(() => parseResumeData(source, ".ts")).toThrow(),
-  );
-  test("accepts JSON and rejects malformed array shapes", () => {
     expect(
       parseResumeData('{"education":[{"end":"2025-09"}]}', ".json"),
     ).toEqual({ education: [{ end: "2025-09" }] });
@@ -38,6 +25,11 @@ describe("static resume inputs", () => {
       "technology names",
     );
   });
+  test("asks to convert TypeScript data to JSON without reading it", () => {
+    expect(() => parseResumeData("export const RESUME_DATA = {};", ".ts")).toThrow(
+      "TypeScript resume data is no longer supported. Save the RESUME_DATA object as resume-data.json.",
+    );
+  });
 });
 
 describe("repository resume defaults", () => {
@@ -46,33 +38,30 @@ describe("repository resume defaults", () => {
   beforeEach(() => {
     vi.stubEnv("WORK_TRACKER_REPO_ROOT", root);
     vi.mocked(loadConfig).mockReturnValue({});
+    vi.mocked(isFolder).mockReset().mockReturnValue(false);
     files = new Set();
     vi.spyOn(fs, "statSync").mockImplementation((path) => {
       if (!files.has(String(path))) throw new Error("ENOENT");
       return { isFile: () => true } as fs.Stats;
     });
   });
-  test("uses the build checkout with no saved settings or current-directory dependency", () => {
+  test("uses the build checkout and its profile folder with no saved settings or current-directory dependency", () => {
     files.add(join(root, "base/latex/resume.tex"));
-    files.add(join(root, "base/data/resume-data.ts"));
+    files.add(join(root, "base/data/resume-data.json"));
+    vi.mocked(isFolder).mockImplementation((path) => path === join(root, "base/data"));
     expect(sourcesConfig()).toEqual({
       projectDir: join(root, "base/latex"),
       mainFile: "resume.tex",
-      dataFile: join(root, "base/data/resume-data.ts"),
+      dataFile: join(root, "base/data/resume-data.json"),
       engine: "pdflatex",
+      profileDir: join(root, "base/data"),
     });
     expect(saveConfig).not.toHaveBeenCalled();
   });
-  test("uses JSON when both supported data files are present", () => {
-    for (const file of [
-      "base/latex/resume.tex",
-      "base/data/resume-data.ts",
-      "base/data/resume-data.json",
-    ])
-      files.add(join(root, file));
-    expect(sourcesConfig().dataFile).toBe(
-      join(root, "base/data/resume-data.json"),
-    );
+  test("never detects TypeScript data", () => {
+    files.add(join(root, "base/latex/resume.tex"));
+    files.add(join(root, "base/data/resume-data.ts"));
+    expect(sourcesConfig()).toMatchObject({ dataFile: "", profileDir: "" });
   });
   test("supports a template alone and never selects versioned examples", () => {
     files.add(join(root, "base/latex/resume.example.tex"));
@@ -90,10 +79,18 @@ describe("repository resume defaults", () => {
       mainFile: "main.tex",
       dataFile: "",
       engine: "xelatex" as const,
+      profileDir: "/another/profile",
     };
     vi.mocked(loadConfig).mockReturnValue({ resumeSources: saved });
     expect(sourcesConfig()).toEqual(saved);
     expect(fs.statSync).not.toHaveBeenCalled();
+  });
+  test("a configuration saved before the profile folder uses the data file's folder, or none", () => {
+    const saved = { projectDir: "/project", mainFile: "resume.tex", dataFile: "/profile/resume-data.json", engine: "pdflatex" as const };
+    vi.mocked(loadConfig).mockReturnValue({ resumeSources: saved as never });
+    expect(sourcesConfig()).toEqual({ ...saved, profileDir: "/profile" });
+    vi.mocked(loadConfig).mockReturnValue({ resumeSources: { ...saved, dataFile: "" } as never });
+    expect(sourcesConfig().profileDir).toBe("");
   });
   test("uses the current repository for CLI callers without a desktop root", () => {
     vi.stubEnv("WORK_TRACKER_REPO_ROOT", undefined);
@@ -113,6 +110,7 @@ describe("isolated source snapshots", () => {
       mainFile: "resume.tex",
       dataFile: "",
       engine: "pdflatex",
+      profileDir: "",
     };
     entries = {
       "resume.tex": { text: "resume" },
@@ -251,9 +249,31 @@ describe("isolated source snapshots", () => {
       {},
       { ...config, engine: "bad" },
       { ...config, projectDir: "/missing" },
+      { ...config, profileDir: 7 },
+      { ...config, profileDir: "relative/profile" },
     ])
       expect(() => saveSources(input)).toThrow();
     expect(saveConfig).not.toHaveBeenCalled();
+  });
+  test("saves an existing profile folder, and a body without one uses the data file's folder", () => {
+    vi.mocked(isFolder).mockImplementation((path) => path === "/profile" || path === "/");
+    vi.mocked(profileEvidence).mockReturnValue({ data: null, warnings: [], assets: [], linkedin: null, conflicts: [] });
+    expect(saveSources({ ...config, profileDir: " /profile " })).toEqual({ ...config, profileDir: "/profile" });
+    expect(saveSources({ projectDir: "/project", mainFile: "resume.tex", dataFile: "/data.json", engine: "pdflatex" })).toMatchObject({ profileDir: "/" });
+    expect(() => saveSources({ ...config, profileDir: "/missing" })).toThrow("existing folder");
+  });
+  test("consolidates the profile folder into the data, so a new import or choice changes the version", () => {
+    const data = { profileSources: { conflicts: [], resolved: [] } };
+    vi.mocked(profileEvidence).mockReturnValue({ data, warnings: ["1 profile conflict needs a decision."], assets: [], linkedin: null, conflicts: [] });
+    const withProfile = snapshotSources({ ...config, dataFile: "/data.json", profileDir: "/profile" });
+    expect(profileEvidence).toHaveBeenCalledWith("/profile", { projects: [{}] });
+    expect(withProfile.data).toBe(data);
+    expect(withProfile.warnings).toContain("1 profile conflict needs a decision.");
+    vi.mocked(profileEvidence).mockReturnValue({ data: { profileSources: { conflicts: [], resolved: [{ key: "k" }] } }, warnings: [], assets: [], linkedin: null, conflicts: [] });
+    expect(snapshotSources({ ...config, dataFile: "/data.json", profileDir: "/profile" }).version).not.toBe(withProfile.version);
+    vi.mocked(profileEvidence).mockClear();
+    snapshotSources(config);
+    expect(profileEvidence).not.toHaveBeenCalled();
   });
 });
 
@@ -262,8 +282,7 @@ test.each([
   ["[]", ".json"],
   ["null", ".json"],
   ["{}", ".yaml"],
-  ["export const OTHER = {};", ".ts"],
-  ["export let RESUME_DATA = {};", ".ts"],
+  ["export const RESUME_DATA = {};", ".ts"],
 ])("rejects malformed or unsupported resume data %s", (source, extension) => {
   expect(() => parseResumeData(source, extension)).toThrow();
 });

@@ -19,6 +19,7 @@ import { interviewPrepCmd } from "./interview-prep.ts";
 import { followupCmd } from "./followup.ts";
 import { rankingCmd } from "./rankings.ts";
 import { gatesCmd } from "./gates.ts";
+import { profileCmd } from "./profile-sources.ts";
 import { companyResearchCmd } from "./company-research.ts";
 import { detectPortalCmd } from "./detect-portal.ts";
 import { exportCmd } from "./export.ts";
@@ -47,6 +48,7 @@ vi.mock("./interview-prep.ts", () => ({ interviewPrepCmd: vi.fn() }));
 vi.mock("./followup.ts", () => ({ followupCmd: vi.fn() }));
 vi.mock("./rankings.ts", () => ({ rankingCmd: vi.fn() }));
 vi.mock("./gates.ts", () => ({ gatesCmd: vi.fn() }));
+vi.mock("./profile-sources.ts", () => ({ profileCmd: vi.fn() }));
 vi.mock("./company-research.ts", () => ({ companyResearchCmd: vi.fn() }));
 vi.mock("./detect-portal.ts", () => ({ detectPortalCmd: vi.fn() }));
 vi.mock("./export.ts", () => ({ exportCmd: vi.fn() }));
@@ -97,6 +99,13 @@ test("dispatches followup subcommands lazily", async () => {
   expect(followupCmd).toHaveBeenLastCalledWith("", {});
   expect(closeDb).toHaveBeenCalledTimes(2);
 });
+test("dispatches profile subcommands lazily", async () => {
+  await runCli(["profile", "import", "--force"]);
+  expect(profileCmd).toHaveBeenCalledWith("import", { force: true });
+  await runCli(["profile"]);
+  expect(profileCmd).toHaveBeenLastCalledWith("", {});
+});
+
 test("dispatches ranking subcommands lazily", async () => {
   await runCli(["ranking", "candidates", "--limit", "5", "--all"]);
   expect(rankingCmd).toHaveBeenCalledWith("candidates", { limit: "5", all: true });

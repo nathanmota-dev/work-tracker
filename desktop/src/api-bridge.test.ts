@@ -170,6 +170,19 @@ describe("api bridge", () => {
       await expect(request({}, invalid)).rejects.toThrow("Unsupported API request")
     await expect(request({}, "company-research?company=Acme", {})).rejects.toThrow("Unsupported API request")
   })
+  it("allows the profile sources, a new import and a conflict decision", async () => {
+    connectApiBridge({ address: "http://127.0.0.1:4000", token: "fixture" })
+    const fetch = vi.fn(async () => new Response("{}"))
+    vi.stubGlobal("fetch", fetch)
+    const request = electron.handlers.get("api:request")!
+    expect(await request({}, "profile-sources")).toEqual({})
+    expect(fetch).toHaveBeenLastCalledWith(expect.objectContaining({ pathname: "/api/profile-sources" }), expect.objectContaining({ method: "GET" }))
+    for (const write of ["profile-sources/import", "profile-sources/choice"]) {
+      expect(await request({}, write, { key: "k", source: null })).toEqual({})
+      expect(fetch).toHaveBeenLastCalledWith(expect.objectContaining({ pathname: `/api/${write}` }), expect.objectContaining({ method: "POST" }))
+    }
+    await expect(request({}, "profile-sources/choice")).rejects.toThrow("Unsupported API request")
+  })
   it("allows the gate profile, its two writes and the stored check of one job", async () => {
     connectApiBridge({ address: "http://127.0.0.1:4000", token: "fixture" })
     const fetch = vi.fn(async () => new Response("{}"))

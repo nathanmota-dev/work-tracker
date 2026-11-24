@@ -113,7 +113,7 @@ test('Settings: resume pickers, invalid sources, real preview and download', asy
   await workspace.picker([workspace.project])
   await page.getByRole('button', { name: 'Browse', exact: true }).first().click()
   await workspace.picker([workspace.dataFile])
-  await page.getByRole('button', { name: 'Browse', exact: true }).last().click()
+  await page.getByRole('button', { name: 'Browse', exact: true }).nth(1).click()
   await folder.fill(join(workspace.home, 'missing'))
   await page.getByRole('button', { name: 'Save sources' }).click()
   await expect(page.getByRole('alert')).toBeVisible()

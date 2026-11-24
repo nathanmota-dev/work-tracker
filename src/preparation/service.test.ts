@@ -204,6 +204,7 @@ beforeEach(() => {
     mainFile: "resume.tex",
     dataFile: "",
     engine: "pdflatex",
+    profileDir: "",
   });
   vi.mocked(snapshotSources)
     .mockReset()

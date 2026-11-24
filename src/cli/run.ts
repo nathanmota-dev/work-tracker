@@ -26,6 +26,8 @@ Usage:
   work-tracker serve [--port N]       Start the local backend
   work-tracker fetch-profile [username]  Fetch a LinkedIn profile
   work-tracker import-journey <FILE.md>   Migrate a legacy JOURNEY.md into the db
+  work-tracker profile sources        Print the profile folder's files, import status and conflicts as JSON
+  work-tracker profile import [--force]   Extract the folder's LinkedIn export and reference PDFs (--force: all again)
 
 Write API (used by skills):
   work-tracker recruiter add --name <n> [--company --username --title --location --degree --status --note]
@@ -120,6 +122,10 @@ const commands: Record<string, Command> = {
       process.exit(1);
     }
     await importJourneyCmd(file);
+  },
+  profile: async ([sub], flags) => {
+    const { profileCmd } = await import("./profile-sources.ts");
+    await profileCmd(sub ?? "", flags);
   },
   recruiter: ([sub], flags) => recruiterCmd(sub ?? "", flags),
   outreach: async ([sub], flags) => {

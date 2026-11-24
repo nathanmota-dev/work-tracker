@@ -4,7 +4,7 @@ import { insertApplication, insertJob, memoryDatabase } from "../test/memory-db.
 import { appendItems, assertPortalFree, batchItems, batchRow, checkJobs, insertBatch, itemRow, pauseAfterRestart, pendingItems, portalHolder, queueState, reconcileItems, setBatch, setItem } from "./batch-store.ts";
 
 let d: Database;
-const sources = { projectDir: "/batch/sources", mainFile: "resume.tex", dataFile: "", engine: "pdflatex" as const };
+const sources = { projectDir: "/batch/sources", mainFile: "resume.tex", dataFile: "", engine: "pdflatex" as const, profileDir: "" };
 const batch = (fields: { provider?: string; extra?: string } = {}) => insertBatch(d, { provider: "agent", model: null, extra: "", source_version: "v1", sources, ...fields });
 function run(id: string, jobId: number, fields: Record<string, string | number | null> = {}): void {
   const values = { id, job_id: jobId, application_id: null, status: "running", phase: "tailoring", provider: "agent", events_json: "[]", recovery_json: "{}", created_at: "now", updated_at: "now", ...fields };

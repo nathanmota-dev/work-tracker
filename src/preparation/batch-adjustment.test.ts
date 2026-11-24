@@ -11,7 +11,7 @@ beforeEach(async () => {
   d = await memoryDatabase();
   const job = insertJob(d);
   const app = insertApplication(d, { job_id: job });
-  batchId = insertBatch(d, { provider: "agent", model: null, extra: "Common", source_version: "v1", sources: { projectDir: "/source", mainFile: "resume.tex", dataFile: "", engine: "pdflatex" } });
+  batchId = insertBatch(d, { provider: "agent", model: null, extra: "Common", source_version: "v1", sources: { projectDir: "/source", mainFile: "resume.tex", dataFile: "", engine: "pdflatex", profileDir: "" } });
   appendItems(d, batchId, [{ jobId: job, extra: "Override" }]);
   itemId = batchItems(d, batchId)[0]!.id;
   d.query("INSERT INTO application_runs (id, job_id, application_id, status, phase, provider, created_at, updated_at) VALUES ('old', ?, ?, 'completed', 'review', 'agent', 'now', 'now')").run(job, app);

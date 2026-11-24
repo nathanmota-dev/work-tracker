@@ -62,6 +62,7 @@ const dependencies: Record<string, string[]> = {
   "company-research": ["company_research"],
   "gates/profile": ["candidate_languages", "gate_profile"],
   "gates/jobs": ["jobs", "candidate_languages", "gate_profile"],
+  "profile-sources": ["profile_imports"],
 }
 /** Dependency entry of a read path: parameterized paths share their base entry. */
 function dependencyKey(path: string) {

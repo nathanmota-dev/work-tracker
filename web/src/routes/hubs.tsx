@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Empty, Page, PageSection, Panel } from "@/components/workspace-ui"
 import { ResumeSources } from "@/components/resume-sources"
+import { ProfileSources } from "@/components/profile-sources"
 import { DealBreakers } from "@/components/deal-breakers"
 import { prepareSkill } from "@/lib/agent"
 import { ProfilePage } from "./profile"
@@ -51,8 +52,9 @@ export function ContactsHub() {
 
 function BaseResume() {
   return (
-    <Page title="Base resume" description="The LaTeX project every tailored resume starts from.">
+    <Page title="Base resume" description="The LaTeX project every tailored resume starts from, and the profile evidence it is tailored with.">
       <ResumeSources />
+      <ProfileSources />
     </Page>
   )
 }

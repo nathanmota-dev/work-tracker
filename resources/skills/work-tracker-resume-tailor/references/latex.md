@@ -16,6 +16,23 @@ fonts and margins. Preserve all LaTeX comments, including commented certificatio
 comments are not evidence that a certification has been earned. Show education by
 completion date. Do not invent missing accomplishments or metrics.
 
+## Profile evidence
+
+The profile at `profilePath` can contain `profileSources`, built by Work Tracker
+from the user's profile folder: the data file, a LinkedIn "Save to PDF" export and
+resumes the user already has as PDFs.
+
+- The values in `profileSources.resolved` are the correct dates and locations: the
+  user chose them where the data file and LinkedIn disagreed. Use them.
+- For each entry of `profileSources.conflicts` whose `chosen` is null, keep the
+  value of the base LaTeX and record the undecided conflict in `gaps`.
+- `profileSources.linkedin`, `profileSources.linkedinOnly` and
+  `profileSources.references` are evidence from the candidate's own history. They
+  can supply bullets and experience proven there, including roles that exist only on
+  LinkedIn.
+- Do not add an experience unrelated to the target role only because it exists.
+- Translate a reference written in another language faithfully, without new claims.
+
 Edit only the working project's content. Escape LaTeX special characters in inserted
 text, and keep existing custom commands usable. Use the base page count as a length
 target: replace weaker material rather than appending all projects.

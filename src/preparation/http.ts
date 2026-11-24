@@ -1,5 +1,6 @@
 import type { PreparationService } from "./service.ts";
-import { PreparationError, saveSources } from "./sources.ts";
+import { PreparationError, saveSources, sourcesConfig } from "./sources.ts";
+import { ensureProfileImported } from "../profile/import.ts";
 import { pdfBytes } from "./store.ts";
 import { JourneyError } from "../applications/journey.ts";
 export async function handlePreparation(path: string, req: Request, service: PreparationService): Promise<Response> {
@@ -14,10 +15,10 @@ export async function handlePreparation(path: string, req: Request, service: Pre
       case "/api/resume-sources/preview": return Response.json(await service.preview());
       case "/api/application-preparation/details": return Response.json(service.details(body));
       case "/api/application-preparation/description": service.description(body); return Response.json({ ok: true });
-      case "/api/application-preparation/generate": return Response.json(service.generate(body), { status: 202 });
+      case "/api/application-preparation/generate": await ensureProfileImported(sourcesConfig().profileDir); return Response.json(service.generate(body), { status: 202 });
       case "/api/application-preparation/approve": return Response.json(service.approve(body));
       case "/api/application-preparation/fill": return Response.json(service.fill(body), { status: 202 });
-      case "/api/application-preparation/retry": return Response.json(service.retry(body), { status: 202 });
+      case "/api/application-preparation/retry": await ensureProfileImported(sourcesConfig().profileDir); return Response.json(service.retry(body), { status: 202 });
       case "/api/application-preparation/submitted": return Response.json({ ok: true, ...service.submitted(body) });
       case "/api/application-preparation/cancel": await service.cancel(body.runId ? String(body.runId) : undefined); return Response.json({ ok: true });
       case "/api/application-preparation/pdf": return new Response(new Uint8Array(pdfBytes(String(body.artifactId ?? ""))), { headers: { "content-type": "application/pdf", "cache-control": "no-store" } });

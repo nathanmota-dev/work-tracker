@@ -13,7 +13,7 @@ coverage/
 /base/latex/*
 !/base/latex/resume.example.tex
 /base/data/*
-!/base/data/resume-data.example.ts
+!/base/data/resume-data.example.json
 
 # Playwright reports and failure evidence.
 /playwright-report/
