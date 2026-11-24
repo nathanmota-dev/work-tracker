@@ -1,6 +1,9 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 const MAX_BODY_BYTES = 1024 * 1024;
+/** An upload carries one profile file of up to 20 MB, encoded as base64. */
+const MAX_UPLOAD_BYTES = 28 * 1024 * 1024;
+const bodyLimit = (url = "") => url.startsWith("/api/profile-sources/upload") ? MAX_UPLOAD_BYTES : MAX_BODY_BYTES;
 
 /** Adapts a Node HTTP request to the Fetch API handler used by the backend. */
 export function nodeRequestListener(handleRequest: (req: Request) => Promise<Response>) {
@@ -8,9 +11,10 @@ export function nodeRequestListener(handleRequest: (req: Request) => Promise<Res
     try {
       const chunks: Buffer[] = [];
       let size = 0;
+      const limit = bodyLimit(incoming.url);
       for await (const chunk of incoming) {
         size += chunk.length;
-        if (size > MAX_BODY_BYTES) {
+        if (size > limit) {
           outgoing.writeHead(413).end();
           return;
         }

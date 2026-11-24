@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { spawnOwned, stopOwned } from "../acp/process.ts";
 import { loadConfig, paths } from "../paths.ts";
+import { defaultChrome } from "./install/browser.ts";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 
 let browserUrl: string | undefined;
@@ -44,7 +45,7 @@ async function startBrowser(initialUrl: string): Promise<void> {
     return index < 0 ? undefined : args[index]!.split("=").slice(1).join("=") || args[index + 1];
   };
   const channel = option(/^--channel(=|$)/);
-  const executable = option(/^(--executablePath|--executable-path|-e)(=|$)/) ?? (channel && channel !== "stable" ? `google-chrome-${channel}` : "google-chrome");
+  const executable = option(/^(--executablePath|--executable-path|-e)(=|$)/) ?? (channel && channel !== "stable" ? `google-chrome-${channel}` : defaultChrome());
   if (!executable || executable.startsWith("--")) throw new Error("Chrome executable path is missing.");
   const chromeArgs = args.flatMap((arg, index) => /^--(?:chrome-arg|chromeArg)=/.test(arg) ? [arg.slice(arg.indexOf("=") + 1)] : /^(--chrome-arg|--chromeArg)$/.test(arg) && args[index + 1] ? [args[index + 1]!] : []);
   const proxy = option(/^(--proxyServer|--proxy-server)(=|$)/);

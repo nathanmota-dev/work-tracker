@@ -17,6 +17,8 @@ import { chromeLoginOpening } from "../mcp/chrome.ts";
 import { nodeRequestListener } from "./http-adapter.ts";
 import { routeApi } from "./routes.ts";
 import { permissionStore } from "../acp/permission-store.ts";
+import { startProfileWatch, stopProfileWatch } from "../profile/watch.ts";
+import { ensureMcpServers, onInstallChange } from "../mcp/install/index.ts";
 
 /** Internal HTTP boundary, shared by the server adapter and unit tests. */
 export function createRequestHandler({
@@ -113,6 +115,11 @@ export async function startBackend(flags: Flags = {}) {
       resolve();
     });
   });
+  // Files placed in the profile folder are imported without a confirmation.
+  startProfileWatch(() => { for (const table of ["profile_imports", "applicant_answers"]) broadcast(sockets, { type: "changed", table }); });
+  // The default MCPs are installed in the background; the app opens meanwhile.
+  onInstallChange(() => broadcast(sockets, { type: "changed", table: "integrations" }));
+  void ensureMcpServers();
   const address = server.address() as { port: number };
   writeFileSync(
     paths.serverLock,
@@ -126,6 +133,7 @@ export async function startBackend(flags: Flags = {}) {
     address: `http://127.0.0.1:${address.port}`,
     close(): Promise<void> {
       return (closing ??= (async () => {
+        stopProfileWatch();
         queue.close();
         await preparation.close();
         variants.close();

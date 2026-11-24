@@ -58,8 +58,11 @@ export class Workspace {
     const db = new DatabaseSync(join(this.home, 'work-tracker.db'))
     try {
       db.prepare("INSERT INTO profile (id, username, name, headline, location) VALUES (1, 'synthetic-candidate', 'Synthetic Candidate', 'React Engineer', 'Remote')").run()
+      // Jobs list newest first by scouted_at (whole seconds): one explicit second per job keeps
+      // Engineer 01 first even when seeding crosses a second boundary.
+      const scouted = Date.now()
       for (let i = 1; i <= 17; i++) {
-        db.prepare('INSERT INTO jobs (id, linkedin_job_id, title, company_name, location, work_type, fit, status, link, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(i, String(1000 + i), `Engineer ${String(i).padStart(2, '0')}`, `Company ${i}`, 'Remote', 'remote', 'strong', i % 2 ? 'saved' : 'assessed', `https://example.com/jobs/${i}`, 'React developer')
+        db.prepare('INSERT INTO jobs (id, linkedin_job_id, title, company_name, location, work_type, fit, status, link, description, scouted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(i, String(1000 + i), `Engineer ${String(i).padStart(2, '0')}`, `Company ${i}`, 'Remote', 'remote', 'strong', i % 2 ? 'saved' : 'assessed', `https://example.com/jobs/${i}`, 'React developer', new Date(scouted - i * 1000).toISOString().slice(0, 19).replace('T', ' '))
         db.prepare("INSERT INTO activity_log (kind, skill, summary) VALUES ('skill-run', 'job-scout', ?)").run(`Seed activity ${i}`)
         db.prepare('INSERT INTO applicant_answers (key, value, category) VALUES (?, ?, ?)').run(`custom_${String(i).padStart(2, '0')}`, `Answer ${i}`, 'custom')
         db.prepare("INSERT INTO recruiters (name, username, company, status) VALUES (?, ?, ?, 'pending')").run(i === 1 ? 'Alex Recruiter' : `Recruiter ${i}`, i === 1 ? 'alex-recruiter' : `recruiter-${i}`, 'Example Company')

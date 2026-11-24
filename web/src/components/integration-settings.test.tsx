@@ -79,3 +79,15 @@ it("shows safe validation details from the backend without exposing arbitrary er
   fireEvent.click(screen.getByRole("button", { name: "Save integration" }))
   expect(await screen.findByRole("alert")).toHaveTextContent("Arguments must be a JSON array of strings")
 })
+it("shows how the app installed the selected MCP and retries a failed installation", async () => {
+  window.location.hash = "#/settings?section=integrations&target=mcp/linkedin"
+  status = { ...status, entries: [{ target: "mcp/linkedin", executable: false }], install: [{ name: "linkedin", state: "failed", message: "LinkedIn MCP could not be downloaded. Check your internet connection, then try again." }, { name: "chrome", state: "ready", message: "Chrome MCP is installed." }] }
+  render(<IntegrationSettingsPanel />)
+  expect(await screen.findByRole("alert")).toHaveTextContent("Installation: LinkedIn MCP could not be downloaded.")
+  fireEvent.click(screen.getByRole("button", { name: "Try again" }))
+  await waitFor(() => expect(desktop.request).toHaveBeenCalledWith("integrations/install", {}))
+  status = { ...status, install: [{ name: "linkedin", state: "installing", message: "Installing LinkedIn MCP…" }] }
+  await act(async () => publish({ type: "changed", table: "integrations" }))
+  expect(await screen.findByText("Installation: Installing LinkedIn MCP…")).toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Try again" })).toBeNull()
+})

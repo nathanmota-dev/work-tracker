@@ -40,3 +40,14 @@ test("rejects oversized bodies and reports handler failures", async () => {
   expect(failed.writeHead).toHaveBeenCalledWith(500, { "content-type": "application/json" });
   expect(failed.end).toHaveBeenCalledWith(JSON.stringify({ error: "Error: boom" }));
 });
+
+test("accepts one profile upload of up to 20 MB as base64, and no more", async () => {
+  const handler = vi.fn(async () => new Response("{}"));
+  const upload = (size: number) => Object.assign(incoming("POST", {}, [Buffer.alloc(size)]), { url: "/api/profile-sources/upload?token=t" });
+  const accepted = outgoing();
+  await nodeRequestListener(handler)(upload(27 * 1024 * 1024) as never, accepted as never);
+  expect(handler).toHaveBeenCalledOnce();
+  const rejected = outgoing();
+  await nodeRequestListener(handler)(upload(28 * 1024 * 1024 + 1) as never, rejected as never);
+  expect(rejected.writeHead).toHaveBeenCalledWith(413);
+});

@@ -2,6 +2,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { loadConfig } from "../paths.ts";
 import { chromeBrowserUrl, hasChromeConnection } from "./chrome.ts";
+import { fallbackChrome } from "./install/browser.ts";
 export function mcpServers() {
   const cfg = loadConfig();
   return (["linkedin", "chrome"] as const).map(name => {
@@ -15,6 +16,11 @@ export function mcpServers() {
     if (name === "chrome" && !hasChromeConnection(args)) {
       const browserUrl = chromeBrowserUrl();
       if (browserUrl) args.push("--browser-url", browserUrl);
+      // Without a Chrome on this computer, MCP launches the build the app downloaded.
+      else if (!args.some(a => /^(--executablePath|--executable-path|-e|--channel)(=|$)/.test(a))) {
+        const executable = fallbackChrome();
+        if (executable) args.push("--executablePath", executable);
+      }
     }
     // ACP providers have private XDG directories. Browser discovery and cookie
     // storage must instead see the desktop environment, including over ACP.

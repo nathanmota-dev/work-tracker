@@ -9,6 +9,9 @@ vi.mock("@/lib/api", () => ({
   request: vi.fn(),
   publish: vi.fn(),
 }))
+vi.mock("@/components/pdf-viewer", () => ({
+  PdfViewer: ({ title }: { title: string }) => <h2>{title}</h2>,
+}))
 vi.mock("@/components/ui/select-control", () => ({
   SelectControl: (props: React.ComponentProps<"select">) => (
     <select {...props} />
@@ -18,7 +21,7 @@ let state: SourcesState
 let desktop: ReturnType<typeof desktopDouble>
 const refresh = vi.fn(),
   onPreview = vi.fn()
-const artifact = { id: "pdf", kind: "base", pages: 1, warnings: [] }
+const artifact = { id: "pdf", kind: "base", pages: 1, warnings: [] } as unknown as NonNullable<SourcesState["preview"]>
 beforeEach(() => {
   state = {
     config: {
@@ -157,4 +160,52 @@ it("keeps the draft after save failure", async () => {
   expect(await screen.findByRole("alert")).toHaveTextContent("save failed")
   expect(screen.getByLabelText("Main .tex file")).toHaveValue("draft.tex")
   expect(screen.getByRole("button", { name: "Save sources" })).toBeEnabled()
+})
+it("shows each source by name only and saves a source chosen from the summary", async () => {
+  state.config = { ...state.config, projectDir: "/home/me/cv/latex", dataFile: "/home/me/cv/data/resume-data.json", profileDir: "/home/me/cv/data/" }
+  state.preview = artifact
+  render(<ResumeSources friendly />)
+  expect(screen.getByText("Advanced: paths and compiler")).toBeInTheDocument()
+  const summary = screen.getByRole("list", { name: "Selected sources" })
+  expect(summary).toHaveTextContent("LaTeX resumeresume.tex")
+  expect(summary).toHaveTextContent("Resume dataresume-data.json")
+  expect(summary).toHaveTextContent("Profile folderdata")
+  expect(summary.textContent).not.toContain("/home/me")
+  desktop.chooseSource.mockResolvedValueOnce("/home/me/other")
+  fireEvent.click(screen.getByRole("button", { name: "Change Profile folder" }))
+  await waitFor(() => expect(request).toHaveBeenCalledWith("resume-sources", { ...state.config, profileDir: "/home/me/other" }))
+  expect(desktop.chooseSource).toHaveBeenCalledWith("folder")
+})
+it("offers to choose missing sources and keeps them when the picker is cancelled", async () => {
+  state.config = { ...state.config, projectDir: "", dataFile: "" }
+  render(<ResumeSources friendly />)
+  expect(screen.getByRole("list", { name: "Selected sources" })).toHaveTextContent("Optional: only the LaTeX is used")
+  desktop.chooseSource.mockResolvedValueOnce(null).mockRejectedValueOnce(new Error("no picker"))
+  fireEvent.click(screen.getByRole("button", { name: "Choose Resume data" }))
+  await waitFor(() => expect(desktop.chooseSource).toHaveBeenCalledWith("data"))
+  fireEvent.click(screen.getByRole("button", { name: "Choose LaTeX resume" }))
+  expect(await screen.findByRole("alert")).toHaveTextContent("no picker")
+  expect(request).not.toHaveBeenCalled()
+})
+it("keeps the technical view outside Base resume, and there shows the base PDF", () => {
+  state.preview = artifact
+  const { rerender } = render(<ResumeSources />)
+  expect(screen.queryByRole("heading", { name: "Base resume PDF" })).toBeNull()
+  expect(screen.queryByRole("list", { name: "Selected sources" })).toBeNull()
+  expect(screen.queryByText("Advanced: paths and compiler")).toBeNull()
+  rerender(<ResumeSources friendly />)
+  expect(screen.getByRole("heading", { name: "Base resume PDF" })).toBeInTheDocument()
+  // A profile change leaves no preview for the new version: it is not compiled again here.
+  state.preview = null
+  rerender(<ResumeSources friendly />)
+  expect(request).not.toHaveBeenCalled()
+})
+it("compiles a missing base PDF once when Base resume opens", async () => {
+  const { rerender } = render(<ResumeSources friendly />)
+  expect(await screen.findByRole("status")).toHaveTextContent("Base PDF ready (1 pages).")
+  rerender(<ResumeSources friendly />)
+  expect(request).toHaveBeenCalledOnce()
+  expect(request).toHaveBeenCalledWith("resume-sources/preview", {})
+  render(<ResumeSources />)
+  expect(request).toHaveBeenCalledOnce()
 })

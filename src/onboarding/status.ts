@@ -4,13 +4,17 @@ import { ANSWER_CATALOG, resolveAnswer, type AnswerValue } from "../answers/cata
 import { phaseSql } from "../applications/journey-summary.ts";
 import { commandFingerprint, configSnapshot, targets, type Target } from "../integrations/config.ts";
 import { executable } from "../integrations/http.ts";
+import { installStates } from "../mcp/install/index.ts";
 import { dependencyStatus } from "../preparation/latex.ts";
 import { snapshotSources, sourcesConfig } from "../preparation/sources.ts";
 import { readPreferences, verifiedFingerprints } from "./store.ts";
 import { ONBOARDING_STEPS, OPTIONAL_STEPS, type OnboardingItem, type OnboardingStatus, type OnboardingStep, type StepId } from "./types.ts";
 
 function integration(target: Target, verified: Map<string, string>, config: ReturnType<typeof configSnapshot>["config"]): OnboardingItem {
-  if (!executable(target)) return { key: target, ready: false, reason: "missing_executable", target };
+  if (!executable(target)) {
+    const install = installStates().find(item => `mcp/${item.name}` === target);
+    return { key: target, ready: false, reason: install?.state === "installing" ? "installing" : "missing_executable", target };
+  }
   if (verified.get(target) !== commandFingerprint(target, config)) return { key: target, ready: false, reason: "untested", target };
   return { key: target, ready: true, target };
 }

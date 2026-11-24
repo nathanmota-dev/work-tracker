@@ -58,7 +58,7 @@ export function ContactsHub() {
 function BaseResume() {
   return (
     <Page title="Base resume" description="The LaTeX project every tailored resume starts from, and the profile evidence it is tailored with.">
-      <ResumeSources />
+      <ResumeSources friendly />
       <ProfileSources />
     </Page>
   )

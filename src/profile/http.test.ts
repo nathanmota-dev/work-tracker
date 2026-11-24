@@ -7,6 +7,8 @@ import { importProfileAssets } from "./import.ts";
 import { profileSourcesState } from "./state.ts";
 import { saveChoice } from "./store.ts";
 import type { ProfileSourcesState } from "./types.ts";
+import { uploadProfileFile } from "./upload.ts";
+import { importPending, profileImporting, syncProfileWatch } from "./watch.ts";
 
 vi.mock("../preparation/sources.ts", async (original) => ({ ...(await original<typeof import("../preparation/sources.ts")>()), sourcesConfig: vi.fn() }));
 vi.mock("./evidence.ts", () => ({ isFolder: vi.fn() }));
@@ -14,9 +16,11 @@ vi.mock("./autofill.ts", () => ({ syncProfileAnswers: vi.fn() }));
 vi.mock("./import.ts", () => ({ importProfileAssets: vi.fn() }));
 vi.mock("./state.ts", () => ({ profileSourcesState: vi.fn() }));
 vi.mock("./store.ts", () => ({ saveChoice: vi.fn() }));
+vi.mock("./upload.ts", () => ({ uploadProfileFile: vi.fn() }));
+vi.mock("./watch.ts", () => ({ importPending: vi.fn(), profileImporting: vi.fn(() => false), syncProfileWatch: vi.fn() }));
 
 const conflict = { key: "k1", field: "work.start", label: "Northwind Labs: start date", values: { data: "2022-11", linkedin: "2022-12" }, chosen: null };
-const state = { profileDir: "/profile", conflicts: [conflict] } as unknown as ProfileSourcesState;
+const state = { profileDir: "/profile", conflicts: [conflict], assets: [] } as unknown as ProfileSourcesState;
 const broadcast = vi.fn();
 const call = (path: string, method = "GET", body?: unknown) =>
   handleProfileSources(`/api/profile-sources${path}`, new Request("http://localhost", { method, ...(body === undefined ? {} : { body: typeof body === "string" ? body : JSON.stringify(body) }) }), broadcast);
@@ -27,7 +31,7 @@ beforeEach(() => {
 });
 
 test("reads the state and imports again, announcing the change", async () => {
-  expect(await (await call("")).json()).toEqual(state);
+  expect(await (await call("")).json()).toEqual({ ...state, importing: false });
   expect(await (await call("/import", "POST", { force: true })).json()).toEqual(state);
   expect(importProfileAssets).toHaveBeenCalledWith("/profile", { force: true });
   await call("/import", "POST", {});
@@ -63,4 +67,32 @@ test("rejects unknown conflicts and sources, other methods and paths", async () 
   expect((await call("/other", "POST", {})).status).toBe(404);
   expect(saveChoice).not.toHaveBeenCalled();
   expect(broadcast).not.toHaveBeenCalled();
+});
+
+test("a read follows the folder and picks up files waiting for an import", async () => {
+  const pending = { ...state, assets: [{ file: "new.pdf", kind: null, status: "pending", warnings: [] }] } as ProfileSourcesState;
+  vi.mocked(profileSourcesState).mockReturnValue(pending);
+  expect(await (await call("")).json()).toMatchObject({ importing: true });
+  expect(syncProfileWatch).toHaveBeenCalled();
+  expect(importPending).toHaveBeenCalledWith("/profile");
+  vi.mocked(importPending).mockClear();
+  vi.mocked(profileImporting).mockReturnValue(true);
+  expect(await (await call("")).json()).toMatchObject({ importing: true });
+  expect(importPending).not.toHaveBeenCalled();
+});
+
+test("uploads a file, imports it and announces the profile and the sources", async () => {
+  vi.mocked(uploadProfileFile).mockReturnValue({ dir: "/profile", result: { file: "cv.pdf", kind: "pdf", status: "added" } });
+  const body = { name: "cv.pdf", base64: "JVBERg==" };
+  expect(await (await call("/upload", "POST", body)).json()).toEqual({ ...state, upload: { file: "cv.pdf", kind: "pdf", status: "added" } });
+  expect(uploadProfileFile).toHaveBeenCalledWith(body);
+  expect(importProfileAssets).toHaveBeenCalledWith("/profile");
+  expect(broadcast).toHaveBeenCalledWith({ type: "changed", table: "resume_sources" });
+  expect(broadcast).toHaveBeenCalledWith({ type: "changed", table: "applicant_answers" });
+  expect(syncProfileAnswers).toHaveBeenCalledOnce();
+  vi.mocked(importProfileAssets).mockClear();
+  vi.mocked(uploadProfileFile).mockReturnValue({ dir: "/profile", result: { file: "resume-data.json", kind: "data", status: "replace_required" } });
+  expect(((await (await call("/upload", "POST", body)).json()) as { upload: { status: string } }).upload.status).toBe("replace_required");
+  expect(importProfileAssets).not.toHaveBeenCalled();
+  expect(syncProfileAnswers).toHaveBeenCalledOnce();
 });

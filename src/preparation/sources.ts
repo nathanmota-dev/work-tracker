@@ -20,6 +20,11 @@ function withProfileDir(saved: Omit<ResumeSourcesConfig, "profileDir"> & { profi
 export function sourcesConfig(): ResumeSourcesConfig {
   const saved = loadConfig().resumeSources;
   if (saved?.projectDir) return withProfileDir(saved);
+  // An upload saves the profile before any LaTeX project is chosen.
+  const detected = detectedSources();
+  return { ...detected, ...(saved?.profileDir && { profileDir: saved.profileDir }), ...(saved?.dataFile && { dataFile: saved.dataFile }) };
+}
+function detectedSources(): ResumeSourcesConfig {
   // The installed desktop app supplies its build checkout; the CLI uses its cwd.
   // Only real local inputs are defaults: the versioned examples require filling in.
   const root = resolve(process.env.WORK_TRACKER_REPO_ROOT ?? process.cwd());
