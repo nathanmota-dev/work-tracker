@@ -112,3 +112,16 @@ test("a legacy description is checked on its next edit", () => {
   const updated = saveJob(d, { title: "Edited", description: "Legacy\u200b text." }, id);
   expect(updated.job).toMatchObject({ description: "Legacy text.", description_guard_json: expect.stringContaining('"verdict":"Posting check: clean"') });
 });
+
+test("editing a job link updates unsubmitted applications that still use the old link", () => {
+  const { job } = saveJob(d, { ...draft, link: "https://www.linkedin.com/jobs/view/1/" });
+  const following = insertApplication(d, { job_id: job.id, external_url: job.link });
+  const empty = insertApplication(d, { job_id: job.id, attempt: 2, external_url: null });
+  const custom = insertApplication(d, { job_id: job.id, attempt: 3, external_url: "https://custom.test/apply" });
+  const submitted = insertApplication(d, { job_id: job.id, attempt: 4, external_url: job.link, submission_status: "submitted" });
+  saveJob(d, { link: "https://careers.test/jobs/1" }, job.id);
+  const links = Object.fromEntries((d.query("SELECT id, external_url FROM applications").all() as { id: number; external_url: string | null }[])
+    .map(row => [row.id, row.external_url]));
+  expect(links).toEqual({ [following]: "https://careers.test/jobs/1", [empty]: "https://careers.test/jobs/1",
+    [custom]: "https://custom.test/apply", [submitted]: "https://www.linkedin.com/jobs/view/1/" });
+});

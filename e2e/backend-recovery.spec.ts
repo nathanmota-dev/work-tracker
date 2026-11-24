@@ -34,7 +34,8 @@ test('Backend: an unexpected exit is shown and recovered without closing the win
 
   // The active run is reported as interrupted and is not started again.
   await expect(page.getByRole('log', { name: 'Agent conversation' }).getByText('Interrupted', { exact: true })).toBeVisible()
-  await expect(page.getByText('Interrupted', { exact: true })).toHaveCount(2)
+  await expect(page.getByText('Interrupted', { exact: true })).toHaveCount(1)
+  await expect(page.getByRole('main').getByRole('status', { name: 'Agent status: Error' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Run agent' })).toBeEnabled()
   expect(workspace.calls('prompt')).toHaveLength(1)
 

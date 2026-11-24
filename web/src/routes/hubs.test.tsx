@@ -21,6 +21,7 @@ vi.mock("./activity", async () => ({ ActivityPage: await page("Activity", "Histo
 vi.mock("@/components/resume-sources", () => ({ ResumeSources: () => <div>Resume configuration</div> }))
 vi.mock("@/components/deal-breakers", () => ({ DealBreakers: () => <div>Deal-breakers configuration</div> }))
 vi.mock("@/lib/agent", () => ({ prepareSkill: vi.fn() }))
+vi.mock("@/components/agent-indicator", () => ({ AgentIndicator: () => null }))
 
 describe("hub search parameters", () => {
   it("preserves people search criteria and answer return context", () => {

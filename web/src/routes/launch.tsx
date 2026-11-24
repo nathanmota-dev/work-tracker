@@ -138,7 +138,6 @@ export function LaunchPage() {
               />
               <SkillPicker
                 skill={skill}
-                description={selected.description}
                 disabled={agent.running}
                 onSkill={(value) => {
                   setSkill(value)
