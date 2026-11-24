@@ -183,12 +183,8 @@ export function ApplicationBoardView({
 }) {
   const { api, records, stages, active, archived, pending, error } = board
   const { showDetails, editRecord, archiveRecord } = dialogs
-  const visible = active.filter((application) =>
-    matchesApplication(application, query),
-  )
-  const archivedVisible = archived.filter((application) =>
-    matchesApplication(application, query),
-  )
+  const visible = active.filter((item) => matchesApplication(item, query))
+  const archivedVisible = archived.filter((item) => matchesApplication(item, query))
   const advancing = useAdvancing(board, stages, rows)
   const preparing = preparationRows(rows, "")
   const preparingVisible = preparationRows(rows, query)
