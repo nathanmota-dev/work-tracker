@@ -125,6 +125,21 @@ export function useApplicationBoard() {
       unlock(application.id)
     }
   }
+  /** The candidate submitted a prepared application in the portal: track it, optionally in a chosen stage. */
+  async function submitPrepared(applicationId: number, stageId?: number) {
+    if (!lock(applicationId)) return
+    try {
+      let result = await boardAction("submit", { id: applicationId })
+      if (stageId && stageId !== result.current_stage_id)
+        result = await boardAction("move", { id: applicationId, stage_id: stageId, expected_stage_id: result.current_stage_id ?? undefined })
+      saved(result)
+      setNotice("Application submitted. It is now on the board.")
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      unlock(applicationId)
+    }
+  }
   return {
     api,
     records,
@@ -138,5 +153,6 @@ export function useApplicationBoard() {
     saved,
     move,
     reopen,
+    submitPrepared,
   }
 }

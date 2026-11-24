@@ -12,6 +12,7 @@ const actions: (keyof ApplicationActions)[] = [
   "move",
   "archive",
   "reopen",
+  "submit",
   "details",
   "link/options",
   "link",

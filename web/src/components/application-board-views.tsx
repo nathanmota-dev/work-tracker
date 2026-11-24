@@ -56,6 +56,7 @@ export function ActiveBoard({
   onEdit,
   onArchive,
   onMove,
+  onSubmitPrepared,
 }: Actions & {
   active: TrackedApplication[]
   visible: TrackedApplication[]
@@ -67,6 +68,8 @@ export function ActiveBoard({
   preparation?: { columns: ReactNode; total: number; visible: number }
   highlight?: number
   onCreate: () => void
+  /** A prepared card was dropped on a stage: it was submitted in the portal. */
+  onSubmitPrepared?: (applicationId: number, stageId: number) => void
 }) {
   const inStage = (list: TrackedApplication[], stage: ApplicationStage) =>
     list.filter((application) => application.current_stage_id === stage.id)
@@ -89,6 +92,11 @@ export function ActiveBoard({
         onDragEnd={(event) => {
           if (event.canceled) return
           const targetId = String(event.operation.target?.id ?? "")
+          const sourceId = String(event.operation.source?.id ?? "")
+          if (sourceId.startsWith("prep:")) {
+            if (targetId.startsWith("stage:")) onSubmitPrepared?.(Number(sourceId.slice(5)), Number(targetId.slice(6)))
+            return
+          }
           const application = recordFor(records, event.operation.source?.id)
           if (!application || isLocked(application.id)) return
           if (targetId === "archive") onArchive(application)
@@ -126,7 +134,7 @@ export function ActiveBoard({
         </div>
         <ArchiveDropZone />
         <DragOverlay>
-          {(source) => <DragPreview application={recordFor(records, source.id)} />}
+          {(source) => String(source.id).startsWith("prep:") ? <p className="rounded-lg border bg-card px-3 py-2 text-sm shadow-lg">Drop on a stage to mark it submitted</p> : <DragPreview application={recordFor(records, source.id)} />}
         </DragOverlay>
       </DragDropProvider>
     </>

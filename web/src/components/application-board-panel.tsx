@@ -8,6 +8,7 @@ import { ApplicationForm } from "@/components/application-form"
 import { ApplicationArchive } from "@/components/application-archive"
 import { ApplicationStages } from "@/components/application-stages"
 import { ApplicationDetails } from "@/components/application-details"
+import { AdvanceDialog } from "@/components/advance-dialog"
 import { PreparationColumns, preparationRows } from "@/components/preparation-columns"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -188,10 +189,21 @@ export function ApplicationBoardView({
   const archivedVisible = archived.filter((application) =>
     matchesApplication(application, query),
   )
+  const [advancing, setAdvancing] = useState<{ row: Row; stageId?: number } | null>(null)
   const preparing = preparationRows(rows, "")
   const preparingVisible = preparationRows(rows, query)
   return (
     <>
+      <AdvanceDialog
+        row={advancing?.row ?? null}
+        stage={stages.find((stage) => stage.id === advancing?.stageId)?.name}
+        onCancel={() => setAdvancing(null)}
+        onConfirm={() => {
+          if (!advancing) return
+          void board.submitPrepared(Number(advancing.row.id), advancing.stageId)
+          setAdvancing(null)
+        }}
+      />
       <LoadState
         loading={api.loading && !api.data}
         error={api.error}
@@ -228,6 +240,7 @@ export function ApplicationBoardView({
                     rows={preparingVisible}
                     highlight={highlight}
                     onOpen={onPrepare}
+                    onAdvance={(row) => setAdvancing({ row })}
                   />
                 ),
                 total: preparing.length,
@@ -238,6 +251,10 @@ export function ApplicationBoardView({
               onEdit={editRecord}
               onArchive={archiveRecord}
               onMove={(application, stageId) => void board.move(application, stageId)}
+              onSubmitPrepared={(id, stageId) => {
+                const row = rows.find((item) => Number(item.id) === id)
+                if (row) setAdvancing({ row, stageId })
+              }}
             />
           </TabsContent>
           <TabsContent value="archived">

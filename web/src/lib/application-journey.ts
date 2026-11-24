@@ -89,3 +89,6 @@ export function summaryStep(summary: ApplicationSummary) {
     return { label: "Open board", href: "#/applications?view=board" }
   return { label: "Apply from your shortlist", href: "#/jobs?view=shortlist" }
 }
+
+/** Only a prepared or filled application can already have been submitted in the portal. */
+export const canAdvance = (row: Row) => ["prepared", "filled"].includes(String(row.phase))

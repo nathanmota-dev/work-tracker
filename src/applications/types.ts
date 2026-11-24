@@ -101,6 +101,8 @@ export interface ApplicationActions {
   move: { id: number; stage_id: number; expected_stage_id?: number };
   archive: { id: number; reason: ArchiveReason; note?: string };
   reopen: { id: number };
+  /** The candidate submitted it in the portal: mark it submitted and track it on the board. */
+  submit: { id: number };
   details: { id: number };
   "link/options": { id: number };
   /** Link a saved job, or create one from the application's context. */

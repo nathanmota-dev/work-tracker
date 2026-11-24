@@ -1,10 +1,12 @@
+import { useDraggable } from "@dnd-kit/react"
+import { ArrowRight, GripVertical } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { useHighlightRef } from "@/components/application-card"
 import { originLabel } from "@/components/application-list"
 import { text, type Row } from "@/lib/api"
-import { PHASES, PHASE_LABELS, nextStep, type JourneyPhase } from "@/lib/application-journey"
+import { PHASES, PHASE_LABELS, canAdvance, nextStep, type JourneyPhase } from "@/lib/application-journey"
 import { normalizeSearch } from "@/lib/application-board"
 import { cn } from "@/lib/utils"
 
@@ -28,28 +30,46 @@ function PreparationCard({
   row,
   highlighted,
   onOpen,
+  onAdvance,
 }: {
   row: Row
   highlighted: boolean
   onOpen: (row: Row) => void
+  onAdvance: (row: Row) => void
 }) {
-  const ref = useHighlightRef<HTMLDivElement>(highlighted)
+  const highlight = useHighlightRef<HTMLDivElement>(highlighted)
+  const draggable = canAdvance(row)
+  const { ref: dragRef, handleRef, isDragging } = useDraggable({ id: `prep:${text(row.id)}`, type: "application", disabled: !draggable })
+  const ref = { current: null as HTMLDivElement | null }
   const name = `${text(row.company_name)} · ${text(row.job_title)}`
   return (
     <Card
-      ref={ref}
+      ref={(element) => {
+        highlight.current = element
+        ref.current = element
+        dragRef(element)
+      }}
       role="group"
       aria-label={name}
       data-highlighted={highlighted || undefined}
       className={cn(
         "gap-2 rounded-xl py-3 shadow-none",
+        isDragging && "opacity-40",
         highlighted && "ring-2 ring-primary",
       )}
     >
       <CardContent className="space-y-2 px-3">
-        <p className="truncate font-semibold" title={text(row.company_name)}>
-          {text(row.company_name)}
-        </p>
+        <div className="flex items-center gap-1">
+          <p className="min-w-0 flex-1 truncate font-semibold" title={text(row.company_name)}>
+            {text(row.company_name)}
+          </p>
+          {draggable && (
+            <button ref={handleRef} type="button" aria-label={`Drag ${text(row.company_name)} application`}
+              className="touch-none rounded-md p-1 text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing">
+              <GripVertical className="size-4" />
+            </button>
+          )}
+        </div>
         <p className="truncate text-xs text-muted-foreground" title={text(row.job_title)}>
           {text(row.job_title)}
         </p>
@@ -63,6 +83,11 @@ function PreparationCard({
           >
             {nextStep(row).label}
           </Button>
+          {draggable && (
+            <Button size="icon" variant="ghost" className="size-8" title="Advance to next step" aria-label={`Advance ${name} to the next step`} onClick={() => onAdvance(row)}>
+              <ArrowRight className="size-4" />
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -71,16 +96,19 @@ function PreparationCard({
 
 /**
  * Fixed Draft → Prepared → Filled columns before the board stages. The server
- * computes each phase, so these cards cannot be dragged.
+ * computes each phase. A prepared or filled card is dragged to a board stage,
+ * or advanced with its arrow, once the candidate submitted it in the portal.
  */
 export function PreparationColumns({
   rows,
   highlight,
   onOpen,
+  onAdvance,
 }: {
   rows: Row[]
   highlight?: number
   onOpen: (row: Row) => void
+  onAdvance: (row: Row) => void
 }) {
   return (
     <>
@@ -112,6 +140,7 @@ export function PreparationColumns({
                   row={row}
                   highlighted={Number(row.id) === highlight}
                   onOpen={onOpen}
+                  onAdvance={onAdvance}
                 />
               ))}
               {!cards.length && (

@@ -29,6 +29,7 @@ import {
 import { openApplication, resolveJob, startTracking, transition } from "./journey-store.ts";
 import { jobLinkOptions, linkJob } from "./job-link.ts";
 import { archive, trackedChanges } from "./archive.ts";
+import { submit } from "./submit.ts";
 import { quietApplications, quietDays } from "./quiet.ts";
 import { resolveQuiet } from "./quiet-resolve.ts";
 import { reconcileReviews, refreshReview, resolveReview, reviewItems } from "./review.ts";
@@ -269,6 +270,7 @@ const handlers: Record<keyof ApplicationActions, Handler> = {
   update,
   move,
   archive,
+  submit,
   reopen,
   quiet,
   "quiet/resolve": quietResolve,

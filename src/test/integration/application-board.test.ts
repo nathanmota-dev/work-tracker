@@ -389,3 +389,15 @@ test("failed history insertion rolls back the move and emits no change events", 
     db().exec("DROP TRIGGER fail_application_event;");
   }
 });
+
+test("submit from the list marks a filled application submitted and tracks it once", () => {
+  const { lastInsertRowid } = db().query("INSERT INTO applications (status, fill_status, company_name, role_title) VALUES ('filled', 'filled', 'Acme', 'Dev')").run();
+  const id = Number(lastInsertRowid);
+  const first = execute("submit", { id });
+  expect(first.changed).toEqual(expect.arrayContaining(["applications", "application_events"]));
+  expect(first.value).toMatchObject({ id, tracking_status: "active", submission_status: "submitted" });
+  expect(list().applications.map(item => item.id)).toContain(id);
+  expect(db().query("SELECT COUNT(*) AS n FROM application_events WHERE application_id = ?").get(id)).toEqual({ n: 1 });
+  expect(execute("submit", { id }).changed).toEqual([]);
+  expect(db().query("SELECT COUNT(*) AS n FROM application_events WHERE application_id = ?").get(id)).toEqual({ n: 1 });
+});

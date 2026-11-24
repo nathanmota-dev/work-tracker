@@ -9,8 +9,12 @@ import { DeadlineBadge, DeadlineSort } from "@/components/deadline-badge"
 import { byDeadline } from "@/lib/deadline"
 import { Status, controlClass } from "@/components/workspace-ui"
 import { text, date, type Row } from "@/lib/api"
+import { ArrowRight } from "lucide-react"
+import { AdvanceDialog } from "@/components/advance-dialog"
+import { boardAction } from "@/lib/application-board"
 import {
   ORIGINS,
+  canAdvance,
   PHASE_LABELS,
   VIEWS,
   countRows,
@@ -50,9 +54,40 @@ export function NextStepAction({
       </Button>
     )
   return (
-    <Button size="sm" variant="outline" onClick={() => onPrepare(row)}>
-      {step.label}
-    </Button>
+    <div className="flex flex-wrap items-center gap-2">
+      <Button size="sm" variant="outline" onClick={() => onPrepare(row)}>
+        {step.label}
+      </Button>
+      {canAdvance(row) && <AdvanceButton row={row} />}
+    </div>
+  )
+}
+
+/** Advances a prepared application to Tracking once the candidate submitted it in the portal. */
+function AdvanceButton({ row }: { row: Row }) {
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState("")
+  async function advance() {
+    setBusy(true)
+    setError("")
+    try {
+      await boardAction("submit", { id: Number(row.id) })
+      setOpen(false)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <>
+      <Button size="sm" variant="ghost" title="Move to Tracking after you submitted it in the portal" onClick={() => { setError(""); setOpen(true) }}>
+        Advance to next step
+        <ArrowRight className="size-4" />
+      </Button>
+      <AdvanceDialog row={open ? row : null} busy={busy} error={error} onConfirm={() => void advance()} onCancel={() => setOpen(false)} />
+    </>
   )
 }
 

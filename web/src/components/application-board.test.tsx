@@ -181,7 +181,7 @@ beforeEach(() => {
   }
 })
 describe("application board", () => {
-  it("shows server-computed Draft, Prepared and Filled columns before the stages, without dragging", async () => {
+  it("shows server-computed Draft, Prepared and Filled columns before the stages; only submitted-able cards drag", async () => {
     window.location.hash = ""
     rows = [
       { id: 10, job_id: 1, job_title: "Draft role", company_name: "Draft Co", phase: "draft", view: "preparation", origin: "preparation" },
@@ -202,7 +202,10 @@ describe("application board", () => {
     ])
     const filled = within(screen.getByRole("region", { name: "Filled applications" }))
     expect(filled.getByRole("group", { name: "Filled Co · Filled role" })).toBeInTheDocument()
-    expect(filled.queryByRole("button", { name: /^Drag/ })).not.toBeInTheDocument()
+    expect(filled.getByRole("button", { name: "Drag Filled Co application" })).toBeInTheDocument()
+    expect(within(screen.getByRole("region", { name: "Draft applications" })).queryByRole("button", { name: /^Drag/ })).not.toBeInTheDocument()
+    expect(within(screen.getByRole("region", { name: "Draft applications" })).queryByRole("button", { name: /Advance/ })).not.toBeInTheDocument()
+    expect(filled.getByRole("button", { name: "Advance Filled Co · Filled role to the next step" })).toBeInTheDocument()
     expect(within(screen.getByRole("region", { name: "Applied applications" })).getByRole("button", { name: "Drag São José application" })).toBeInTheDocument()
     // A submitted record without a stage waits in Needs review, not in a column.
     expect(screen.queryByText("Legacy Co")).not.toBeInTheDocument()

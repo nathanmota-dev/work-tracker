@@ -90,6 +90,7 @@ const writes = new Set([
   "application-board/move",
   "application-board/archive",
   "application-board/reopen",
+  "application-board/submit",
   "application-board/details",
   "application-board/link/options",
   "application-board/link",
