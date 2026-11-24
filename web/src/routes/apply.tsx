@@ -11,6 +11,8 @@ import { ApplyReadiness, applyBlocks, type ApplyAction } from "@/components/appl
 import { useGateConfirmation } from "@/lib/gates"
 import { useIntegrations, type Target } from "@/lib/integrations"
 import { AgentConversation } from "@/components/agent-conversation"
+import { AgentModelFields } from "@/components/agent-model-fields"
+import { SavedResumePicker } from "@/components/saved-resume-picker"
 import { DocumentReview } from "@/components/document-review"
 import { RunRecovery } from "@/components/run-recovery"
 import { FillReviewPanel } from "@/components/fill-review"
@@ -93,10 +95,7 @@ function ApplyWorkspace({ search, review, reviewLocked = false }: { search: Revi
     {details.data && <ApplicationStepper steps={steps} />}
     {!review && sources.data && <p className="text-sm text-muted-foreground">{sources.data.config.projectDir ? "Base resume configured" : "Base resume missing"} · <a className="text-foreground underline" href="#/profile?tab=resume">Configure resume sources</a></p>}
     <Panel title="Opportunity">
-      {!review && <div className="grid gap-4 md:grid-cols-2">
-        <Field label="Agent"><SelectControl className={controlClass} value={selectedProvider?.id ?? ""} disabled={busy} onChange={e => { setProvider(e.target.value); setModel("") }}>{providers.data?.providers.map(p => <option key={p.id} value={p.id}>{p.displayName}</option>)}</SelectControl></Field>
-        <Field label="Model"><SelectControl className={controlClass} value={effectiveModel} disabled={busy} onChange={e => setModel(e.target.value)}><option value="">Provider default</option>{selectedProvider?.models.map(m => <option key={m}>{m}</option>)}</SelectControl></Field>
-      </div>}
+      {!review && <AgentModelFields providers={providers.data?.providers ?? []} provider={selectedProvider} model={effectiveModel} disabled={busy} onProvider={id => { setProvider(id); setModel("") }} onModel={setModel} />}
       <LoadState loading={providers.loading && !providers.data} error={providers.error || details.error} retry={() => { providers.refresh(); details.refresh() }} />
       {job && <div className="mt-4 space-y-4">
         <div className="flex flex-wrap items-center gap-3"><p className="text-sm font-medium">{job.company_name} · {job.title}</p><ExternalLink value={job.link} label="View opportunity" /></div>
@@ -109,6 +108,7 @@ function ApplyWorkspace({ search, review, reviewLocked = false }: { search: Revi
           {!review && (run?.status === "running" || run?.status === "waiting_for_sign_in") && <Button variant="outline" disabled={pending} onClick={() => void action("cancel")}>Cancel</Button>}
           {details.data?.applicationStatus === "filled" && details.data.uploadedRunId === pdfRun?.id && <Button variant="outline" disabled={reviewBusy} onClick={() => void action("submitted")}>I submitted in the browser</Button>}
         </div>
+        {!review && <SavedResumePicker disabled={busy || archived || !live || readiness.submitted || integrations.testing} target={{ jobId: search.jobId, applicationId: search.applicationId ?? run?.application_id ?? undefined }} onError={setError} onUsed={value => { setNotice(""); context.update(previous => ({ ...previous, runId: value.id })); openApply(search.jobId, value.application_id ?? undefined, value.id); details.refresh() }} />}
         <ApplyReadiness profile={!review} gate={gate.readiness} guard={job.description_guard_json} description={job.description} generate={review ? [] : generateBlocks} fill={fillBlocks} testing={integrations.testing} error={integrations.testError || integrations.error} test={testAvailability} correct={correct} />
         {details.data?.busy && run?.status !== "running" && <p className="text-xs text-muted-foreground">Another execution is active. You can review these files while it finishes.</p>}
 

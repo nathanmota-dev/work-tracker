@@ -83,6 +83,8 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 18, name: "requirement gates", up: ensureCurrentSchema },
   // Additive: no PDF is imported and no conflict is decided until the profile folder is read.
   { version: 19, name: "profile sources", up: ensureCurrentSchema },
+  // Additive: no variant exists and every existing document version keeps variant_id null.
+  { version: 20, name: "resume variants", up: ensureCurrentSchema },
 ];
 
 /** Keeps pre-triage jobs in the shortlist; very old workspaces may lack `scouted_at`. */

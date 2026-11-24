@@ -1,3 +1,5 @@
+/** Provider of a run that reuses a saved resume variant instead of calling an agent. */
+export const SAVED_RESUME = "saved-resume";
 export type LatexEngine = "pdflatex" | "xelatex" | "lualatex";
 export interface ResumeSourcesConfig {
   projectDir: string;
@@ -9,7 +11,8 @@ export interface ResumeSourcesConfig {
 }
 export interface PdfArtifact {
   id: string;
-  kind: "base" | "tailored";
+  /** `variant` is a saved resume variant's PDF; it never serves as a base preview. */
+  kind: "base" | "tailored" | "variant";
   pages: number;
   warnings: string[];
 }
@@ -99,6 +102,8 @@ export interface DocumentVersion {
   description: string;
   extra: string;
   data: unknown;
+  /** The saved resume variant this version reuses; null for a tailored version. */
+  variant?: { id: string; name: string; role: string; stacks: string[] } | null;
 }
 
 /** Why the portal agent left a field for the candidate; matches the matcher's skip codes. */

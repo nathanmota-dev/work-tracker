@@ -65,6 +65,9 @@ try {
   const at = new Date().toISOString();
   db.prepare("INSERT INTO application_runs (id, job_id, application_id, status, phase, provider, report, created_at, updated_at) VALUES ('smoke-run', 1, 1, 'completed', 'review', 'opencode', 'Selected React experience.', ?, ?)").run(at, at);
   for (const kind of ['base', 'tailored']) db.prepare('INSERT INTO pdf_artifacts (id, run_id, kind, path, pages, text, warnings_json) VALUES (?, ?, ?, ?, 1, ?, ?)').run(`smoke-${kind}`, 'smoke-run', kind, pdf, text, '[]');
+  // An imported saved resume, rendered on the Resumes page with the same bundled worker.
+  db.prepare("INSERT INTO pdf_artifacts (id, run_id, kind, path, pages, text, warnings_json) VALUES ('smoke-variant', NULL, 'variant', ?, 1, ?, '[]')").run(pdf, text);
+  db.prepare("INSERT INTO resume_variants (id, name, role, stacks_json, origin, status, pdf_artifact_id, created_at, updated_at) VALUES ('00000000-0000-4000-8000-000000000001', 'Smoke imported resume', 'frontend', '[\"React\"]', 'imported', 'ready', 'smoke-variant', ?, ?)").run(at, at);
   db.close();
   const server = createServer();
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -98,7 +101,10 @@ try {
   if (screenshotPath) writeFileSync(screenshotPath, Buffer.from(screenshot.data, 'base64'));
   if (!content.includes('Seu Nome Completo') || !content.includes('Base PDF') || !content.includes('Tailored PDF')) throw new Error('The two readable PDFs were not displayed: ' + content.slice(-1500));
   if (JSON.parse(readFileSync(join(home, 'config.json'), 'utf8')).resumeSources) throw new Error('Automatic detection unexpectedly saved resume settings');
-  console.log(`PASS: Apply detects repository sources without configuration and displays two PDF canvases with selectable text (${command})`);
+  await evaluate("location.hash = '/resumes'; true");
+  await waitFor(() => evaluate("(() => { const view = [...document.querySelectorAll('article[aria-label=\"Smoke imported resume\"] button')].find(button => button.textContent === 'View'); view?.click(); return !!view })()"));
+  await waitFor(() => evaluate("(() => { const canvas = document.querySelector('.react-pdf__Page__canvas'); if (!canvas?.width) return false; const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data; let ink = false; for (let i = 0; i < pixels.length; i += 4) if (pixels[i+3] && pixels[i] + pixels[i+1] + pixels[i+2] < 700) { ink = true; break } const layer = document.querySelector('.react-pdf__Page__textContent'); return ink && layer?.textContent.length > 100 })()"));
+  console.log(`PASS: Apply detects repository sources without configuration and displays two PDF canvases with selectable text, and Resumes renders a saved resume's PDF (${command})`);
 } finally {
   removeSignals();
   await cleanup();

@@ -22,6 +22,15 @@ relatório, seleção, carta quando existente, texto dos PDFs e hash do PDF adap
 Os insumos ficam no snapshot da versão: editar o projeto base ou a descrição da
 vaga não reescreve esses registros.
 
+Uma versão também pode vir de um currículo salvo (variante, ver
+[features-e-fluxos.md](features-e-fluxos.md#16-currículos-reaproveitáveis-variantes)).
+Nesse caso o painel mostra “From saved resume <nome>”, a versão registra
+`variant_id`, e o snapshot guarda a descrição da vaga, a variante (nome, role e
+stacks), o perfil, o relatório, a seleção e as fontes com que a variante foi gerada
+(nenhuma quando ela foi importada de um PDF). O PDF da candidatura é uma cópia com
+os mesmos bytes e o mesmo hash do PDF da variante; regenerar a variante depois não
+altera versões já aprovadas ou enviadas.
+
 O manifesto de preenchimento leva a versão aprovada, seu hash e o caminho exato do
 PDF. O agente deve identificar esses mesmos valores no resultado após confirmar o
 upload. Divergências ou alteração dos bytes são rejeitadas; um resultado inválido

@@ -286,3 +286,28 @@ it("shows an empty state that links to the Jobs shortlist when no job is chosen"
   expect(screen.queryByRole("combobox")).not.toBeInTheDocument()
   expect(request).not.toHaveBeenCalledWith("application-preparation/details", expect.anything())
 })
+it("uses a saved resume for this job without tailoring and labels the document's origin", async () => {
+  const base = request.getMockImplementation()!
+  const saved = { id: "v1", name: "Back-End · C#, .NET", role: "backend", stacks: ["C#", ".NET"], status: "ready", archivedAt: null, pdf: { id: "pdf-v1", kind: "variant", pages: 1, warnings: [] } }
+  details.documents[0].variant = { id: "v1", name: "Back-End · C#, .NET", role: "backend", stacks: ["C#", ".NET"] }
+  request.mockImplementation(async (path: string, body?: unknown) => path === "resume-variants" ? [saved] : path === "application-preparation/use-variant" ? { id: "run-saved", application_id: 3 } : base(path, body))
+  render(<ApplyPage />)
+  expect(await screen.findByText("From saved resume Back-End · C#, .NET")).toBeInTheDocument()
+  await waitFor(() => expect(screen.getByRole("button", { name: "Use this resume" })).toBeEnabled())
+  expect(screen.getByLabelText("Saved resume")).toHaveDisplayValue("Back-End · C#, .NET — 1 page")
+  fireEvent.click(screen.getByRole("button", { name: "Use this resume" }))
+  await waitFor(() => expect(request).toHaveBeenCalledWith("application-preparation/use-variant", { jobId: 7, applicationId: 3, variantId: "v1" }))
+  await waitFor(() => expect(window.location.hash).toContain("runId=run-saved"))
+  expect(request).not.toHaveBeenCalledWith("application-preparation/generate", expect.anything())
+})
+it("reports a refused saved resume", async () => {
+  const base = request.getMockImplementation()!
+  request.mockImplementation(async (path: string, body?: unknown) => {
+    if (path === "resume-variants") return [{ id: "v1", name: "Saved", role: "other", stacks: ["Go"], status: "ready", archivedAt: null, pdf: { id: "p", kind: "variant", pages: 1, warnings: [] } }]
+    if (path === "application-preparation/use-variant") throw new Error("This saved resume is archived.")
+    return base(path, body)
+  })
+  render(<ApplyPage />)
+  fireEvent.click(await screen.findByRole("button", { name: "Use this resume" }))
+  expect(await screen.findByText("This saved resume is archived.")).toBeInTheDocument()
+})

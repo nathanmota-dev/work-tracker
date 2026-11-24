@@ -36,7 +36,7 @@ function baseSkillPrompt(skill: string, params: Record<string, string>): string 
     case "experience-bank":
       return `Use the work-tracker-experience-bank skill ("grill me"). Load my existing bank, base resume, and LinkedIn profile first, then interview me about new achievements I don't already have captured. Store tagged entries in \`$WORK_TRACKER_HOME/experience/\` and log the run via \`work-tracker activity log\`.`;
     case "resume-tailor":
-      if (params.manifestPath) return `Use the work-tracker-resume-tailor skill in its managed LaTeX mode. Read the run manifest at ${JSON.stringify(params.manifestPath)}. Edit only the working project and produce its selection and report files. The backend owns compilation and persistence.`;
+      if (params.manifestPath) return `Use the work-tracker-resume-tailor skill in its managed LaTeX mode. Read the run manifest at ${JSON.stringify(params.manifestPath)}. Edit only the working project and produce its selection and report files. The manifest can target a job profile (\`target\`: a role and stacks) instead of a job (\`job\`). The backend owns compilation and persistence.`;
       return `Use the work-tracker-resume-tailor skill. Tailor my resume for these roles: ${
         params.jobIds ?? "(none provided)"
       }. Produce tailored Typst resumes, cover letters, and gap reports, and record each via \`work-tracker application add\`.`;

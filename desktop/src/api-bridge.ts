@@ -34,6 +34,7 @@ const reads = new Set([
   "rankings/candidates",
   "gates/profile",
   "profile-sources",
+  "resume-variants",
 ])
 const writes = new Set([
   "integrations",
@@ -62,6 +63,13 @@ const writes = new Set([
   "application-preparation/approve",
   "application-preparation/retry",
   "application-preparation/submitted",
+  "application-preparation/use-variant",
+  "resume-variants/generate",
+  "resume-variants/regenerate",
+  "resume-variants/update",
+  "resume-variants/archive",
+  "resume-variants/cancel",
+  "resume-variants/import",
   "preparation-batches/preview",
   "preparation-batches/create",
   "preparation-batches/add",
@@ -133,8 +141,9 @@ export function registerApiBridge(backend: BackendControl) {
     return !selected.canceled
   })
   ipcMain.handle("app:choose-source", async (_event, kind: string) => {
-    if (!["folder", "data"].includes(kind)) throw new Error("Unknown source type")
-    const selected = await dialog.showOpenDialog({ properties: kind === "folder" ? ["openDirectory"] : ["openFile"], ...(kind === "data" ? { filters: [{ name: "Resume data", extensions: ["json"] }] } : {}) })
+    if (!["folder", "data", "pdf"].includes(kind)) throw new Error("Unknown source type")
+    const filters = kind === "data" ? [{ name: "Resume data", extensions: ["json"] }] : kind === "pdf" ? [{ name: "PDF", extensions: ["pdf"] }] : undefined
+    const selected = await dialog.showOpenDialog({ properties: kind === "folder" ? ["openDirectory"] : ["openFile"], ...(filters ? { filters } : {}) })
     return selected.canceled ? null : selected.filePaths[0] ?? null
   })
   ipcMain.handle("api:status", () => live)

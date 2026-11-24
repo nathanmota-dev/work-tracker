@@ -63,6 +63,16 @@ formação, **Profile → Base resume** mostra o conflito uma vez, com as duas o
 escolha vale para as próximas gerações; enquanto não houver escolha, o agente mantém
 o valor do LaTeX base.
 
+## Currículos salvos (aba Resumes)
+
+Para não adaptar o currículo de novo a cada vaga parecida, a aba **Resumes** gera,
+a partir destes mesmos arquivos, um currículo por perfil de vaga (role e stacks, por
+exemplo “Back-End · C#, .NET”) e o guarda para reutilização: no Apply, escolha o
+currículo em **Saved resume** e use **Use this resume**. Um PDF pronto que você já tem
+também pode ser importado. Quando o LaTeX ou o perfil mudam, os currículos gerados
+antes mostram “Sources changed since generation”; regenere-os se quiser o conteúdo
+novo.
+
 ## Versionamento e integração
 
 O app detecta automaticamente `base/latex/resume.tex`, a pasta de perfil

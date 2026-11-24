@@ -141,3 +141,7 @@ test("cache returns only existing valid artifacts", () => {
   });
   expect(cachedPreview("v")).toBeNull();
 });
+test("the cached base preview never returns a variant PDF without a run", () => {
+  cachedPreview("v");
+  expect(d.query).toHaveBeenCalledWith(expect.stringContaining("run_id IS NULL AND kind = 'base'"));
+});

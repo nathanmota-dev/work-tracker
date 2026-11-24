@@ -13,7 +13,7 @@ contextBridge.exposeInMainWorld("desktop", {
   },
   readPdf: (id: string): Promise<ArrayBuffer> => ipcRenderer.invoke("api:pdf", id),
   savePdf: (id: string): Promise<boolean> => ipcRenderer.invoke("api:save-pdf", id),
-  chooseSource: (kind: "folder" | "data"): Promise<string | null> => ipcRenderer.invoke("app:choose-source", kind),
+  chooseSource: (kind: "folder" | "data" | "pdf"): Promise<string | null> => ipcRenderer.invoke("app:choose-source", kind),
   updates: {
     getState: () => ipcRenderer.invoke("updates:get-state"),
     check: () => ipcRenderer.invoke("updates:check"),

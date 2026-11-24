@@ -39,6 +39,7 @@ type ApiEvent = Record<string, unknown>;
 vi.mock("./documents.ts", () => ({ saveDocument: vi.fn(), documentsForJob: vi.fn(() => []), approvedDocument: vi.fn(() => ({ id: "tailored", pdfHash: "hash" })), approveDocument: vi.fn(), freezeDocumentUse: vi.fn(), verifyDocumentUse: vi.fn(), recordDocumentUse: vi.fn() }));
 vi.mock("../db/index.ts", () => ({ db: vi.fn(), now: () => "now" }));
 vi.mock("./batch-store.ts", () => ({ assertPortalFree: vi.fn() }));
+vi.mock("../variants/apply.ts", () => ({ useVariant: vi.fn((_input, assertIdle: () => void) => { assertIdle(); return { id: "saved" }; }) }));
 vi.mock("../paths.ts", () => ({ paths: { artifacts: "/artifacts" } }));
 vi.mock("../mcp/search.ts", () => ({ jobDetails: vi.fn() }));
 vi.mock("../mcp/chrome.ts", () => ({ openChromePortal: vi.fn() }));
@@ -685,6 +686,16 @@ test("retry rejects runs with nothing pending and archived jobs", () => {
   job.archived_at = "now";
   expect(() => service.retry({ runId: "r" })).toThrow("Restore");
   expect(transition).not.toHaveBeenCalled();
+});
+test("a saved-resume run is never retried; using a saved resume needs an idle slot and announces the change", async () => {
+  stopped("failed", "compiling", "compiling");
+  run.provider = "saved-resume";
+  expect(() => service.retry({ runId: "r" })).toThrow("Generate a tailored version instead.");
+  expect(service.useVariant({ jobId: 1, variantId: "v" })).toEqual({ id: "saved" });
+  expect(broadcast).toHaveBeenCalledWith({ type: "changed", table: "applications" });
+  expect(broadcast).toHaveBeenCalledWith({ type: "changed", table: "application_runs", runId: "saved" });
+  acp.isRunning = true;
+  expect(() => service.useVariant({ jobId: 1, variantId: "v" })).toThrow("active execution");
 });
 test("retrying compilation reuses the tailored sources without running the agent again", async () => {
   stopped("failed", "compiling", "compiling");

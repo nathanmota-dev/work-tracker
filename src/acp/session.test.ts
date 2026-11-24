@@ -364,3 +364,10 @@ test("explicit profile overrides saved data and errors reset the manager for the
   });
   expect(stop).toHaveBeenCalledTimes(2);
 });
+
+test("the managed resume-tailor prompt accepts a job profile target as well as a job", () => {
+  const prompt = buildSkillPrompt("resume-tailor", { manifestPath: "/runs/v/manifest.json" });
+  expect(prompt).toContain('Read the run manifest at "/runs/v/manifest.json"');
+  expect(prompt).toContain("The manifest can target a job profile (`target`: a role and stacks) instead of a job (`job`).");
+  expect(prompt).toContain("The backend owns compilation and persistence.");
+});

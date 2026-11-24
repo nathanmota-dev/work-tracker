@@ -16,7 +16,7 @@ const pages = [
 export const navigationGroups = [
   { title: "Overview", paths: ["/dashboard"], footer: false },
   { title: "Journey", paths: ["/jobs", "/applications", "/interviews", "/interview-prep", "/contacts"], footer: false },
-  { title: "You", paths: ["/profile"], footer: false },
+  { title: "You", paths: ["/profile", "/resumes"], footer: false },
   { title: "Tools", paths: ["/launch", "/settings"], footer: true },
 ].map(({ paths, ...group }) => ({
   ...group,

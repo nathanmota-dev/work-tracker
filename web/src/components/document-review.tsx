@@ -11,6 +11,7 @@ export function DocumentReview({ version, versions, disabled, approve }: { versi
   const changes = documentDiff(other?.text ?? version.baseText, version.text)
   return <div id="document-review"><Panel title="Document review">
     <p className="text-sm">Version {version.id.slice(0, 8)} · {version.submittedAt ? "Submitted" : version.usedAt ? "Used in portal" : version.approvedAt ? "Approved" : "Awaiting approval"}</p>
+    {version.variant && <p className="mt-1 text-sm text-muted-foreground">From saved resume {version.variant.name}</p>}
     <p className="mt-1 break-all text-xs text-muted-foreground">PDF SHA-256: {version.pdfHash}</p>
     {version.approvedAt && <p className="text-xs">Approved on {new Date(version.approvedAt).toLocaleString()}</p>}
     {version.usedAt && <p className="text-xs">Used in portal on {new Date(version.usedAt).toLocaleString()}</p>}
