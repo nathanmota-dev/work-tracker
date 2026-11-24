@@ -81,6 +81,8 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 17, name: "job rankings", up: ensureCurrentSchema },
   // Additive: existing jobs keep gate_json null and read as "Not checked".
   { version: 18, name: "requirement gates", up: ensureCurrentSchema },
+  // Additive: no PDF is imported and no conflict is decided until the profile folder is read.
+  { version: 19, name: "profile sources", up: ensureCurrentSchema },
 ];
 
 /** Keeps pre-triage jobs in the shortlist; very old workspaces may lack `scouted_at`. */

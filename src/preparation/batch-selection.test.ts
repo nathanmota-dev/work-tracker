@@ -8,7 +8,7 @@ import { appendItems, insertBatch } from "./batch-store.ts";
 let d: Database;
 beforeEach(async () => { d = await memoryDatabase(); });
 const select = (...ids: number[]) => ids.map(jobId => ({ jobId, extra: "" }));
-const batch = () => insertBatch(d, { provider: "agent", model: null, extra: "", source_version: "v", sources: { projectDir: "/fixture", mainFile: "resume.tex", dataFile: "", engine: "pdflatex" } });
+const batch = () => insertBatch(d, { provider: "agent", model: null, extra: "", source_version: "v", sources: { projectDir: "/fixture", mainFile: "resume.tex", dataFile: "", engine: "pdflatex", profileDir: "" } });
 
 test("previews all exclusions, canonical duplicates and missing fields without changing records", () => {
   const ready = insertJob(d, { description: "React" });

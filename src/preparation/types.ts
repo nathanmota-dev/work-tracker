@@ -4,6 +4,8 @@ export interface ResumeSourcesConfig {
   mainFile: string;
   dataFile: string;
   engine: LatexEngine;
+  /** Folder with the data file, the LinkedIn export and reference resumes; empty for none. */
+  profileDir: string;
 }
 export interface PdfArtifact {
   id: string;

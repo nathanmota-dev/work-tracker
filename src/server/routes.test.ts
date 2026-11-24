@@ -13,6 +13,7 @@ import { handleInterviewPreps } from "../interview-prep/http.ts";
 import { handleFollowups } from "../followups/http.ts";
 import { handleRankings } from "../rankings/http.ts";
 import { handleGates } from "../gates/http.ts";
+import { handleProfileSources } from "../profile/http.ts";
 import { handleCompanyResearch } from "../company-research/http.ts";
 
 vi.mock("../applications/http.ts", () => ({ handleApplicationBoard: vi.fn() }));
@@ -28,6 +29,7 @@ vi.mock("../interview-prep/http.ts", () => ({ handleInterviewPreps: vi.fn() }));
 vi.mock("../followups/http.ts", () => ({ handleFollowups: vi.fn() }));
 vi.mock("../rankings/http.ts", () => ({ handleRankings: vi.fn() }));
 vi.mock("../gates/http.ts", () => ({ handleGates: vi.fn() }));
+vi.mock("../profile/http.ts", () => ({ handleProfileSources: vi.fn() }));
 vi.mock("../company-research/http.ts", () => ({ handleCompanyResearch: vi.fn() }));
 vi.mock("./queries.ts", () => ({ queries: {} }));
 
@@ -151,5 +153,14 @@ test("serves the requirement gates through their handler with the broadcaster", 
     const req = new Request(`http://localhost${path}`);
     expect(await routeApi(path, req, { acp, broadcast })).toBe(ok);
     expect(handleGates).toHaveBeenLastCalledWith(path, req, broadcast);
+  }
+});
+
+test("serves the profile sources through their handler with the broadcaster", async () => {
+  vi.mocked(handleProfileSources).mockResolvedValue(ok);
+  for (const path of ["/api/profile-sources", "/api/profile-sources/import", "/api/profile-sources/choice"]) {
+    const req = new Request(`http://localhost${path}`);
+    expect(await routeApi(path, req, { acp, broadcast })).toBe(ok);
+    expect(handleProfileSources).toHaveBeenLastCalledWith(path, req, broadcast);
   }
 });

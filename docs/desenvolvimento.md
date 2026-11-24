@@ -195,8 +195,16 @@ preencha pelo menos `base/latex/resume.tex`. Os arquivos pessoais dessas pastas,
 incluindo PDFs e recursos do projeto LaTeX, são ignorados pelo Git; somente os
 exemplos são destinados ao versionamento.
 
-O app usa automaticamente `base/latex/resume.tex` e os dados opcionais em
-`base/data/resume-data.json` ou `base/data/resume-data.ts`, sem seleção manual.
+O app usa automaticamente `base/latex/resume.tex` e a pasta de perfil
+`base/data/`, com os dados opcionais em `base/data/resume-data.json`, o PDF
+exportado do LinkedIn e currículos de referência em PDF, sem seleção manual. O
+formato `resume-data.ts` não é mais aceito. Os PDFs são lidos com Poppler
+(`pdftotext -bbox-layout` para o export do LinkedIn, `pdftotext -layout` para os
+demais) e o resultado fica em cache por hash em `profile_imports`; as escolhas
+entre fontes ficam em `profile_choices`. O perfil consolidado chega ao agente em
+`profile.json`, na chave `profileSources` (veja `src/profile/`). Na CLI,
+`work-tracker profile sources` mostra os arquivos e conflitos e
+`work-tracker profile import [--force]` importa a pasta.
 O app instalado mantém uma referência ao checkout usado no build e lê esses
 arquivos locais; eles não são incluídos no pacote. Configure **Settings → Resume
 sources** para usar outros arquivos ou outro compilador; caminhos salvos têm

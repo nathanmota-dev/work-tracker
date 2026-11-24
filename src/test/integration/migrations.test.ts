@@ -162,7 +162,7 @@ test("v10 triage backfills existing rows once and leaves subsequent inserts new"
   const d = workspace("triage-v9");
   d.exec("INSERT INTO jobs (title, company_name) VALUES ('Existing', 'Acme'); UPDATE meta SET value = '9' WHERE key = 'schema_version'; DELETE FROM schema_migrations WHERE version = 10;");
   const result = migrateDatabase(d, { backupDir });
-  expect(result.applied).toEqual([10, 11, 12, 13, 14, 15, 16, 17, 18]);
+  expect(result.applied).toEqual([10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
   expect(result.backup).toBeTruthy();
   expect(value(d, "SELECT shortlisted_at FROM jobs")).toEqual(expect.any(String));
   d.exec("INSERT INTO jobs (title, company_name) VALUES ('New', 'Acme')");
@@ -176,7 +176,7 @@ test("v13 deadlines add nullable columns to a v12 workspace, keep IDs and data, 
   d.exec(`ALTER TABLE jobs DROP COLUMN deadline; ALTER TABLE applications DROP COLUMN deadline;
     UPDATE meta SET value = '12' WHERE key = 'schema_version'; DELETE FROM schema_migrations WHERE version = 13;`);
   const before = dump(d, ["jobs", "applications", "application_events", "interviews"]);
-  expect(migrateDatabase(d, { backupDir })).toMatchObject({ from: 12, to: SCHEMA_VERSION, applied: [13, 14, 15, 16, 17, 18] });
+  expect(migrateDatabase(d, { backupDir })).toMatchObject({ from: 12, to: SCHEMA_VERSION, applied: [13, 14, 15, 16, 17, 18, 19] });
   const after = dump(d, ["jobs", "applications", "application_events", "interviews"]);
   expect(after.jobs).toEqual(before.jobs!.map((row) => ({ ...row, deadline: null })));
   expect(after.applications).toEqual(before.applications!.map((row) => ({ ...row, deadline: null })));
@@ -193,7 +193,7 @@ test("v15 company research adds an empty cache table to a v14 workspace without 
   d.exec(`INSERT INTO companies (id, name, urn_id, notes) VALUES (5, 'Acme Corp', '1234', 'Recruiter notes');
     DROP TABLE company_research; UPDATE meta SET value = '14' WHERE key = 'schema_version'; DELETE FROM schema_migrations WHERE version = 15;`);
   const before = dump(d, ["companies", "jobs", "applications"]);
-  expect(migrateDatabase(d, { backupDir })).toMatchObject({ from: 14, to: SCHEMA_VERSION, applied: [15, 16, 17, 18], backup: null });
+  expect(migrateDatabase(d, { backupDir })).toMatchObject({ from: 14, to: SCHEMA_VERSION, applied: [15, 16, 17, 18, 19], backup: null });
   expect(dump(d, ["companies", "jobs", "applications"])).toEqual(before);
   expect(all(d, "SELECT name FROM pragma_table_info('company_research') ORDER BY cid")).toEqual(
     ["id", "company_key", "company_name", "fetched_at", "sources_json", "network_note", "summary_md"].map((name) => ({ name })),
@@ -209,7 +209,7 @@ test("v16 adds an empty follow-up drafts table to a v15 workspace without touchi
   const d = workspace("followups-v15", seedJourney);
   d.exec(`DROP TABLE followup_drafts; UPDATE meta SET value = '15' WHERE key = 'schema_version'; DELETE FROM schema_migrations WHERE version = 16;`);
   const before = dump(d);
-  expect(migrateDatabase(d, { backupDir })).toMatchObject({ from: 15, to: SCHEMA_VERSION, applied: [16, 17, 18], backup: null });
+  expect(migrateDatabase(d, { backupDir })).toMatchObject({ from: 15, to: SCHEMA_VERSION, applied: [16, 17, 18, 19], backup: null });
   expect(dump(d)).toEqual(before);
   expect(value(d, "SELECT COUNT(*) FROM followup_drafts")).toBe(0);
   expect(all(d, "PRAGMA index_list(followup_drafts)").map((index) => index.name)).toContain("idx_followup_drafts_application");
@@ -224,7 +224,7 @@ test("v17 adds an empty job rankings table to a v16 workspace, keeps its records
   const d = workspace("rankings-v16", seedJourney);
   d.exec(`DROP TABLE job_rankings; UPDATE meta SET value = '16' WHERE key = 'schema_version'; DELETE FROM schema_migrations WHERE version = 17;`);
   const before = dump(d);
-  expect(migrateDatabase(d, { backupDir })).toMatchObject({ from: 16, to: SCHEMA_VERSION, applied: [17, 18], backup: null });
+  expect(migrateDatabase(d, { backupDir })).toMatchObject({ from: 16, to: SCHEMA_VERSION, applied: [17, 18, 19], backup: null });
   expect(dump(d)).toEqual(before);
   expect(value(d, "SELECT COUNT(*) FROM job_rankings")).toBe(0);
   expect(all(d, "PRAGMA index_list(job_rankings)").map((index) => index.name)).toContain("idx_job_rankings_status");
@@ -243,7 +243,7 @@ test("v18 adds the requirement gates to a v17 workspace: jobs stay unchecked and
   d.exec(`DROP TABLE candidate_languages; DROP TABLE gate_profile; ALTER TABLE jobs DROP COLUMN gate_json;
     UPDATE meta SET value = '17' WHERE key = 'schema_version'; DELETE FROM schema_migrations WHERE version = 18;`);
   const jobs = all(d, "SELECT * FROM jobs ORDER BY id");
-  expect(migrateDatabase(d, { backupDir })).toMatchObject({ from: 17, to: SCHEMA_VERSION, applied: [18], backup: null });
+  expect(migrateDatabase(d, { backupDir })).toMatchObject({ from: 17, to: SCHEMA_VERSION, applied: [18, 19], backup: null });
   expect(all(d, "SELECT * FROM jobs ORDER BY id")).toEqual(jobs.map((job) => ({ ...job, gate_json: null })));
   expect(value(d, "SELECT COUNT(*) FROM candidate_languages")).toBe(0);
   expect(value(d, "SELECT COUNT(*) FROM gate_profile")).toBe(0);
@@ -252,5 +252,24 @@ test("v18 adds the requirement gates to a v17 workspace: jobs stay unchecked and
   expect(migrateDatabase(d, { backupDir })).toMatchObject({ mode: "current", applied: [] });
   expect(all(d, "PRAGMA table_info(jobs)").filter((column) => column.name === "gate_json")).toHaveLength(1);
   expect(value(d, "SELECT COUNT(*) FROM schema_migrations WHERE version = 18")).toBe(1);
+  d.close();
+});
+
+test("v19 adds the profile sources to a v18 workspace: nothing is imported or decided and a rerun adds nothing", () => {
+  const d = workspace("profile-v18", seedJourney);
+  d.exec(`DROP TABLE profile_imports; DROP TABLE profile_choices;
+    UPDATE meta SET value = '18' WHERE key = 'schema_version'; DELETE FROM schema_migrations WHERE version = 19;`);
+  const jobs = all(d, "SELECT * FROM jobs ORDER BY id");
+  expect(migrateDatabase(d, { backupDir })).toMatchObject({ from: 18, to: SCHEMA_VERSION, applied: [19], backup: null });
+  expect(all(d, "SELECT * FROM jobs ORDER BY id")).toEqual(jobs);
+  expect(value(d, "SELECT COUNT(*) FROM profile_imports")).toBe(0);
+  expect(value(d, "SELECT COUNT(*) FROM profile_choices")).toBe(0);
+  expect(() => d.exec("INSERT INTO profile_imports (pdf_hash, kind, file_name, parser_version, imported_at) VALUES ('h', 'portfolio', 'a.pdf', 1, 'now')")).toThrow();
+  expect(() => d.exec("INSERT INTO profile_choices (conflict_key, field, chosen_source, chosen_value, decided_at) VALUES ('k', 'work.start', 'agent', 'x', 'now')")).toThrow();
+  d.exec("INSERT INTO profile_imports (pdf_hash, kind, file_name, parser_version, imported_at) VALUES ('h', 'reference', 'a.pdf', 1, 'now')");
+  expect(all(d, "SELECT text, warnings_json, extracted_json FROM profile_imports")).toEqual([{ text: "", warnings_json: "[]", extracted_json: null }]);
+  expect(migrateDatabase(d, { backupDir })).toMatchObject({ mode: "current", applied: [] });
+  expect(value(d, "SELECT COUNT(*) FROM profile_imports")).toBe(1);
+  expect(value(d, "SELECT COUNT(*) FROM schema_migrations WHERE version = 19")).toBe(1);
   d.close();
 });

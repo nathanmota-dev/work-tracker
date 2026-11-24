@@ -1,9 +1,9 @@
-import { parse } from "@babel/parser";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync, mkdirSync, writeFileSync } from "node:fs";
 import { isAbsolute, relative, resolve, join, dirname } from "node:path";
 import { loadConfig, saveConfig } from "../paths.ts";
 import type { ResumeSourcesConfig } from "./types.ts";
+import { isFolder, profileEvidence } from "../profile/evidence.ts";
 
 export class PreparationError extends Error {
   constructor(message: string, public status = 400) { super(message); }
@@ -12,72 +12,44 @@ function isFile(path: string): boolean {
   try { return statSync(path).isFile(); }
   catch { return false; }
 }
+/** A saved configuration from before the profile folder uses the data file's folder. */
+function withProfileDir(saved: Omit<ResumeSourcesConfig, "profileDir"> & { profileDir?: string }): ResumeSourcesConfig {
+  return { ...saved, profileDir: saved.profileDir ?? (saved.dataFile ? dirname(saved.dataFile) : "") };
+}
 export function sourcesConfig(): ResumeSourcesConfig {
   const saved = loadConfig().resumeSources;
-  if (saved?.projectDir) return saved;
+  if (saved?.projectDir) return withProfileDir(saved);
   // The installed desktop app supplies its build checkout; the CLI uses its cwd.
   // Only real local inputs are defaults: the versioned examples require filling in.
   const root = resolve(process.env.WORK_TRACKER_REPO_ROOT ?? process.cwd());
   const projectDir = join(root, "base", "latex");
+  const data = join(root, "base", "data");
+  const profileDir = isFolder(data) ? data : "";
   if (isFile(join(projectDir, "resume.tex"))) {
-    const dataFile = ["resume-data.json", "resume-data.ts"]
-      .map(name => join(root, "base", "data", name)).find(isFile) ?? "";
-    return { projectDir, mainFile: "resume.tex", dataFile, engine: "pdflatex" };
+    const dataFile = isFile(join(data, "resume-data.json")) ? join(data, "resume-data.json") : "";
+    return { projectDir, mainFile: "resume.tex", dataFile, engine: "pdflatex", profileDir };
   }
-  return { projectDir: "", mainFile: "resume.tex", dataFile: "", engine: "pdflatex" };
+  return { projectDir: "", mainFile: "resume.tex", dataFile: "", engine: "pdflatex", profileDir };
 }
 export function saveSources(body: unknown): ResumeSourcesConfig {
   if (!body || typeof body !== "object") throw new PreparationError("Expected resume source settings.");
   const value = body as Record<string, unknown>;
   if (!["projectDir", "mainFile", "dataFile", "engine"].every(key => typeof value[key] === "string")) throw new PreparationError("Enter the project folder, main file and compiler.");
-  const config = { projectDir: String(value.projectDir).trim(), mainFile: String(value.mainFile).trim(), dataFile: String(value.dataFile).trim(), engine: value.engine } as ResumeSourcesConfig;
+  if (value.profileDir !== undefined && typeof value.profileDir !== "string") throw new PreparationError("The profile folder must be a path.");
+  const profileDir = typeof value.profileDir === "string" ? value.profileDir.trim() : undefined;
+  const config = withProfileDir({ projectDir: String(value.projectDir).trim(), mainFile: String(value.mainFile).trim(), dataFile: String(value.dataFile).trim(), engine: value.engine as ResumeSourcesConfig["engine"], profileDir });
   if (!["pdflatex", "xelatex", "lualatex"].includes(config.engine)) throw new PreparationError("Unknown LaTeX compiler.");
+  if (config.profileDir && !isFolder(config.profileDir)) throw new PreparationError("The profile folder must be an absolute path to an existing folder.");
   snapshotSources(config);
   saveConfig({ ...loadConfig(), resumeSources: config });
   return config;
 }
-type LiteralNode = {
-  type: string;
-  value?: unknown;
-  expression?: LiteralNode;
-  elements?: LiteralNode[];
-  properties?: { type: string; computed?: boolean; method?: boolean; key: { name?: string; value?: unknown }; value: LiteralNode }[];
-};
-function literal(node: unknown): unknown {
-  const n = node as LiteralNode | undefined;
-  if (!n) throw new PreparationError("Missing resume data.");
-  if (["TSAsExpression", "TSSatisfiesExpression"].includes(n.type)) return literal(n.expression);
-  if (["StringLiteral", "NumericLiteral", "BooleanLiteral"].includes(n.type)) return n.value;
-  if (n.type === "NullLiteral") return null;
-  if (n.type === "ArrayExpression") return (n.elements ?? []).map(literal);
-  if (n.type === "ObjectExpression") {
-    const result: Record<string, unknown> = {};
-    for (const property of n.properties ?? []) {
-      if (property.type !== "ObjectProperty" || property.computed || property.method) throw new PreparationError("Resume data must contain only literal properties.");
-      const key = property.key.name ?? property.key.value;
-      if (typeof key !== "string" || ["__proto__", "prototype", "constructor"].includes(key)) throw new PreparationError("Unsupported resume property.");
-      result[key] = literal(property.value);
-    }
-    return result;
-  }
-  throw new PreparationError("Resume data must be a static object. Imports, functions and executable expressions are not supported.");
-}
 export function parseResumeData(text: string, extension: string): Record<string, unknown> {
+  if (extension === ".ts") throw new PreparationError("TypeScript resume data is no longer supported. Save the RESUME_DATA object as resume-data.json.");
+  if (extension !== ".json") throw new PreparationError("Choose a .json resume data file.");
   let value: unknown;
-  try {
-    if (extension === ".json") value = JSON.parse(text);
-    else if (extension === ".ts") {
-      const ast = parse(text, { sourceType: "module", plugins: ["typescript"] });
-      const statements = ast.program.body;
-      if (statements.length !== 1 || statements[0]?.type !== "ExportNamedDeclaration" || statements[0].declaration?.type !== "VariableDeclaration") throw new PreparationError("Export a single constant RESUME_DATA object.");
-      const declarations = statements[0].declaration.declarations;
-      if (declarations.length !== 1 || declarations[0]?.id.type !== "Identifier" || declarations[0].id.name !== "RESUME_DATA" || statements[0].declaration.kind !== "const") throw new PreparationError("Export a single constant RESUME_DATA object.");
-      value = literal(declarations[0].init);
-    } else throw new PreparationError("Choose a .json or .ts resume data file.");
-  } catch (error) {
-    if (error instanceof PreparationError) throw error;
-    throw new PreparationError(`Invalid resume data: ${error instanceof Error ? error.message : String(error)}`);
-  }
+  try { value = JSON.parse(text); }
+  catch (error) { throw new PreparationError(`Invalid resume data: ${(error as Error).message}`); }
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new PreparationError("Resume data must be an object.");
   const result = value as Record<string, unknown>;
   for (const key of ["education", "work", "projects", "skills", "techStack"]) {
@@ -140,6 +112,11 @@ export function snapshotSources(config = sourcesConfig()): SourcesSnapshot {
       if (entries?.some(item => !item || typeof item !== "object" || (!item.description && !item.highlights))) warnings.push(`Some ${key} entries have no descriptions. The agent can use only evidence available in the template and data.`);
     }
   } else warnings.push("No optional data file selected. Tailoring will use only information in the LaTeX source.");
+  if (config.profileDir) {
+    const profile = profileEvidence(config.profileDir, data);
+    data = profile.data;
+    warnings.push(...profile.warnings);
+  }
   const hash = createHash("sha256").update(JSON.stringify({ mainFile: config.mainFile, engine: config.engine, data }));
   for (const file of files.sort((a, b) => a.name.localeCompare(b.name))) hash.update(file.name).update(file.bytes);
   return { config, files, data, warnings, version: hash.digest("hex") };

@@ -33,6 +33,7 @@ const reads = new Set([
   "rankings",
   "rankings/candidates",
   "gates/profile",
+  "profile-sources",
 ])
 const writes = new Set([
   "integrations",
@@ -93,6 +94,8 @@ const writes = new Set([
   "followups/discard",
   "gates/languages",
   "gates/eligibility",
+  "profile-sources/import",
+  "profile-sources/choice",
   "company-research/invalidate",
   "workspace-backup/create",
   "workspace-backup/inspect",
@@ -131,7 +134,7 @@ export function registerApiBridge(backend: BackendControl) {
   })
   ipcMain.handle("app:choose-source", async (_event, kind: string) => {
     if (!["folder", "data"].includes(kind)) throw new Error("Unknown source type")
-    const selected = await dialog.showOpenDialog({ properties: kind === "folder" ? ["openDirectory"] : ["openFile"], ...(kind === "data" ? { filters: [{ name: "Resume data", extensions: ["json", "ts"] }] } : {}) })
+    const selected = await dialog.showOpenDialog({ properties: kind === "folder" ? ["openDirectory"] : ["openFile"], ...(kind === "data" ? { filters: [{ name: "Resume data", extensions: ["json"] }] } : {}) })
     return selected.canceled ? null : selected.filePaths[0] ?? null
   })
   ipcMain.handle("api:status", () => live)

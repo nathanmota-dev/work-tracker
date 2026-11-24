@@ -26,7 +26,7 @@ export function freezeSources(id: string, snapshot: SourcesSnapshot): ResumeSour
   writeSnapshot(snapshot, join(root, "project"));
   const dataFile = snapshot.data ? join(root, "resume-data.json") : "";
   if (dataFile) writeFileSync(dataFile, JSON.stringify(snapshot.data), { mode: 0o600 });
-  const config = { projectDir: join(root, "project"), mainFile: snapshot.config.mainFile, dataFile, engine: snapshot.config.engine };
+  const config = { projectDir: join(root, "project"), mainFile: snapshot.config.mainFile, dataFile, engine: snapshot.config.engine, profileDir: "" };
   if (snapshotSources(config).version !== snapshot.version) throw new PreparationError("The resume sources could not be recorded for this batch.");
   return config;
 }

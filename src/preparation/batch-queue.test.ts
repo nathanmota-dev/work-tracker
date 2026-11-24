@@ -19,7 +19,7 @@ let queue: PreparationQueue;
 let jobs: number[];
 let busy: boolean;
 const broadcast = vi.fn();
-const snapshot = (version = "v1", data: SourcesSnapshot["data"] = null): SourcesSnapshot => ({ config: { projectDir: "/source", mainFile: "resume.tex", dataFile: data ? "/source/data.json" : "", engine: "pdflatex" }, files: [], data, warnings: [], version });
+const snapshot = (version = "v1", data: SourcesSnapshot["data"] = null): SourcesSnapshot => ({ config: { projectDir: "/source", mainFile: "resume.tex", dataFile: data ? "/source/data.json" : "", engine: "pdflatex", profileDir: "" }, files: [], data, warnings: [], version });
 function runRow(id: string, jobId: number, status = "running", phase = "preparing", recovery = "{}"): { id: string } {
   d.query("INSERT INTO application_runs (id, job_id, status, phase, provider, recovery_json, created_at, updated_at) VALUES (?, ?, ?, ?, 'agent', ?, 'now', 'now')").run(id, jobId, status, phase, recovery);
   return { id };
@@ -56,11 +56,20 @@ afterEach(() => { queue.close(); vi.useRealTimers(); });
 
 test("freezes the sources with their data so every item uses the recorded version", () => {
   vi.mocked(snapshotSources).mockReturnValueOnce(snapshot("v1", { skills: ["React"] }));
-  expect(freezeSources("b", snapshot("v1", { skills: ["React"] }))).toEqual({ projectDir: "/artifacts/batches/b/sources/project", mainFile: "resume.tex", dataFile: "/artifacts/batches/b/sources/resume-data.json", engine: "pdflatex" });
+  expect(freezeSources("b", snapshot("v1", { skills: ["React"] }))).toEqual({ projectDir: "/artifacts/batches/b/sources/project", mainFile: "resume.tex", dataFile: "/artifacts/batches/b/sources/resume-data.json", engine: "pdflatex", profileDir: "" });
   expect(writeSnapshot).toHaveBeenCalledWith(expect.objectContaining({ version: "v1" }), "/artifacts/batches/b/sources/project");
   expect(fs.writeFileSync).toHaveBeenCalledWith("/artifacts/batches/b/sources/resume-data.json", '{"skills":["React"]}', { mode: 0o600 });
   vi.mocked(snapshotSources).mockReturnValueOnce(snapshot("other"));
   expect(() => freezeSources("b", snapshot())).toThrow("could not be recorded");
+});
+
+test("a frozen batch keeps the consolidated profile and re-reads it without the profile folder", () => {
+  const data = { work: [{ company: "Northwind Labs" }], profileSources: { linkedin: null, linkedinOnly: [], references: [{ file: "other.pdf", text: "Other" }], conflicts: [], resolved: [] } };
+  vi.mocked(snapshotSources).mockReturnValueOnce(snapshot("v1", data));
+  const config = freezeSources("b", { ...snapshot("v1", data), config: { ...snapshot().config, profileDir: "/profile" } });
+  expect(config.profileDir).toBe("");
+  expect(snapshotSources).toHaveBeenLastCalledWith(config);
+  expect(fs.writeFileSync).toHaveBeenCalledWith("/artifacts/batches/b/sources/resume-data.json", JSON.stringify(data), { mode: 0o600 });
 });
 
 test("validates a new batch before recording anything", () => {

@@ -14,7 +14,7 @@ export const pdfHash = (path: string): string => createHash("sha256").update(rea
 
 /** Capture the source bytes, profile, job, report and selection alongside a validated PDF. Caller owns the transaction. */
 export function saveDocument(d: Database, runId: string, applicationId: number, pdf: PdfArtifact, manifest: GenerationManifest): void {
-  const files = (projectDir: string) => snapshotSources({ projectDir, mainFile: manifest.mainFile, dataFile: "", engine: manifest.engine }).files.map(file => ({ name: file.name, base64: file.bytes.toString("base64") }));
+  const files = (projectDir: string) => snapshotSources({ projectDir, mainFile: manifest.mainFile, dataFile: "", engine: manifest.engine, profileDir: "" }).files.map(file => ({ name: file.name, base64: file.bytes.toString("base64") }));
   const job = manifest.job as { description?: string };
   const snapshot: Snapshot = {
     description: job.description ?? "", extra: String(manifest.extra ?? runOptions(runId).extra ?? ""),
