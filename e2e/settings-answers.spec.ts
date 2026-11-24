@@ -36,7 +36,7 @@ test('Profile / Answers: shared identity, validation, failed save and persistenc
   await expect(personal.getByText('Added by you')).toHaveCount(3)
   await page.getByRole('tab', { name: 'Answers', exact: true }).click()
   await page.getByLabel('Advanced mode').check()
-  await page.getByRole('button', { name: 'View email', exact: true }).click()
+  await page.getByRole('button', { name: /^Email/ }).click()
   await expect(page.getByLabel('Field key')).toBeDisabled()
   await page.getByRole('textbox', { name: 'Answer', exact: true }).fill('updated@example.com')
   await page.getByRole('button', { name: 'Save answer' }).click()
