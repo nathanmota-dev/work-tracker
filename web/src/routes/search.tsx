@@ -2,6 +2,7 @@ import { SelectControl } from "@/components/ui/select-control"
 import { Search as SearchIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { TagField, roleSuggestions, locationSuggestions } from "@/components/tag-field"
 import {
   Page,
   Panel,
@@ -34,27 +35,23 @@ export function SearchFilters({
 }) {
   return (
     <div className="grid gap-4 sm:grid-cols-2">
-      <Field label="Keywords">
-        <Input
-          required
-          placeholder={
-            kind === "jobs"
-              ? "Product engineer, React…"
-              : "Technical recruiter…"
-          }
-          value={values.keywords}
-          disabled={busy}
-          onChange={(e) => set("keywords", e.target.value)}
-        />
-      </Field>
-      <Field label="Location">
-        <Input
-          placeholder="City, country or region"
-          value={values.location}
-          disabled={busy}
-          onChange={(e) => set("location", e.target.value)}
-        />
-      </Field>
+      <TagField
+        label="Keywords"
+        required
+        placeholder={kind === "jobs" ? "Product engineer, React…" : "Technical recruiter…"}
+        suggestions={kind === "jobs" ? roleSuggestions : ["Technical Recruiter", "Engineering Manager", "Talent Acquisition", "Hiring Manager", "CTO"]}
+        value={values.keywords}
+        disabled={busy}
+        onChange={(value) => set("keywords", value)}
+      />
+      <TagField
+        label="Location"
+        placeholder="City, country or region"
+        suggestions={locationSuggestions}
+        value={values.location}
+        disabled={busy}
+        onChange={(value) => set("location", value)}
+      />
       {kind === "people" ? (
         <Field label="Company">
           <Input

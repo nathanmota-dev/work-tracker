@@ -175,7 +175,7 @@ O primeiro incremento deve processar a fila sequencialmente. Uma única sessão 
 
 #### F08 — Manter perfil e respostas reutilizáveis
 
-**Hoje:** identidade em Settings → Profile; respostas gerais em Answers; dados complementares de currículo em fontes locais; perfil LinkedIn consultado em Profile.
+**Hoje:** identidade (nome, e-mail e usuário do LinkedIn) em Profile → LinkedIn; respostas gerais em Answers; dados complementares de currículo em fontes locais; perfil LinkedIn consultado em Profile.
 
 **Proposto:** perfil do candidato com áreas Identidade, Links, Elegibilidade, Experiências e Preferências → indicar origem de cada dado → usar os mesmos dados em busca, currículo e formulário.
 

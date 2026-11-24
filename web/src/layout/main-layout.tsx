@@ -49,7 +49,7 @@ export function MainLayout() {
             <BackendStatus />
             <AgentPermissions />
             <AgentCompletion />
-            <div data-workspace-scroll className="flex min-h-0 flex-1 overflow-auto">
+            <div data-workspace-scroll className="flex min-h-0 flex-1 flex-col overflow-auto">
               <Outlet />
             </div>
           </SidebarInset>

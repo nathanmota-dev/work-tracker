@@ -7,6 +7,9 @@ vi.mock("@/lib/api", async (original) => ({
   ...(await original<typeof import("@/lib/api")>()),
   useApi: vi.fn(),
 }))
+vi.mock("@/components/settings-profile", () => ({
+  SettingsProfile: () => <p>Personal details child</p>,
+}))
 vi.mock("@/lib/agent", () => ({ prepareSkill: vi.fn() }))
 vi.mock("@/components/metric-chart", () => ({
   MetricChart: ({ rows }: { rows: unknown[] }) => (
@@ -37,6 +40,7 @@ it("shows empty identity/assessment and opens the profile audit", () => {
   render(<ProfilePage />)
   expect(screen.getByText("Let’s get to know you")).toBeInTheDocument()
   expect(screen.getByText("No assessment yet")).toBeInTheDocument()
+  expect(screen.getByText("Personal details child")).toBeInTheDocument()
   fireEvent.click(screen.getByRole("button", { name: "Audit profile" }))
   expect(prepareSkill).toHaveBeenCalledWith("profile-optimizer")
 })

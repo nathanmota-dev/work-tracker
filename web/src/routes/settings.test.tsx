@@ -11,9 +11,6 @@ vi.mock("@/lib/api", async (original) => ({
 vi.mock("@/components/resume-sources", () => ({
   ResumeSources: () => <p>Resume sources child</p>,
 }))
-vi.mock("@/components/settings-profile", () => ({
-  SettingsProfile: () => <p>Profile child</p>,
-}))
 vi.mock("@/components/browser-sign-in", () => ({
   BrowserSignIn: () => <p>Sign in child</p>,
 }))
@@ -89,11 +86,7 @@ it("shows connection changes, changes theme and selects settings tabs", () => {
     ctrlKey: false,
   })
   expect(screen.getByText("Resume sources child")).toBeInTheDocument()
-  fireEvent.mouseDown(screen.getByRole("tab", { name: "Profile" }), {
-    button: 0,
-    ctrlKey: false,
-  })
-  expect(screen.getByText("Profile child")).toBeInTheDocument()
+  expect(screen.queryByRole("tab", { name: "Profile" })).not.toBeInTheDocument()
 })
 it("shows loading/error and retries provider discovery", () => {
   vi.mocked(useApi).mockReturnValue({

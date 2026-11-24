@@ -1,11 +1,9 @@
 import { ResumeSources } from "@/components/resume-sources"
 import { PermissionSettings } from "@/components/permission-settings"
-import { SettingsProfile } from "@/components/settings-profile"
 import { BrowserSignIn } from "@/components/browser-sign-in"
 import { IntegrationSettingsPanel } from "@/components/integration-settings"
 import { WorkspaceBackup } from "@/components/workspace-backup"
 import { AppUpdates } from "@/components/app-updates"
-import { GetStartedSettings } from "@/components/get-started"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { SelectControl } from "@/components/ui/select-control"
 import { EffortSlider } from "@/components/ui/effort-slider"
@@ -185,7 +183,6 @@ export function SettingsPage() {
         <TabsList aria-label="Settings views">
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="resume">Resume sources</TabsTrigger>
-          <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
           <TabsTrigger value="permissions">Permissions</TabsTrigger>
           <TabsTrigger value="backup">Backup</TabsTrigger>
@@ -197,14 +194,10 @@ export function SettingsPage() {
             <ConnectionPanel />
             <AgentPreferences preferences={preferences} />
             <BrowserSignIn />
-            <GetStartedSettings />
           </div>
         </TabsContent>
         <TabsContent value="resume"><ResumeSources /></TabsContent>
-        <TabsContent value="profile">
-          <SettingsProfile />
-        </TabsContent>
-        <TabsContent value="integrations"><IntegrationSettingsPanel /><BrowserSignIn /></TabsContent>
+        <TabsContent value="integrations"><div className="flex flex-col gap-4"><IntegrationSettingsPanel /><BrowserSignIn /></div></TabsContent>
         <TabsContent value="permissions"><PermissionSettings /></TabsContent>
         <TabsContent value="backup"><WorkspaceBackup /></TabsContent>
         <TabsContent value="updates"><AppUpdates /></TabsContent>

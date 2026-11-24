@@ -47,8 +47,8 @@ export function IntegrationSettingsPanel() {
       <Field label="Integration"><SelectControl className={controlClass} value={target} disabled={saving || status.testing || dirty} onChange={event => { setTarget(event.target.value as Target); setNotice(""); setError(""); setModel("") }}>{Object.entries(integrationLabels).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</SelectControl></Field>
       {draft && <>
         <Field label="Executable command"><Input required value={draft.command} disabled={saving || status.testing} onChange={event => { setDraft({ ...draft, command: event.target.value }); setDirty(true); setNotice("") }} /></Field>
-        <Field label="Arguments (JSON array)"><Textarea value={args} disabled={saving || status.testing} onChange={event => { setArgs(event.target.value); setDirty(true); setNotice("") }} /></Field>
-        <Field label="Environment (JSON object)"><Textarea value={env} spellCheck={false} disabled={saving || status.testing} onChange={event => { setEnv(event.target.value); setDirty(true); setNotice("") }} /></Field>
+        <Field label="Arguments (JSON array)"><Textarea className="min-h-40 font-mono text-xs" value={args} disabled={saving || status.testing} onChange={event => { setArgs(event.target.value); setDirty(true); setNotice("") }} /></Field>
+        <Field label="Environment (JSON object)"><Textarea className="min-h-40 font-mono text-xs" value={env} spellCheck={false} disabled={saving || status.testing} onChange={event => { setEnv(event.target.value); setDirty(true); setNotice("") }} /></Field>
         <div className="flex gap-2"><Button disabled={!dirty || saving || status.testing}>Save integration</Button><Button type="button" variant="outline" disabled={saving || status.testing} onClick={() => { setDirty(false); api.refresh(); setNotice(""); setError("") }}>Reload settings</Button></div>
       </>}
       {target.startsWith("acp/") && <Field label="Model to test (empty uses provider default)"><Input value={model} onChange={event => setModel(event.target.value)} /></Field>}

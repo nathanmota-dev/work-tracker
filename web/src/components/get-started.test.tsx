@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
-import { CONFIRMATION_MS, GetStarted, GetStartedSettings, NextStepHint, SetupNotice } from "./get-started"
+import { CONFIRMATION_MS, GetStarted, NextStepHint, SetupNotice } from "./get-started"
 import { desktopDouble } from "@/test/doubles"
 import { publish } from "@/lib/api"
 import type { OnboardingStatus, OnboardingStep } from "@/lib/onboarding"
@@ -84,7 +84,7 @@ it("updates by itself on workspace and resume source events", async () => {
   expect(screen.getByText(/^2 of 5/)).toBeInTheDocument()
 })
 
-it("hides on request, stays reachable from a step link and reopens in Settings", async () => {
+it("hides on request and stays reachable from a step link", async () => {
   const { unmount } = render(<GetStarted />)
   fireEvent.click((await card()).getByRole("button", { name: "Hide checklist" }))
   await waitFor(() => expect(screen.queryByRole("heading", { name: "Get started" })).not.toBeInTheDocument())
@@ -94,12 +94,6 @@ it("hides on request, stays reachable from a step link and reopens in Settings",
   expect(await screen.findByRole("heading", { name: "Get started" })).toBeInTheDocument()
   expect(document.getElementById("get-started-answers")).toHaveAttribute("aria-current", "step")
   focused.unmount()
-  render(<GetStartedSettings />)
-  expect(await screen.findByText("The checklist is hidden from the Dashboard.")).toBeInTheDocument()
-  fireEvent.click(screen.getByRole("button", { name: "Show checklist on Dashboard" }))
-  expect(await screen.findByText("The checklist is shown on the Dashboard.")).toBeInTheDocument()
-  expect(saved.at(-1)).toEqual({ hidden: false })
-  expect(screen.getByRole("button", { name: "Show checklist on Dashboard" })).toBeDisabled()
 })
 
 it("confirms the first completion briefly, then hides itself for good", async () => {

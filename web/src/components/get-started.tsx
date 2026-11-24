@@ -91,25 +91,6 @@ export function GetStarted({ focus }: { focus?: string }) {
   </Panel>
 }
 
-/** Settings entry that brings a hidden checklist back to the Dashboard. */
-export function GetStartedSettings() {
-  const { status } = useOnboarding()
-  const actions = useChecklistActions(status)
-  if (!status) return null
-  const skipped = status.steps.filter(step => step.state === "skipped")
-  return <Panel title="Get started checklist">
-    <p className="mb-4 text-sm text-muted-foreground">
-      {status.hidden ? "The checklist is hidden from the Dashboard." : "The checklist is shown on the Dashboard."}
-      {skipped.length > 0 && ` Skipped: ${skipped.map(step => stepCopy[step.id].title).join(", ")}.`}
-    </p>
-    <div className="flex flex-wrap gap-2">
-      <Button size="sm" disabled={actions.busy || !status.hidden} onClick={() => void actions.save({ hidden: false })}>Show checklist on Dashboard</Button>
-      {skipped.length > 0 && <Button size="sm" variant="outline" disabled={actions.busy} onClick={() => void actions.save({ skipped: [] })}>Resume skipped steps</Button>}
-    </div>
-    {actions.error && <p role="alert" className="mt-2 text-sm text-destructive">{actions.error}</p>}
-  </Panel>
-}
-
 function StepLink({ id }: { id: StepId }) {
   return <a className="underline" href={getStartedLink(id)}>{stepCopy[id].title}</a>
 }

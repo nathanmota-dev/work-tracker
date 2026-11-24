@@ -66,11 +66,10 @@ export function RankSelected({ jobs }: { jobs: Row[] }) {
 export function RankNewRoles() {
   const { busy, notice, launch } = useRankingLaunch()
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-2">
+    <div className="ml-auto flex flex-wrap items-center gap-2" title={TRIAGE_NOTE}>
+      <Notice text={notice} />
       <Button size="sm" disabled={busy} onClick={() => void launch({})}>Rank new roles</Button>
       <Button size="sm" variant="outline" disabled={busy} onClick={() => void launch({ all: true })}>Rank all again</Button>
-      <span className="text-xs text-muted-foreground">Triage scores from the posting text only.</span>
-      <Notice text={notice} />
     </div>
   )
 }

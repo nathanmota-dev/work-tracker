@@ -119,11 +119,13 @@ export function LoadState({
 }
 export function Stats({
   items,
+  className = "xl:grid-cols-4",
 }: {
   items: { label: string; value: ReactNode; hint?: string }[]
+  className?: string
 }) {
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div className={`grid grid-cols-1 gap-3 sm:grid-cols-2 ${className}`}>
       {items.map((item, index) => (
         <Card key={item.label} className="gap-0 rounded-2xl py-4 shadow-none">
           <CardContent className="px-4">

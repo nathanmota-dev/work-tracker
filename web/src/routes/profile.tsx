@@ -9,6 +9,7 @@ import {
   Empty,
   ExternalLink,
 } from "@/components/workspace-ui"
+import { SettingsProfile } from "@/components/settings-profile"
 import { MetricChart } from "@/components/metric-chart"
 import { useApi, text, date, type Row } from "@/lib/api"
 import { prepareSkill } from "@/lib/agent"
@@ -146,6 +147,7 @@ export function ProfilePage() {
           </Panel>
         )
       )}
+      <SettingsProfile />
       <LoadState {...snapshot} retry={snapshot.refresh} />
       {snapshot.data?.hasScan === true && (
         <SnapshotStats data={snapshot.data} />

@@ -188,11 +188,14 @@ export function Records({
   rowKey,
   workspace = "",
   empty,
+  toolbar,
 }: {
   rows: Row[]
   columns: Column[]
   noun: string
   workspace?: string
+  /** Controls for how the list is ordered or filtered, shown right above the search row. */
+  toolbar?: ReactNode
   /** Description shown while there are no records at all. */
   empty?: ReactNode
   onSelect?: (row: Row) => void
@@ -234,18 +237,15 @@ export function Records({
       title={noun}
       action={<Badge variant="secondary">{rows.length}</Badge>}
     >
+      {toolbar}
       <RecordFilters
         noun={noun}
         query={query}
         status={status}
         statuses={statuses}
         action={typeof action === "function" ? action({ filteredRows: filtered, pageRows }) : action}
-        onQuery={(value) => {
-          update({ q: value, page: 0 })
-        }}
-        onStatus={(value) => {
-          update({ status: value, page: 0 })
-        }}
+        onQuery={(value) => update({ q: value, page: 0 })}
+        onStatus={(value) => update({ status: value, page: 0 })}
       />
       {!filtered.length ? (
         <Empty

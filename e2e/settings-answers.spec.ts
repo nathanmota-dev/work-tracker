@@ -3,9 +3,9 @@ import { choose, panel, closeDialog } from './ui'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-test('Settings / Answers / Profile: shared identity, validation, failed save and persistence', async ({ workspace, page }) => {
-  await workspace.go('Settings')
-  await page.getByRole('tab', { name: 'Profile', exact: true }).click()
+test('Profile / Answers: shared identity, validation, failed save and persistence', async ({ workspace, page }) => {
+  await workspace.go('Profile')
+  await page.getByRole('tab', { name: 'LinkedIn', exact: true }).click()
   await page.getByLabel('First name').fill('Taylor')
   await page.getByLabel('Last name').fill('Tester')
   await page.getByLabel('Email', { exact: true }).fill('taylor@example.com')
@@ -34,7 +34,7 @@ test('Settings / Answers / Profile: shared identity, validation, failed save and
   await expect(page.getByText('updated@example.com', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Audit profile' }).click()
   await expect(page.getByRole('dialog', { name: 'Agent task' })).toBeVisible()
-  await expect(page.getByLabel('LinkedIn username')).toHaveValue('taylor-tester')
+  await expect(page.getByRole('dialog', { name: 'Agent task' }).getByLabel('LinkedIn username')).toHaveValue('taylor-tester')
   await page.getByRole('button', { name: 'Run agent' }).click()
   await expect(page.getByText('Synthetic agent is working. Synthetic workflow completed.', { exact: true })).toBeVisible()
   expect(workspace.calls('prompt')[0]?.text).toContain('Name: Taylor Tester')
@@ -43,8 +43,8 @@ test('Settings / Answers / Profile: shared identity, validation, failed save and
   await page.getByRole('tab', { name: 'LinkedIn', exact: true }).click()
   await expect(page.getByText('88 / 100', { exact: true })).toBeVisible()
   await workspace.restart()
-  await workspace.go('Settings')
-  await workspace.page.getByRole('tab', { name: 'Profile', exact: true }).click()
+  await workspace.go('Profile')
+  await workspace.page.getByRole('tab', { name: 'LinkedIn', exact: true }).click()
   await expect(workspace.page.getByLabel('Email', { exact: true })).toHaveValue('updated@example.com')
 })
 

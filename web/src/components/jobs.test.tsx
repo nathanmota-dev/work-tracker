@@ -31,6 +31,11 @@ beforeEach(() => {
 })
 const tab = (name: string) => fireEvent.keyDown(screen.getByRole("tab", { name }), { key: "Enter" })
 
+const choose = (label: string, option: string) => {
+  fireEvent.keyDown(screen.getByRole("combobox", { name: label }), { key: "Enter" })
+  fireEvent.keyDown(screen.getByRole("option", { name: option }), { key: "Enter" })
+}
+
 it("shows active roles by default and archives/restores directly from the list", async () => {
   render(<JobsPage />)
   expect(await screen.findByText("Engineer")).toBeInTheDocument()
@@ -189,10 +194,9 @@ it("shows the triage score column, sorts by score and keeps the triage note in t
   expect(screen.getByText("Expired (deadline passed)")).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Rank new roles" })).toBeInTheDocument()
   const order = () => screen.getAllByRole("button", { name: /^View / }).map(button => button.getAttribute("aria-label"))
-  fireEvent.click(screen.getByRole("button", { name: "Sort by score" }))
-  expect(screen.getByRole("button", { name: "Sorted by score" })).toHaveAttribute("aria-pressed", "true")
+  choose("Sort jobs", "Sort: Highest score")
   expect(order().slice(0, 3)).toEqual(["View Top", "View Urgent", "View Middle"])
-  fireEvent.click(screen.getByRole("button", { name: "Sorted by score" }))
+  choose("Sort jobs", "Sort: Recently saved")
   expect(order()[0]).toBe("View Plain")
   fireEvent.click(screen.getByRole("button", { name: "View Top" }))
   const details = within(screen.getByRole("dialog"))

@@ -1,8 +1,9 @@
 import { useState, type ReactNode } from "react"
 import { Archive, ArchiveRestore, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { SelectControl } from "@/components/ui/select-control"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { Stats, Status } from "@/components/workspace-ui"
+import { Stats, Status, controlClass } from "@/components/workspace-ui"
 import { type Column } from "@/components/records"
 import { MultiSelectRecords } from "@/components/multi-select-records"
 import { NextStepHint } from "@/components/get-started"
@@ -11,7 +12,7 @@ import { useWorkspaceState } from "@/lib/workspace-state"
 import { text, date, type Row } from "@/lib/api"
 import { openApply } from "@/lib/preparation"
 import { applyLabel, nextStep } from "@/lib/application-journey"
-import { DeadlineBadge, DeadlineSort } from "@/components/deadline-badge"
+import { DeadlineBadge } from "@/components/deadline-badge"
 import { byDeadline } from "@/lib/deadline"
 import { NextStepAction, originLabel, phaseLabel } from "@/components/application-list"
 import { RowGateBadge } from "@/components/gate-badge"
@@ -56,6 +57,7 @@ export function JobApplication({ job }: { job: Row }) {
 export function JobStats({ jobs }: { jobs: Row[] }) {
   return (
     <Stats
+      className="xl:grid-cols-5"
       items={[
         { label: "New roles", value: jobs.filter(row => !row.shortlisted_at).length },
         { label: "Shortlisted roles", value: jobs.filter(row => !!row.shortlisted_at).length },
@@ -235,14 +237,6 @@ export function JobTabs({
         </TabsTrigger>
       </TabsList>
       <TabsContent value={view}>
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          <DeadlineSort active={order === "deadline"} onToggle={() => setOrder(value => value === "deadline" ? "saved" : "deadline")} />
-          <Button size="sm" variant="outline" aria-pressed={order === "score"} onClick={() => setOrder(value => value === "score" ? "saved" : "score")}>
-            {order === "score" ? "Sorted by score" : "Sort by score"}
-          </Button>
-          {failed.control}
-        </div>
-        {view === "new" && <RankNewRoles />}
         {view !== "archived" && <RankingRunSummary />}
         {view === "archived" && (
           <p className="mb-4 text-sm text-muted-foreground">
@@ -252,6 +246,15 @@ export function JobTabs({
         )}
         <MultiSelectRecords
           workspace="jobs"
+          toolbar={<div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+            <SelectControl aria-label="Sort jobs" className={controlClass} value={order} onChange={e => setOrder(e.target.value as typeof order)}>
+              <option value="saved">Sort: Recently saved</option>
+              <option value="deadline">Sort: Soonest deadline</option>
+              <option value="score">Sort: Highest score</option>
+            </SelectControl>
+            {failed.control}
+            {view === "new" && <RankNewRoles />}
+          </div>}
           selectionRows={rows}
           rowKey={row => String(row.id)} rowLabel={row => text(row.title)}
           canSelect={() => true} busy={false} selectAllLabel="Select all filtered results"

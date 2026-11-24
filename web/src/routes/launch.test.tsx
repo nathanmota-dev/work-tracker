@@ -49,6 +49,12 @@ beforeEach(() => {
 
 afterEach(() => localStorage.clear())
 
+const addTag = (label: string, text: string) => {
+  const input = screen.getByLabelText(label)
+  fireEvent.change(input, { target: { value: text } })
+  fireEvent.keyDown(input, { key: "Enter" })
+}
+
 describe("LaunchPage", () => {
   it("launches a selected skill with its fields, provider, and optional model", async () => {
     localStorage.setItem("work-tracker-provider", "alpha")
@@ -56,12 +62,12 @@ describe("LaunchPage", () => {
     render(<LaunchPage />)
     expect(screen.queryByRole("option", { name: "Tailor your resume" })).not.toBeInTheDocument()
     fireEvent.change(screen.getByLabelText("Skill"), { target: { value: "job-scout" } })
-    fireEvent.change(screen.getByLabelText("Role, keywords or job URL"), { target: { value: "  Staff engineer " } })
-    fireEvent.change(screen.getByLabelText("Location"), { target: { value: "Remote" } })
+    addTag("Role, keywords or job URL", "  Staff engineer ")
+    addTag("Location", "Remote")
     fireEvent.change(screen.getByLabelText("Additional context"), { target: { value: "Prefer climate work" } })
     fireEvent.click(screen.getByRole("button", { name: "Run agent" }))
     await waitFor(() => expect(runAgent).toHaveBeenCalledWith("alpha", "job-scout", {
-      query: "  Staff engineer ", location: "Remote", extra: "Prefer climate work",
+      query: "Staff engineer", location: "Remote", extra: "Prefer climate work",
     }, "a2", undefined))
   })
 
@@ -71,7 +77,7 @@ describe("LaunchPage", () => {
     render(<LaunchPage />)
     expect(screen.getByRole("slider", { name: "Effort" })).toHaveAttribute("aria-valuetext", "High")
     fireEvent.keyDown(screen.getByRole("slider", { name: "Effort" }), { key: "ArrowLeft" })
-    fireEvent.change(screen.getByLabelText("Role, keywords or job URL"), { target: { value: "Backend" } })
+    addTag("Role, keywords or job URL", "Backend")
     fireEvent.click(screen.getByRole("button", { name: "Run agent" }))
     await waitFor(() => expect(runAgent).toHaveBeenCalledWith("beta", "job-scout", { query: "Backend" }, undefined, "low"))
     fireEvent.change(screen.getByLabelText("Agent"), { target: { value: "alpha" } })
@@ -134,14 +140,14 @@ describe("LaunchPage", () => {
 
   it("restores role and location from the last search of each skill", async () => {
     const first = render(<LaunchPage />)
-    fireEvent.change(screen.getByLabelText("Role, keywords or job URL"), { target: { value: "Backend engineer" } })
-    fireEvent.change(screen.getByLabelText("Location"), { target: { value: "Brazil" } })
+    addTag("Role, keywords or job URL", "Backend engineer")
+    addTag("Location", "Brazil")
     fireEvent.change(screen.getByLabelText("Additional context"), { target: { value: "Remote only" } })
     first.unmount()
     render(<LaunchPage />)
-    expect(screen.getByLabelText("Role, keywords or job URL")).toHaveValue("Backend engineer")
-    expect(screen.getByLabelText("Location")).toHaveValue("Brazil")
-    fireEvent.change(screen.getByLabelText("Location"), { target: { value: "" } })
+    expect(screen.getByText("Backend engineer")).toBeInTheDocument()
+    expect(screen.getByText("Brazil")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Remove Brazil" }))
     fireEvent.click(screen.getByRole("button", { name: "Run agent" }))
     await waitFor(() => expect(runAgent).toHaveBeenCalledWith("alpha", "job-scout", { query: "Backend engineer", extra: "Remote only" }, undefined, undefined))
     fireEvent.change(screen.getByLabelText("Skill"), { target: { value: "recruiter-outreach" } })

@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures'
+import { choose } from './ui'
 
 test('Jobs: rank a selected batch with a synthetic agent, sort by score and summarize the run', async ({ workspace, page }) => {
   const save = (title: string, ...extra: string[]) =>
@@ -8,7 +9,7 @@ test('Jobs: rank a selected batch with a synthetic agent, sort by score and summ
   save('Missing posting')
   save('Closed role', '--description', 'Synthetic score 99', '--deadline', '2000-01-01')
   await workspace.go('Jobs')
-  await expect(page.getByText('Triage scores from the posting text only.')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Rank new roles' })).toBeVisible()
   await page.getByRole('button', { name: 'Select all filtered results (4)', exact: true }).click()
   await page.getByRole('button', { name: 'Rank selected', exact: true }).click()
   await expect(page.getByRole('status', { name: 'Ranking plan' })).toHaveText('3 roles will be ranked, 0 deferred. Skipped: 1 expired by deadline.')
@@ -34,7 +35,7 @@ test('Jobs: rank a selected batch with a synthetic agent, sort by score and summ
   await expect(page.getByText('Unreachable (attempt 1)')).toBeVisible()
   await expect(page.getByText('Expired (deadline passed)')).toBeVisible()
 
-  await page.getByRole('button', { name: 'Sort by score', exact: true }).click()
+  await choose(page, 'Sort jobs', 'Sort: Highest score')
   const views = page.getByRole('button', { name: /^View / })
   await expect(views.nth(0)).toHaveAccessibleName('View Strong role')
   await expect(views.nth(1)).toHaveAccessibleName('View Weak role')

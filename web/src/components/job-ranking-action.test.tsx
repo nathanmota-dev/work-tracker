@@ -38,7 +38,7 @@ it("previews the selection, says how many are deferred and opens the skill in co
 it("ranks new roles or everything again, and opens nothing when there is nothing to rank", async () => {
   request.mockResolvedValueOnce(preview({ items: [], eligible: 0, deferred: 0, expired: 0, already_ranked: 4 }))
   render(<RankNewRoles />)
-  expect(screen.getByText("Triage scores from the posting text only.")).toBeInTheDocument()
+  expect(screen.getByTitle(/Triage score from the posting text only/)).toBeInTheDocument()
   fireEvent.click(screen.getByRole("button", { name: "Rank new roles" }))
   expect(await screen.findByRole("status", { name: "Ranking plan" })).toHaveTextContent("Nothing new to rank. Skipped: 4 already ranked.")
   expect(request).toHaveBeenLastCalledWith("rankings/candidates", undefined)

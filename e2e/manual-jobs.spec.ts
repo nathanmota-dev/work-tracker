@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures'
-import { panel } from './ui'
+import { choose, panel } from './ui'
 
 test('Jobs: create, correct a failed save, deduplicate, edit and prepare an external role', async ({ workspace, page }) => {
   test.setTimeout(120_000)
@@ -102,8 +102,7 @@ test('Jobs: a role with a close deadline shows its urgency in Jobs and on the Da
   await page.getByRole('tab', { name: /^Shortlist/ }).click()
   await expect(page.getByText('Due in 3 days', { exact: true })).toBeVisible()
   await expect(page.getByText('Overdue', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'Sort by deadline' }).click()
-  await expect(page.getByRole('button', { name: 'Sorted by deadline' })).toHaveAttribute('aria-pressed', 'true')
+  await choose(page, 'Sort jobs', 'Sort: Soonest deadline')
   await workspace.go('Dashboard')
   const deadlines = panel(page, 'Deadlines')
   await expect(deadlines.getByRole('link')).toHaveText(['Late Engineer', 'Closing Engineer'])

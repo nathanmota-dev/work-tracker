@@ -12,7 +12,7 @@ test('Jobs: assessed search runs in the contextual panel with all criteria', asy
   const agent = page.getByRole('dialog', { name: 'Agent task' })
   await expect(agent).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Jobs', exact: true })).toBeVisible()
-  await expect(agent.getByLabel('Role, keywords or job URL')).toHaveValue('React')
+  await expect(agent.getByRole('button', { name: 'Remove React' })).toBeVisible()
   await agent.getByRole('button', { name: 'Run agent' }).click()
   await expect(agent.getByRole('log')).toContainText('Synthetic workflow completed.')
   expect(workspace.calls('prompt')[0]?.text).toContain('Work arrangement: remote. Pages to search: 2.')

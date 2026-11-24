@@ -131,7 +131,7 @@ export function SettingsProfile() {
     }
   }
   return (
-    <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+    <div className="grid gap-4 lg:grid-cols-2">
       <Panel title="Personal details">
         <p className="mb-5 text-sm text-muted-foreground">
           Set your details once. We’ll use them across your workspace.

@@ -22,6 +22,11 @@ beforeEach(() => {
 })
 const fill = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } })
 
+const choose = (label: string, option: string) => {
+  fireEvent.keyDown(screen.getByRole("combobox", { name: label }), { key: "Enter" })
+  fireEvent.keyDown(screen.getByRole("option", { name: option }), { key: "Enter" })
+}
+
 it("saves a draft after correcting a failure, edits it and opens preparation without running an agent", async () => {
   render(<JobsPage />)
   fireEvent.click(screen.getByRole("button", { name: "Add job" }))
@@ -93,9 +98,9 @@ it("saves an application deadline and sorts the list by it", async () => {
   expect(screen.getByText("Due in 27 days")).toBeInTheDocument()
   const titles = () => screen.getAllByText(/ Engineer$/).map(cell => cell.textContent)
   const before = titles()
-  fireEvent.click(screen.getByRole("button", { name: "Sort by deadline" }))
+  choose("Sort jobs", "Sort: Soonest deadline")
   expect(titles()).toEqual(["Late Engineer", "Later Engineer", "Undated Engineer"])
-  fireEvent.click(screen.getByRole("button", { name: "Sorted by deadline" }))
+  choose("Sort jobs", "Sort: Recently saved")
   expect(titles()).toEqual(before)
   fireEvent.click(screen.getByRole("button", { name: "Add job" }))
   expect(screen.getByLabelText("Application deadline")).toHaveAttribute("type", "date")

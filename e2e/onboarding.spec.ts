@@ -75,10 +75,6 @@ test('Get started: a new workspace reaches its first prepared application by fol
   await expect(card(workspace).getByRole('status')).toContainText('You’re all set.')
   await expect(card(workspace)).toHaveCount(0, { timeout: 10_000 })
   expect(workspace.query('SELECT hidden, completed_at IS NOT NULL AS completed FROM onboarding_state')).toEqual([{ hidden: 1, completed: 1 }])
-  await workspace.go('Settings')
-  await page.getByRole('button', { name: 'Show checklist on Dashboard' }).click()
-  await workspace.go('Dashboard')
-  await progress(workspace, 5)
 })
 
 test('Get started: manual tracking starts without an agent and keeps its choices after a restart', async ({ workspace }) => {

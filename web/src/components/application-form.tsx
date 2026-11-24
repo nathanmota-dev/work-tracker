@@ -4,6 +4,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { SelectControl } from "@/components/ui/select-control"
 import { FormDialog, useSubmit } from "@/components/form-dialog"
 import { Field } from "@/components/workspace-ui"
+import { TagField } from "@/components/tag-field"
 import { useApi, type Row } from "@/lib/api"
 import {
   boardAction,
@@ -95,13 +96,13 @@ function ApplicationFieldset({ draft, busy, change }: {
           ))}
         </SelectControl>
       </Field>
-      <Field label="Stack">
-        <Input
-          value={draft.stack}
-          onChange={(e) => change("stack", e.target.value)}
-          placeholder="React, TypeScript, Node.js"
-        />
-      </Field>
+      <TagField
+        label="Stack"
+        value={draft.stack}
+        onChange={(value) => change("stack", value)}
+        suggestions={["React", "TypeScript", "Node.js", "Python", "Java", "Go", "PostgreSQL", "AWS", "Docker", "Kubernetes"]}
+        placeholder="React, TypeScript..."
+      />
       <Field label="Compensation">
         <Input
           value={draft.comp}

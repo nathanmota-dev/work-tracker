@@ -6,6 +6,7 @@ import { Play, Square } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Field, controlClass } from "@/components/workspace-ui"
+import { TagField, roleSuggestions, locationSuggestions } from "@/components/tag-field"
 import {
   skills,
   cancelAgent,
@@ -14,6 +15,7 @@ import {
   type useAgent,
 } from "@/lib/agent"
 
+const tagSuggestions: Record<string, readonly string[]> = { query: roleSuggestions, location: locationSuggestions }
 const labels: Record<string, string> = {
   query: "Role, keywords or job URL",
   location: "Location",
@@ -84,7 +86,17 @@ export function SkillFields({ fields, skill, params, setParams, username, disabl
 }) {
   return (
     <>
-      {fields.map((key) => (
+      {fields.map((key) => key in tagSuggestions ? (
+        <TagField
+          key={key}
+          label={labels[key]}
+          value={params[key] ?? ""}
+          suggestions={tagSuggestions[key]}
+          disabled={disabled}
+          required={key === "query" && skill !== "portal-filler"}
+          onChange={(value) => setParams((p) => ({ ...p, [key]: value }))}
+        />
+      ) : (
         <Field key={key} label={labels[key]}>
           <Input
             value={
