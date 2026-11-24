@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
-import { Badge } from "@/components/ui/badge"
+import { ScoreBadge } from "@/components/score-badge"
+import { verdictTone } from "@/lib/ats"
 import { Button } from "@/components/ui/button"
 import { request, type Row } from "@/lib/api"
 import { prepareSkill, useAgent } from "@/lib/agent"
@@ -18,7 +19,7 @@ export function RankingScore({ row }: { row: Row }) {
   const label = rankingLabel(row)
   return (
     <div className="flex flex-wrap items-center gap-1">
-      {label ? <Badge variant="outline" className="whitespace-nowrap" title={TRIAGE_NOTE}>{label}</Badge> : <span>—</span>}
+      {label ? <ScoreBadge tone={row.ranking_status === "scored" ? verdictTone(row.ranking_verdict) : "none"} title={TRIAGE_NOTE}>{label}</ScoreBadge> : <span>—</span>}
       {!!row.closing_soon && <span className="whitespace-nowrap text-xs" title="Deadline within 7 days">🔥 Closing soon</span>}
     </div>
   )

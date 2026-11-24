@@ -183,6 +183,19 @@ describe("api bridge", () => {
     }
     await expect(request({}, "profile-sources/choice")).rejects.toThrow("Unsupported API request")
   })
+  it("allows reading the best ATS match per job and one job's ATS scores", async () => {
+    connectApiBridge({ address: "http://127.0.0.1:4000", token: "fixture" })
+    const fetch = vi.fn(async () => new Response("[]"))
+    vi.stubGlobal("fetch", fetch)
+    const request = electron.handlers.get("api:request")!
+    for (const path of ["ats/best", "ats/jobs/12"]) {
+      expect(await request({}, path)).toEqual([])
+      expect(fetch).toHaveBeenLastCalledWith(expect.objectContaining({ pathname: `/api/${path}` }), expect.objectContaining({ method: "GET" }))
+    }
+    for (const invalid of ["ats/jobs/0", "ats/jobs/NaN", "ats/jobs/1?x=2", "ats"])
+      await expect(request({}, invalid)).rejects.toThrow("Unsupported API request")
+    await expect(request({}, "ats/best", {})).rejects.toThrow("Unsupported API request")
+  })
   it("allows the gate profile, its two writes and the stored check of one job", async () => {
     connectApiBridge({ address: "http://127.0.0.1:4000", token: "fixture" })
     const fetch = vi.fn(async () => new Response("{}"))

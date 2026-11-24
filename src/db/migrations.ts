@@ -85,6 +85,8 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 19, name: "profile sources", up: ensureCurrentSchema },
   // Additive: no variant exists and every existing document version keeps variant_id null.
   { version: 20, name: "resume variants", up: ensureCurrentSchema },
+  // Additive: the cache starts empty and fills when Jobs or the CLI first reads the scores.
+  { version: 21, name: "ats scores", up: ensureCurrentSchema },
 ];
 
 /** Keeps pre-triage jobs in the shortlist; very old workspaces may lack `scouted_at`. */

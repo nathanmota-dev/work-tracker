@@ -12,6 +12,7 @@ import { PreparationQueue } from "../preparation/batch-queue.ts";
 import { handleInterviewPreps } from "../interview-prep/http.ts";
 import { handleFollowups } from "../followups/http.ts";
 import { handleRankings } from "../rankings/http.ts";
+import { handleAts } from "../ats/http.ts";
 import { handleGates } from "../gates/http.ts";
 import { handleProfileSources } from "../profile/http.ts";
 import { handleCompanyResearch } from "../company-research/http.ts";
@@ -30,6 +31,7 @@ vi.mock("../preparation/batch-queue.ts", () => ({ PreparationQueue: vi.fn() }));
 vi.mock("../interview-prep/http.ts", () => ({ handleInterviewPreps: vi.fn() }));
 vi.mock("../followups/http.ts", () => ({ handleFollowups: vi.fn() }));
 vi.mock("../rankings/http.ts", () => ({ handleRankings: vi.fn() }));
+vi.mock("../ats/http.ts", () => ({ handleAts: vi.fn() }));
 vi.mock("../gates/http.ts", () => ({ handleGates: vi.fn() }));
 vi.mock("../profile/http.ts", () => ({ handleProfileSources: vi.fn() }));
 vi.mock("../company-research/http.ts", () => ({ handleCompanyResearch: vi.fn() }));
@@ -138,6 +140,15 @@ test("serves rankings and ranking candidates through their handler", async () =>
     const req = new Request(`http://localhost${path}`);
     expect(await routeApi(path, req, { acp, broadcast })).toBe(ok);
     expect(handleRankings).toHaveBeenLastCalledWith(path, req);
+  }
+});
+
+test("serves ATS keyword scores through their handler", async () => {
+  vi.mocked(handleAts).mockReturnValue(ok);
+  for (const path of ["/api/ats/best", "/api/ats/jobs/3"]) {
+    const req = new Request(`http://localhost${path}`);
+    expect(await routeApi(path, req, { acp, broadcast })).toBe(ok);
+    expect(handleAts).toHaveBeenLastCalledWith(path, req);
   }
 });
 

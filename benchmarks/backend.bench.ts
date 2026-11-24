@@ -2,11 +2,21 @@ import { describe, expect, test } from "vitest";
 import * as matcher from "../src/match/matcher.ts";
 import * as outreach from "../src/outreach/core.ts";
 import * as paths from "../src/paths.ts";
+import * as extract from "../src/ats/extract.ts";
+import * as atsScoring from "../src/ats/score.ts";
+import * as atsStore from "../src/ats/store.ts";
+import * as atsVocabulary from "../src/ats/vocabulary.ts";
+import { Database } from "../src/db/sqlite.ts";
+import { ensureCurrentSchema } from "../src/db/current-schema.ts";
 
 // Bind module exports once so the measured loops do not pay module-runner getter costs.
 const { matchLabels } = matcher;
 const { dueAction } = outreach;
 const { DEFAULT_OUTREACH_CONFIG } = paths;
+const { jobKeywords } = extract;
+const { atsScore } = atsScoring;
+const { documentsToScore, refreshScores } = atsStore;
+const { resumeTerms } = atsVocabulary;
 type MatchResult = matcher.MatchResult;
 type AttemptLike = outreach.AttemptLike;
 
@@ -61,6 +71,39 @@ function evaluateOutreach() {
   return counts;
 }
 
+const stacks = [["C#", ".NET", "ASP.NET Core", "SQL Server"], ["Node.js", "TypeScript", "PostgreSQL", "NestJS"], ["Java", "Spring Boot", "Kafka", "MySQL"],
+  ["Python", "FastAPI", "Django", "Redis"], ["React", "Next.js", "Tailwind CSS", "Vitest"], ["Go", "Kubernetes", "Terraform", "AWS"]];
+const common = ["Docker", "Git", "CI/CD", "REST", "Scrum", "Microservices", "GraphQL", "Azure"];
+const postings = Array.from({ length: 500 }, (_, index) => {
+  const stack = stacks[index % stacks.length]!;
+  const extra = common.slice(index % 4, (index % 4) + 4);
+  return `About the role\nWe build products for synthetic customers. ${"Collaborate with design and product. ".repeat(20)}\n` +
+    `Requirements:\n${stack.map(term => `- Experience with ${term}`).join("\n")}\n- ${extra[0]} and ${extra[1]}\n` +
+    `Nice to have:\n- ${extra[2]}\n- ${extra[3]}\nBenefits:\nRemote work and learning budget.`;
+});
+const resumes = stacks.map((stack, index) => `Synthetic Candidate ${index}\nSoftware engineer. ${"Built and operated services for fictional clients. ".repeat(30)}\n` +
+  `Skills: ${stack.join(", ")}, ${common.slice(index % 5, (index % 5) + 3).join(", ")}`);
+function scoreAll() {
+  const terms = resumes.map(resumeTerms);
+  let total = 0;
+  for (const posting of postings) {
+    const keywords = jobKeywords(posting);
+    for (const covered of terms) total += atsScore(keywords, covered).score ?? 0;
+  }
+  return total;
+}
+function scoredWorkspace() {
+  const d = new Database(":memory:");
+  d.transaction(() => ensureCurrentSchema(d))();
+  const job = d.query("INSERT INTO jobs (title, company_name, description) VALUES ('Engineer', 'Example Corp', ?)");
+  for (const posting of postings) job.run(posting);
+  resumes.forEach((text, index) => {
+    d.query("INSERT INTO pdf_artifacts (id, run_id, kind, path, pages, text, warnings_json) VALUES (?, NULL, 'variant', '/synthetic.pdf', 1, ?, '[]')").run(`pdf-${index}`, text);
+    d.query("INSERT INTO resume_variants (id, name, role, origin, status, pdf_artifact_id, created_at, updated_at) VALUES (?, ?, 'backend', 'imported', 'ready', ?, 'now', 'now')").run(`v${index}`, `Resume ${index}`, `pdf-${index}`);
+  });
+  return d;
+}
+
 describe("backend hot paths", () => {
   test("ATS field matching", async ({ bench }) => {
     const reference = summarize(matchLabels(atsLabels, { answers }));
@@ -78,5 +121,25 @@ describe("backend hot paths", () => {
     await bench("evaluate 10000 outreach attempts", () => {
       evaluateOutreach();
     }).run(runOptions);
+  });
+
+  test("ATS keyword scores", async ({ bench }) => {
+    const reference = scoreAll();
+    expect(reference).toBeGreaterThan(0);
+    await bench("score 500 jobs x 6 resumes", () => {
+      scoreAll();
+    }).run(runOptions);
+    expect(scoreAll()).toBe(reference);
+  });
+
+  test("ATS score cache refresh", async ({ bench }) => {
+    const d = scoredWorkspace();
+    const documents = documentsToScore(d, () => null);
+    expect(refreshScores(d, documents)).toBe(3_000);
+    await bench("refresh 500 jobs with a warm cache", () => {
+      refreshScores(d, documentsToScore(d, () => null));
+    }).run(runOptions);
+    expect(refreshScores(d, documents)).toBe(0);
+    d.close();
   });
 });
