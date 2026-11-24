@@ -2,12 +2,15 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { AnswersPage } from "./answers"
 import { publish, useApi } from "@/lib/api"
+import { useWorkspaceState } from "@/lib/workspace-state"
 
 vi.mock("@/lib/api", async (original) => ({
   ...(await original<typeof import("@/lib/api")>()),
   useApi: vi.fn(),
   publish: vi.fn(),
 }))
+vi.mock("@/lib/workspace-state", () => ({ useWorkspaceState: vi.fn() }))
+const route = { search: {} as Record<string, string>, update: vi.fn() }
 const request = vi.fn()
 const refresh = vi.fn()
 let rows: { key: string; value: string; category?: string }[]
@@ -16,6 +19,8 @@ beforeEach(() => {
   request.mockReset()
   refresh.mockReset()
   vi.mocked(publish).mockReset()
+  route.search = {}; route.update.mockReset()
+  vi.mocked(useWorkspaceState).mockImplementation(() => route as unknown as ReturnType<typeof useWorkspaceState>)
   vi.mocked(useApi).mockReturnValue({ data: rows, error: "", loading: false, refresh })
   window.desktop = {
     request,
@@ -145,4 +150,17 @@ it("shows which resume source filled a ready answer", () => {
   render(<AnswersPage />)
   expect(screen.getByRole("button", { name: "Phone Ready · from linkedin" })).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Email · Required Ready: default" })).toBeInTheDocument()
+})
+it("opens a requested field once and clears it from the URL when its editor closes", () => {
+  route.search = { field: "phone" }
+  const view = render(<AnswersPage />)
+  expect(screen.getByRole("dialog")).toHaveTextContent("Add an answer")
+  expect(route.update).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+  expect(route.update).toHaveBeenCalledWith({ field: "" })
+  route.search = {}
+  view.rerender(<AnswersPage />)
+  route.search = { field: "phone" }
+  view.rerender(<AnswersPage />)
+  expect(screen.getByRole("dialog")).toBeInTheDocument()
 })

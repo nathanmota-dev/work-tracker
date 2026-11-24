@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
@@ -60,9 +60,13 @@ export function AnswersPage() {
     editor.open({ key, value: String(row?.value ?? ""), category: String(row?.category ?? ANSWER_CATALOG.find(s => s.key === key)?.category ?? "custom"), language: lang, existing: !!row })
   }
   // A correction link from the Apply checklist opens that field's editor once.
-  const { search: route } = useWorkspaceState("answers")
+  const { search: route, update } = useWorkspaceState("answers")
   const [requested, setRequested] = useState("")
   if (route.field && api.data && requested !== route.field) { setRequested(route.field); open(route.field) }
+  if (!route.field && requested) setRequested("")
+  // Once its editor closes, the requested field leaves the URL so returning to this tab does not reopen it.
+  const closed = !editor.draft && !!requested && route.field === requested
+  useEffect(() => { if (closed) update({ field: "" }) }, [closed, update])
   const draft = editor.draft
   let duplicate = false
   try { duplicate = !!draft && !draft.existing && rows.some(row => row.key === draft.key.trim() && row.language === answerLanguage(draft.language)) } catch { /* editor displays language validation */ }
