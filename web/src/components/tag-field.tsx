@@ -4,9 +4,10 @@ import { X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Field } from "@/components/workspace-ui"
+import { LOCATION_SUGGESTIONS, ROLE_SUGGESTIONS } from "../../../src/answers/catalog"
 
-export const roleSuggestions = ["Back-End", "Front-End", "Full Stack", "Software Engineer", "Mobile", "DevOps", "Data Engineer", "QA", "Product Manager", "Designer"] as const
-export const locationSuggestions = ["Remote", "Hybrid", "Brazil", "São Paulo", "Rio de Janeiro", "Portugal", "United States", "Europe"] as const
+export const roleSuggestions = ROLE_SUGGESTIONS
+export const locationSuggestions = LOCATION_SUGGESTIONS
 
 /** Tags are stored as one comma-separated string so existing params and drafts keep working. */
 export function parseTags(value: string) {

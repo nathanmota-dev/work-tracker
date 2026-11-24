@@ -34,3 +34,16 @@ test("invalid, missing, ambiguous and demographic answers stay distinct and unfi
   expect(result.matched).toEqual([]);
   expect(result.unfilled.map(s => s.skip)).toEqual(["invalid-answer", "no-stored-answer", "ambiguous", "eeo-human-only"]);
 });
+
+test.each([
+  ["birth_date", "1990-02-30", true], ["birth_date", "31/12/1990", false], ["birth_date", "2999-01-01", true],
+  ["experience_level", "Junior, Pleno", false], ["experience_level", "Wizard", true],
+  ["accepts_clt", "Sim", false], ["accepts_clt", "talvez", true],
+  ["eeo_gender", "female", false], ["eeo_gender", "robot", true],
+  ["desired_role", "full stack, front end", false], ["social_links", "https://a.test, nope", true], ["social_links", "https://a.test", false],
+])("validates %s = %s by its field type", (key, value, invalid) => expect(!!validateAnswer(key, value)).toBe(invalid));
+test("fields declare the input that fits them", async () => {
+  const { answerInput } = await import("./catalog.ts");
+  expect(["email", "phone", "birth_date", "summary", "experience_level", "desired_role", "accepts_clt", "eeo_gender", "city"].map(key => answerInput(key).kind))
+    .toEqual(["email", "phone", "date", "textarea", "multiselect", "tags", "yesno", "select", "text"]);
+});

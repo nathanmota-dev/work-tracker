@@ -151,6 +151,11 @@ export const KEY_SPECS: KeySpec[] = [
     synonyms: ["desired role", "desired position", "position applying for", "cargo pretendido", "cargo desejado", "vaga pretendida"],
   },
   {
+    key: "preferred_locations",
+    category: "profile",
+    synonyms: ["preferred locations", "preferred location", "locais de interesse", "locais preferidos"],
+  },
+  {
     key: "experience_level",
     category: "profile",
     synonyms: ["experience level", "seniority", "seniority level", "nivel de experiencia", "senioridade", "nivel profissional"],

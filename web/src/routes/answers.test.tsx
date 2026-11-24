@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { AnswersPage } from "./answers"
 import { publish, useApi } from "@/lib/api"
@@ -90,13 +90,13 @@ it("offers friendly fields, missing required answers, validation and explicit la
   vi.mocked(useApi).mockReturnValue({ data: rows, error: "", loading: false, refresh })
   request.mockResolvedValue({ ok: true })
   render(<AnswersPage />)
-  expect(screen.getAllByText("Required answer missing — add it")).toHaveLength(3)
+  expect(screen.getAllByText("Required — add it")).toHaveLength(3)
   fireEvent.change(screen.getByLabelText("Requested language"), { target: { value: "pt-BR" } })
   fireEvent.change(screen.getByLabelText("Explicit fallback language (optional)"), { target: { value: "default" } })
-  expect(screen.getByText("Using explicit fallback: default")).toBeInTheDocument()
+  expect(screen.getByText("Fallback: default")).toBeInTheDocument()
   fireEvent.click(screen.getByRole("button", { name: /Email · Required/ }))
   expect(screen.queryByLabelText("Field key")).not.toBeInTheDocument()
-  expect(screen.getByLabelText("Field")).toHaveValue("email")
+  expect(screen.getByLabelText("Field")).toHaveTextContent("Email")
   fireEvent.change(screen.getByLabelText("Answer"), { target: { value: "invalid" } })
   expect(screen.getByRole("alert")).toHaveTextContent("Enter a valid email")
   expect(screen.getByRole("button", { name: "Save answer" })).toBeDisabled()
@@ -109,7 +109,7 @@ it("creates variants, guards duplicate languages and preserves the draft after d
   rows = [{ key: "notice_period", value: "Two weeks", category: "eligibility" }]
   vi.mocked(useApi).mockReturnValue({ data: rows, error: "", loading: false, refresh })
   render(<AnswersPage />)
-  fireEvent.click(screen.getByRole("button", { name: "View Notice period" }))
+  fireEvent.click(screen.getByRole("button", { name: "Notice period" }))
   fireEvent.click(screen.getByRole("button", { name: "Add language variant" }))
   expect(screen.getByRole("alert")).toHaveTextContent("language tag")
   fireEvent.change(screen.getByLabelText("Language"), { target: { value: "default" } })
@@ -119,7 +119,7 @@ it("creates variants, guards duplicate languages and preserves the draft after d
   fireEvent.click(screen.getByRole("button", { name: "Save answer" }))
   await waitFor(() => expect(request).toHaveBeenCalledWith("answer", { key: "notice_period", value: "Duas semanas", category: "eligibility", language: "pt-BR" }))
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
-  fireEvent.click(screen.getByRole("button", { name: "View Notice period" }))
+  fireEvent.click(screen.getByRole("button", { name: "Notice period" }))
   request.mockRejectedValueOnce(new Error("Could not delete; retry")).mockResolvedValueOnce({ ok: true })
   fireEvent.click(screen.getByRole("button", { name: "Delete answer" }))
   expect(request).toHaveBeenCalledTimes(1)
@@ -135,8 +135,9 @@ it("creates variants, guards duplicate languages and preserves the draft after d
 it("shows human review instructions and actionable invalid language and legacy values", () => {
   vi.mocked(useApi).mockReturnValue({ data: [{ key: "email", value: "bad" }], error: "", loading: false, refresh })
   render(<AnswersPage />)
-  expect(screen.getByText("Invalid answer — correct it")).toBeInTheDocument()
-  fireEvent.click(screen.getByRole("button", { name: /Gender Human review only/ }))
+  expect(screen.getByText("Invalid — correct it")).toBeInTheDocument()
+  expect(screen.getAllByText("Human review only").length).toBeGreaterThan(0)
+  fireEvent.click(screen.getByRole("button", { name: "Gender" }))
   expect(screen.getByText(/Demographic answers are never filled automatically/)).toBeInTheDocument()
   fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
   fireEvent.change(screen.getByLabelText("Requested language"), { target: { value: "bad_tag" } })
@@ -148,8 +149,12 @@ it("shows which resume source filled a ready answer", () => {
     { key: "email", value: "typed@example.com", category: "contact", language: "default", autofill_source: null },
   ], error: "", loading: false, refresh })
   render(<AnswersPage />)
-  expect(screen.getByRole("button", { name: "Phone Ready · from linkedin" })).toBeInTheDocument()
-  expect(screen.getByRole("button", { name: "Email · Required Ready: default" })).toBeInTheDocument()
+  expect(screen.getByText("+351 912 345 678")).toBeInTheDocument()
+  expect(screen.getByText("From LinkedIn")).toBeInTheDocument()
+  expect(screen.getByText("typed@example.com")).toBeInTheDocument()
+  expect(screen.getByText("Added by you")).toBeInTheDocument()
+  fireEvent.click(screen.getByText("typed@example.com"))
+  expect(screen.getByLabelText("Field")).toHaveTextContent("Email")
 })
 it("opens a requested field once and clears it from the URL when its editor closes", () => {
   route.search = { field: "phone" }
@@ -163,4 +168,18 @@ it("opens a requested field once and clears it from the URL when its editor clos
   route.search = { field: "phone" }
   view.rerender(<AnswersPage />)
   expect(screen.getByRole("dialog")).toBeInTheDocument()
+})
+
+it("renders the control of each field type and validates it", () => {
+  vi.mocked(useApi).mockReturnValue({ data: [], error: "", loading: false, refresh })
+  render(<AnswersPage />)
+  const open = (name: string) => { fireEvent.click(screen.getByRole("button", { name })); return screen.getByRole("dialog") }
+  expect(within(open("Birth date")).getByRole("button", { name: "Answer" })).toBeInTheDocument()
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+  expect(open("Phone").querySelector("input[type=tel]")).not.toBeNull()
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+  expect(open("Experience level").querySelectorAll("input[type=checkbox]").length).toBeGreaterThan(3)
+  fireEvent.click(screen.getByLabelText("Junior")); fireEvent.click(screen.getByLabelText("Pleno"))
+  fireEvent.click(screen.getByRole("button", { name: "Save answer" }))
+  expect(request).toHaveBeenLastCalledWith("answer", expect.objectContaining({ key: "experience_level", value: "Junior, Pleno" }))
 })

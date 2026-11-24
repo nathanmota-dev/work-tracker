@@ -91,7 +91,8 @@
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
     "semver": "^7.8.6",
-    "ws": "^8.22.0"
+    "ws": "^8.22.0",
+    "zod": "^4.6.7"
   },
   "bin": {
     "work-tracker": "out/cli/work-tracker.cjs"

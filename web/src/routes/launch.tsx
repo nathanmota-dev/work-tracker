@@ -14,6 +14,7 @@ import {
   launchSkills,
 } from "@/components/launch-form"
 import { useEffect, useRef, useState } from "react"
+import { publish, request } from "@/lib/api"
 import {
   Page,
   Panel,
@@ -21,6 +22,9 @@ import {
 } from "@/components/workspace-ui"
 import { useApi, useConnection, type Row } from "@/lib/api"
 import { useAgent, runAgent, supportedEffort, type Providers } from "@/lib/agent"
+
+/** Launch field → the Profile answer it shares. */
+const SHARED_FIELDS = { query: "desired_role", location: "preferred_locations" } as const
 
 function useLaunchState() {
   const profile = useApi<Row[]>("answers")
@@ -33,8 +37,14 @@ function useLaunchState() {
   const setSkill = (skill: string) => update({ skill, target: "", query: "", location: "", company: "", username: "", url: "", jobIds: "" })
   const context = useContextDraft(`launch:${skill}:${search.target ?? ""}`)
   const remembered = readLaunchFields(skill)
+  // Role and location of a job search are the Profile's desired roles and preferred locations: one value for both screens.
+  const shared = skill === "job-scout" ? SHARED_FIELDS : {}
+  const [edited, setEdited] = useState<Record<string, string>>({})
+  const saving = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  const saved = (key: string) => String(profile.data?.find(row => row.key === key && (row.language ?? "default") === "default")?.value ?? "")
   const params: Record<string, string> = Object.fromEntries(["query", "location", "company", "username", "url", "jobIds"].flatMap(key => {
-    const value = search[key as keyof typeof search] || remembered[key as keyof typeof remembered]
+    const answer = key in shared ? edited[key] ?? (saved(shared[key as keyof typeof shared]) || remembered[key as keyof typeof remembered]) : undefined
+    const value = search[key as keyof typeof search] || answer || (key in shared ? undefined : remembered[key as keyof typeof remembered])
     return typeof value === "string" && value ? [[key, value]] : []
   }))
   if (context.draft.extra) params.extra = context.draft.extra
@@ -42,6 +52,15 @@ function useLaunchState() {
     const next = typeof change === "function" ? change(params) : change
     if (next.extra !== params.extra) context.update({ extra: next.extra ?? "" })
     if (rememberedLaunchFields.some(key => next[key] !== params[key])) writeLaunchFields(skill, next)
+    for (const [field, answerKey] of Object.entries(shared)) {
+      if ((next[field] ?? "") === (params[field] ?? "")) continue
+      const value = next[field] ?? ""
+      setEdited(previous => ({ ...previous, [field]: value }))
+      clearTimeout(saving.current[field])
+      saving.current[field] = setTimeout(() => {
+        void request("answer", { key: answerKey, value: value.trim(), category: "profile" }).then(() => publish({ type: "changed", table: "applicant_answers" })).catch(() => undefined)
+      }, 600)
+    }
     update(Object.fromEntries(Object.entries(next).filter(([key]) => key !== "extra")))
   }
   const provider = search.provider ?? localStorage.getItem("work-tracker-provider") ?? ""

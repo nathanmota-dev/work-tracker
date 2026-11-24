@@ -7,7 +7,7 @@ import { Records, type Column } from "@/components/records"
 import { useApi, request, publish, date, type Row } from "@/lib/api"
 import { useWorkspaceState } from "@/lib/workspace-state"
 import { AnswerEditor, draftError, type AnswerDraft } from "@/components/answer-editor"
-import { AnswerCatalog, type CatalogRow } from "@/components/answer-catalog"
+import { AnswerTables, type CatalogRow } from "@/components/answer-tables"
 import { ANSWER_CATALOG, CATEGORY_LABELS, answerLanguage } from "../../../src/answers/catalog"
 
 function savedRows(rows: Row[], advanced: boolean): Row[] {
@@ -55,6 +55,7 @@ export function AnswersPage() {
   const [language, setLanguage] = useState("default")
   const [fallback, setFallback] = useState("")
   const rows = savedRows(api.data ?? [], advanced)
+  const custom = rows.filter(row => !ANSWER_CATALOG.some(spec => spec.key === row.key))
   function open(key: string, lang = language) {
     const row = rows.find(r => r.key === key && r.language === lang)
     editor.open({ key, value: String(row?.value ?? ""), category: String(row?.category ?? ANSWER_CATALOG.find(s => s.key === key)?.category ?? "custom"), language: lang, existing: !!row })
@@ -82,9 +83,9 @@ export function AnswersPage() {
     </div>
     {languageError(language, fallback) && <p role="alert">{languageError(language, fallback)}</p>}
     {api.data && <>
-      <AnswerCatalog rows={rows.map(row => ({ key: String(row.key), value: row.value == null ? null : String(row.value), language: String(row.language), source: row.autofill_source as CatalogRow["source"] }))}
+      <AnswerTables rows={rows.map(row => ({ key: String(row.key), value: row.value == null ? null : String(row.value), language: String(row.language), source: row.autofill_source as CatalogRow["source"] }))}
         language={language} fallback={fallback} onEdit={open} />
-      <Records rows={rows} noun="Saved answers" columns={columns} rowKey={row => `${row.key}:${row.language}`} onSelect={row => open(String(row.key), String(row.language))} />
+      {custom.length > 0 && <Records rows={custom} noun="Custom answers" columns={columns} rowKey={row => `${row.key}:${row.language}`} onSelect={row => open(String(row.key), String(row.language))} />}
     </>}
     <Dialog open={!!draft} onOpenChange={value => { if (!value && !editor.busy) editor.setDraft(null) }}>
       <DialogContent><DialogHeader><DialogTitle>{draft?.existing ? "Edit answer" : "Add an answer"}</DialogTitle>
