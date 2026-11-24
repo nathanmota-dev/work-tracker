@@ -2,12 +2,14 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { runCommand } from "../preparation/command.ts";
 import { ENGLISH_EXPORT, bboxXhtml } from "../test/linkedin-fixtures.ts";
 import { profileAssets } from "./assets.ts";
+import { syncProfileAnswers } from "./autofill.ts";
 import { ensureProfileImported, importProfileAssets } from "./import.ts";
 import { cachedImports, saveImport } from "./store.ts";
 
 vi.mock("../preparation/command.ts", () => ({ runCommand: vi.fn() }));
 vi.mock("./assets.ts", () => ({ profileAssets: vi.fn() }));
 vi.mock("./store.ts", () => ({ cachedImports: vi.fn(), saveImport: vi.fn() }));
+vi.mock("./autofill.ts", () => ({ syncProfileAnswers: vi.fn() }));
 
 const asset = (file: string) => ({ file, path: `/profile/${file}`, sha256: `hash-${file}` });
 const outputs: Record<string, string | Error> = {};
@@ -60,4 +62,6 @@ test("generation imports what is missing and is never blocked by the import", as
   await expect(ensureProfileImported("/profile")).resolves.toBeUndefined();
   await ensureProfileImported("/profile");
   expect(saved()).toHaveLength(4);
+  // Every call fills empty answers, with or without a profile folder.
+  expect(syncProfileAnswers).toHaveBeenCalledTimes(4);
 });

@@ -137,3 +137,12 @@ it("shows human review instructions and actionable invalid language and legacy v
   fireEvent.change(screen.getByLabelText("Requested language"), { target: { value: "bad_tag" } })
   expect(screen.getByRole("alert")).toHaveTextContent("language tag")
 })
+it("shows which resume source filled a ready answer", () => {
+  vi.mocked(useApi).mockReturnValue({ data: [
+    { key: "phone", value: "+351 912 345 678", category: "contact", language: "default", autofill_source: "linkedin" },
+    { key: "email", value: "typed@example.com", category: "contact", language: "default", autofill_source: null },
+  ], error: "", loading: false, refresh })
+  render(<AnswersPage />)
+  expect(screen.getByRole("button", { name: "Phone Ready · from linkedin" })).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Email · Required Ready: default" })).toBeInTheDocument()
+})

@@ -8,11 +8,18 @@ test('Profile sources: import the LinkedIn export, decide a conflict and tailor 
   copyFileSync('src/test/fixtures/profile/linkedin-export.pdf', join(profileDir, 'linkedin-export.pdf'))
   writeFileSync(workspace.dataFile, JSON.stringify({ skills: ['React', 'TypeScript'], work: [{ company: 'Northwind Labs', start: '2022-11', end: 'Present' }, { company: 'Fabrikam Studio', start: '2017', end: '2019-05' }] }))
 
+  // Opening Profile imports the new export and fills the empty answers with its contact details.
   await workspace.go('Profile')
+  const personal = page.getByRole('region', { name: 'Personal information' })
+  await expect(personal.getByText('alex@example.com', { exact: true })).toBeVisible()
+  await expect(personal.getByText('From LinkedIn')).toHaveCount(5)
+  await expect(page.getByRole('region', { name: 'Links' }).getByText('https://www.linkedin.com/in/alex-ex/', { exact: true })).toBeVisible()
+  await expect(page.getByRole('list', { name: 'Skills' })).toContainText('PostgreSQL')
+  expect(workspace.query("SELECT key, source FROM answer_autofill ORDER BY key")).toEqual(
+    ['email', 'first_name', 'full_name', 'last_name', 'linkedin_url', 'location'].map(key => ({ key, source: 'linkedin' })))
   await page.getByRole('tab', { name: 'Base resume' }).click()
   await expect(page.getByLabel('Profile folder')).toHaveValue(profileDir)
   const files = page.getByRole('list', { name: 'Profile files' })
-  await expect(files.getByRole('listitem').filter({ hasText: 'linkedin-export.pdf' })).toContainText('Not imported yet')
   await page.getByRole('button', { name: 'Import again' }).click()
   await expect(files.getByRole('listitem').filter({ hasText: 'linkedin-export.pdf' })).toContainText('LinkedIn exportImported')
   await expect(files.getByRole('listitem').filter({ hasText: 'resume-data.json' })).toContainText('Data fileImported')

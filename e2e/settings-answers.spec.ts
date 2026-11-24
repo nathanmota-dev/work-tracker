@@ -1,28 +1,40 @@
 import { test, expect } from './fixtures'
+import type { Page } from '@playwright/test'
 import { choose, panel, closeDialog } from './ui'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+async function editDetail(page: Page, label: string, value: string) {
+  await page.getByRole('tab', { name: 'LinkedIn', exact: true }).click()
+  await page.getByRole('button', { name: `Edit ${label}`, exact: true }).click()
+  await page.getByRole('textbox', { name: 'Answer', exact: true }).fill(value)
+  await page.getByRole('button', { name: 'Save answer' }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+}
+
 test('Profile / Answers: shared identity, validation, failed save and persistence', async ({ workspace, page }) => {
   await workspace.go('Profile')
   await page.getByRole('tab', { name: 'LinkedIn', exact: true }).click()
-  await page.getByLabel('First name').fill('Taylor')
-  await page.getByLabel('Last name').fill('Tester')
-  await page.getByLabel('Email', { exact: true }).fill('taylor@example.com')
-  await page.getByLabel('LinkedIn username').fill('https://linkedin.com/company/invalid')
-  await page.getByRole('button', { name: 'Save profile' }).click()
-  await expect(page.getByRole('alert')).toContainText('Use a LinkedIn profile URL')
-  await page.getByLabel('LinkedIn username').fill('https://linkedin.com/in/taylor-tester/')
+  const personal = page.getByRole('region', { name: 'Personal information' })
+  await expect(personal.getByText('Not found in your resume — add it')).toHaveCount(6)
+  await editDetail(page, 'First name', 'Taylor')
+  await editDetail(page, 'Last name', 'Tester')
+  await page.getByRole('tab', { name: 'LinkedIn', exact: true }).click()
+  await page.getByRole('button', { name: 'Edit LinkedIn profile', exact: true }).click()
+  await page.getByRole('textbox', { name: 'Answer', exact: true }).fill('https://linkedin.com/company/invalid')
+  await expect(page.getByRole('alert')).toContainText('LinkedIn profile URL')
+  await expect(page.getByRole('button', { name: 'Save answer' })).toBeDisabled()
+  await page.getByRole('textbox', { name: 'Answer', exact: true }).fill('https://linkedin.com/in/taylor-tester/')
   await workspace.fault('answer')
-  await page.getByRole('button', { name: 'Save profile' }).click()
-  await expect(page.getByRole('alert')).toContainText('Your edits are preserved')
-  await expect(page.getByLabel('First name')).toHaveValue('Taylor')
-  await page.getByRole('button', { name: 'Save profile' }).click()
-  await expect(page.getByRole('status').filter({ hasText: 'Profile saved' })).toBeVisible()
-  await page.getByLabel('First name').fill('Discard me')
-  await page.getByRole('button', { name: 'Discard changes' }).click()
-  await expect(page.getByLabel('First name')).toHaveValue('Taylor')
-  await workspace.visit('/profile?tab=answers', 'Profile')
+  await page.getByRole('button', { name: 'Save answer' }).click()
+  await expect(page.getByRole('alert')).toContainText('Synthetic transport failure')
+  await expect(page.getByRole('textbox', { name: 'Answer', exact: true })).toHaveValue('https://linkedin.com/in/taylor-tester/')
+  await page.getByRole('button', { name: 'Save answer' }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await editDetail(page, 'Email', 'taylor@example.com')
+  await page.getByRole('tab', { name: 'LinkedIn', exact: true }).click()
+  await expect(personal.getByText('Added by you')).toHaveCount(3)
+  await page.getByRole('tab', { name: 'Answers', exact: true }).click()
   await page.getByLabel('Advanced mode').check()
   await page.getByRole('button', { name: 'View email', exact: true }).click()
   await expect(page.getByLabel('Field key')).toBeDisabled()
@@ -31,7 +43,7 @@ test('Profile / Answers: shared identity, validation, failed save and persistenc
   await workspace.go('Profile')
   await page.getByRole('tab', { name: 'LinkedIn', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Taylor Tester', exact: true })).toBeVisible()
-  await expect(page.getByText('updated@example.com', { exact: true })).toBeVisible()
+  await expect(page.getByText('updated@example.com', { exact: true }).first()).toBeVisible()
   await page.getByRole('button', { name: 'Audit profile' }).click()
   await expect(page.getByRole('dialog', { name: 'Agent task' })).toBeVisible()
   await expect(page.getByRole('dialog', { name: 'Agent task' }).getByLabel('LinkedIn username')).toHaveValue('taylor-tester')
@@ -45,7 +57,7 @@ test('Profile / Answers: shared identity, validation, failed save and persistenc
   await workspace.restart()
   await workspace.go('Profile')
   await workspace.page.getByRole('tab', { name: 'LinkedIn', exact: true }).click()
-  await expect(workspace.page.getByLabel('Email', { exact: true })).toHaveValue('updated@example.com')
+  await expect(workspace.page.getByRole('region', { name: 'Personal information' }).getByText('updated@example.com', { exact: true })).toBeVisible()
 })
 
 test('Answers: create, duplicate guard, edit failure retry, cancellation and realtime changes', async ({ workspace, page }) => {

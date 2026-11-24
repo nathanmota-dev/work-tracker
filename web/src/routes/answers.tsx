@@ -7,7 +7,7 @@ import { Records, type Column } from "@/components/records"
 import { useApi, request, publish, date, type Row } from "@/lib/api"
 import { useWorkspaceState } from "@/lib/workspace-state"
 import { AnswerEditor, draftError, type AnswerDraft } from "@/components/answer-editor"
-import { AnswerCatalog } from "@/components/answer-catalog"
+import { AnswerCatalog, type CatalogRow } from "@/components/answer-catalog"
 import { ANSWER_CATALOG, CATEGORY_LABELS, answerLanguage } from "../../../src/answers/catalog"
 
 function savedRows(rows: Row[], advanced: boolean): Row[] {
@@ -78,7 +78,7 @@ export function AnswersPage() {
     </div>
     {languageError(language, fallback) && <p role="alert">{languageError(language, fallback)}</p>}
     {api.data && <>
-      <AnswerCatalog rows={rows.map(row => ({ key: String(row.key), value: row.value == null ? null : String(row.value), language: String(row.language) }))}
+      <AnswerCatalog rows={rows.map(row => ({ key: String(row.key), value: row.value == null ? null : String(row.value), language: String(row.language), source: row.autofill_source as CatalogRow["source"] }))}
         language={language} fallback={fallback} onEdit={open} />
       <Records rows={rows} noun="Saved answers" columns={columns} rowKey={row => `${row.key}:${row.language}`} onSelect={row => open(String(row.key), String(row.language))} />
     </>}

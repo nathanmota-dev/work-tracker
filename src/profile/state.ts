@@ -3,7 +3,8 @@ import { basename, extname } from "node:path";
 import { parseResumeData, sourcesConfig } from "../preparation/sources.ts";
 import type { ResumeSourcesConfig } from "../preparation/types.ts";
 import { profileEvidence } from "./evidence.ts";
-import type { ProfileAssetState, ProfileSourcesState } from "./types.ts";
+import { aboutFromSources, personalFromSources } from "./personal.ts";
+import type { ProfileAssetState, ProfileSources, ProfileSourcesState } from "./types.ts";
 
 function dataFile(path: string): { data: Record<string, unknown> | null; asset: ProfileAssetState } {
   const file = basename(path);
@@ -14,13 +15,18 @@ function dataFile(path: string): { data: Record<string, unknown> | null; asset: 
   }
 }
 
-/** Files of the profile folder with their import status, the extracted LinkedIn experience and the conflicts. */
+/** Files of the profile folder with their import status, the extracted LinkedIn experience, the conflicts and the personal details. */
 export function profileSourcesState(config: ResumeSourcesConfig = sourcesConfig()): ProfileSourcesState {
   const data = config.dataFile ? dataFile(config.dataFile) : null;
   const assets = data ? [data.asset] : [];
   const warnings = data?.asset.warnings.map(warning => `${data.asset.file}: ${warning}`) ?? [];
-  if (!config.profileDir) return { profileDir: "", dataFile: config.dataFile, assets, linkedin: null, conflicts: [], warnings };
-  const evidence = profileEvidence(config.profileDir, data?.data ?? null);
+  const values = data?.data ?? null;
+  if (!config.profileDir) return { profileDir: "", dataFile: config.dataFile, assets, linkedin: null, conflicts: [], personal: personalFromSources(values, null, []), about: aboutFromSources(values, null), warnings };
+  const evidence = profileEvidence(config.profileDir, values);
+  const references = (evidence.data?.profileSources as ProfileSources | undefined)?.references ?? [];
   const linkedin = evidence.linkedin && { experiences: evidence.linkedin.experience.length, education: evidence.linkedin.education.length, skills: evidence.linkedin.topSkills.length, languages: evidence.linkedin.languages.length, entries: evidence.linkedin.experience };
-  return { profileDir: config.profileDir, dataFile: config.dataFile, assets: [...assets, ...evidence.assets], linkedin, conflicts: evidence.conflicts, warnings: [...warnings, ...evidence.warnings] };
+  return {
+    profileDir: config.profileDir, dataFile: config.dataFile, assets: [...assets, ...evidence.assets], linkedin, conflicts: evidence.conflicts,
+    personal: personalFromSources(values, evidence.linkedin, references), about: aboutFromSources(values, evidence.linkedin), warnings: [...warnings, ...evidence.warnings],
+  };
 }

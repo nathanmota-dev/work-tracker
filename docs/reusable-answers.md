@@ -5,6 +5,9 @@ friendly labels. The common required basics are first name, last name and email;
 individual portals may request additional answers. Missing and invalid values
 remain pending and the catalog offers a button to add or correct each field.
 Demographic fields always require human review, including when an answer is saved.
+Empty contact and link fields are filled from the resume sources (data file,
+LinkedIn export, resume PDFs); see Profile → LinkedIn. Saved answers are never
+replaced, and the catalog shows which source filled a value.
 The matcher distinguishes ambiguous labels from missing answers and never invents
 values or fills demographic fields.
 

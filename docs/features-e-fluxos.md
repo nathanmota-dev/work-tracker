@@ -199,9 +199,11 @@ O primeiro incremento deve processar a fila sequencialmente. Uma única sessão 
 
 #### F08 — Manter perfil e respostas reutilizáveis
 
-**Hoje:** identidade (nome, e-mail e usuário do LinkedIn) em Profile → LinkedIn; respostas gerais em Answers; dados complementares de currículo em fontes locais; perfil LinkedIn consultado em Profile.
+**Hoje:** Profile → LinkedIn lista os dados do candidato por seção (Personal information, Links, Needs your answer e About you), com a origem de cada valor; respostas gerais em Answers; dados complementares de currículo em fontes locais; perfil LinkedIn consultado em Profile.
 
 **Fontes do perfil:** a pasta de perfil (`base/data/` por padrão) reúne o `resume-data.json`, o PDF exportado do LinkedIn (perfil → More → Save to PDF) e currículos já prontos em PDF. Antes de cada geração, o app importa os PDFs ainda sem cache (por hash e versão do extrator): o export do LinkedIn é lido por coordenadas (`pdftotext -bbox-layout`), separando a barra lateral da página 1, removendo os rodapés `Page N of M` e juntando a experiência cortada pela quebra de página; os demais PDFs viram currículos de referência, guardados como texto. Um PDF ilegível gera aviso e a geração continua. O perfil consolidado é o próprio JSON com a chave nova `profileSources` (`linkedin`, `linkedinOnly`, `references`, `conflicts`, `resolved`) e chega ao agente pelo `profile.json`; documentos e lotes registram essa versão exata.
+
+**Preenchimento automático:** ao abrir Profile, salvar as fontes, importar de novo ou gerar um currículo, o app lê nome, e-mail, telefone, localização e links (LinkedIn, GitHub, portfólio) das fontes, na ordem JSON → export do LinkedIn (incluindo a seção Contact) → currículos em PDF (só o cabeçalho), e grava em Answers apenas os campos vazios. Um valor digitado pelo usuário nunca é substituído; um valor preenchido e depois apagado só volta se a fonte mudar (tabela `answer_autofill`, schema v22). Profile e o catálogo de Answers mostram a origem (“From LinkedIn”, “From your data file”, “From your resume PDF” ou “Added by you”). Elegibilidade, salário, aviso prévio e campos demográficos nunca são preenchidos; experiência e educação continuam só como evidência para o agente.
 
 **Conflitos:** experiências e formações são casadas pelo nome normalizado da empresa ou escola e pela sobreposição de período. Datas são comparadas na precisão comum (ano contra mês compara só o ano) e o local só quando as duas fontes o têm. Cada divergência aparece uma vez em Profile → Base resume, com “Data file”, “LinkedIn” e “Decide later”; a chave do conflito inclui os dois valores, então substituir um PDF reabre só os conflitos cujos valores mudaram. Conflitos sem decisão geram aviso em Apply, sem bloquear: o agente mantém o valor do LaTeX base e registra o caso em `gaps`.
 
@@ -348,7 +350,7 @@ O primeiro objetivo de produto é **selecionar várias vagas em Jobs, preparar s
 | Estados, vínculos e persistência | [schema.ts](../src/db/schema.ts), [inicialização do banco](../src/db/index.ts), [store de preparação](../src/preparation/store.ts). |
 | Limite de sessão e interação do agente | [launch.tsx](../web/src/routes/launch.tsx), [agent.ts](../web/src/lib/agent.ts), [sessão ACP](../src/acp/session.ts). |
 | Demais áreas | [profile.tsx](../web/src/routes/profile.tsx), [recruiters.tsx](../web/src/routes/recruiters.tsx), [outreach.tsx](../web/src/routes/outreach.tsx), [interviews.tsx](../web/src/routes/interviews.tsx), [answers.tsx](../web/src/routes/answers.tsx), [activity.tsx](../web/src/routes/activity.tsx), [settings.tsx](../web/src/routes/settings.tsx). |
-| Documentos e identidade | [PDF viewer](../web/src/components/pdf-viewer.tsx), [fontes do currículo](../web/src/components/resume-sources.tsx), [perfil configurável](../web/src/components/settings-profile.tsx). |
+| Documentos e identidade | [PDF viewer](../web/src/components/pdf-viewer.tsx), [fontes do currículo](../web/src/components/resume-sources.tsx), [dados do perfil](../web/src/components/profile-details.tsx). |
 | Capacidades de CLI e limites de plataforma | [docs/desenvolvimento.md](desenvolvimento.md), [exportação Typst](../src/cli/export.ts). |
 
 Este arquivo é documentação de produto. Não altera o comportamento do aplicativo nem executa candidaturas, contatos ou integrações.

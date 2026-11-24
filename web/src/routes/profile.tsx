@@ -9,7 +9,9 @@ import {
   Empty,
   ExternalLink,
 } from "@/components/workspace-ui"
-import { SettingsProfile } from "@/components/settings-profile"
+import { ProfileDetails } from "@/components/profile-details"
+import { useProfileSources } from "@/lib/profile-sources"
+import { profileValue } from "@/lib/profile-details"
 import { MetricChart } from "@/components/metric-chart"
 import { useApi, text, date, type Row } from "@/lib/api"
 import { prepareSkill } from "@/lib/agent"
@@ -35,7 +37,7 @@ function ProfileIdentity({ identity, email }: { identity: Row; email: string }) 
             </p>
           )}
           <p className="mt-1 text-xs text-muted-foreground">
-            {text(identity.location)} · {text(identity.current_company)}
+            {[identity.location, identity.current_company].filter(Boolean).map(String).join(" · ") || "—"}
           </p>
         </div>
         <ExternalLink
@@ -109,7 +111,9 @@ function ProfileAssessment({ breakdown }: { breakdown: unknown }) {
 export function ProfilePage() {
   const profile = useApi<Row | null>("profile")
   const personal = useApi<Row[]>("answers")
+  const about = useProfileSources().data?.about
   const candidate = candidateFromAnswers(personal.data ?? [])
+  // Until a profile audit runs, the imported LinkedIn export describes the candidate.
   const identity: Row | null =
     profile.data ||
     candidateName(candidate) ||
@@ -119,6 +123,9 @@ export function ProfilePage() {
           ...profile.data,
           name: candidateName(candidate) || profile.data?.name,
           username: candidate.linkedinUsername || profile.data?.username,
+          headline: profile.data?.headline || about?.headline,
+          location: profile.data?.location || profileValue(personal.data ?? [], "location").value,
+          current_company: profile.data?.current_company || about?.currentCompany,
         }
       : null
   const snapshot = useApi<Row>("profile-snapshot")
@@ -147,7 +154,7 @@ export function ProfilePage() {
           </Panel>
         )
       )}
-      <SettingsProfile />
+      <ProfileDetails />
       <LoadState {...snapshot} retry={snapshot.refresh} />
       {snapshot.data?.hasScan === true && (
         <SnapshotStats data={snapshot.data} />

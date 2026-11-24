@@ -1,11 +1,12 @@
 import type { LinkedInProfile } from "../types.ts";
 import type { BboxPage } from "./bbox.ts";
+import { parseContact } from "./contact.ts";
 import { readingOrder } from "./columns.ts";
 import { MAX_EXPERIENCES, countRoles, parseExperience, parseEducation } from "./experience.ts";
 import { splitSections } from "./sections.ts";
 
-/** Bump to invalidate every cached LinkedIn extraction. */
-export const PARSER_VERSION = 1;
+/** Bump to invalidate every cached LinkedIn extraction. Version 2 adds the Contact section. */
+export const PARSER_VERSION = 2;
 const MAX_SUMMARY = 4000;
 
 /** Lines whose parentheses are still open continue on the next line: `Spanish (Limited` / `Working)`. */
@@ -35,6 +36,7 @@ export function parseLinkedInProfile(pages: BboxPage[]): LinkedInProfile {
   const located = header.length >= 3;
   return {
     name: header[0] ?? "",
+    contact: parseContact(side.contact ?? []),
     headline: header.slice(1, located ? -1 : undefined).join(" "),
     location: located ? header.at(-1)! : "",
     summary: (sections.summary ?? []).join(" ").slice(0, MAX_SUMMARY),
