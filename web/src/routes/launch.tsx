@@ -18,7 +18,6 @@ import {
   Page,
   Panel,
   LoadState,
-  Status,
 } from "@/components/workspace-ui"
 import { useApi, useConnection, type Row } from "@/lib/api"
 import { useAgent, runAgent, supportedEffort, type Providers } from "@/lib/agent"
@@ -119,8 +118,6 @@ export function LaunchPage() {
   return (
     <Page
       title="Agent console"
-      description="Your next move, with a little help from your agent."
-      actions={<Status value={agent.status} />}
     >
       <div className="grid min-w-0 gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
         <Panel title="Run a skill">

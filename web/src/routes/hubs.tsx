@@ -6,6 +6,7 @@ import { Empty, Page, PageSection, Panel } from "@/components/workspace-ui"
 import { ResumeSources } from "@/components/resume-sources"
 import { ProfileSources } from "@/components/profile-sources"
 import { DealBreakers } from "@/components/deal-breakers"
+import { AgentIndicator } from "@/components/agent-indicator"
 import { prepareSkill } from "@/lib/agent"
 import { ProfilePage } from "./profile"
 import { AnswersPage } from "./answers"
@@ -16,22 +17,26 @@ import { LaunchPage } from "./launch"
 import { ActivityPage } from "./activity"
 
 /** One page whose tabs, kept in the URL, show other pages as its sections. */
-function Hub({ path, title, description, tabs, children }: {
+function Hub({ path, title, description, tabs, aside, children }: {
   path: string
   title: string
   description: string
   tabs: [string, string][]
+  aside?: ReactNode
   children: (tab: string) => ReactNode
 }) {
   const { search, update } = useWorkspaceState(path)
   const tab = search.tab ?? tabs[0][0]
   return (
     <Page title={title} description={description}>
-      <Tabs value={tab} onValueChange={(value) => update({ tab: value })}>
-        <TabsList aria-label={`${title} sections`}>
-          {tabs.map(([value, label]) => <TabsTrigger key={value} value={value}>{label}</TabsTrigger>)}
-        </TabsList>
-      </Tabs>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Tabs value={tab} onValueChange={(value) => update({ tab: value })}>
+          <TabsList aria-label={`${title} sections`}>
+            {tabs.map(([value, label]) => <TabsTrigger key={value} value={value}>{label}</TabsTrigger>)}
+          </TabsList>
+        </Tabs>
+        {aside}
+      </div>
       <PageSection>{children(tab)}</PageSection>
     </Page>
   )
@@ -100,6 +105,7 @@ export function AgentHub() {
       title="Agent"
       description="Run any skill with full control, and review what your agent has done."
       tabs={[["console", "Console"], ["history", "History"]]}
+      aside={<AgentIndicator />}
     >
       {(tab) => tab === "history" ? <ActivityPage /> : <LaunchPage />}
     </Hub>

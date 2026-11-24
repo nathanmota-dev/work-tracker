@@ -171,9 +171,6 @@ export function SkillPicker({ skill, description, disabled, onSkill }: {
           ))}
         </SelectControl>
       </Field>
-      <p className="text-xs leading-relaxed text-muted-foreground">
-        {description}
-      </p>
     </>
   )
 }

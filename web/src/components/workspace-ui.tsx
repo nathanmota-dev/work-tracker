@@ -25,7 +25,7 @@ export function Page({
   children,
 }: {
   title: string
-  description: string
+  description?: string
   actions?: ReactNode
   children: ReactNode
 }) {
@@ -36,10 +36,10 @@ export function Page({
       aria-label={embedded ? title : undefined}
       className={embedded ? "flex min-w-0 flex-col gap-4" : "flex min-w-0 flex-1 flex-col gap-6 p-6"}
     >
-      <header className="flex flex-wrap items-start justify-between gap-4">
+      <header className={embedded && !description && !actions ? "sr-only" : "flex flex-wrap items-start justify-between gap-4"}>
         <div>
           <Heading className={embedded ? "text-sm font-medium" : "text-base font-medium"}>{title}</Heading>
-          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+          {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
         </div>
         <div className="flex flex-wrap gap-2">{actions}</div>
       </header>
