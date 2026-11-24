@@ -66,7 +66,7 @@ test('Answers: create, duplicate guard, edit failure retry, cancellation and rea
   await page.getByRole('button', { name: 'Add answer' }).click()
   await expect(page.getByRole('button', { name: 'Save answer' })).toBeDisabled()
   await page.getByLabel('Field key').fill('preferred_name')
-  await page.getByLabel('Category').fill('contact')
+  await page.getByLabel('Category', { exact: true }).fill('contact')
   await page.getByRole('textbox', { name: 'Answer', exact: true }).fill('Taylor')
   await workspace.fault('answer')
   await page.getByRole('button', { name: 'Save answer' }).click()
