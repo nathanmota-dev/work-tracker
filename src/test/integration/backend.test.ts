@@ -11,6 +11,8 @@ const exec = promisify(execFile);
 const previousEnv = { ...process.env };
 const home = mkdtempSync(join(tmpdir(), "work tracker integration "));
 process.env.WORK_TRACKER_HOME = home;
+// Keep the repository's local resume sources from autofilling answers.
+process.env.WORK_TRACKER_REPO_ROOT = home;
 process.env.WORK_TRACKER_RESOURCES = resolve("resources");
 process.env.WORK_TRACKER_CLI = resolve("out/cli/work-tracker.cjs");
 let backend: Awaited<
