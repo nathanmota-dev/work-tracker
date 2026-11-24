@@ -1,6 +1,7 @@
 import { beforeEach, expect, test, vi } from "vitest";
 import { handleIntegrations, integrationStatus, integrationTesting, resetDiagnostics } from "./http.ts";
-const fake = vi.hoisted(() => ({ executable: vi.fn(), probe: vi.fn(), save: vi.fn(), snapshot: vi.fn(), close: vi.fn(), verified: vi.fn() }));
+const fake = vi.hoisted(() => ({ executable: vi.fn(), probe: vi.fn(), save: vi.fn(), snapshot: vi.fn(), close: vi.fn(), verified: vi.fn(), install: vi.fn(), states: vi.fn(() => [{ name: "linkedin", state: "ready", message: "LinkedIn MCP is installed." }]) }));
+vi.mock("../mcp/install/index.ts", () => ({ ensureMcpServers: fake.install, installStates: fake.states }));
 vi.mock("../onboarding/store.ts", () => ({ recordVerification: fake.verified }));
 vi.mock("../cli/doctor.ts", () => ({ executableExists: fake.executable }));
 vi.mock("../cli/skills.ts", () => ({ agentEnvironment: () => ({ PATH: "/fixture/bin" }) }));
@@ -64,4 +65,14 @@ test("malformed JSON returns a validation error without changing configuration",
   const request = new Request("http://fixture/api/integrations/test", { method: "POST", body: "{" });
   const response = await handleIntegrations("/api/integrations/test", request, false, broadcast);
   expect(response.status).toBe(400); expect(fake.save).not.toHaveBeenCalled();
+});
+
+test("reports the MCP installation and retries it without waiting or blocking executions", async () => {
+  fake.install.mockReturnValue(new Promise(() => {}));
+  expect(await (await call("/api/integrations/status")).json()).toMatchObject({ install: [{ name: "linkedin", state: "ready" }] });
+  const response = await call("/api/integrations/install", {}, true);
+  expect([response.status, await response.json()]).toEqual([202, { install: [{ name: "linkedin", state: "ready", message: "LinkedIn MCP is installed." }] }]);
+  expect(fake.install).toHaveBeenCalledOnce();
+  await call("/api/integrations", { command: "new" });
+  expect(fake.install).toHaveBeenCalledTimes(2);
 });

@@ -205,6 +205,18 @@ entre fontes ficam em `profile_choices`. O perfil consolidado chega ao agente em
 `profile.json`, na chave `profileSources` (veja `src/profile/`). Na CLI,
 `work-tracker profile sources` mostra os arquivos e conflitos e
 `work-tracker profile import [--force]` importa a pasta.
+
+Quem não usa a pasta `base/` faz tudo em **Profile → Base resume**: **Add files**
+copia o currículo em PDF, o PDF do LinkedIn ou o `resume-data.json` para a pasta
+de perfil configurada (ou, sem nenhuma, para `~/.work-tracker/profile`, que passa
+a ser a pasta salva). O JSON é validado antes de ser gravado e só substitui dados
+diferentes após confirmação. A tela mostra cada fonte pelo nome, sem caminhos
+(eles ficam em **Advanced**), e a prévia do PDF base, compilada ao abrir quando
+não existe. Arquivos colocados à mão na pasta de perfil também são importados
+sem clique: o backend importa o que estiver pendente ao iniciar, acompanha a
+pasta (`fs.watch`) e, como reserva, importa o que estiver pendente quando a tela
+é lida. O cache por hash em `profile_imports` é o registro de importação: um
+arquivo já importado não é reprocessado nem pede confirmação ao reabrir o app.
 O app instalado mantém uma referência ao checkout usado no build e lê esses
 arquivos locais; eles não são incluídos no pacote. Configure **Settings → Resume
 sources** para usar outros arquivos ou outro compilador; caminhos salvos têm
@@ -231,10 +243,29 @@ quando uma nova execução falha.
 Banco e API abrem mesmo sem MCPs ou agentes instalados. `doctor` verifica os
 executáveis; ausência de login, compatibilidade de ferramentas e conectividade
 são verificadas quando a funcionalidade é solicitada.
-Instale manualmente os executáveis que quiser usar:
 
-- `mcp-server-linkedin` (por exemplo, `uv tool install mcp-server-linkedin`).
-- `chrome-devtools-mcp` (por exemplo, `npm install -g chrome-devtools-mcp`).
+Os MCPs padrão são instalados pelo app, em segundo plano, a cada início do
+backend (e por `work-tracker setup`), somente quando faltam e somente para os
+comandos padrão; um comando configurado em `config.json` nunca é instalado.
+Tudo fica em `~/.work-tracker/bin` (primeiro no PATH dos MCPs e agentes) e
+`~/.work-tracker/tools` (veja `src/mcp/install/`):
+
+- `mcp-server-linkedin` (versão fixada): instalado com `uv tool install`, usando
+  o `uv` do PATH ou uma versão fixada baixada do GitHub e verificada por SHA-256.
+  O `uv` baixa o Python suportado; o servidor prepara o próprio navegador.
+- `chrome-devtools-mcp` (versão fixada, dependência do app, copiada para
+  `extraResources`): copiado para fora do pacote, já que o AppImage muda de
+  caminho a cada execução, e iniciado com o Node do PATH, como a CLI. Sem
+  Chrome/Chromium no computador, o app baixa o Chrome for Testing estável
+  (`@puppeteer/browsers`) e o usa no MCP e no login.
+
+Servidores que o usuário já instalou no PATH são mantidos. O estado
+(`installing`, `ready`, `failed`, `custom`) aparece em
+`/api/integrations/status` e em **Settings → Integrations**, com **Try again**
+(`POST /api/integrations/install`). `WORK_TRACKER_SKIP_MCP_INSTALL=1` desliga a
+instalação; os testes de integração e os smoke checks usam essa variável.
+Instale manualmente os demais executáveis que quiser usar:
+
 - `opencode` para ACP OpenCode.
 - `claude` e `claude-code-acp` (adaptador `@zed-industries/claude-code-acp`) para ACP Claude Code.
 - `typst`, opcional, somente para `work-tracker export`.

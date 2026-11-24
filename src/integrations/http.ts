@@ -4,6 +4,7 @@ import { agentEnvironment } from "../cli/skills.ts";
 import { dependencyStatus } from "../preparation/latex.ts";
 import { sourcesConfig } from "../preparation/sources.ts";
 import { closeMcp } from "../mcp/linkedin.ts";
+import { ensureMcpServers, installStates } from "../mcp/install/index.ts";
 import { recordVerification } from "../onboarding/store.ts";
 import { commandFingerprint, configSnapshot, configuredCommand, integrationSettings, IntegrationError, saveIntegration, targetId, targets } from "./config.ts";
 import { probeIntegration, type Diagnostic } from "./probe.ts";
@@ -18,13 +19,15 @@ export function executable(target: typeof targets[number]) {
 }
 export async function integrationStatus() {
   const { revision } = configSnapshot();
-  return { backend: true, entries: targets.map(target => ({ target, executable: executable(target), diagnostic: results.get(`${revision}/${target}`) })), dependencies: await dependencyStatus(sourcesConfig().engine) };
+  return { backend: true, entries: targets.map(target => ({ target, executable: executable(target), diagnostic: results.get(`${revision}/${target}`) })), install: installStates(), dependencies: await dependencyStatus(sourcesConfig().engine) };
 }
 export async function handleIntegrations(path: string, req: Request, busy: boolean | (() => boolean), broadcast: (event: unknown) => void): Promise<Response> {
   try {
     if (req.method === "GET" && path === "/api/integrations") return Response.json(integrationSettings());
     if (req.method === "GET" && path === "/api/integrations/status") return Response.json(await integrationStatus());
     if (req.method !== "POST") return Response.json({ error: "Method not allowed." }, { status: 405 });
+    // Installing never touches a running execution: it only adds missing servers.
+    if (path === "/api/integrations/install") { void ensureMcpServers(); return Response.json({ install: installStates() }, { status: 202 }); }
     const raw: unknown = await req.json().catch(() => null);
     const body = raw && typeof raw === "object" && !Array.isArray(raw) ? raw as Record<string, unknown> : null;
     if ((typeof busy === "function" ? busy() : busy) || testing) throw new IntegrationError("Finish or cancel the active execution or diagnostic first.", 409);
@@ -34,6 +37,7 @@ export async function handleIntegrations(path: string, req: Request, busy: boole
         const settings = saveIntegration(body);
         await closeMcp();
         resetDiagnostics();
+        void ensureMcpServers();
         broadcast({ type: "changed", table: "integrations" });
         return Response.json(settings);
       }

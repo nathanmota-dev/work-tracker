@@ -5,7 +5,16 @@ import { Textarea } from "@/components/ui/textarea"
 import { SelectControl } from "@/components/ui/select-control"
 import { Field, LoadState, Panel, controlClass } from "@/components/workspace-ui"
 import { publish, request, useApi } from "@/lib/api"
-import { integrationLabels, useIntegrations, type IntegrationEntry, type IntegrationSettings, type Target } from "@/lib/integrations"
+import { integrationLabels, useIntegrations, type IntegrationEntry, type IntegrationSettings, type McpInstall, type Target } from "@/lib/integrations"
+
+/** What the app did to install the selected MCP, with a retry when it failed. */
+function InstallStatus({ install, retry }: { install?: McpInstall; retry: () => void }) {
+  if (!install || install.state === "pending") return null
+  return <p className="flex flex-wrap items-center gap-2 text-sm" role={install.state === "failed" ? "alert" : "status"}>
+    <span>Installation: {install.message}</span>
+    {install.state === "failed" && <Button type="button" size="sm" variant="outline" onClick={retry}>Try again</Button>}
+  </p>
+}
 export function IntegrationSettingsPanel() {
   const api = useApi<IntegrationSettings>("integrations")
   const status = useIntegrations()
@@ -41,7 +50,7 @@ export function IntegrationSettingsPanel() {
     finally { setSaving(false) }
   }
   return <Panel title="Integrations">
-    <p className="mb-4 text-sm text-muted-foreground">Configure installed MCP servers and ACP agents. Stored arguments and environment values are hidden; keep their placeholders to preserve them or enter replacements. No dependencies are installed automatically.</p>
+    <p className="mb-4 text-sm text-muted-foreground">Work Tracker installs the LinkedIn and Chrome MCP servers it needs; configure a command here only to use your own. Stored arguments and environment values are hidden; keep their placeholders to preserve them or enter replacements. ACP agents are not installed automatically.</p>
     <LoadState {...api} retry={api.refresh} />
     {api.data && <form className="space-y-4" onSubmit={event => { event.preventDefault(); void save() }}>
       <Field label="Integration"><SelectControl className={controlClass} value={target} disabled={saving || status.testing || dirty} onChange={event => { setTarget(event.target.value as Target); setNotice(""); setError(""); setModel("") }}>{Object.entries(integrationLabels).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</SelectControl></Field>
@@ -54,6 +63,7 @@ export function IntegrationSettingsPanel() {
       {target.startsWith("acp/") && <Field label="Model to test (empty uses provider default)"><Input value={model} onChange={event => setModel(event.target.value)} /></Field>}
       <Button type="button" variant="outline" disabled={dirty || saving || status.testing} onClick={() => { setNotice(""); void status.test([target], model) }}>{status.testing ? "Testing integration…" : "Test saved integration"}</Button>
       <p className="text-sm">Executable: {diagnostic ? diagnostic.executable ? "available" : "missing" : "checking"}</p>
+      {target.startsWith("mcp/") && <InstallStatus install={status.data?.install?.find(item => `mcp/${item.name}` === target)} retry={() => void request("integrations/install", {}).then(status.refresh, e => setError((e as Error).message))} />}
       {diagnostic?.diagnostic ? <div aria-label="Diagnostic results" className="space-y-2 text-sm"><p>Checked {new Date(diagnostic.diagnostic.checkedAt).toLocaleString()}{target.startsWith("acp/") ? ` · Model: ${diagnostic.diagnostic.model || "provider default"}` : ""}</p>{diagnostic.diagnostic.checks.map((check, i) => <p key={i}>{check.stage}: {check.state} — {check.message}</p>)}</div> : <p className="text-sm">Connection and authentication have not been tested for this configuration.</p>}
       <p className="text-sm text-muted-foreground">Chrome browser access and the LinkedIn MCP session are independent. Complete provider sign-in using the provider’s login command; LinkedIn may open its own sign-in window during the test.</p>
       {notice && <p role="status">{notice}</p>}

@@ -9,7 +9,7 @@ const command = process.argv[2] ?? resolve('node_modules/.bin/electron');
 const args = process.argv.slice(3);
 if (process.argv.length < 3) args.push('.', '--no-sandbox');
 const home = mkdtempSync(join(tmpdir(), 'work tracker electron '));
-const child = spawn(command, electronArgs(command, args), { env: { ...process.env, WORK_TRACKER_HOME: home, WORK_TRACKER_SMOKE: '1', APPIMAGE_EXTRACT_AND_RUN: '1' }, detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'] });
+const child = spawn(command, electronArgs(command, args), { env: { ...process.env, WORK_TRACKER_HOME: home, WORK_TRACKER_SMOKE: '1', APPIMAGE_EXTRACT_AND_RUN: '1', WORK_TRACKER_SKIP_MCP_INSTALL: '1' }, detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'] });
 const cleanup = async () => { await stopProcess(child); rmSync(home, { recursive: true, force: true }); };
 const removeSignals = onTermination(cleanup);
 let output = '';

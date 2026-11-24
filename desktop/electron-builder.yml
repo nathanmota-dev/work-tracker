@@ -27,3 +27,6 @@ extraResources:
     to: work-tracker
   - from: out/cli
     to: work-tracker/cli
+  # Installed on first start into ~/.work-tracker/tools; see src/mcp/install/chrome.ts.
+  - from: node_modules/chrome-devtools-mcp
+    to: work-tracker/mcp/chrome-devtools-mcp

@@ -21,7 +21,11 @@ export const paths = {
   artifacts: join(WORK_TRACKER_HOME, "artifacts"),
   backups: join(WORK_TRACKER_HOME, "backups"),
   workspace: join(WORK_TRACKER_HOME, "workspace"),
+  /** Profile folder for uploads when the user has not chosen one. */
+  profile: join(WORK_TRACKER_HOME, "profile"),
   bin: join(WORK_TRACKER_HOME, "bin"),
+  /** MCP servers, their runtimes and browsers installed by the app. */
+  tools: join(WORK_TRACKER_HOME, "tools"),
   linkedinProfile: join(WORK_TRACKER_HOME, "browsers", "linkedin", "profile"),
   chromeProfile: join(WORK_TRACKER_HOME, "browsers", "chrome", "profile"),
 };

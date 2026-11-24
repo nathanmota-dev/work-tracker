@@ -4,6 +4,8 @@ import { createServer, type Server } from "node:http";
 import { WebSocketServer } from "ws";
 import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { createRequestHandler, startBackend, dashboardCmd } from "./index.ts";
+import { startProfileWatch, stopProfileWatch } from "../profile/watch.ts";
+import { ensureMcpServers, onInstallChange } from "../mcp/install/index.ts";
 import { queries } from "./queries.ts";
 import { SessionManager } from "../acp/session.ts";
 import { listProviderModels } from "../acp/providers.ts";
@@ -64,6 +66,8 @@ vi.mock("../mcp/search.ts", () => ({
   jobDetails: vi.fn(),
 }));
 vi.mock("../recruiter/sync.ts", () => ({ runSync: vi.fn() }));
+vi.mock("../profile/watch.ts", () => ({ startProfileWatch: vi.fn(), stopProfileWatch: vi.fn(), syncProfileWatch: vi.fn(), importPending: vi.fn(), profileImporting: vi.fn(() => false) }));
+vi.mock("../mcp/install/index.ts", () => ({ ensureMcpServers: vi.fn(async () => []), onInstallChange: vi.fn(), installStates: vi.fn(() => []) }));
 vi.mock("ws", () => ({ WebSocket: { OPEN: 1 }, WebSocketServer: vi.fn() }));
 let d: ReturnType<typeof databaseDouble>;
 let acp: {
@@ -413,6 +417,13 @@ test("backend authenticates upgrades, broadcasts to open sockets and closes ever
   expect(stopAllOwned).toHaveBeenCalledOnce();
   expect(closeDb).toHaveBeenCalledOnce();
   expect(unlinkSync).toHaveBeenCalledWith("/private/backend.lock");
+  // Background work started with the backend: profile imports and the MCP installation.
+  expect(ensureMcpServers).toHaveBeenCalledOnce();
+  expect(stopProfileWatch).toHaveBeenCalledOnce();
+  // Both announce their changes to the connected windows; none are left after shutdown.
+  vi.mocked(onInstallChange).mock.calls[0]![0]();
+  vi.mocked(startProfileWatch).mock.calls[0]![0]();
+  expect(ws.send).toHaveBeenCalledTimes(2);
 });
 test("HTTP adapter converts responses, rejects large bodies and handles exceptions; shutdown preserves another backend's lock", async () => {
   const server = serverDouble(),

@@ -28,7 +28,7 @@ export function stepHref(step: OnboardingStep): string {
 /** Opens the Dashboard checklist at one step, even while it is hidden. */
 export const getStartedLink = (id: StepId) => `#/dashboard?step=${id}`
 
-const integrationState: Record<string, string> = { missing_executable: "executable missing", untested: "not tested yet" }
+const integrationState: Record<string, string> = { missing_executable: "executable missing", installing: "installing…", untested: "not tested yet" }
 export function itemText(item: OnboardingItem): string {
   if (item.key === "config") return "Workspace config.json is invalid. Repair it before testing integrations."
   if (item.key === "agent" || item.key.startsWith("mcp/")) {

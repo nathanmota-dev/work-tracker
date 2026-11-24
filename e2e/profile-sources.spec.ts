@@ -1,21 +1,35 @@
 import { test, expect } from './fixtures'
-import { copyFileSync, writeFileSync } from 'node:fs'
+import { appendFileSync, copyFileSync, existsSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { panel } from './ui'
 
-test('Profile sources: import the LinkedIn export, decide a conflict and tailor with the consolidated profile', async ({ workspace, page }) => {
-  test.setTimeout(150_000)
+test('Profile sources: upload the LinkedIn export, import files placed by hand, decide a conflict and tailor with the consolidated profile', async ({ workspace, page }) => {
+  test.setTimeout(180_000)
   const profileDir = join(workspace.repository, 'base', 'data')
-  copyFileSync('src/test/fixtures/profile/linkedin-export.pdf', join(profileDir, 'linkedin-export.pdf'))
   writeFileSync(workspace.dataFile, JSON.stringify({ skills: ['React', 'TypeScript'], work: [{ company: 'Northwind Labs', start: '2022-11', end: 'Present' }, { company: 'Fabrikam Studio', start: '2017', end: '2019-05' }] }))
 
   await workspace.go('Profile')
   await page.getByRole('tab', { name: 'Base resume' }).click()
-  await expect(page.getByLabel('Profile folder')).toHaveValue(profileDir)
+  // Base resume names each source without its path and compiles the missing base PDF.
+  const sources = page.getByRole('list', { name: 'Selected sources' })
+  await expect(sources).toContainText('Profile folderdata')
+  await expect(sources).not.toContainText(profileDir)
+  await expect(page.getByPlaceholder('Folder with your LinkedIn export and resume PDFs')).toBeHidden()
+  await expect(panel(page, 'Base resume PDF').locator('.react-pdf__Page__canvas')).toBeVisible({ timeout: 90_000 })
+
+  // The export is uploaded through the interface into the profile folder and imported at once.
+  await page.getByLabel('Choose profile files').setInputFiles('src/test/fixtures/profile/linkedin-export.pdf')
+  await expect(page.getByRole('status').filter({ hasText: 'Added linkedin-export.pdf.' })).toBeVisible({ timeout: 30_000 })
+  expect(existsSync(join(profileDir, 'linkedin-export.pdf'))).toBe(true)
   const files = page.getByRole('list', { name: 'Profile files' })
-  await expect(files.getByRole('listitem').filter({ hasText: 'linkedin-export.pdf' })).toContainText('Not imported yet')
-  await page.getByRole('button', { name: 'Import again' }).click()
   await expect(files.getByRole('listitem').filter({ hasText: 'linkedin-export.pdf' })).toContainText('LinkedIn exportImported')
   await expect(files.getByRole('listitem').filter({ hasText: 'resume-data.json' })).toContainText('Data fileImported')
+
+  // A PDF placed in the folder by hand is imported without any action.
+  const placed = join(profileDir, 'placed-by-hand.pdf')
+  copyFileSync('src/test/fixtures/profile/linkedin-export.pdf', placed)
+  appendFileSync(placed, '\n%placed\n')
+  await expect(files.getByRole('listitem').filter({ hasText: 'placed-by-hand.pdf' })).toContainText('Imported', { timeout: 30_000 })
   await page.getByText('4 experiences · 1 education · 3 skills').click()
   await expect(page.getByRole('list', { name: 'Extracted experiences' })).toContainText('Junior Developer · Fabrikam Studio')
 

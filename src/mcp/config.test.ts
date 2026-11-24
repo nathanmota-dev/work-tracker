@@ -2,10 +2,12 @@ import { beforeEach, expect, test, vi } from "vitest";
 import { loadConfig } from "../paths.ts";
 import { acpMcpServers, mcpServers } from "./config.ts";
 import { chromeBrowserUrl } from "./chrome.ts";
+import { fallbackChrome } from "./install/browser.ts";
 vi.mock("./chrome.ts", async importOriginal => ({
   ...await importOriginal<typeof import("./chrome.ts")>(),
   chromeBrowserUrl: vi.fn(),
 }));
+vi.mock("./install/browser.ts", () => ({ fallbackChrome: vi.fn() }));
 vi.mock("../paths.ts", () => ({
   loadConfig: vi.fn(),
   paths: {
@@ -98,4 +100,14 @@ test("a browser opened for sign-in is attached to and explicit endpoints take pr
   expect(mcpServers()[1]?.args).toEqual(["--browser-url", "http://127.0.0.1:4567"]);
   vi.mocked(loadConfig).mockReturnValue({ mcp: { chrome: { command: "chrome-mcp", args: ["--browserUrl=http://127.0.0.1:9222"] } } });
   expect(mcpServers()[1]?.args).toEqual(["--browserUrl=http://127.0.0.1:9222"]);
+});
+
+test("without a Chrome on the computer, MCP launches the downloaded build unless a browser is named", () => {
+  vi.mocked(fallbackChrome).mockReturnValue("/wt/tools/chrome/chrome");
+  expect(mcpServers()[1]!.args).toEqual(["--executablePath", "/wt/tools/chrome/chrome"]);
+  vi.mocked(loadConfig).mockReturnValue({ mcp: { chrome: { command: "chrome-devtools-mcp", args: ["--channel=beta"] } } });
+  expect(mcpServers()[1]!.args).toEqual(["--channel=beta"]);
+  vi.mocked(chromeBrowserUrl).mockReturnValue("http://127.0.0.1:9222");
+  vi.mocked(loadConfig).mockReturnValue({});
+  expect(mcpServers()[1]!.args).toEqual(["--browser-url", "http://127.0.0.1:9222"]);
 });
