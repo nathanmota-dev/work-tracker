@@ -1,0 +1,53 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { beforeEach, expect, it, vi } from "vitest"
+import { ResumeVariantCard } from "./resume-variant-card"
+import { desktopWith, variant } from "@/test/variants"
+vi.mock("@/components/pdf-viewer", () => ({ PdfViewer: ({ title, artifact }: { title: string; artifact: { id: string } }) => <section aria-label={title}>{artifact.id}</section> }))
+
+let desktop: ReturnType<typeof desktopWith>
+const onEdit = vi.fn()
+beforeEach(() => { desktop = desktopWith({}) })
+
+it("shows the role, stacks, pages and stale sources, and views, downloads, regenerates, edits and archives", async () => {
+  render(<ResumeVariantCard variant={variant({ stale: true })} busy={false} onEdit={onEdit} />)
+  expect(screen.getByText(/Back-End · Generated · 1 page/)).toBeInTheDocument()
+  expect(screen.getByRole("list", { name: "Stacks of Back-End · C#, .NET" })).toHaveTextContent("C#.NET")
+  expect(screen.getByText("Sources changed since generation")).toBeInTheDocument()
+  expect(screen.getByText("Ready")).toBeInTheDocument()
+  fireEvent.click(screen.getByRole("button", { name: "View" }))
+  expect(await screen.findByRole("region", { name: "Back-End · C#, .NET PDF" })).toHaveTextContent("pdf-v1")
+  fireEvent.click(screen.getByRole("button", { name: "Hide PDF" }))
+  fireEvent.click(screen.getByRole("button", { name: "Download" }))
+  expect(desktop.savePdf).toHaveBeenCalledWith("pdf-v1")
+  fireEvent.click(screen.getByRole("button", { name: "Regenerate" }))
+  await waitFor(() => expect(desktop.request).toHaveBeenCalledWith("resume-variants/regenerate", { id: "v1" }))
+  fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+  expect(onEdit).toHaveBeenCalled()
+  fireEvent.click(screen.getByRole("button", { name: "Archive" }))
+  await waitFor(() => expect(desktop.request).toHaveBeenCalledWith("resume-variants/archive", { id: "v1" }))
+})
+
+it("an imported PDF cannot be regenerated", () => {
+  render(<ResumeVariantCard variant={variant({ origin: "imported", sourceVersion: null, pdf: { id: "p", kind: "variant", pages: 2, warnings: [] } })} busy={false} onEdit={onEdit} />)
+  expect(screen.getByText(/Imported PDF · 2 pages/)).toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Regenerate" })).not.toBeInTheDocument()
+})
+
+it("shows progress and cancels a generation, and reports a failed action", async () => {
+  const events = [{ type: "acp-update", update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Selecting .NET projects" } } }]
+  desktop.request.mockRejectedValueOnce(new Error("This generation is not active."))
+  render(<ResumeVariantCard variant={variant({ status: "generating", pdf: null, events })} busy onEdit={onEdit} />)
+  expect(screen.getByText("Selecting .NET projects")).toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Archive" })).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+  expect(await screen.findByRole("alert")).toHaveTextContent("This generation is not active.")
+  expect(desktop.request).toHaveBeenCalledWith("resume-variants/cancel", { id: "v1" })
+})
+
+it("shows why an interrupted generation stopped, with Regenerate available", () => {
+  render(<ResumeVariantCard variant={variant({ status: "interrupted", pdf: null, error: "The app closed during this generation." })} busy={false} onEdit={onEdit} />)
+  expect(screen.getByText("Interrupted")).toBeInTheDocument()
+  expect(screen.getByRole("alert")).toHaveTextContent("The app closed")
+  expect(screen.getByRole("button", { name: "Regenerate" })).toBeEnabled()
+  expect(screen.queryByRole("button", { name: "View" })).not.toBeInTheDocument()
+})

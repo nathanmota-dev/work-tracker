@@ -11,6 +11,7 @@ import { closeMcp } from "../mcp/linkedin.ts";
 import { stopAllOwned } from "../acp/process.ts";
 import { PreparationService } from "../preparation/service.ts";
 import { PreparationQueue } from "../preparation/batch-queue.ts";
+import { VariantService } from "../variants/service.ts";
 import { integrationTesting } from "../integrations/http.ts";
 import { chromeLoginOpening } from "../mcp/chrome.ts";
 import { nodeRequestListener } from "./http-adapter.ts";
@@ -24,14 +25,16 @@ export function createRequestHandler({
   broadcast,
   preparation,
   queue,
+  variants,
 }: {
   token: string;
   acp: Pick<SessionManager, "run" | "cancel"> & Partial<Pick<SessionManager, "isRunning" | "permissions">>;
   broadcast: (event: unknown) => void;
   preparation?: PreparationService;
   queue?: PreparationQueue;
+  variants?: VariantService;
 }): (req: Request) => Promise<Response> {
-  const context = { acp, broadcast, preparation, queue };
+  const context = { acp, broadcast, preparation, queue, variants };
   return async (req: Request): Promise<Response> => {
     const url = new URL(req.url);
     const path = url.pathname;
@@ -76,6 +79,8 @@ export async function startBackend(flags: Flags = {}) {
   });
 
   const preparation = new PreparationService(acp, event => { broadcast(sockets, event); observe(event); });
+  // Variants share Apply's execution slot, so generating one blocks every other agent execution.
+  const variants = new VariantService(acp, event => broadcast(sockets, event), preparation.slot);
   const queue = new PreparationQueue(preparation, () => acp.isRunning || integrationTesting() || chromeLoginOpening(), event => broadcast(sockets, event));
   queue.schedule();
   const handleRequest = createRequestHandler({
@@ -83,6 +88,7 @@ export async function startBackend(flags: Flags = {}) {
     acp,
     preparation,
     queue,
+    variants,
     broadcast: (event) => broadcast(sockets, event),
   });
   const server = createServer(nodeRequestListener(handleRequest));
@@ -122,6 +128,7 @@ export async function startBackend(flags: Flags = {}) {
       return (closing ??= (async () => {
         queue.close();
         await preparation.close();
+        variants.close();
         acp.stop();
         for (const ws of sockets) ws.terminate();
         wss.close();

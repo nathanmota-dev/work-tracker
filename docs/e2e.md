@@ -67,7 +67,7 @@ main-process fetch response; subsequent requests use the original fetch.
 
 ## Coverage inventory
 
-All 9 sidebar links are compared with an explicit ordered inventory: Overview (Dashboard), Journey (Jobs, Applications, Interviews, Interview prep, Contacts), You (Profile), and the Tools footer (Agent, Settings). Agent retains the /launch path. The application detail (`/apply`) is not a sidebar entry; it opens from Jobs, Applications and the preparation queue, and `/application-board` redirects to `/applications?view=board` with its search. Every view runs
+All 10 sidebar links are compared with an explicit ordered inventory: Overview (Dashboard), Journey (Jobs, Applications, Interviews, Interview prep, Contacts), You (Profile, Resumes), and the Tools footer (Agent, Settings). Agent retains the /launch path. The application detail (`/apply`) is not a sidebar entry; it opens from Jobs, Applications and the preparation queue, and `/application-board` redirects to `/applications?view=board` with its search. Every view runs
 with both empty and populated workspaces, including navigation, active sidebar,
 breadcrumb, view-specific content and reload. New sidebar entries require tests.
 

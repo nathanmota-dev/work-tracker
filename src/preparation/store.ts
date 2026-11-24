@@ -60,7 +60,7 @@ export function artifactFile(id: string): { path: string; text: string; artifact
 }
 export function pdfBytes(id: string): Buffer { return readFileSync(artifactFile(id).path); }
 export function cachedPreview(version: string): PdfArtifact | null {
-  const row = db().query("SELECT id FROM pdf_artifacts WHERE source_version = ? AND run_id IS NULL ORDER BY rowid DESC LIMIT 1").get(version) as { id: string } | undefined;
+  const row = db().query("SELECT id FROM pdf_artifacts WHERE source_version = ? AND run_id IS NULL AND kind = 'base' ORDER BY rowid DESC LIMIT 1").get(version) as { id: string } | undefined;
   if (!row) return null;
   try { return artifactFile(row.id).artifact; } catch { return null; }
 }

@@ -7,14 +7,16 @@ import { snapshotSources } from "./sources.ts";
 import { PreparationError } from "./sources.ts";
 import type { DocumentVersion, PdfArtifact } from "./types.ts";
 import type { GenerationManifest } from "./generation.ts";
+import type { ResumeVariant, VariantManifest } from "../variants/types.ts";
 
 type Snapshot = Pick<DocumentVersion, "description" | "extra" | "data" | "baseText"> & Record<string, unknown>;
 type StoredVersion = { id: string; run_id: string; application_id: number; pdf_hash: string; source_version: string; snapshot_json: string; created_at: string; approved_at: string | null; used_at: string | null; submitted_at: string | null; text: string };
 export const pdfHash = (path: string): string => createHash("sha256").update(readFileSync(path)).digest("hex");
 
+const projectFiles = (projectDir: string, manifest: Pick<GenerationManifest, "mainFile" | "engine">) => snapshotSources({ projectDir, mainFile: manifest.mainFile, dataFile: "", engine: manifest.engine, profileDir: "" }).files.map(file => ({ name: file.name, base64: file.bytes.toString("base64") }));
 /** Capture the source bytes, profile, job, report and selection alongside a validated PDF. Caller owns the transaction. */
 export function saveDocument(d: Database, runId: string, applicationId: number, pdf: PdfArtifact, manifest: GenerationManifest): void {
-  const files = (projectDir: string) => snapshotSources({ projectDir, mainFile: manifest.mainFile, dataFile: "", engine: manifest.engine, profileDir: "" }).files.map(file => ({ name: file.name, base64: file.bytes.toString("base64") }));
+  const files = (projectDir: string) => projectFiles(projectDir, manifest);
   const job = manifest.job as { description?: string };
   const snapshot: Snapshot = {
     description: job.description ?? "", extra: String(manifest.extra ?? runOptions(runId).extra ?? ""),
@@ -28,6 +30,28 @@ export function saveDocument(d: Database, runId: string, applicationId: number, 
   d.query("INSERT INTO document_versions (id, run_id, application_id, pdf_hash, source_version, snapshot_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
     .run(pdf.id, runId, applicationId, pdfHash(artifactFile(pdf.id).path), String(manifest.sourceVersion), JSON.stringify(snapshot), now());
 }
+const readText = (path: unknown): string | null => typeof path === "string" && existsSync(path) ? readFileSync(path, "utf8") : null;
+/**
+ * Record a saved resume variant's PDF as this run's document version, with the
+ * job, the variant and the inputs the variant was generated from (none for an
+ * imported PDF). Caller owns the transaction.
+ */
+export function saveVariantDocument(d: Database, input: { runId: string; applicationId: number; pdf: PdfArtifact; job: { description?: string | null }; variant: ResumeVariant; manifest: Partial<VariantManifest>; baseText: string }): void {
+  const { manifest, variant } = input;
+  const generated = manifest.mainFile && manifest.engine ? manifest as Pick<GenerationManifest, "mainFile" | "engine"> : null;
+  const files = (dir: string | undefined) => generated && dir && existsSync(dir) ? projectFiles(dir, generated) : [];
+  const profile = readText(manifest.profilePath);
+  const selection = readText(manifest.selectionPath);
+  const snapshot: Snapshot = {
+    description: input.job.description ?? "", extra: "", data: profile === null ? null : JSON.parse(profile), baseText: input.baseText,
+    variant: { id: variant.id, name: variant.name, role: variant.role, stacks: variant.stacks },
+    job: input.job, engine: manifest.engine ?? null, mainFile: manifest.mainFile ?? null,
+    sources: files(manifest.baseProject), generatedSources: files(manifest.project), coverLetter: null,
+    report: variant.report ?? readText(manifest.reportPath) ?? "", selection: selection === null ? null : JSON.parse(selection),
+  };
+  d.query("INSERT INTO document_versions (id, run_id, application_id, pdf_hash, source_version, snapshot_json, created_at, variant_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+    .run(input.pdf.id, input.runId, input.applicationId, pdfHash(artifactFile(input.pdf.id).path), variant.sourceVersion ?? "imported", JSON.stringify(snapshot), now(), variant.id);
+}
 export function documentsForJob(jobId: number, applicationId: number | null): DocumentVersion[] {
   const rows = db().query(`SELECT v.*, p.text, u.used_at, u.submitted_at FROM document_versions v
     JOIN pdf_artifacts p ON p.id = v.id JOIN application_runs r ON r.id = v.run_id
@@ -35,7 +59,7 @@ export function documentsForJob(jobId: number, applicationId: number | null): Do
     WHERE r.job_id = ? AND (? IS NULL OR v.application_id = ?) ORDER BY v.rowid DESC`).all(jobId, applicationId, applicationId) as StoredVersion[];
   return rows.map(row => {
     const snapshot = JSON.parse(row.snapshot_json) as Snapshot;
-    return { id: row.id, runId: row.run_id, applicationId: row.application_id, pdfHash: row.pdf_hash, sourceVersion: row.source_version, createdAt: row.created_at, approvedAt: row.approved_at, usedAt: row.used_at, submittedAt: row.submitted_at, text: row.text, baseText: snapshot.baseText, description: snapshot.description, extra: snapshot.extra, data: snapshot.data };
+    return { id: row.id, runId: row.run_id, applicationId: row.application_id, pdfHash: row.pdf_hash, sourceVersion: row.source_version, createdAt: row.created_at, approvedAt: row.approved_at, usedAt: row.used_at, submittedAt: row.submitted_at, text: row.text, baseText: snapshot.baseText, description: snapshot.description, extra: snapshot.extra, data: snapshot.data, variant: (snapshot.variant as DocumentVersion["variant"]) ?? null };
   });
 }
 /** Approval is for these exact bytes; a regenerated or modified PDF cannot inherit it. */

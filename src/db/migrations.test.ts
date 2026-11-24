@@ -67,6 +67,7 @@ test("creates an empty database at the latest version and records the whole hist
     [17, "job rankings", "2026-10-16T12:00:00.000Z"],
     [18, "requirement gates", "2026-10-16T12:00:00.000Z"],
     [19, "profile sources", "2026-10-16T12:00:00.000Z"],
+    [20, "resume variants", "2026-10-16T12:00:00.000Z"],
     [String(SCHEMA_VERSION)],
   ]);
   expect(d.transaction).toHaveBeenCalledOnce();
@@ -167,8 +168,8 @@ test("the journey step snapshots a v3 workspace, completes its schema, backfills
   vi.mocked(backfillJourney).mockImplementation(() => log.push("backfill"));
   vi.mocked(verifyJourney).mockImplementation(() => log.push("verify"));
   expect(migrateDatabase(d.asDatabase, { backupDir: "/home/backups", clock })).toEqual({
-    mode: "migrated", from: 3, to: 19, applied: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19], backup: "/home/backups/work-tracker-v3-to-v19-2026-10-16T12-00-00-000Z.db",
+    mode: "migrated", from: 3, to: 20, applied: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], backup: "/home/backups/work-tracker-v3-to-v20-2026-10-16T12-00-00-000Z.db",
   });
-  expect(log).toEqual(["snapshot", "PRAGMA foreign_keys = OFF;", MIGRATION_TABLES_SQL, "ensure", "backfill", "ensure", "ensure", "ensure", "ensure", "ensure", "ensure", "UPDATE jobs SET shortlisted_at = COALESCE(scouted_at, datetime('now')) WHERE shortlisted_at IS NULL", "ensure", "ensure", "ensure", "ensure", "ensure", "ensure", "ensure", "ensure", "ensure", "ensure", "verify", "PRAGMA foreign_keys = ON;"]);
-  expect(writes().map((args) => args[0])).toEqual([4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, "19"]);
+  expect(log).toEqual(["snapshot", "PRAGMA foreign_keys = OFF;", MIGRATION_TABLES_SQL, "ensure", "backfill", "ensure", "ensure", "ensure", "ensure", "ensure", "ensure", "UPDATE jobs SET shortlisted_at = COALESCE(scouted_at, datetime('now')) WHERE shortlisted_at IS NULL", "ensure", "ensure", "ensure", "ensure", "ensure", "ensure", "ensure", "ensure", "ensure", "ensure", "ensure", "verify", "PRAGMA foreign_keys = ON;"]);
+  expect(writes().map((args) => args[0])).toEqual([4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, "20"]);
 });

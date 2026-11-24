@@ -22,10 +22,12 @@ import { handleCompanyResearch } from "../company-research/http.ts";
 import { handleRankings } from "../rankings/http.ts";
 import { handleGates } from "../gates/http.ts";
 import { handleProfileSources } from "../profile/http.ts";
+import { VariantService } from "../variants/service.ts";
+import { handleVariants } from "../variants/http.ts";
 
 type Acp = Pick<SessionManager, "run" | "cancel"> & Partial<Pick<SessionManager, "isRunning" | "permissions">>;
 type Broadcast = (event: unknown) => void;
-type Context = { acp: Acp; broadcast: Broadcast; preparation?: PreparationService; queue?: PreparationQueue };
+type Context = { acp: Acp; broadcast: Broadcast; preparation?: PreparationService; queue?: PreparationQueue; variants?: VariantService };
 type Route = (req: Request, context: Context) => Promise<Response> | Response;
 
 function errorMessage(error: unknown): string {
@@ -143,6 +145,12 @@ export async function routeApi(path: string, req: Request, context: Context): Pr
     if (req.method === "POST" && integrationTesting()) return Response.json({ error: "Wait for the integration diagnostic to finish." }, { status: 409 });
     context.preparation ??= new PreparationService(context.acp, context.broadcast);
     return handlePreparation(path, req, context.preparation);
+  }
+  if (path === "/api/resume-variants" || path.startsWith("/api/resume-variants/")) {
+    if (req.method === "POST" && integrationTesting()) return Response.json({ error: "Wait for the integration diagnostic to finish." }, { status: 409 });
+    const preparation = context.preparation ??= new PreparationService(context.acp, context.broadcast);
+    context.variants ??= new VariantService(context.acp, context.broadcast, preparation.slot);
+    return handleVariants(path, req, context.variants, context.broadcast);
   }
   if (path === "/api/preparation-batches" || path.startsWith("/api/preparation-batches/")) {
     const preparation = context.preparation ??= new PreparationService(context.acp, context.broadcast);

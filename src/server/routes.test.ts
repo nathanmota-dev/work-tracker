@@ -15,6 +15,8 @@ import { handleRankings } from "../rankings/http.ts";
 import { handleGates } from "../gates/http.ts";
 import { handleProfileSources } from "../profile/http.ts";
 import { handleCompanyResearch } from "../company-research/http.ts";
+import { handleVariants } from "../variants/http.ts";
+import { VariantService } from "../variants/service.ts";
 
 vi.mock("../applications/http.ts", () => ({ handleApplicationBoard: vi.fn() }));
 vi.mock("../jobs/http.ts", () => ({ handleJobAction: vi.fn() }));
@@ -31,6 +33,8 @@ vi.mock("../rankings/http.ts", () => ({ handleRankings: vi.fn() }));
 vi.mock("../gates/http.ts", () => ({ handleGates: vi.fn() }));
 vi.mock("../profile/http.ts", () => ({ handleProfileSources: vi.fn() }));
 vi.mock("../company-research/http.ts", () => ({ handleCompanyResearch: vi.fn() }));
+vi.mock("../variants/http.ts", () => ({ handleVariants: vi.fn() }));
+vi.mock("../variants/service.ts", () => ({ VariantService: vi.fn() }));
 vi.mock("./queries.ts", () => ({ queries: {} }));
 
 const acp = { run: vi.fn(), cancel: vi.fn() };
@@ -163,4 +167,20 @@ test("serves the profile sources through their handler with the broadcaster", as
     expect(await routeApi(path, req, { acp, broadcast })).toBe(ok);
     expect(handleProfileSources).toHaveBeenLastCalledWith(path, req, broadcast);
   }
+});
+
+test("serves resume variants with one service sharing the preparation execution slot", async () => {
+  vi.mocked(handleVariants).mockResolvedValue(ok);
+  const slot = {};
+  const preparation = { slot } as unknown as PreparationService;
+  const context = { acp, broadcast, preparation };
+  for (const path of ["/api/resume-variants", "/api/resume-variants/generate"]) {
+    const req = new Request(`http://localhost${path}`, { method: "POST" });
+    expect(await routeApi(path, req, context)).toBe(ok);
+    expect(handleVariants).toHaveBeenLastCalledWith(path, req, expect.anything(), broadcast);
+  }
+  expect(VariantService).toHaveBeenCalledOnce();
+  expect(VariantService).toHaveBeenCalledWith(acp, broadcast, slot);
+  vi.mocked(integrationTesting).mockReturnValueOnce(true);
+  expect((await routeApi("/api/resume-variants/generate", new Request("http://localhost/x", { method: "POST" }), context)).status).toBe(409);
 });

@@ -20,14 +20,16 @@ export interface GenerationManifest {
   manifestPath: string;
   [key: string]: unknown;
 }
+/** The manifest paths compilation and output validation read; a resume variant has no job or cover letter. */
+export type TailoringPaths = Pick<GenerationManifest, "project" | "mainFile" | "engine" | "reportPath" | "selectionPath" | "manifestPath">;
 /**
  * Inputs every phase after source preparation needs.
  *
  * @property texFiles Original LaTeX sources the tailored project is checked against.
  * @property basePages Page count of the base PDF.
  */
-export interface GenerationSources {
-  manifest: GenerationManifest;
+export interface GenerationSources<M extends TailoringPaths = GenerationManifest> {
+  manifest: M;
   texFiles: { name: string; text: string }[];
   basePages: number;
 }
@@ -87,7 +89,7 @@ export function resetProject(manifest: GenerationManifest): void {
 }
 
 /** The agent may change content only: original comments and preambles must stay. */
-export function validateTailoredSources(sources: GenerationSources): void {
+export function validateTailoredSources(sources: GenerationSources<TailoringPaths>): void {
   for (const file of sources.texFiles) {
     const generated = normalize(readFileSync(join(sources.manifest.project, file.name), "utf8"));
     const comments = file.text.split("\n").filter(line => line.trimStart().startsWith("%"));
@@ -98,7 +100,7 @@ export function validateTailoredSources(sources: GenerationSources): void {
 }
 
 /** The tailoring report and selection the agent must leave before review. */
-export function readTailoringOutput(manifest: GenerationManifest): string {
+export function readTailoringOutput(manifest: TailoringPaths): string {
   if (!existsSync(manifest.reportPath) || !existsSync(manifest.selectionPath)) throw new Error("The agent must produce report.md and selection.json before review.");
   const selection: unknown = JSON.parse(readFileSync(manifest.selectionPath, "utf8"));
   if (!selection || typeof selection !== "object" || Array.isArray(selection)) throw new Error("The selection report must be a JSON object.");

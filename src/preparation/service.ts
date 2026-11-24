@@ -3,93 +3,57 @@ import { copyFileSync, existsSync, writeFileSync, rmSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { db, now } from "../db/index.ts";
 import { paths } from "../paths.ts";
-import type { SessionManager, AcpRunResult } from "../acp/session.ts";
 import { openChromePortal } from "../mcp/chrome.ts";
-import { compileLatex, dependencyStatus, inspectPdf } from "./latex.ts";
-import { PreparationError, snapshotSources, sourcesConfig, writeSnapshot, type SourcesSnapshot } from "./sources.ts";
-import { addArtifact, artifactFile, cachedPreview, runManifest, runOptions, runRecord, updateRun } from "./store.ts";
-import type { PdfArtifact, PreparationDetails, PreparationRun, SourcesState, SubmissionConfirmation } from "./types.ts";
+import { inspectPdf } from "./latex.ts";
+import { PreparationError, snapshotSources, type SourcesSnapshot } from "./sources.ts";
+import { addArtifact, artifactFile, runManifest, runOptions, runRecord, updateRun } from "./store.ts";
+import { preparationDetails, sourcesState } from "./details.ts";
+import { SAVED_RESUME, type PdfArtifact, type PreparationDetails, type PreparationRun, type SourcesState, type SubmissionConfirmation } from "./types.ts";
 import { addCheckpoint, dropCheckpoints, markPortal } from "./recovery.ts";
 import { applyFillResult, fillManifestPath, interruptStaleRuns, readFillResult, webLink, type FillManifest } from "./portal-fill.ts";
-import { ensureDescription, readTailoringOutput, resetProject, restoreSources, validateTailoredSources, type GenerationManifest, type GenerationSources } from "./generation.ts";
+import { ensureDescription, resetProject, restoreSources, type GenerationManifest, type GenerationSources } from "./generation.ts";
+import { ExecutionSlot, type PreparationAgent } from "./executor.ts";
+import { basePreview, compileWithCorrection, copyBaseline, texSources, warnLength, writeProject, type Compiled } from "./pipeline.ts";
+export type { PreparationAgent } from "./executor.ts";
 export { readableJobDetails } from "./generation.ts";
 import { journeyRecord, latestForJob, openApplication, settleExecution, startTracking, transition } from "../applications/journey-store.ts";
-import { saveDocument, documentsForJob, approvedDocument, approveDocument, freezeDocumentUse } from "./documents.ts";
-import { fillReview } from "./fill-review.ts";
+import { saveDocument, approvedDocument, approveDocument, freezeDocumentUse } from "./documents.ts";
 import { missingForPreparation } from "../jobs/preparation.ts";
 import { planTransition } from "../applications/journey.ts";
 import { assertPortalFree } from "./batch-store.ts";
-import { contactIdentity } from "../answers/store.ts";
+import { useVariant } from "../variants/apply.ts";
 import { jobId, jobRecord, savePastedDescription, type PreparationJob as Job } from "./jobs.ts";
 
-export type PreparationAgent = Pick<SessionManager, "run" | "cancel"> & Partial<Pick<SessionManager, "subscribe" | "isRunning">>;
 export class PreparationService {
-  private active: { id: string; controller: AbortController } | null = null;
-  private task: Promise<void> | null = null;
   private unsubscribe?: () => void;
-  constructor(private acp: PreparationAgent, private broadcast: (event: unknown) => void) {
+  /** @param slot The execution shared with every other agent service; see ExecutionSlot. */
+  constructor(private acp: PreparationAgent, private broadcast: (event: unknown) => void, readonly slot = new ExecutionSlot(acp)) {
     const d = db();
     d.transaction(() => interruptStaleRuns(d))();
     this.unsubscribe = acp.subscribe?.(event => {
-      if (!event.runId || this.active?.id !== event.runId) return;
+      if (!event.runId || this.slot.activeFor("preparation") !== event.runId) return;
       const run = runRecord(String(event.runId));
       const events = [...run.events, event].slice(-500);
       updateRun(run.id, { events_json: JSON.stringify(events) });
       this.changed(run.id);
     });
   }
-  get isBusy(): boolean { return !!this.active || !!this.acp.isRunning; }
-  private assertIdle(): void { if (this.isBusy) throw new PreparationError("Finish or cancel the active execution first.", 409); }
+  get isBusy(): boolean { return this.slot.isBusy; }
+  private assertIdle(): void { this.slot.assertIdle(); }
   /** Reviewing one execution's results may continue while another execution runs. */
-  private assertInactive(runId: unknown): void { if (this.active?.id === runId) throw new PreparationError("Wait for this execution to finish first.", 409); }
+  private assertInactive(runId: unknown): void { if (this.slot.activeId === runId) throw new PreparationError("Wait for this execution to finish first.", 409); }
   private changed(id?: string): void { this.broadcast({ type: "changed", table: "application_runs", runId: id }); }
   private phase(id: string, phase: PreparationRun["phase"]): void {
     updateRun(id, { phase }); this.broadcast({ type: "preparation-status", runId: id, phase }); this.changed(id);
   }
-  async sourcesState(): Promise<SourcesState> {
-    const config = sourcesConfig();
-    let preview: PdfArtifact | null = null;
-    let warnings: string[] = [];
-    if (config.projectDir) {
-      try { const snapshot = snapshotSources(config); preview = cachedPreview(snapshot.version); warnings = snapshot.warnings; }
-      catch (error) { warnings = [error instanceof Error ? error.message : String(error)]; }
-    }
-    return { config, preview, warnings, busy: this.isBusy, dependencies: await dependencyStatus(config.engine) };
-  }
-  private async buildPreview(snapshot: SourcesSnapshot, signal?: AbortSignal): Promise<PdfArtifact> {
-    const cached = cachedPreview(snapshot.version);
-    if (cached) return cached;
-    const project = join(paths.artifacts, "base", snapshot.version, "project");
-    writeSnapshot(snapshot, project);
-    const result = await compileLatex(project, snapshot.config.mainFile, snapshot.config.engine, signal, { layout: { identity: contactIdentity() } });
-    writeFileSync(join(dirname(project), "compile.log"), result.log);
-    return addArtifact(null, "base", result.path, result.check, snapshot.version);
-  }
+  async sourcesState(): Promise<SourcesState> { return sourcesState(this.isBusy); }
   async preview(): Promise<PdfArtifact> {
     this.assertIdle();
     const snapshot = snapshotSources();
-    const controller = new AbortController();
-    this.active = { id: "preview", controller };
-    this.changed();
-    const result = this.buildPreview(snapshot, controller.signal);
-    this.task = result.then(() => {}, () => {});
-    try { return await result; }
-    finally { this.active = null; this.task = null; this.changed(); }
+    try { return await this.slot.hold("preview", "preparation", signal => { this.changed(); return basePreview(snapshot, signal); }); }
+    finally { this.changed(); }
   }
-  details(input: Record<string, unknown>): PreparationDetails {
-    const job = jobRecord(jobId(input.jobId), true);
-    const requestedApplication = input.applicationId ? jobId(input.applicationId) : null;
-    if (requestedApplication && !db().query("SELECT id FROM applications WHERE id = ? AND job_id = ?").get(requestedApplication, job.id)) throw new PreparationError("Application not found for this job.", 404);
-    const rows = db().query("SELECT id FROM application_runs WHERE job_id = ? AND (? IS NULL OR application_id = ?) ORDER BY created_at DESC, rowid DESC").all(job.id, requestedApplication, requestedApplication) as { id: string }[];
-    const runs = rows.map(row => runRecord(row.id));
-    const applicationId = input.applicationId ? jobId(input.applicationId) : runs.find(run => run.application_id)?.application_id;
-    const application = applicationId ? db().query("SELECT id FROM applications WHERE id = ? AND job_id = ?").get(applicationId, job.id) as { id: number } | undefined : undefined;
-    const record = application ? journeyRecord(db(), application.id) : null;
-    return {
-      job, runs, documents: documentsForJob(job.id, requestedApplication), fill: record ? fillReview(db(), record.id) : null, busy: this.isBusy, applicationStatus: record?.status ?? null, uploadedRunId: record?.preparation_run_id ?? null,
-      journey: record && { id: record.id, origin: record.origin, attempt: record.attempt, preparation_status: record.preparation_status, fill_status: record.fill_status, submission_status: record.submission_status, submitted_at: record.submitted_at, review_reason: record.review_reason },
-    };
-  }
+  details(input: Record<string, unknown>): PreparationDetails { return preparationDetails(input, this.isBusy); }
   approve(input: Record<string, unknown>) { this.assertInactive(input.runId); const version = approveDocument(input); this.changed(version.runId); return version; }
   description(input: Record<string, unknown>): void {
     this.assertIdle();
@@ -121,10 +85,18 @@ export class PreparationService {
     })();
     return this.start(id, signal => this.performGeneration(id, job, "preparing", String(input.extra ?? ""), signal, snapshot));
   }
+  /** Prepare the application with a saved resume variant; no agent runs. */
+  useVariant(input: Record<string, unknown>): PreparationRun {
+    const run = useVariant(input, () => this.assertIdle());
+    for (const table of ["applications", "activity_log"]) this.broadcast({ type: "changed", table });
+    this.changed(run.id);
+    return run;
+  }
   /** Retry from the persisted checkpoint; an unknown portal outcome needs review. */
   retry(input: Record<string, unknown>, sources?: SourcesSnapshot): PreparationRun {
     this.assertIdle();
     const run = runRecord(String(input.runId ?? ""));
+    if (run.provider === SAVED_RESUME) throw new PreparationError("Generate a tailored version instead.", 409);
     const from = run.recovery.retryFrom;
     if (!from) throw new PreparationError("This execution has nothing to retry.", 409);
     if (from === "filling") return this.fill({ ...input, runId: run.id });
@@ -141,14 +113,12 @@ export class PreparationService {
     return this.start(run.id, signal => this.performGeneration(run.id, job, from, extra, signal, snapshot));
   }
   private start(id: string, work: (signal: AbortSignal) => Promise<void>): PreparationRun {
-    const controller = new AbortController();
-    this.active = { id, controller };
-    this.task = work(controller.signal).catch(error => this.fail(id, error)).finally(() => { this.active = null; this.task = null; this.changed(id); });
+    this.slot.start(id, "preparation", work, (error, cancelled) => this.fail(id, error, cancelled), () => this.changed(id));
     this.changed(id);
     return runRecord(id);
   }
-  private fail(id: string, error: unknown): void {
-    const outcome = this.active?.controller.signal.aborted ? "cancelled" : "failed";
+  private fail(id: string, error: unknown, cancelled: boolean): void {
+    const outcome = cancelled ? "cancelled" : "failed";
     updateRun(id, { status: outcome, error: (error instanceof Error ? error.message : String(error)).slice(-24000) });
     this.settle(id, outcome);
     this.changed(id);
@@ -161,13 +131,10 @@ export class PreparationService {
     d.transaction(() => settleExecution(d, run.application_id!, run.phase === "filling" ? "fill" : "preparation", outcome, id))();
     this.broadcast({ type: "changed", table: "applications" });
   }
-  private async agent(id: string, manifestPath: string, skill: string, extra = ""): Promise<boolean> {
+  private async agent(id: string, manifestPath: string, skill: string, extra: string, signal: AbortSignal): Promise<boolean> {
     const run = runRecord(id);
-    const result = await this.acp.run(run.provider, skill, { runId: id, manifestPath, extra }, run.model ?? undefined) as AcpRunResult | undefined;
-    if (this.active?.controller.signal.aborted || result?.status === "cancelled") throw new Error("Cancelled");
-    if (result?.status === "waiting_for_sign_in") { updateRun(id, { status: "waiting_for_sign_in" }); this.changed(id); return false; }
-    if (result?.status === "error") throw new Error(result.message ?? "Agent execution failed.");
-    return true;
+    if (await this.slot.runAgent(run.provider, run.model, skill, { runId: id, manifestPath, extra }, signal)) return true;
+    updateRun(id, { status: "waiting_for_sign_in" }); this.changed(id); return false;
   }
   /** Run generation from `from`, skipping phases whose checkpoints a retry reuses. */
   private async performGeneration(id: string, job: Job, from: Exclude<PreparationRun["phase"], "review" | "filling">, extra: string, signal: AbortSignal, snapshot?: SourcesSnapshot): Promise<void> {
@@ -177,24 +144,20 @@ export class PreparationService {
       sources.manifest.extra = extra; updateRun(id, { manifest_json: JSON.stringify(sources.manifest) });
       if (!snapshot) { resetProject(sources.manifest); dropCheckpoints(id, "tailored"); }
       this.phase(id, "tailoring");
-      if (!await this.agent(id, sources.manifest.manifestPath, "resume-tailor", extra)) return;
+      if (!await this.agent(id, sources.manifest.manifestPath, "resume-tailor", extra, signal)) return;
       addCheckpoint(id, "tailored");
     }
-    const compiled = await this.compile(id, sources, signal);
+    const compiled = await compileWithCorrection(sources, signal, { phase: phase => this.phase(id, phase), correct: message => this.agent(id, sources.manifest.manifestPath, "resume-tailor", message, signal) });
     if (compiled) this.complete(id, job, sources, compiled);
   }
   private async prepareSources(id: string, job: Job, snapshot: SourcesSnapshot, signal: AbortSignal): Promise<GenerationSources> {
     const descriptionCheck = await ensureDescription(job);
     signal.throwIfAborted();
     const root = join(paths.artifacts, "applications", String(job.id), id);
-    const baseProject = join(root, "base-project");
-    const project = join(root, "project");
-    writeSnapshot(snapshot, baseProject);
-    writeSnapshot(snapshot, project);
-    writeFileSync(join(root, "profile.json"), JSON.stringify(snapshot.data, null, 2), { mode: 0o600 });
+    const { baseProject, project, profilePath } = writeProject(root, snapshot);
     const manifest = {
       runId: id, job, descriptionCheck, sourceVersion: snapshot.version, engine: snapshot.config.engine,
-      project, baseProject, mainFile: snapshot.config.mainFile, profilePath: join(root, "profile.json"),
+      project, baseProject, mainFile: snapshot.config.mainFile, profilePath,
       reportPath: join(root, "report.md"), selectionPath: join(root, "selection.json"),
       coverPath: join(root, "cover-letter.md"),
       warnings: snapshot.warnings,
@@ -202,37 +165,15 @@ export class PreparationService {
     const manifestPath = join(root, "manifest.json");
     writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), { mode: 0o600 });
     updateRun(id, { manifest_json: JSON.stringify({ ...manifest, manifestPath }) });
-    const preview = await this.buildPreview(snapshot, signal);
-    const baseline = artifactFile(preview.id);
-    const basePath = join(root, "base.pdf");
-    copyFileSync(baseline.path, basePath);
-    addArtifact(id, "base", basePath, { pages: preview.pages, text: baseline.text, warnings: [...new Set([...snapshot.warnings, ...preview.warnings])] });
+    const preview = await basePreview(snapshot, signal);
+    const baseline = copyBaseline(preview, root);
+    addArtifact(id, "base", baseline.path, { pages: preview.pages, text: baseline.text, warnings: [...new Set([...snapshot.warnings, ...preview.warnings])] });
     addCheckpoint(id, "sources");
-    const texFiles = snapshot.files.filter(file => file.name.endsWith(".tex")).map(file => ({ name: file.name, text: file.bytes.toString("utf8").replaceAll("\r\n", "\n") }));
-    return { manifest: { ...manifest, manifestPath }, texFiles, basePages: preview.pages };
-  }
-  /** Compile the tailored project, allowing one bounded agent correction. Undefined while waiting for sign-in. */
-  private async compile(id: string, sources: GenerationSources, signal: AbortSignal): Promise<{ compiled: Awaited<ReturnType<typeof compileLatex>>; report: string } | undefined> {
-    const { manifest } = sources;
-    for (let attempt = 0; ; attempt++) {
-      this.phase(id, "compiling");
-      try {
-        validateTailoredSources(sources);
-        // Layout findings the base PDF already has belong to the user's template, not to the tailoring.
-        const compiled = await compileLatex(manifest.project, manifest.mainFile, manifest.engine, signal, { layout: { identity: contactIdentity(), baseline: join(dirname(manifest.manifestPath), "base.pdf") } });
-        writeFileSync(join(dirname(manifest.manifestPath), "compile.log"), compiled.log);
-        return { compiled, report: readTailoringOutput(manifest) };
-      } catch (error) {
-        signal.throwIfAborted();
-        if (attempt === 1) throw error;
-        this.phase(id, "tailoring");
-        if (!await this.agent(id, manifest.manifestPath, "resume-tailor", `Correct the compilation or output errors below without inventing information.\n${error instanceof Error ? error.message : String(error)}`)) return undefined;
-      }
-    }
+    return { manifest: { ...manifest, manifestPath }, texFiles: texSources(snapshot), basePages: preview.pages };
   }
   /** Register the validated PDF and its application together, so a failure leaves no partial change. */
-  private complete(id: string, job: Job, { manifest, basePages }: GenerationSources, { compiled, report }: { compiled: Awaited<ReturnType<typeof compileLatex>>; report: string }): void {
-    if (compiled.check.pages > basePages) compiled.check.warnings.unshift(`The tailored resume has ${compiled.check.pages} pages; the base has ${basePages}. Review its length.`);
+  private complete(id: string, job: Job, { manifest, basePages }: GenerationSources, { compiled, report }: Compiled): void {
+    warnLength(compiled, basePages);
     const pdfPath = join(dirname(manifest.manifestPath), "resume.pdf");
     copyFileSync(compiled.path, pdfPath);
     const current = runRecord(id);
@@ -288,7 +229,7 @@ export class PreparationService {
       signal.throwIfAborted();
       // From here the agent may act on the portal; a stop without a result needs review.
       markPortal(id, true);
-      if (!await this.agent(id, manifestPath, "portal-filler", String(input.extra ?? ""))) { markPortal(id, false); return; }
+      if (!await this.agent(id, manifestPath, "portal-filler", String(input.extra ?? ""), signal)) { markPortal(id, false); return; }
       const result = readFillResult(fill);
       d.transaction(() => applyFillResult(d, fill, result))();
       this.broadcast({ type: "changed", table: "applications" });
@@ -322,7 +263,8 @@ export class PreparationService {
     return { alreadySubmitted: !result.submitted, applicationId: result.record.id, submittedAt: result.record.submitted_at };
   }
   async cancel(id?: string): Promise<void> {
-    if (!this.active && id && !this.acp.isRunning) {
+    const active = this.slot.activeFor("preparation");
+    if (!this.slot.activeId && id && !this.acp.isRunning) {
       const waiting = runRecord(id);
       if (waiting.status === "waiting_for_sign_in") {
         this.acp.cancel();
@@ -332,15 +274,11 @@ export class PreparationService {
         return;
       }
     }
-    if (!this.active || (id && id !== this.active.id)) throw new PreparationError("This execution is not active.", 409);
-    this.active.controller.abort();
-    this.acp.cancel();
-    await this.task;
+    if (!active || (id && id !== active)) throw new PreparationError("This execution is not active.", 409);
+    await this.slot.cancel();
   }
   async close(): Promise<void> {
-    this.active?.controller.abort();
-    this.acp.cancel();
-    await this.task;
+    await this.slot.close();
     this.unsubscribe?.();
   }
 }

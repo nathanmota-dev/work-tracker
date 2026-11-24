@@ -9,6 +9,7 @@ export const routes = [
   ['Interview prep', 'interview-prep', 'Walk into every round with likely questions, grounded answers and a consistency brief.'],
   ['Contacts', 'contacts', 'Preview connection sync'],
   ['Profile', 'profile', 'Profile assessment'],
+  ['Resumes', 'resumes', 'Resumes for a role and stack, generated once and reused for every job that matches.'],
   ['Agent', 'launch', 'Run a skill'],
   ['Settings', 'settings', 'Appearance'],
 ] as const
@@ -26,7 +27,7 @@ for (const populated of [false, true]) {
           groups.map(group => [group.getAttribute('aria-label'), Array.from(group.querySelectorAll('a')).map(link => link.getAttribute('aria-label'))])
         )).toEqual([
           ['Overview', ['Dashboard']], ['Journey', ['Jobs', 'Applications', 'Interviews', 'Interview prep', 'Contacts']],
-          ['You', ['Profile']],
+          ['You', ['Profile', 'Resumes']],
           ['Tools', ['Agent', 'Settings']],
         ])
         await workspace.go(title)

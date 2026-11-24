@@ -22,6 +22,7 @@ const service = {
   approve: vi.fn(),
   retry: vi.fn(),
   submitted: vi.fn(),
+  useVariant: vi.fn(),
   cancel: vi.fn(),
 };
 const call = (path: string, body = "{}", method = "POST") =>
@@ -47,6 +48,7 @@ test.each([
   ["application-preparation/fill", "fill", 202],
   ["application-preparation/retry", "retry", 202],
   ["application-preparation/submitted", "submitted", 200],
+  ["application-preparation/use-variant", "useVariant", 201],
 ] as const)("dispatches %s", async (path, method, status) => {
   expect((await call(path, '{"jobId":1}')).status).toBe(status);
   expect(service[method]).toHaveBeenCalledOnce();

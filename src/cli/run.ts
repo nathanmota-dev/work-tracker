@@ -28,6 +28,7 @@ Usage:
   work-tracker import-journey <FILE.md>   Migrate a legacy JOURNEY.md into the db
   work-tracker profile sources        Print the profile folder's files, import status and conflicts as JSON
   work-tracker profile import [--force]   Extract the folder's LinkedIn export and reference PDFs (--force: all again)
+  work-tracker variant list [--archived]  Print the saved resumes (role, stacks, status, PDF and stale flag) as JSON
 
 Write API (used by skills):
   work-tracker recruiter add --name <n> [--company --username --title --location --degree --status --note]
@@ -126,6 +127,10 @@ const commands: Record<string, Command> = {
   profile: async ([sub], flags) => {
     const { profileCmd } = await import("./profile-sources.ts");
     await profileCmd(sub ?? "", flags);
+  },
+  variant: async ([sub], flags) => {
+    const { variantCmd } = await import("./variants.ts");
+    variantCmd(sub ?? "", flags);
   },
   recruiter: ([sub], flags) => recruiterCmd(sub ?? "", flags),
   outreach: async ([sub], flags) => {

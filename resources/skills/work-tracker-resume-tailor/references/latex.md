@@ -33,6 +33,21 @@ resumes the user already has as PDFs.
 - Do not add an experience unrelated to the target role only because it exists.
 - Translate a reference written in another language faithfully, without new claims.
 
+## Variant target
+
+A manifest without `job` and with `target` asks for a reusable resume for a job
+profile, not for one posting: `target.role` (`frontend`, `backend`, `fullstack` or
+`other`), `target.stacks`, an optional `target.focus` and `target.language`.
+
+- Tailor the resume for that role and those stacks. Highlight the stacks and choose
+  the projects and experience that prove them.
+- Write the summary for the role, without naming a company or a posting.
+- Follow `target.language` (`pt` or `en`); `auto` keeps the language of the base LaTeX.
+- `coverPath` is null: do not write a cover letter.
+- Write `selectionPath` with the same fields as for a job, plus `target`.
+- **Never invent experience in a stack that is absent from the sources.** Record a
+  requested stack without supporting evidence in `gaps` instead.
+
 Edit only the working project's content. Escape LaTeX special characters in inserted
 text, and keep existing custom commands usable. Use the base page count as a length
 target: replace weaker material rather than appending all projects.
@@ -45,7 +60,8 @@ Write these outputs at the exact manifest paths:
   incomplete source entries.
 - `reportPath`: a readable Markdown report with changes, supporting evidence,
   selected experience and genuine gaps.
-- `coverPath`: a cover letter in the job's language, based on the same evidence.
+- `coverPath`, when it is not null: a cover letter in the job's language, based on
+  the same evidence.
 
 On a correction attempt, address the backend's compilation/output diagnostics and
 update these same files. Do not edit the original project or install dependencies.
