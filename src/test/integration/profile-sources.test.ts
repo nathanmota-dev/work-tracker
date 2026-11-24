@@ -84,6 +84,13 @@ test("generation imports the folder with Poppler and the agent's profile.json ca
     ["frontend-resume.pdf", "reference", "imported"], ["linkedin-export.pdf", "linkedin", "imported"],
   ]);
   expect(sources.snapshotSources().warnings).toEqual(expect.arrayContaining([expect.stringMatching(/^broken\.pdf: The PDF could not be read/), "1 profile conflict needs a decision."]));
+  // The same import filled the empty answers with the export's personal details.
+  const { listAnswerVariants } = await import("../../answers/store.ts");
+  expect(Object.fromEntries(listAnswerVariants().map(row => [row.key, [row.value, row.autofill_source]]))).toEqual({
+    first_name: ["Alex", "linkedin"], last_name: ["Example", "linkedin"], full_name: ["Alex Example", "linkedin"], email: ["alex@example.com", "linkedin"],
+    location: ["Lisbon, Portugal", "linkedin"], linkedin_url: ["https://www.linkedin.com/in/alex-ex/", "linkedin"],
+  });
+  expect(profileSourcesState().about).toMatchObject({ headline: "Senior Software Engineer at Northwind Labs", currentCompany: "Northwind Labs", skills: ["TypeScript", "React", "PostgreSQL"] });
 }, 90000);
 
 test("a decision changes the source version and a frozen batch keeps the version it recorded", async () => {

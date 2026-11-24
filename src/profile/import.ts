@@ -4,6 +4,7 @@ import { profileAssets, type ProfileAsset } from "./assets.ts";
 import { readBbox } from "./linkedin/bbox.ts";
 import { isLinkedInExport } from "./linkedin/detect.ts";
 import { parseLinkedInProfile } from "./linkedin/parse.ts";
+import { syncProfileAnswers } from "./autofill.ts";
 import { cachedImports, saveImport } from "./store.ts";
 import type { ProfileImport } from "./types.ts";
 
@@ -52,8 +53,11 @@ export function importProfileAssets(dir: string, options: { force?: boolean; sig
   queue = next.catch(() => undefined);
   return next;
 }
-/** Before a generation: import what is missing, never blocking it. */
+/**
+ * Before a generation or after the sources change: import what is missing and
+ * fill empty answers from the sources, never blocking the caller.
+ */
 export async function ensureProfileImported(dir: string | undefined): Promise<void> {
-  if (!dir) return;
-  await importProfileAssets(dir).catch(() => undefined);
+  if (dir) await importProfileAssets(dir).catch(() => undefined);
+  syncProfileAnswers();
 }

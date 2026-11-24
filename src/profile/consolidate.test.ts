@@ -1,11 +1,12 @@
 import { expect, test } from "vitest";
 import { parseResumeData } from "../preparation/sources.ts";
 import { consolidateProfile, nameTokens, profileDate, sameDate, similarNames } from "./consolidate.ts";
+import { EMPTY_CONTACT } from "./linkedin/contact.ts";
 import type { LinkedInExperience, LinkedInProfile, ProfileSources } from "./types.ts";
 
 const role = (fields: Partial<LinkedInExperience>): LinkedInExperience => ({ company: "Northwind Labs", title: "Engineer", start: "2022-12", end: "Present", location: "", bullets: [], ...fields });
 const linkedin = (experience: LinkedInExperience[], education: LinkedInProfile["education"] = []): LinkedInProfile => ({
-  name: "Alex Example", headline: "", location: "", summary: "", topSkills: ["TypeScript"], languages: [], certifications: [], publications: [], experience, education, warnings: [],
+  name: "Alex Example", contact: EMPTY_CONTACT, headline: "", location: "", summary: "", topSkills: ["TypeScript"], languages: [], certifications: [], publications: [], experience, education, warnings: [],
 });
 const sources = (data: Record<string, unknown> | null) => data!.profileSources as ProfileSources;
 

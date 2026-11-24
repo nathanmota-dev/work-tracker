@@ -3,6 +3,10 @@
  * profile folder, by content hash, and the user's decision for each conflict
  * between the data file and the LinkedIn export. Kept apart so `schema.ts`
  * stays within the file-size limit; see src/profile/.
+ *
+ * Answer autofill (schema v22): the last value each source filled into an empty
+ * answer, so the catalog shows its origin and a value the user cleared is not
+ * filled again until the source changes it.
  */
 export const PROFILE_SCHEMA_SQL = /* sql */ `
 CREATE TABLE IF NOT EXISTS profile_imports (
@@ -21,5 +25,11 @@ CREATE TABLE IF NOT EXISTS profile_choices (
   chosen_source TEXT NOT NULL CHECK (chosen_source IN ('data', 'linkedin')),
   chosen_value  TEXT NOT NULL,
   decided_at    TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS answer_autofill (
+  key        TEXT PRIMARY KEY,
+  source     TEXT NOT NULL CHECK (source IN ('data', 'linkedin', 'resume')),
+  value      TEXT NOT NULL,
+  applied_at TEXT NOT NULL
 );
 `;

@@ -16,9 +16,18 @@ export interface LinkedInEducation {
   start: ProfileDate;
   end: ProfileDate;
 }
+/** The Contact section of the export; each field is "" when absent. URLs start with `https://`. */
+export interface ProfileContact {
+  email: string;
+  phone: string;
+  linkedin: string;
+  github: string;
+  website: string;
+}
 /** Plain text extracted from a LinkedIn "Save to PDF" export. */
 export interface LinkedInProfile {
   name: string;
+  contact: ProfileContact;
   headline: string;
   location: string;
   summary: string;
@@ -74,7 +83,21 @@ export interface ProfileSources {
   resolved: ResolvedValue[];
 }
 
-export type AssetStatus = "imported" | "pending" | "failed";
+export type PersonalKey = "first_name" | "last_name" | "full_name" | "email" | "phone" | "location" | "linkedin_url" | "github_url" | "portfolio_url";
+/** Where a personal detail came from: the data file, the LinkedIn export or another resume PDF. */
+export type PersonalSource = "data" | "linkedin" | "resume";
+export interface PersonalField { key: PersonalKey; value: string; source: PersonalSource }
+/** Read-only details the resume sources hold beyond the answer catalog. */
+export interface ProfileAbout {
+  headline: string;
+  summary: string;
+  currentCompany: string;
+  skills: string[];
+  languages: { name: string; level: string }[];
+  certifications: string[];
+}
+
+export type AssetStatus ="imported" | "pending" | "failed";
 export interface ProfileAssetState {
   file: string;
   kind: ImportKind | "data" | null;
@@ -88,6 +111,9 @@ export interface ProfileSourcesState {
   assets: ProfileAssetState[];
   linkedin: { experiences: number; education: number; skills: number; languages: number; entries: LinkedInExperience[] } | null;
   conflicts: ProfileConflict[];
+  /** Personal details found in the sources, ready to fill the answer catalog. */
+  personal: PersonalField[];
+  about: ProfileAbout | null;
   warnings: string[];
   /** True while files of the folder are still being imported in the background. */
   importing?: boolean;

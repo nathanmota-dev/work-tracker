@@ -87,6 +87,8 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 20, name: "resume variants", up: ensureCurrentSchema },
   // Additive: the cache starts empty and fills when Jobs or the CLI first reads the scores.
   { version: 21, name: "ats scores", up: ensureCurrentSchema },
+  // Additive: no answer changes until the profile sources are imported again.
+  { version: 22, name: "answer autofill", up: ensureCurrentSchema },
 ];
 
 /** Keeps pre-triage jobs in the shortlist; very old workspaces may lack `scouted_at`. */

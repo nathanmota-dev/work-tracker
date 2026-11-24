@@ -2,6 +2,7 @@ import { expect, test } from "vitest";
 import { ENGLISH_EXPORT, PORTUGUESE_EXPORT, bboxXhtml, type FixtureLine } from "../../test/linkedin-fixtures.ts";
 import { parseBbox } from "./bbox.ts";
 import { isLinkedInExport } from "./detect.ts";
+import { EMPTY_CONTACT } from "./contact.ts";
 import { parseLinkedInProfile } from "./parse.ts";
 
 const pages = (fixture: FixtureLine[][], footer?: (page: number, total: number) => string) => parseBbox(bboxXhtml(fixture, footer));
@@ -14,6 +15,7 @@ test("extracts every role of an English export, across the page break and a comp
     topSkills: ["TypeScript", "React"],
     languages: [{ name: "English", level: "Full Professional" }, { name: "Spanish", level: "Limited Working" }],
     certifications: ["Example Cloud Practitioner"], publications: ["Notes on Testing"], warnings: [],
+    contact: { ...EMPTY_CONTACT, email: "alex@example.com" },
   });
   expect(profile.experience).toEqual([
     { company: "Northwind Labs", title: "Senior Software Engineer", start: "2023-08", end: "Present", location: "Lisbon, Portugal", bullets: ["Led the billing migration to TypeScript.", "Built a design system."] },

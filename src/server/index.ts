@@ -116,7 +116,7 @@ export async function startBackend(flags: Flags = {}) {
     });
   });
   // Files placed in the profile folder are imported without a confirmation.
-  startProfileWatch(() => broadcast(sockets, { type: "changed", table: "profile_imports" }));
+  startProfileWatch(() => { for (const table of ["profile_imports", "applicant_answers"]) broadcast(sockets, { type: "changed", table }); });
   // The default MCPs are installed in the background; the app opens meanwhile.
   onInstallChange(() => broadcast(sockets, { type: "changed", table: "integrations" }));
   void ensureMcpServers();

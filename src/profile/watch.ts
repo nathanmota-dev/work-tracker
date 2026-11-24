@@ -1,6 +1,7 @@
 import { watch, type FSWatcher } from "node:fs";
 import { sourcesConfig } from "../preparation/sources.ts";
 import { isFolder } from "./evidence.ts";
+import { syncProfileAnswers } from "./autofill.ts";
 import { importProfileAssets } from "./import.ts";
 
 type Listener = () => void;
@@ -17,12 +18,12 @@ export function profileImporting(): boolean { return importing > 0; }
 
 /**
  * Import what the folder holds without a valid import, then announce the
- * change. The cache by content hash is the import flag: a file imported once
+ * change, filling empty answers from the sources. The cache by content hash is the import flag: a file imported once
  * is never extracted or confirmed again, even after the app restarts.
  */
 export async function importPending(dir: string): Promise<void> {
   importing++;
-  try { await importProfileAssets(dir); }
+  try { await importProfileAssets(dir); syncProfileAnswers(); }
   catch { /* each failure is recorded on its file; an unreadable folder shows in the state */ }
   finally { importing--; changed(); }
 }

@@ -18,7 +18,7 @@ beforeEach(() => {
       { file: "new.pdf", kind: null, status: "pending", warnings: [] },
     ],
     linkedin: { experiences: 1, education: 3, skills: 12, languages: 2, entries: [{ company: "Northwind Labs", title: "Engineer", start: "2022-12", end: "Present", location: "Lisbon", bullets: ["<b>Shipped</b> billing."] }, { company: "Contoso", title: "Intern", start: "", end: "", location: "", bullets: [] }] },
-    conflicts: [conflict("a", "linkedin"), conflict("b", null)],
+    conflicts: [conflict("a", "linkedin"), conflict("b", null)], personal: [], about: null,
     warnings: ["new.pdf has not been imported yet."],
   }
   vi.mocked(useApi).mockImplementation(() => ({ data: state, loading: false, error: "", refresh }) as ReturnType<typeof useApi>)

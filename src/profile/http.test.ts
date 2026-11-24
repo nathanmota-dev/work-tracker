@@ -1,6 +1,7 @@
 import { beforeEach, expect, test, vi } from "vitest";
 import { sourcesConfig } from "../preparation/sources.ts";
 import { isFolder } from "./evidence.ts";
+import { syncProfileAnswers } from "./autofill.ts";
 import { handleProfileSources } from "./http.ts";
 import { importProfileAssets } from "./import.ts";
 import { profileSourcesState } from "./state.ts";
@@ -11,6 +12,7 @@ import { importPending, profileImporting, syncProfileWatch } from "./watch.ts";
 
 vi.mock("../preparation/sources.ts", async (original) => ({ ...(await original<typeof import("../preparation/sources.ts")>()), sourcesConfig: vi.fn() }));
 vi.mock("./evidence.ts", () => ({ isFolder: vi.fn() }));
+vi.mock("./autofill.ts", () => ({ syncProfileAnswers: vi.fn() }));
 vi.mock("./import.ts", () => ({ importProfileAssets: vi.fn() }));
 vi.mock("./state.ts", () => ({ profileSourcesState: vi.fn() }));
 vi.mock("./store.ts", () => ({ saveChoice: vi.fn() }));
@@ -35,8 +37,16 @@ test("reads the state and imports again, announcing the change", async () => {
   await call("/import", "POST", {});
   expect(importProfileAssets).toHaveBeenLastCalledWith("/profile", { force: false });
   expect(broadcast).toHaveBeenCalledWith({ type: "changed", table: "profile_imports" });
+  expect(broadcast).toHaveBeenCalledWith({ type: "changed", table: "applicant_answers" });
+  expect(syncProfileAnswers).toHaveBeenCalledTimes(2);
+});
+
+test("without a profile folder, a sync still fills answers from the data file but Import again is refused", async () => {
   vi.mocked(isFolder).mockReturnValue(false);
-  const missing = await call("/import", "POST", {});
+  expect((await call("/import", "POST", {})).status).toBe(200);
+  expect(importProfileAssets).not.toHaveBeenCalled();
+  expect(syncProfileAnswers).toHaveBeenCalledOnce();
+  const missing = await call("/import", "POST", { force: true });
   expect([missing.status, await missing.json()]).toEqual([409, { error: "Choose an existing profile folder in Resume sources first." }]);
 });
 
@@ -78,8 +88,11 @@ test("uploads a file, imports it and announces the profile and the sources", asy
   expect(uploadProfileFile).toHaveBeenCalledWith(body);
   expect(importProfileAssets).toHaveBeenCalledWith("/profile");
   expect(broadcast).toHaveBeenCalledWith({ type: "changed", table: "resume_sources" });
+  expect(broadcast).toHaveBeenCalledWith({ type: "changed", table: "applicant_answers" });
+  expect(syncProfileAnswers).toHaveBeenCalledOnce();
   vi.mocked(importProfileAssets).mockClear();
   vi.mocked(uploadProfileFile).mockReturnValue({ dir: "/profile", result: { file: "resume-data.json", kind: "data", status: "replace_required" } });
   expect(((await (await call("/upload", "POST", body)).json()) as { upload: { status: string } }).upload.status).toBe("replace_required");
   expect(importProfileAssets).not.toHaveBeenCalled();
+  expect(syncProfileAnswers).toHaveBeenCalledOnce();
 });

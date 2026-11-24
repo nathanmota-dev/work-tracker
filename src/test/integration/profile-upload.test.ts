@@ -45,7 +45,10 @@ test("an upload creates the profile, imports the LinkedIn export and survives a 
   expect(body.linkedin?.experiences).toBe(4);
   expect(readdirSync(profileDir)).toEqual(["My LinkedIn.pdf"]);
   expect(JSON.parse(readFileSync(join(home, "config.json"), "utf8")).resumeSources.profileDir).toBe(profileDir);
-  expect(events).toEqual([{ type: "changed", table: "profile_imports" }, { type: "changed", table: "resume_sources" }]);
+  expect(events).toEqual([{ type: "changed", table: "profile_imports" }, { type: "changed", table: "applicant_answers" }, { type: "changed", table: "resume_sources" }]);
+  // The export's contact details filled the empty answers.
+  const { listAnswerVariants } = await import("../../answers/store.ts");
+  expect(listAnswerVariants().find(row => row.key === "email")).toMatchObject({ value: "alex@example.com", autofill_source: "linkedin" });
   // Uploading the same export again changes nothing.
   expect((await upload("copy.pdf", readFileSync(exportPdf))).body.upload.status).toBe("unchanged");
 });

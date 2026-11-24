@@ -2,12 +2,14 @@ import { db, now } from "../db/index.ts";
 import type { Database } from "../db/sqlite.ts";
 import { ANSWER_CATALOG, answerLanguage, validateAnswer, type AnswerValue } from "./catalog.ts";
 
-export interface StoredAnswer extends AnswerValue { category: string; updated_at: string }
+/** `autofill_source` is the resume source that filled the current default value, null once the user changes it. */
+export interface StoredAnswer extends AnswerValue { category: string; updated_at: string; autofill_source: string | null }
 export class AnswerError extends Error {}
 
 export function listAnswerVariants(d: Database = db()): StoredAnswer[] {
-  return d.query(`SELECT key, value, category, updated_at, 'default' AS language FROM applicant_answers
-    UNION ALL SELECT v.key, v.value, a.category, v.updated_at, v.language
+  return d.query(`SELECT a.key AS key, a.value AS value, a.category AS category, a.updated_at AS updated_at, 'default' AS language, f.source AS autofill_source
+    FROM applicant_answers a LEFT JOIN answer_autofill f ON f.key = a.key AND f.value = a.value
+    UNION ALL SELECT v.key, v.value, a.category, v.updated_at, v.language, NULL
     FROM applicant_answer_variants v JOIN applicant_answers a ON a.key = v.key
     ORDER BY category, key, language`).all() as StoredAnswer[];
 }

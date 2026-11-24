@@ -1,5 +1,6 @@
 import { failure, postBody } from "../preparation/http.ts";
 import { PreparationError, sourcesConfig } from "../preparation/sources.ts";
+import { syncProfileAnswers } from "./autofill.ts";
 import { isFolder } from "./evidence.ts";
 import { importProfileAssets } from "./import.ts";
 import { profileSourcesState } from "./state.ts";
@@ -19,8 +20,11 @@ function currentState(): ProfileSourcesState {
 }
 async function importAgain(body: Record<string, unknown>): Promise<ProfileSourcesState> {
   const config = sourcesConfig();
-  if (!isFolder(config.profileDir)) throw new PreparationError("Choose an existing profile folder in Resume sources first.", 409);
-  await importProfileAssets(config.profileDir, { force: body.force === true });
+  const folder = isFolder(config.profileDir);
+  // Without a folder, a plain sync still fills answers from the data file; only "Import again" needs one.
+  if (!folder && body.force === true) throw new PreparationError("Choose an existing profile folder in Resume sources first.", 409);
+  if (folder) await importProfileAssets(config.profileDir, { force: body.force === true });
+  syncProfileAnswers();
   return profileSourcesState(config);
 }
 /** Record the decision for a conflict that still exists; `source: null` is "Decide later". */
@@ -35,7 +39,7 @@ function choose(body: Record<string, unknown>): ProfileSourcesState {
 /** Copy one file into the profile folder and import it before answering. */
 async function upload(body: Record<string, unknown>): Promise<ProfileSourcesState & { upload: UploadResult }> {
   const { dir, result } = uploadProfileFile(body);
-  if (result.status !== "replace_required") { await importProfileAssets(dir); syncProfileWatch(); }
+  if (result.status !== "replace_required") { await importProfileAssets(dir); syncProfileWatch(); syncProfileAnswers(); }
   return { ...profileSourcesState(), upload: result };
 }
 
@@ -44,7 +48,8 @@ async function upload(body: Record<string, unknown>): Promise<ProfileSourcesStat
  * every PDF again), /api/profile-sources/choice and /api/profile-sources/upload
  * (`{ name, base64, replace? }`, one file per request). Writes change the
  * consolidated profile, so they are announced as `profile_imports` changes; an
- * upload can also change the resume sources.
+ * upload can also change the resume sources. An import or an upload also fills
+ * empty answers, announced as `applicant_answers`.
  */
 export async function handleProfileSources(path: string, req: Request, broadcast: Broadcast): Promise<Response> {
   try {
@@ -55,6 +60,7 @@ export async function handleProfileSources(path: string, req: Request, broadcast
     if (!write) return Response.json({ error: "Not found." }, { status: 404 });
     const state = await write(body);
     broadcast({ type: "changed", table: "profile_imports" });
+    if (write !== choose) broadcast({ type: "changed", table: "applicant_answers" });
     if (write === upload) broadcast({ type: "changed", table: "resume_sources" });
     return Response.json(state);
   } catch (error) { return failure(error); }

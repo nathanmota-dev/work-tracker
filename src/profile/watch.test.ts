@@ -4,11 +4,13 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { sourcesConfig } from "../preparation/sources.ts";
 import { isFolder } from "./evidence.ts";
 import { importProfileAssets } from "./import.ts";
+import { syncProfileAnswers } from "./autofill.ts";
 import { importPending, profileImporting, startProfileWatch, stopProfileWatch, syncProfileWatch, WATCH_DEBOUNCE_MS } from "./watch.ts";
 
 vi.mock("../preparation/sources.ts", () => ({ sourcesConfig: vi.fn() }));
 vi.mock("./evidence.ts", () => ({ isFolder: vi.fn() }));
 vi.mock("./import.ts", () => ({ importProfileAssets: vi.fn() }));
+vi.mock("./autofill.ts", () => ({ syncProfileAnswers: vi.fn() }));
 
 type Watcher = EventEmitter & { close: ReturnType<typeof vi.fn>; dir: string; emit_: (name: string | null) => void };
 let watchers: Watcher[];
@@ -32,6 +34,8 @@ test("imports what is pending at start and every PDF or data change after a paus
   startProfileWatch(onChange);
   expect(fs.watch).toHaveBeenCalledWith("/profile", { persistent: false }, expect.any(Function));
   await vi.waitFor(() => expect(onChange).toHaveBeenCalledOnce());
+  // Each import also fills empty answers from the sources.
+  expect(syncProfileAnswers).toHaveBeenCalledOnce();
   for (const name of ["cv.pdf", ".upload-1.tmp", "resume-data.json", "Export.PDF"]) watchers[0]!.emit_(name);
   await vi.advanceTimersByTimeAsync(WATCH_DEBOUNCE_MS - 1);
   expect(imports()).toEqual(["/profile"]);

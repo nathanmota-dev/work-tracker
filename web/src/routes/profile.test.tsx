@@ -7,8 +7,8 @@ vi.mock("@/lib/api", async (original) => ({
   ...(await original<typeof import("@/lib/api")>()),
   useApi: vi.fn(),
 }))
-vi.mock("@/components/settings-profile", () => ({
-  SettingsProfile: () => <p>Personal details child</p>,
+vi.mock("@/components/profile-details", () => ({
+  ProfileDetails: () => <p>Personal details child</p>,
 }))
 vi.mock("@/lib/agent", () => ({ prepareSkill: vi.fn() }))
 vi.mock("@/components/metric-chart", () => ({
@@ -85,6 +85,16 @@ it("falls back to imported identity or saved answers without a scan", () => {
   instance.rerender(<ProfilePage />)
   expect(screen.getByText("Saved")).toBeInTheDocument()
   expect(screen.queryByText("Profile score")).not.toBeInTheDocument()
+})
+it("describes the candidate with the imported LinkedIn export until an audit runs", () => {
+  records.answers = [
+    { key: "first_name", value: "Ana" },
+    { key: "location", value: "Lisbon, Portugal" },
+  ]
+  records["profile-sources"] = { about: { headline: "Senior Engineer", currentCompany: "Northwind Labs" } }
+  render(<ProfilePage />)
+  expect(screen.getByText("Senior Engineer")).toBeInTheDocument()
+  expect(screen.getByText("Lisbon, Portugal · Northwind Labs")).toBeInTheDocument()
 })
 it("reports failed sections and retries without replacing them with an empty success", () => {
   errors.profile = "profile offline"

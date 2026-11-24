@@ -25,6 +25,17 @@ test('Profile sources: upload the LinkedIn export, import files placed by hand, 
   await expect(files.getByRole('listitem').filter({ hasText: 'linkedin-export.pdf' })).toContainText('LinkedIn exportImported')
   await expect(files.getByRole('listitem').filter({ hasText: 'resume-data.json' })).toContainText('Data fileImported')
 
+  // The upload filled the empty answers with the export's contact details, shown on Profile with their origin.
+  await page.getByRole('tab', { name: 'LinkedIn', exact: true }).click()
+  const personal = page.getByRole('region', { name: 'Personal information' })
+  await expect(personal.getByText('alex@example.com', { exact: true })).toBeVisible()
+  await expect(personal.getByText('From LinkedIn')).toHaveCount(5)
+  await expect(page.getByRole('region', { name: 'Links' }).getByText('https://www.linkedin.com/in/alex-ex/', { exact: true })).toBeVisible()
+  await expect(page.getByRole('list', { name: 'Skills' })).toContainText('PostgreSQL')
+  expect(workspace.query("SELECT key, source FROM answer_autofill ORDER BY key")).toEqual(
+    ['email', 'first_name', 'full_name', 'last_name', 'linkedin_url', 'location'].map(key => ({ key, source: 'linkedin' })))
+  await page.getByRole('tab', { name: 'Base resume' }).click()
+
   // A PDF placed in the folder by hand is imported without any action.
   const placed = join(profileDir, 'placed-by-hand.pdf')
   copyFileSync('src/test/fixtures/profile/linkedin-export.pdf', placed)

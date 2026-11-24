@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
@@ -7,7 +7,7 @@ import { Records, type Column } from "@/components/records"
 import { useApi, request, publish, date, type Row } from "@/lib/api"
 import { useWorkspaceState } from "@/lib/workspace-state"
 import { AnswerEditor, draftError, type AnswerDraft } from "@/components/answer-editor"
-import { AnswerCatalog } from "@/components/answer-catalog"
+import { AnswerCatalog, type CatalogRow } from "@/components/answer-catalog"
 import { ANSWER_CATALOG, CATEGORY_LABELS, answerLanguage } from "../../../src/answers/catalog"
 
 function savedRows(rows: Row[], advanced: boolean): Row[] {
@@ -60,9 +60,13 @@ export function AnswersPage() {
     editor.open({ key, value: String(row?.value ?? ""), category: String(row?.category ?? ANSWER_CATALOG.find(s => s.key === key)?.category ?? "custom"), language: lang, existing: !!row })
   }
   // A correction link from the Apply checklist opens that field's editor once.
-  const { search: route } = useWorkspaceState("answers")
+  const { search: route, update } = useWorkspaceState("answers")
   const [requested, setRequested] = useState("")
   if (route.field && api.data && requested !== route.field) { setRequested(route.field); open(route.field) }
+  if (!route.field && requested) setRequested("")
+  // Once its editor closes, the requested field leaves the URL so returning to this tab does not reopen it.
+  const closed = !editor.draft && !!requested && route.field === requested
+  useEffect(() => { if (closed) update({ field: "" }) }, [closed, update])
   const draft = editor.draft
   let duplicate = false
   try { duplicate = !!draft && !draft.existing && rows.some(row => row.key === draft.key.trim() && row.language === answerLanguage(draft.language)) } catch { /* editor displays language validation */ }
@@ -78,7 +82,7 @@ export function AnswersPage() {
     </div>
     {languageError(language, fallback) && <p role="alert">{languageError(language, fallback)}</p>}
     {api.data && <>
-      <AnswerCatalog rows={rows.map(row => ({ key: String(row.key), value: row.value == null ? null : String(row.value), language: String(row.language) }))}
+      <AnswerCatalog rows={rows.map(row => ({ key: String(row.key), value: row.value == null ? null : String(row.value), language: String(row.language), source: row.autofill_source as CatalogRow["source"] }))}
         language={language} fallback={fallback} onEdit={open} />
       <Records rows={rows} noun="Saved answers" columns={columns} rowKey={row => `${row.key}:${row.language}`} onSelect={row => open(String(row.key), String(row.language))} />
     </>}
