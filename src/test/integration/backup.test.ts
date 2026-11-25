@@ -5,6 +5,8 @@ import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { SCHEMA_VERSION } from "../../db/schema.ts";
 
+const appVersion = (JSON.parse(readFileSync(new URL("../../../package.json", import.meta.url), "utf8")) as { version: string }).version;
+
 // Synthetic workspaces only: a source home that is backed up and an isolated
 // home that restores it. Modules are reloaded per home because paths are fixed at import.
 const root = mkdtempSync(join(tmpdir(), "work-tracker-backup-"));
@@ -82,7 +84,7 @@ const rewrite = (folder: string, edit: (manifest: Record<string, any>) => void) 
 test("WAL backup is versioned, hashed and lists sources it leaves out", () => {
   expect(readdirSync(destination)).toEqual([backup.path.split("/").at(-1)]);
   const manifest = manifestOf(backup.path);
-  expect(manifest).toMatchObject({ format: "work-tracker-backup", formatVersion: 1, schemaVersion: SCHEMA_VERSION, appVersion: "0.0.1" });
+  expect(manifest).toMatchObject({ format: "work-tracker-backup", formatVersion: 1, schemaVersion: SCHEMA_VERSION, appVersion: appVersion });
   expect(manifest.counts).toMatchObject({ jobs: 1, applications: 1, application_runs: 1, pdf_artifacts: 1, company_research: 1 });
   const artifact = manifest.files.find((file: { kind: string }) => file.kind === "artifact");
   expect(artifact).toEqual({ path: "artifacts/applications/12/run-1/tailored.pdf", kind: "artifact", size: pdf.length, sha256: createHash("sha256").update(pdf).digest("hex") });

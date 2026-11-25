@@ -689,9 +689,11 @@ test("retry rejects runs with nothing pending and archived jobs", () => {
   expect(() => service.retry({ runId: "r" })).toThrow("Restore");
   expect(transition).not.toHaveBeenCalled();
 });
-test("a saved-resume run is never retried; using a saved resume needs an idle slot and announces the change", async () => {
+test("a saved-resume run is never regenerated; using a saved resume needs an idle slot and announces the change", async () => {
   stopped("failed", "compiling", "compiling");
   run.provider = "saved-resume";
+  expect(() => service.retry({ runId: "r" })).toThrow("Generate a tailored version instead.");
+  run.recovery.retryFrom = null;
   expect(() => service.retry({ runId: "r" })).toThrow("Generate a tailored version instead.");
   expect(service.useVariant({ jobId: 1, variantId: "v" })).toEqual({ id: "saved" });
   expect(broadcast).toHaveBeenCalledWith({ type: "changed", table: "applications" });
@@ -832,4 +834,23 @@ test("approval and submission confirmation stay available while another executio
   expect(() => service.submitted({ runId: "r" })).toThrow("Wait for this execution");
   expect(() => service.submitted({ runId: "other" })).toThrow("Fill and submit");
   agent.resolve({ status: "cancelled" });
+});
+test("a saved resume is filled by the selected agent, and a failed fill retries with the same agent", async () => {
+  run.provider = "saved-resume";
+  run.model = null;
+  vi.mocked(runOptions).mockReturnValue({});
+  expect(() => service.fill({ runId: "r" })).toThrow("Select an agent to fill the portal.");
+  expect(acp.run).not.toHaveBeenCalled();
+  acp.run.mockResolvedValue({ status: "error", message: "Browser closed" });
+  service.fill({ runId: "r", provider: "agent", model: "fast" });
+  await settle();
+  expect(acp.run).toHaveBeenLastCalledWith("agent", "portal-filler", expect.anything(), "fast");
+  expect(updateRun).toHaveBeenCalledWith("r", { options_json: JSON.stringify({ fillProvider: "agent", fillModel: "fast" }) });
+  stopped("failed", "filling", "filling", true);
+  vi.mocked(runOptions).mockReturnValue({ fillProvider: "agent", fillModel: "fast" });
+  acp.run.mockResolvedValue({ status: "completed" });
+  service.retry({ runId: "r", reviewed: true });
+  await settle();
+  expect(acp.run).toHaveBeenLastCalledWith("agent", "portal-filler", expect.anything(), "fast");
+  expect(run.status).toBe("completed");
 });

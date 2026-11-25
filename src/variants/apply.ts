@@ -22,6 +22,20 @@ function variantBase(manifest: { manifestPath?: string; baseArtifactId?: string 
 }
 
 /**
+ * The application's current execution when it already uses this exact saved
+ * resume and is not running, so choosing the same resume again keeps one
+ * execution, its approval and any portal review it requires.
+ */
+function reusableRun(d: ReturnType<typeof db>, applicationId: number | null, variant: { id: string; updatedAt: string }): PreparationRun | null {
+  if (!applicationId) return null;
+  const row = d.query("SELECT r.id, r.options_json, r.created_at FROM applications a JOIN application_runs r ON r.id = a.preparation_run_id WHERE a.id = ? AND r.provider = ? AND r.status <> 'running'")
+    .get(applicationId, SAVED_RESUME) as { id: string; options_json: string; created_at: string } | undefined;
+  if (!row || row.created_at < variant.updatedAt) return null;
+  try { return (JSON.parse(row.options_json) as { variantId?: unknown }).variantId === variant.id ? runRecord(row.id) : null; }
+  catch { return null; }
+}
+
+/**
  * Prepare an application with a saved resume, without calling the agent. The
  * run is created in review with the variant's exact PDF bytes, so approval,
  * filling and submission work as with a tailored resume. Everything changes
@@ -40,6 +54,8 @@ export function useVariant(input: Record<string, unknown>, assertIdle: () => voi
   const requested = input.applicationId ? jobId(input.applicationId) : null;
   if (requested && !d.query("SELECT id FROM applications WHERE id = ? AND job_id = ?").get(requested, job.id)) throw new PreparationError("This application belongs to another job.");
   const existing = requested ?? latestForJob(d, job.id)?.id ?? null;
+  const reused = existing && journeyRecord(d, existing).submission_status !== "submitted" ? reusableRun(d, existing, variant) : null;
+  if (reused) return reused;
   if (existing) planTransition(journeyRecord(d, existing), "prepare.start");
   const id = randomUUID();
   const root = join(paths.artifacts, "applications", String(job.id), id);

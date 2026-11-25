@@ -11,8 +11,8 @@ export type ApplicationStep = {
 }
 const STEPS: { key: StepKey; label: string; hint: string }[] = [
   { key: "description", label: "Job description", hint: "Save or fetch the role description" },
-  { key: "resume", label: "Resume", hint: "Generate, compare, review the PDF and approve" },
-  { key: "fill", label: "Fill portal", hint: "The agent fills the form with the approved PDF" },
+  { key: "resume", label: "Resume", hint: "Use a saved resume or generate a tailored one, then approve it" },
+  { key: "fill", label: "Fill portal", hint: "The selected agent fills the form with the approved PDF" },
   { key: "submission", label: "Confirm submission", hint: "Submit in the browser, then confirm here" },
 ]
 export type StepInput = {

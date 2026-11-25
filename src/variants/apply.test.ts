@@ -47,8 +47,19 @@ test("prepares the application with the variant's exact bytes, in review, withou
   expect(d.query("SELECT variant_id FROM document_versions").get()).toEqual({ variant_id: variantId });
   expect(d.query("SELECT options_json FROM application_runs").get()).toEqual({ options_json: JSON.stringify({ variantId }) });
   expect(d.query("SELECT summary FROM activity_log").get()).toEqual({ summary: "Used saved resume Back-End · C# for Example Corp Engineer" });
-  // A second use reuses the same application as a new execution.
-  expect(useVariant({ jobId: job, applicationId: run.application_id, variantId }, idle).application_id).toBe(run.application_id);
+  // Choosing the same saved resume again keeps the execution and its document version.
+  expect(useVariant({ jobId: job, applicationId: run.application_id, variantId }, idle).id).toBe(run.id);
+  expect(d.query("SELECT COUNT(*) AS runs FROM application_runs").get()).toEqual({ runs: 1 });
+});
+
+test("a changed saved resume or a running execution starts a new execution for the same application", () => {
+  const run = useVariant({ jobId: job, variantId }, idle);
+  d.query("UPDATE resume_variants SET updated_at = ? WHERE id = ?").run("2026-11-25T00:00:00.000Z", variantId);
+  const changed = useVariant({ jobId: job, variantId }, idle);
+  expect(changed.id).not.toBe(run.id);
+  expect(changed.application_id).toBe(run.application_id);
+  d.query("UPDATE application_runs SET status = 'running' WHERE id = ?").run(changed.id);
+  expect(useVariant({ jobId: job, variantId }, idle).id).not.toBe(changed.id);
 });
 
 test("an imported variant is its own base", () => {
@@ -73,6 +84,6 @@ test("refuses archived, unfinished and submitted cases, and a busy slot", () => 
   updateVariant(variantId, { archived_at: null });
   const run = useVariant({ jobId: job, variantId }, idle);
   d.exec(`UPDATE applications SET submission_status = 'submitted' WHERE id = ${run.application_id}`);
-  expect(() => useVariant({ jobId: job, variantId }, idle)).toThrow();
+  expect(() => useVariant({ jobId: job, variantId }, idle)).toThrow("already submitted");
   expect(d.query("SELECT COUNT(*) AS n FROM application_runs").get()).toEqual({ n: 1 });
 });
