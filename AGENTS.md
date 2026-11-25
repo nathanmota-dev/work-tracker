@@ -80,7 +80,7 @@ Fix verification failures and rerun the affected checks before completing the ta
 
 For tasks that require the checklist above, updating the locally installed app is the final required step **only when every required check has passed and the verified source is in the worktree checked out on `main`**. A failed, blocked, or skipped required check prevents the update. If the source changes after verification, verify those changes before updating.
 
-Tasks on other branches or worktrees must not update the installed app, even if their checks pass. After merging into `main`, run the full checklist in the `main` worktree before updating; do not reuse another branch's build or verification results.
+Tasks on other branches or worktrees must not update the installed app, even if their checks pass. After merging into `main`, run the full checklist in the `main` worktree before updating, unless the code in `main` is the code that already passed it: when `git diff --name-only <verified-commit> HEAD` lists nothing, or only Markdown documentation files (see Exceptions), pull and update the installation without running the checklist again, and report which verified commit it matches. Any other difference requires the full checklist in `main`. Never reuse another branch's build: the block below always rebuilds in `main`.
 
 Ensure Work Tracker is closed, then run the following block from the root of the verified `main` worktree. Rebuild production output here because the development smoke check can overwrite `out/`. The unpacked build updates the existing installation without generating another AppImage or recreating the menu entry.
 
@@ -109,6 +109,11 @@ Keep application data in `~/.work-tracker` untouched. Report the installation up
 
 ### Exceptions
 
-The checklist and installation update may be skipped only when the task makes **no file changes** (for example, planning/Plan mode, read-only investigation, or answering a question) or changes **only documentation or prose-only text files** (for example, `README.md`, `AGENTS.md`, or documentation under `docs/`). The installation update also does not apply to tasks on other branches or worktrees, as specified above; their full verification checklist remains mandatory for implementation changes.
+The checklist is required only when a task changes code. It is **not** required when the task:
+
+- makes **no file changes**, for example planning/Plan mode, read-only investigation, answering a question, or pulling and installing code that already passed the checklist (see the installation update above); or
+- changes **only Markdown documentation files** (`.md`), for example `README.md`, `AGENTS.md` or the files under `docs/`. These never need verification.
+
+In both cases the installation update is skipped too, except when installing already verified code from `main`. The installation update also does not apply to tasks on other branches or worktrees, as specified above; their full verification checklist remains mandatory for implementation changes.
 
 The exception depends on the actual changes, not the task label or file format: source code, CSS, HTML, scripts, and configuration files are text files but are **not** documentation-only changes. If a task mixes documentation with any implementation change, the full checklist remains mandatory.
