@@ -32,7 +32,7 @@ function Thumbnail({ variant }: { variant: ResumeVariant }) {
 
 /** One saved resume in the Resumes grid; opens its page with the PDF. */
 export function ResumeTile({ variant }: { variant: ResumeVariant }) {
-  return <a href={resumeHref(variant.id)} aria-label={variant.name} className={cn("group flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-left outline-none transition-colors hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring", variant.archivedAt && "opacity-60")}>
+  return <a href={resumeHref(variant.id)} aria-label={variant.name} className={cn("group flex w-full min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-left outline-none transition-colors hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring", variant.archivedAt && "opacity-60")}>
     <div className="relative rounded-lg bg-accent/30 py-4">
       <Thumbnail variant={variant} />
       {variant.status !== "ready" && <span className="absolute right-2 top-2"><Status value={statusLabels[variant.status]} /></span>}

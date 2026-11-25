@@ -31,7 +31,7 @@ test('Quiet sweep: banner, threshold, confirmation and closing as No response', 
   await workspace.ready('Applications')
   const banner = page.getByText('2 applications quiet for 60+ days')
   await expect(banner).toBeVisible()
-  await page.getByRole('tab', { name: 'Board', exact: true }).click()
+  await page.getByRole('radio', { name: 'Board', exact: true }).click()
   await expect(banner).toBeVisible()
 
   await page.getByRole('button', { name: 'Review quiet applications' }).click()

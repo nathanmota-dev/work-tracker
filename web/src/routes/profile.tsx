@@ -9,7 +9,6 @@ import {
   Empty,
   ExternalLink,
 } from "@/components/workspace-ui"
-import { ProfileDetails } from "@/components/profile-details"
 import { useProfileSources } from "@/lib/profile-sources"
 import { profileValue } from "@/lib/profile-details"
 import { MetricChart } from "@/components/metric-chart"
@@ -132,8 +131,8 @@ export function ProfilePage() {
   const metrics = useApi<Row[]>("metrics")
   return (
     <Page
-      title="LinkedIn profile"
-      description="Understand how you show up, and where to grow."
+      title="LinkedIn"
+      description="How you show up on LinkedIn, and where to grow."
       actions={
         <Button size="sm" onClick={() => prepareSkill("profile-optimizer")}>
           Audit profile
@@ -154,7 +153,6 @@ export function ProfilePage() {
           </Panel>
         )
       )}
-      <ProfileDetails />
       <LoadState {...snapshot} retry={snapshot.refresh} />
       {snapshot.data?.hasScan === true && (
         <SnapshotStats data={snapshot.data} />

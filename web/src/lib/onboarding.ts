@@ -18,7 +18,7 @@ export function stepHref(step: OnboardingStep): string {
   const target = step.items.find(item => !item.ready)?.target
   switch (step.id) {
     case "connect": return correctionLink(target as Target | undefined)
-    case "resume": return "#/profile?tab=resume"
+    case "resume": return "#/resume?id=base"
     case "answers": return `#/profile?tab=answers${target ? `&field=${encodeURIComponent(target)}` : ""}`
     case "search": return "#/jobs?focus=true"
     case "apply": return "#/jobs?view=shortlist"

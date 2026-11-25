@@ -87,10 +87,10 @@ it("keeps cancellation available while waiting for browser sign-in", async () =>
   await waitFor(() => expect(request).toHaveBeenCalledWith("application-preparation/cancel", { runId: "run-1", extra: "" }))
 })
 
-it("links base resume configuration to Profile", async () => {
+it("links base resume configuration to Resumes", async () => {
   render(<ApplyPage />)
   await screen.findByText("pdf-1")
-  expect(screen.getByRole("link", { name: "Configure resume sources" })).toHaveAttribute("href", "#/profile?tab=resume")
+  expect(screen.getByRole("link", { name: "Configure resume sources" })).toHaveAttribute("href", "#/resume?id=base")
   expect(screen.queryByRole("button", { name: "Update base PDF" })).not.toBeInTheDocument()
 })
 

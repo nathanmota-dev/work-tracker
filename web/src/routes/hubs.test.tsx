@@ -2,7 +2,6 @@ import { fireEvent, render, screen, within } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import { ContactsHub, ProfileHub, AgentHub } from "./hubs"
 import { validateWorkspaceSearch } from "@/lib/workspace-search"
-import { prepareSkill } from "@/lib/agent"
 
 // Embedded pages keep their real Page wrapper, so the hub layout is exercised.
 const { page } = vi.hoisted(() => ({
@@ -12,15 +11,14 @@ const { page } = vi.hoisted(() => ({
   },
 }))
 vi.mock("./profile", async () => ({ ProfilePage: await page("LinkedIn profile", "LinkedIn content") }))
-vi.mock("./answers", async () => ({ AnswersPage: await page("Answers", "Answers content") }))
+vi.mock("./answers", async () => ({ AnswersPage: await page("Questions", "Questions content") }))
+vi.mock("./profile-overview", () => ({ ProfileOverview: () => <div>Profile overview</div> }))
 vi.mock("./recruiters", async () => ({ RecruitersPage: await page("Recruiters", "People content") }))
 vi.mock("./outreach", async () => ({ OutreachPage: await page("Outreach", "Follow-ups content") }))
 vi.mock("./search", async () => ({ SearchPage: await page("Find people", "People search") }))
 vi.mock("./launch", async () => ({ LaunchPage: await page("Agent console", "Console content") }))
 vi.mock("./activity", async () => ({ ActivityPage: await page("Activity", "History content") }))
-vi.mock("@/components/resume-sources", () => ({ ResumeSources: () => <div>Resume configuration</div> }))
 vi.mock("@/components/deal-breakers", () => ({ DealBreakers: () => <div>Deal-breakers configuration</div> }))
-vi.mock("@/lib/agent", () => ({ prepareSkill: vi.fn() }))
 vi.mock("@/components/agent-indicator", () => ({ AgentIndicator: () => null }))
 
 describe("hub search parameters", () => {
@@ -35,7 +33,7 @@ describe("hub search parameters", () => {
 describe("hub layout", () => {
   it.each([
     [ContactsHub, "Contacts", "People", ["Recruiters", "Find people"]],
-    [ProfileHub, "Profile", "LinkedIn", ["LinkedIn profile"]],
+    [ProfileHub, "Profile", "Profile", []],
     [AgentHub, "Agent", "Console", ["Agent console"]],
   ] as const)("renders one page with its sections stacked inside it", (Hub, title, tab, sections) => {
     render(<Hub />)
@@ -58,15 +56,14 @@ describe("hub layout", () => {
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1)
   })
 
-  it("explains the base resume and experience bank tabs", () => {
+  it("opens on the profile and keeps questions, LinkedIn and deal-breakers as tabs", () => {
     render(<ProfileHub />)
-    fireEvent.mouseDown(screen.getByRole("tab", { name: "Base resume" }))
-    expect(screen.getByRole("heading", { level: 2, name: "Base resume" })).toBeInTheDocument()
-    expect(screen.getByText("Resume configuration")).toBeInTheDocument()
-    fireEvent.mouseDown(screen.getByRole("tab", { name: "Experiences" }))
-    expect(screen.getByText("Capture what your resume leaves out")).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Update experiences" }))
-    expect(prepareSkill).toHaveBeenCalledWith("experience-bank")
+    expect(screen.getByText("Profile overview")).toBeInTheDocument()
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Profile", "Questions", "LinkedIn", "Deal-breakers"])
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Questions" }))
+    expect(screen.getByText("Questions content")).toBeInTheDocument()
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "LinkedIn" }))
+    expect(screen.getByText("LinkedIn content")).toBeInTheDocument()
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Deal-breakers" }))
     expect(screen.getByText("Deal-breakers configuration")).toBeInTheDocument()
   })

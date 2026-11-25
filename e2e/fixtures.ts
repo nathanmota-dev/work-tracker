@@ -133,7 +133,7 @@ export class Workspace {
   /** The board layout of Applications. */
   async board() {
     await this.go('Applications')
-    await this.page.getByRole('tab', { name: 'Board', exact: true }).click()
+    await this.page.getByRole('radio', { name: 'Board', exact: true }).click()
     await expect(this.page).toHaveURL(/view=board/)
   }
   async restart() { await this.stop(); await this.start() }

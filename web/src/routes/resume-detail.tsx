@@ -5,6 +5,7 @@ import { Empty, LoadState, Page, Panel } from "@/components/workspace-ui"
 import { ResumeVariantCard } from "@/components/resume-variant-card"
 import { ResumeVariantForm } from "@/components/resume-variant-form"
 import { useApi } from "@/lib/api"
+import { BASE_RESUME_ID, BaseResumeDetail } from "@/components/base-resume"
 import type { ResumeVariant } from "@/lib/variants"
 const PdfViewer = lazy(() => import("@/components/pdf-viewer").then(module => ({ default: module.PdfViewer })))
 
@@ -16,6 +17,13 @@ const back = <BackButton href="#/resumes" label="Back to Resumes" />
  */
 export function ResumeDetailPage() {
   const { id } = useSearch({ strict: false }) as { id?: string }
+  if (id === BASE_RESUME_ID) return <Page title="Base resume" description="The default resume every tailored resume starts from. It never changes; tailoring creates a new variant." back={back} fill>
+    <BaseResumeDetail />
+  </Page>
+  return <SavedResumeDetail id={id} />
+}
+
+function SavedResumeDetail({ id }: { id?: string }) {
   const variants = useApi<ResumeVariant[]>("resume-variants?archived=true")
   const [editing, setEditing] = useState(false)
   const list = Array.isArray(variants.data) ? variants.data : []

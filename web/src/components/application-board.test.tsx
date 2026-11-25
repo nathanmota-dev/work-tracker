@@ -49,7 +49,7 @@ let rows: Row[]
 /** Applications in its board layout, as `?view=board` opens it. */
 function renderBoard() {
   const view = render(<ApplicationsPage />)
-  fireEvent.mouseDown(screen.getByRole("tab", { name: "Board" }))
+  fireEvent.click(screen.getByRole("radio", { name: "Board" }))
   return view
 }
 const at = "2026-10-10T12:00:00.000Z"

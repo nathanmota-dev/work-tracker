@@ -83,9 +83,10 @@ test.describe('saved records', () => {
   test('Applications: zero scores, details, portal and preparation IDs', async ({ workspace, page }) => {
     await workspace.go('Applications')
     await page.getByLabel('Search Applications').fill('Engineer 01')
-    await expect(page.getByRole('cell', { name: '0%', exact: true })).toBeVisible()
-    await expect(page.getByRole('cell', { name: 'Draft', exact: true })).toBeVisible()
-    await page.getByRole('button', { name: 'View Engineer 01' }).click()
+    const card = page.getByRole('article', { name: 'Engineer 01' })
+    await expect(card.getByText('Match 0', { exact: true })).toBeVisible()
+    await expect(card.getByRole('progressbar')).toHaveAttribute('aria-valuetext', 'Applied, step 1 of 4')
+    await page.getByRole('button', { name: 'View details of Engineer 01' }).click()
     await page.getByRole('button', { name: 'Open portal' }).click()
     expect(await workspace.external()).toContain('https://example.com/jobs/1')
     await page.getByRole('dialog').getByRole('button', { name: 'Prepare application' }).click()
