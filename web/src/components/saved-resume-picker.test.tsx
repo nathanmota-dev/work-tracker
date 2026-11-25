@@ -14,14 +14,14 @@ beforeEach(() => { onUsed.mockReset(); onError.mockReset(); variants = []; deskt
 
 it("lists ready saved resumes by role and uses the selected one", async () => {
   variants = [
-    variant({ id: "b", name: "API resume" }),
+    variant({ id: "b", name: "API resume", source: { jobId: 9, applicationId: 4, documentVersionId: "d", company: "Acme", title: "API" } }),
     variant({ id: "f", name: "Front-End · React", role: "frontend", stacks: ["React"], pdf: { id: "p", kind: "variant", pages: 2, warnings: [] } }),
     variant({ id: "g", status: "generating" }),
     variant({ id: "a", archivedAt: "2026-11-02" }),
   ]
   render(<SavedResumePicker disabled={false} target={target} onUsed={onUsed} onError={onError} />)
   const select = await screen.findByLabelText("Saved resume")
-  expect([...select.querySelectorAll("option")].map(option => option.textContent)).toEqual(["Front-End · React — 2 pages", "Back-End · C#, .NET — 1 page (API resume)"])
+  expect([...select.querySelectorAll("option")].map(option => option.textContent)).toEqual(["Front-End · React — 2 pages", "Back-End · C#, .NET — 1 page (API resume) · Tailored for Acme"])
   fireEvent.change(select, { target: { value: "b" } })
   fireEvent.click(screen.getByRole("button", { name: "Use this resume" }))
   await waitFor(() => expect(onUsed).toHaveBeenCalledWith({ id: "run-saved", application_id: 3 }))

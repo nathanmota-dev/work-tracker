@@ -22,6 +22,7 @@ import { missingForPreparation } from "../jobs/preparation.ts";
 import { planTransition } from "../applications/journey.ts";
 import { assertPortalFree } from "./batch-store.ts";
 import { useVariant } from "../variants/apply.ts";
+import { saveTailoredVariant } from "../variants/promote.ts";
 import { jobId, jobRecord, savePastedDescription, type PreparationJob as Job } from "./jobs.ts";
 
 export class PreparationService {
@@ -54,7 +55,23 @@ export class PreparationService {
     finally { this.changed(); }
   }
   details(input: Record<string, unknown>): PreparationDetails { return preparationDetails(input, this.isBusy); }
-  approve(input: Record<string, unknown>) { this.assertInactive(input.runId); const version = approveDocument(input); this.changed(version.runId); return version; }
+  approve(input: Record<string, unknown>) {
+    this.assertInactive(input.runId);
+    const version = approveDocument(input);
+    if (!version.variant) this.saveInResumes(version.id);
+    this.changed(version.runId);
+    return version;
+  }
+  /** An approved tailored resume is saved in Resumes for later jobs; a failure there never undoes the approval. */
+  private saveInResumes(versionId: string): void {
+    try {
+      const id = saveTailoredVariant(versionId);
+      if (id) this.broadcast({ type: "changed", table: "resume_variants", variantId: id });
+    } catch (error) {
+      db().query("INSERT INTO activity_log (kind, skill, summary) VALUES ('resume', 'saved-resume', ?)").run(`Could not save the approved resume in Resumes: ${error instanceof Error ? error.message : String(error)}`.slice(0, 1000));
+    }
+    this.broadcast({ type: "changed", table: "activity_log" });
+  }
   description(input: Record<string, unknown>): void {
     this.assertIdle();
     const job = jobRecord(jobId(input.jobId));

@@ -122,3 +122,18 @@ export function readJob(d: Database, jobId: number, baseVersion: () => string | 
   refreshScores(d, documents, [jobId]);
   return scoresForJob(d, jobId, documents);
 }
+
+/**
+ * Each saved resume's score against the job it was tailored for, keyed by
+ * variant ID. Refreshes only those jobs; archived or unready resumes have none.
+ */
+export function sourceScores(d: Database, sources: readonly { variantId: string; jobId: number }[], baseVersion: () => string | null): Map<string, Pick<BestScore, "score" | "band">> {
+  const jobIds = [...new Set(sources.map(item => item.jobId))];
+  if (!jobIds.length) return new Map();
+  refreshScores(d, documentsToScore(d, baseVersion), jobIds);
+  const read = d.query("SELECT score, band FROM ats_scores WHERE job_id = ? AND document_key = ?");
+  return new Map(sources.flatMap(item => {
+    const row = read.get(item.jobId, `variant:${item.variantId}`) as Pick<BestScore, "score" | "band"> | undefined;
+    return row ? [[item.variantId, { score: row.score, band: row.band }] as const] : [];
+  }));
+}

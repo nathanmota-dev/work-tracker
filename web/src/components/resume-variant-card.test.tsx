@@ -1,22 +1,19 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { beforeEach, expect, it, vi } from "vitest"
 import { ResumeVariantCard } from "./resume-variant-card"
 import { desktopWith, variant } from "@/test/variants"
-vi.mock("@/components/pdf-viewer", () => ({ PdfViewer: ({ title, artifact }: { title: string; artifact: { id: string } }) => <section aria-label={title}>{artifact.id}</section> }))
 
 let desktop: ReturnType<typeof desktopWith>
 const onEdit = vi.fn()
 beforeEach(() => { desktop = desktopWith({}) })
 
-it("shows the role, stacks, pages and stale sources, and views, downloads, regenerates, edits and archives", async () => {
-  render(<ResumeVariantCard variant={variant({ stale: true })} busy={false} onEdit={onEdit} />)
-  expect(screen.getByText(/Back-End · Generated · 1 page/)).toBeInTheDocument()
+it("shows the role, origin and dd/mm/yyyy date, stacks, stale sources and a Markdown report, and downloads, regenerates, edits and archives", async () => {
+  render(<ResumeVariantCard variant={variant({ stale: true, updatedAt: "2026-11-01T12:00:00.000Z" })} busy={false} onEdit={onEdit} />)
+  expect(screen.getByText("Back-End · Generated · 01/11/2026")).toBeInTheDocument()
   expect(screen.getByRole("list", { name: "Stacks of Back-End · C#, .NET" })).toHaveTextContent("C#.NET")
   expect(screen.getByText("Sources changed since generation")).toBeInTheDocument()
   expect(screen.getByText("Ready")).toBeInTheDocument()
-  fireEvent.click(screen.getByRole("button", { name: "View" }))
-  expect(await screen.findByRole("region", { name: "Back-End · C#, .NET PDF" })).toHaveTextContent("pdf-v1")
-  fireEvent.click(screen.getByRole("button", { name: "Hide PDF" }))
+  expect(screen.getByText("Tailoring report")).toBeInTheDocument()
   fireEvent.click(screen.getByRole("button", { name: "Download" }))
   expect(desktop.savePdf).toHaveBeenCalledWith("pdf-v1")
   fireEvent.click(screen.getByRole("button", { name: "Regenerate" }))
@@ -29,7 +26,7 @@ it("shows the role, stacks, pages and stale sources, and views, downloads, regen
 
 it("an imported PDF cannot be regenerated", () => {
   render(<ResumeVariantCard variant={variant({ origin: "imported", sourceVersion: null, pdf: { id: "p", kind: "variant", pages: 2, warnings: [] } })} busy={false} onEdit={onEdit} />)
-  expect(screen.getByText(/Imported PDF · 2 pages/)).toBeInTheDocument()
+  expect(screen.getByText(/^Back-End · Imported PDF · /)).toBeInTheDocument()
   expect(screen.queryByRole("button", { name: "Regenerate" })).not.toBeInTheDocument()
 })
 
@@ -50,4 +47,29 @@ it("shows why an interrupted generation stopped, with Regenerate available", () 
   expect(screen.getByRole("alert")).toHaveTextContent("The app closed")
   expect(screen.getByRole("button", { name: "Regenerate" })).toBeEnabled()
   expect(screen.queryByRole("button", { name: "View" })).not.toBeInTheDocument()
+})
+
+it("a resume tailored in Apply links to its application, shows its match and is changed in Apply instead of regenerated", () => {
+  const source = { jobId: 7, applicationId: 3, documentVersionId: "d1", company: "Acme", title: "Full Stack .NET/Angular" }
+  render(<ResumeVariantCard variant={variant({ name: "Full Stack .NET/Angular", role: "fullstack", updatedAt: "2026-11-01T12:00:00.000Z", source, match: { score: 82, band: "strong" } })} busy={false} onEdit={onEdit} />)
+  expect(screen.getByText("Full Stack · 01/11/2026")).toBeInTheDocument()
+  const origin = screen.getByRole("region", { name: "Source application" })
+  expect(origin).toHaveTextContent("JobFull Stack .NET/Angular")
+  expect(origin).toHaveTextContent("CompanyAcme")
+  expect(within(origin).getByRole("link", { name: "Open application" })).toHaveAttribute("href", "#/apply?jobId=7&applicationId=3")
+  expect(screen.getByText("82 · Strong match")).toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Regenerate" })).not.toBeInTheDocument()
+  expect(screen.getByText(/tailor the application again in Apply/)).toBeInTheDocument()
+})
+
+it("marks an archived resume", () => {
+  render(<ResumeVariantCard variant={variant({ archivedAt: "2026-11-02T00:00:00.000Z" })} busy={false} onEdit={onEdit} />)
+  expect(screen.getByText("Archived")).toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Archive" })).not.toBeInTheDocument()
+})
+
+it("renders the tailoring report as Markdown", () => {
+  render(<ResumeVariantCard variant={variant({ report: "# Changes\n\n- **Angular** first" })} busy={false} onEdit={onEdit} />)
+  expect(screen.getByRole("heading", { name: "Changes" })).toBeInTheDocument()
+  expect(screen.getByText("Angular").tagName).toBe("STRONG")
 })

@@ -35,6 +35,8 @@ const reads = new Set([
   "gates/profile",
   "profile-sources",
   "resume-variants",
+  // A saved resume's page also opens archived ones.
+  "resume-variants?archived=true",
   "ats/best",
 ])
 const writes = new Set([

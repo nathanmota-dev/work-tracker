@@ -1,5 +1,5 @@
 import { request, useApi } from "./api"
-export type { ResumeVariant, VariantRole, VariantLanguage, VariantStatus } from "../../../src/variants/types"
+export type { ResumeVariant, VariantRole, VariantLanguage, VariantStatus, VariantSource } from "../../../src/variants/types"
 import type { ResumeVariant, VariantRole } from "../../../src/variants/types"
 
 export const roleLabels: Record<VariantRole, string> = { frontend: "Front-End", backend: "Back-End", fullstack: "Full Stack", other: "Other" }
@@ -23,4 +23,13 @@ export function readyVariants(variants: ResumeVariant[] | undefined) {
 }
 export function variantAction(action: "generate" | "regenerate" | "update" | "archive" | "cancel" | "import", body: Record<string, unknown>) {
   return request<ResumeVariant | { ok: true }>(`resume-variants/${action}`, body)
+}
+/** The saved resume's page, opened from its card in Resumes. */
+export function resumeHref(id: string) {
+  return `#/resume?id=${encodeURIComponent(id)}`
+}
+/** "Tailored for Acme", "Generated" or "Imported PDF". */
+export function variantOrigin(variant: Pick<ResumeVariant, "origin" | "source">) {
+  if (variant.source) return `Tailored for ${variant.source.company || variant.source.title || "an application"}`
+  return variant.origin === "imported" ? "Imported PDF" : "Generated"
 }

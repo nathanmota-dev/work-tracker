@@ -25,11 +25,14 @@ import { OutreachPage } from "@/routes/outreach"
 import { RecruitersPage } from "@/routes/recruiters"
 import { SearchPage } from "@/routes/search"
 import { ResumesPage } from "@/routes/resumes"
+import { ResumeDetailPage } from "@/routes/resume-detail"
 
 export const workspacePages = [
   { path: "contacts", title: "Contacts", icon: UsersRound, component: ContactsHub },
   { path: "profile", title: "Profile", icon: UserRound, component: ProfileHub },
   { path: "resumes", title: "Resumes", icon: Files, component: ResumesPage },
+  // Saved resume detail, opened from Resumes; not a sidebar entry.
+  { path: "resume", title: "Resume", icon: FileText, component: ResumeDetailPage },
   { path: "search", title: "Search", icon: Search, component: SearchPage },
   { path: "launch", title: "Agent", icon: Rocket, component: AgentHub },
   { path: "recruiters", title: "Recruiters", icon: UsersRound, component: RecruitersPage },

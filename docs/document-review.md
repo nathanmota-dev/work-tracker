@@ -31,6 +31,25 @@ stacks), o perfil, o relatório, a seleção e as fontes com que a variante foi 
 os mesmos bytes e o mesmo hash do PDF da variante; regenerar a variante depois não
 altera versões já aprovadas ou enviadas.
 
+O caminho inverso também existe: aprovar uma versão **adaptada** (sem `variant_id`)
+a salva em Resumes como currículo reaproveitável, para que a próxima vaga com a
+mesma stack possa usá-la sem adaptar de novo
+([src/variants/promote.ts](../src/variants/promote.ts)). O PDF aprovado é copiado
+para `artifacts/variants/<id>/<pasta>/resume.pdf` e registrado em `pdf_artifacts`;
+`resume_variants` guarda `job_id`, `application_id` e `document_version_id` (schema
+v23). Nome, role e stacks são lidos da vaga sem agente
+([src/variants/infer.ts](../src/variants/infer.ts)): o nome é o título; a role é a
+que o título cita (Front-end, Back-end, Full stack), senão a que as tecnologias
+indicam, senão a que a descrição cita, senão Other; as stacks são até seis
+linguagens e frameworks da descrição, requisitos primeiro. O candidato pode editá-los
+em Resumes. Há um currículo salvo por candidatura: aprovar uma versão mais nova
+troca o PDF e preserva as edições; os PDFs anteriores continuam no disco. Uma falha
+ao salvar não desfaz a aprovação e fica registrada no histórico. Ao abrir o app, as
+candidaturas com versão adaptada aprovada e sem currículo salvo recebem o seu (a
+versão aprovada mais recente), o que cobre aprovações anteriores a esta função. Um
+currículo salvo de uma candidatura não é regenerado em Resumes: adapte a candidatura
+de novo em Apply e aprove a nova versão.
+
 O manifesto de preenchimento leva a versão aprovada, seu hash e o caminho exato do
 PDF. O agente deve identificar esses mesmos valores no resultado após confirmar o
 upload. Divergências ou alteração dos bytes são rejeitadas; um resultado inválido

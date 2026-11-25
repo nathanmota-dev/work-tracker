@@ -5,7 +5,7 @@ import { Field, controlClass } from "@/components/workspace-ui"
 import { ScoreOnlyBadge } from "@/components/resume-match-detail"
 import { request } from "@/lib/api"
 import { ATS_NOTE, ATS_TITLE, byJobScore, useAtsJob, type AtsDocumentScore } from "@/lib/ats"
-import { readyVariants, roleLabels, useVariants, variantLabel } from "@/lib/variants"
+import { readyVariants, roleLabels, useVariants, variantLabel, variantOrigin } from "@/lib/variants"
 
 type UsedRun = { id: string; application_id: number | null }
 const MAX_MISSING = 5
@@ -54,7 +54,7 @@ export function SavedResumePicker({ disabled, target, onUsed, onError }: { disab
       <div className="min-w-64 flex-1"><Field label="Saved resume"><SelectControl className={controlClass} value={value} disabled={disabled || pending} onChange={event => setSelected(event.target.value)}>
         {ready.map(variant => {
           const match = scores.find(item => item.variant_id === variant.id)
-          return <option key={variant.id} value={variant.id}>{variantLabel(variant)}{variant.name !== `${roleLabels[variant.role]} · ${variant.stacks.join(", ")}` ? ` (${variant.name})` : ""}{typeof match?.score === "number" ? ` · ${match.score}` : ""}</option>
+          return <option key={variant.id} value={variant.id}>{variantLabel(variant)}{variant.name !== `${roleLabels[variant.role]} · ${variant.stacks.join(", ")}` ? ` (${variant.name})` : ""}{variant.source ? ` · ${variantOrigin(variant)}` : ""}{typeof match?.score === "number" ? ` · ${match.score}` : ""}</option>
         })}
       </SelectControl></Field></div>
       {score && <span aria-label={ATS_TITLE} className="pb-2"><ScoreOnlyBadge match={score} /></span>}

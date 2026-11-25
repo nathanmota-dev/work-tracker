@@ -7,10 +7,12 @@ import { Button } from "@/components/ui/button"
 import { Download, Minus, Plus } from "lucide-react"
 import { Empty, Panel } from "@/components/workspace-ui"
 import type { PdfArtifact } from "@/lib/preparation"
+import { cn } from "@/lib/utils"
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
 const pdfAssets = new URL("./pdfjs/", document.baseURI).href
 const pdfOptions = { cMapUrl: `${pdfAssets}cmaps/`, cMapPacked: true, standardFontDataUrl: `${pdfAssets}standard_fonts/`, wasmUrl: `${pdfAssets}wasm/` }
-export function PdfViewer({ title, artifact }: { title: string; artifact?: PdfArtifact | null }) {
+/** @param fill The viewer takes its container's height instead of a fixed one. */
+export function PdfViewer({ title, artifact, fill }: { title: string; artifact?: PdfArtifact | null; fill?: boolean }) {
   const [bytes, setBytes] = useState<Uint8Array>()
   const [error, setError] = useState("")
   const [page, setPage] = useState(1)
@@ -32,7 +34,7 @@ export function PdfViewer({ title, artifact }: { title: string; artifact?: PdfAr
     return () => { active = false }
   }, [artifactId])
   const file = useMemo(() => bytes ? { data: bytes } : undefined, [bytes])
-  return <Panel title={title} action={artifact && <Button size="icon-sm" variant="outline" aria-label={`Download ${title}`} onClick={() => void window.desktop?.savePdf(artifact.id).catch(e => setError(e.message))}><Download /></Button>}>
+  return <Panel fill={fill} title={title} action={artifact && <Button size="icon-sm" variant="outline" aria-label={`Download ${title}`} onClick={() => void window.desktop?.savePdf(artifact.id).catch(e => setError(e.message))}><Download /></Button>}>
     {artifact && <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
       <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
       <span>{page} / {pages || artifact.pages}</span>
@@ -44,7 +46,7 @@ export function PdfViewer({ title, artifact }: { title: string; artifact?: PdfAr
     {error && <p role="alert" className="mb-3 text-sm text-destructive">{error}</p>}
     {/* Keep the measured width fixed when zoom adds/removes vertical overflow.
         Otherwise the scrollbar can repeatedly resize and cancel the PDF render. */}
-    <div ref={container} className="h-[580px] overflow-auto [scrollbar-gutter:stable] rounded-lg border bg-muted/30 p-2">
+    <div ref={container} className={cn("overflow-auto [scrollbar-gutter:stable] rounded-lg border bg-muted/30 p-2", fill ? "min-h-80 flex-1" : "h-[580px]")}>
       {!artifact ? <Empty title="No PDF yet" description="Generate a resume or update the base preview to see it here." /> : !file ? <p role="status" className="p-4 text-sm">Loading PDF…</p> : <Document file={file} options={pdfOptions} suspense={false} onLoadSuccess={({ numPages }) => setPages(numPages)} onLoadError={e => setError(e.message)} loading={<p className="p-4 text-sm">Loading PDF…</p>}><Page pageNumber={page} width={Math.floor(width * zoom)} onRenderError={e => setError(e.message)} /></Document>}
     </div>
     {!!artifact?.warnings.length && <ul className="mt-3 list-disc space-y-1 pl-4 text-xs text-muted-foreground">{artifact.warnings.map(w => <li key={w}>{w}</li>)}</ul>}

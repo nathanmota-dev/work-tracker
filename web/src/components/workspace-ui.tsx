@@ -12,21 +12,30 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog"
 import { openExternal, text, webUrl, type Row } from "@/lib/api"
+import { cn } from "@/lib/utils"
 
 // Hub tabs show whole pages as sections of one parent page.
 const EmbeddedPage = createContext(false)
 export function PageSection({ children }: { children: ReactNode }) {
   return <EmbeddedPage.Provider value>{children}</EmbeddedPage.Provider>
 }
+/**
+ * @param back A BackButton shown left of the title.
+ * @param fill The page takes the visible height instead of growing with its content, so a child can fill it.
+ */
 export function Page({
   title,
   description,
   actions,
+  back,
+  fill,
   children,
 }: {
   title: string
   description?: string
   actions?: ReactNode
+  back?: ReactNode
+  fill?: boolean
   children: ReactNode
 }) {
   const embedded = useContext(EmbeddedPage)
@@ -34,12 +43,15 @@ export function Page({
   return (
     <section
       aria-label={embedded ? title : undefined}
-      className={embedded ? "flex min-w-0 flex-col gap-4" : "flex min-w-0 flex-1 flex-col gap-6 p-6"}
+      className={embedded ? "flex min-w-0 flex-col gap-4" : cn("flex min-w-0 flex-1 flex-col gap-6 p-6", fill && "min-h-0")}
     >
       <header className={embedded && !description && !actions ? "sr-only" : "flex flex-wrap items-start justify-between gap-4"}>
-        <div>
-          <Heading className={embedded ? "text-sm font-medium" : "text-base font-medium"}>{title}</Heading>
-          {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
+        <div className="flex min-w-0 items-start gap-2">
+          {back}
+          <div className="min-w-0">
+            <Heading className={cn(embedded ? "text-sm font-medium" : "text-base font-medium", back && "leading-8")}>{title}</Heading>
+            {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">{actions}</div>
       </header>
@@ -47,22 +59,25 @@ export function Page({
     </section>
   )
 }
+/** @param fill The panel takes its container's height and its content the remaining space. */
 export function Panel({
   title,
   children,
   action,
+  fill,
 }: {
   title: string
   children: ReactNode
   action?: ReactNode
+  fill?: boolean
 }) {
   return (
-    <Card className="min-w-0 gap-4 rounded-2xl py-4 shadow-none">
+    <Card className={cn("min-w-0 gap-4 rounded-2xl py-4 shadow-none", fill && "h-full min-h-0")}>
       <div className="flex items-center justify-between gap-3 px-4">
         <h2 className="text-sm font-medium">{title}</h2>
         {action}
       </div>
-      <CardContent className="min-w-0 px-4">{children}</CardContent>
+      <CardContent className={cn("min-w-0 px-4", fill && "flex min-h-0 flex-1 flex-col")}>{children}</CardContent>
     </Card>
   )
 }

@@ -115,6 +115,17 @@ describe("api bridge", () => {
       await expect(request({}, invalid)).rejects.toThrow("Unsupported API request")
     await expect(request({}, "interview-preps", {})).rejects.toThrow("Unsupported API request")
   })
+  it("allows reading saved resumes with or without archived ones only", async () => {
+    connectApiBridge({ address: "http://127.0.0.1:4000", token: "fixture" })
+    const fetch = vi.fn(async () => new Response("[]"))
+    vi.stubGlobal("fetch", fetch)
+    const request = electron.handlers.get("api:request")!
+    expect(await request({}, "resume-variants")).toEqual([])
+    expect(await request({}, "resume-variants?archived=true")).toEqual([])
+    expect(fetch).toHaveBeenLastCalledWith(expect.objectContaining({ pathname: "/api/resume-variants", search: "?archived=true&token=fixture" }), expect.objectContaining({ method: "GET" }))
+    for (const invalid of ["resume-variants?archived=false", "resume-variants?archived=true&x=1", "resume-variants/v1"])
+      await expect(request({}, invalid)).rejects.toThrow("Unsupported API request")
+  })
   it("allows the quiet scan with an optional numeric threshold and its resolve write", async () => {
     connectApiBridge({ address: "http://127.0.0.1:4000", token: "fixture" })
     const fetch = vi.fn(async () => new Response("{}"))

@@ -64,7 +64,8 @@ const dependencies: Record<string, string[]> = {
   "gates/jobs": ["jobs", "candidate_languages", "gate_profile"],
   "profile-sources": ["profile_imports"],
   "resume-sources": ["resume_sources", "profile_imports"],
-  "resume-variants": ["resume_variants"],
+  // The list carries the company and title of each tailored resume's job, and its score there.
+  "resume-variants": ["resume_variants", "jobs"],
   "ats/best": ["jobs", "resume_variants"],
   "ats/jobs": ["jobs", "resume_variants", "application_runs", "applications"],
 }

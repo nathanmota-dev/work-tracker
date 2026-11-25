@@ -30,7 +30,22 @@ CREATE TABLE IF NOT EXISTS resume_variants (
 CREATE INDEX IF NOT EXISTS idx_resume_variants_role ON resume_variants(archived_at, role);
 `;
 
-/** The saved resume a document version came from; null for a tailored version. */
+/**
+ * `document_versions.variant_id`: the saved resume a document version came from;
+ * null for a tailored version. `resume_variants.job_id`, `application_id` and
+ * `document_version_id` (schema v23): the application whose approved tailored
+ * resume this saved resume was copied from; null for generated and imported ones.
+ */
 export const VARIANT_COLUMNS: Record<string, Record<string, string>> = {
   document_versions: { variant_id: "TEXT REFERENCES resume_variants(id)" },
+  resume_variants: {
+    job_id: "INTEGER REFERENCES jobs(id)",
+    application_id: "INTEGER REFERENCES applications(id)",
+    document_version_id: "TEXT REFERENCES document_versions(id)",
+  },
 };
+
+/** One saved resume per application. Runs after the column migrations, since older workspaces gain the column there. */
+export const VARIANT_INDEX_SQL = /* sql */ `
+CREATE UNIQUE INDEX IF NOT EXISTS idx_resume_variants_application ON resume_variants(application_id) WHERE application_id IS NOT NULL;
+`;

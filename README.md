@@ -45,6 +45,25 @@ To generate PDF resumes, also install `latexmk`, `pdflatex`, and Poppler
 (`pdfinfo` and `pdftotext`). To use agents and LinkedIn, configure the
 integrations in **Settings**.
 
+## Agent login
+
+Agents run in an isolated environment inside `~/.work-tracker`, so logins from
+your terminal or other apps are not reused.
+
+- **OpenCode**: works out of the box with its free models. To use your own
+  providers, log in once:
+
+  ```bash
+  XDG_DATA_HOME="$HOME/.work-tracker/agents/data" opencode auth login
+  ```
+
+- **Claude Code**: requires its own login. Run this if you see
+  `Authentication required` or `OAuth session expired`:
+
+  ```bash
+  CLAUDE_CONFIG_DIR="$HOME/.work-tracker/agents/claude" claude auth login
+  ```
+
 ## License
 
 [MIT](LICENSE)
