@@ -5,6 +5,7 @@ import { db } from "../db/index.ts";
 import { paths } from "../paths.ts";
 import { addArtifact, artifactFile } from "../preparation/store.ts";
 import { inferVariantProfile } from "./infer.ts";
+import { BASE_RESUME } from "../preparation/types.ts";
 import { insertTailoredVariant, updateVariant, variantForApplication, variantRecord } from "./store.ts";
 
 type ApprovedVersion = {
@@ -37,7 +38,8 @@ function tailoredDescription(row: ApprovedVersion): string {
  */
 export function saveTailoredVariant(versionId: string): string | null {
   const row = approvedVersion(versionId);
-  if (!row || row.variant_id || !row.approved_at) return null;
+  // The base resume used as it is is already in Resumes.
+  if (!row || row.variant_id || !row.approved_at || row.provider === BASE_RESUME) return null;
   const existing = variantForApplication(row.application_id);
   if (existing && variantRecord(existing).source?.documentVersionId === row.id) return existing;
   const file = artifactFile(row.id);

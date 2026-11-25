@@ -63,15 +63,34 @@ function ProfileConflicts() {
   const profile = useProfileSources()
   return <ProfileConflictsWarning count={undecidedConflicts(profile.data).length} />
 }
-/** @property [profile] Warn about undecided profile conflicts before generating. */
-export function ApplyReadiness({ generate, fill, testing, error, test, correct, guard, description, gate, profile = false }: { generate: ApplyBlock[]; fill: ApplyBlock[]; testing: boolean; error: string; test: () => void; correct: (action: ApplyAction) => void; guard?: unknown; description?: unknown; gate?: { value?: StoredGate | null; confirmed: boolean; confirm: () => void }; profile?: boolean }) {
-  return <div className="mt-4 space-y-3 rounded-lg border p-3 text-sm" aria-label="Apply readiness">
+type Correct = (action: ApplyAction) => void
+/** What blocks one operation, each with the link or action that corrects it. */
+export function BlockList({ label, blocks, correct }: { label: string; blocks: ApplyBlock[]; correct: Correct }) {
+  if (!blocks.length) return null
+  return <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm"><p className="font-medium">{label} is blocked</p><ul className="mt-2 space-y-2">{blocks.map((block, i) => <li key={i}>{block.message} {block.href ? <a className="underline" href={block.href}>{block.label}</a> : <button className="underline" onClick={() => block.action && correct(block.action)}>{block.label}</button>}{block.step && <> · <a className="underline" href={getStartedLink(block.step)}>Get started guide</a></>}</li>)}</ul></div>
+}
+/** Warnings about the role itself: undecided profile conflicts, the posting check and the deal-breaker gate. */
+export function RoleWarnings({ guard, description, gate, profile = false }: { guard?: unknown; description?: unknown; gate?: { value?: StoredGate | null; confirmed: boolean; confirm: () => void }; profile?: boolean }) {
+  return <div className="space-y-3 text-sm empty:hidden">
     {profile && <ProfileConflicts />}
     <PostingCheck guard={guard} description={description} />
     {gate && <GateWarning gate={gate.value} confirmed={gate.confirmed} onConfirm={gate.confirm} />}
-    {([ ["Generate", generate], ["Fill", fill] ] as const).map(([label, blocks]) => blocks.length > 0 && <div key={label}><p className="font-medium">{label} is blocked</p><ul className="mt-2 space-y-2">{blocks.map((block, i) => <li key={i}>{block.message} {block.href ? <a className="underline" href={block.href}>{block.label}</a> : <button className="underline" onClick={() => block.action && correct(block.action)}>{block.label}</button>}{block.step && <> · <a className="underline" href={getStartedLink(block.step)}>Get started guide</a></>}</li>)}</ul></div>)}
-    <p>Test the selected agent and Chrome before filling. LinkedIn uses a separate session when fetching a missing job description. Portal sign-in may still be needed in the browser.</p>
+  </div>
+}
+/** Re-test the selected agent and Chrome before filling. */
+export function AvailabilityCheck({ testing, error, test }: { testing: boolean; error: string; test: () => void }) {
+  return <div className="space-y-2 text-sm">
+    <p className="text-xs text-muted-foreground">Test the selected agent and Chrome before filling. LinkedIn uses a separate session when fetching a missing job description. Portal sign-in may still be needed in the browser.</p>
     <Button variant="outline" size="sm" disabled={testing} onClick={test}>{testing ? "Testing availability…" : "Test availability again"}</Button>
     {error && <p role="alert">{error}</p>}
+  </div>
+}
+/** @property [profile] Warn about undecided profile conflicts before generating. */
+export function ApplyReadiness({ generate, fill, testing, error, test, correct, guard, description, gate, profile = false }: { generate: ApplyBlock[]; fill: ApplyBlock[]; testing: boolean; error: string; test: () => void; correct: Correct; guard?: unknown; description?: unknown; gate?: { value?: StoredGate | null; confirmed: boolean; confirm: () => void }; profile?: boolean }) {
+  return <div className="mt-4 space-y-3 rounded-lg border p-3 text-sm" aria-label="Apply readiness">
+    <RoleWarnings guard={guard} description={description} gate={gate} profile={profile} />
+    <BlockList label="Generate" blocks={generate} correct={correct} />
+    <BlockList label="Fill" blocks={fill} correct={correct} />
+    <AvailabilityCheck testing={testing} error={error} test={test} />
   </div>
 }

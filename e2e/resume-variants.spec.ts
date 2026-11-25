@@ -49,6 +49,15 @@ test('Resumes: generate a saved resume once, view it and use it in Apply without
   const [run] = workspace.query("SELECT id FROM application_runs WHERE provider = 'saved-resume'")
   expect(workspace.query(`SELECT variant_id IS NOT NULL AS linked, approved_at IS NOT NULL AS approved FROM document_versions WHERE run_id = '${run!.id}'`)).toEqual([{ linked: 1, approved: 1 }])
   await expect(panel(page, 'Tailored PDF').locator('.react-pdf__Page__textContent')).toContainText('Tailored resume.')
+  // The saved resume ran no agent, so the selected agent fills the portal with it.
+  await page.getByRole('button', { name: 'Fill application', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'I submitted in the browser' })).toBeVisible({ timeout: 30_000 })
+  expect(workspace.calls('fill')).toHaveLength(1)
+  expect(workspace.query(`SELECT provider, status, phase FROM application_runs WHERE id = '${run!.id}'`)).toEqual([{ provider: 'saved-resume', status: 'completed', phase: 'review' }])
+  // Choosing the same saved resume again keeps its execution.
+  await page.getByRole('button', { name: 'Use this resume' }).click()
+  await expect(page.getByRole('button', { name: 'I submitted in the browser' })).toBeVisible()
+  expect(workspace.query("SELECT COUNT(*) AS runs FROM application_runs WHERE provider = 'saved-resume'")).toEqual([{ runs: 1 }])
 })
 
 test('Resumes: import a ready PDF as a saved resume that cannot be regenerated', async ({ workspace, page }) => {
