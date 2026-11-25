@@ -3,6 +3,7 @@ import { test, expect } from './fixtures'
 
 test('Jobs: assessed search runs in the contextual panel with all criteria', async ({ workspace, page }) => {
   await workspace.go('Jobs')
+  await page.getByRole('button', { name: 'Discover opportunities', exact: true }).click()
   await page.getByLabel('Keywords').fill('React')
   await page.getByLabel('Location', { exact: true }).fill('Brazil')
   await choose(page, 'Work arrangement', 'Remote')
@@ -11,7 +12,7 @@ test('Jobs: assessed search runs in the contextual panel with all criteria', asy
   await page.getByRole('button', { name: 'Search with agent' }).click()
   const agent = page.getByRole('dialog', { name: 'Agent task' })
   await expect(agent).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Jobs', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Discover opportunities', exact: true, level: 1 })).toBeVisible()
   await expect(agent.getByRole('button', { name: 'Remove React' })).toBeVisible()
   await agent.getByRole('button', { name: 'Run agent' }).click()
   await expect(agent.getByRole('log')).toContainText('Synthetic workflow completed.')

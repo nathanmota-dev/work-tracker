@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures'
-import { panel } from './ui'
+import { closeDialog, jobMenu, openJob, panel } from './ui'
 import { readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -9,9 +9,10 @@ async function selectJob(workspace: import('./fixtures').Workspace) {
   const { page } = workspace
   workspace.cli(['job', 'save', '--linkedin-id', '9001', '--title', 'React Engineer', '--company', 'Example Company', '--link', 'https://example.com/apply'])
   await workspace.go('Jobs')
-  await page.getByRole('row', { name: /React Engineer/ }).getByRole('button', { name: 'Move to shortlist' }).click()
+  await jobMenu(page, 'React Engineer', 'Move to shortlist')
   await page.getByRole('tab', { name: 'Shortlist (1)' }).click()
-  await page.getByRole('row', { name: /React Engineer/ }).getByRole('button', { name: 'Apply', exact: true }).click()
+  await openJob(page, 'React Engineer')
+  await page.getByRole('dialog', { name: 'React Engineer' }).getByRole('button', { name: 'Apply', exact: true }).click()
   await workspace.ready('Application')
   await expect(page.getByRole('navigation', { name: 'Caminho da página' }).locator('[aria-current="page"]')).toHaveText('Example Company · React Engineer')
   await expect(page.getByRole('combobox', { name: /^Saved job/ })).toHaveCount(0)
@@ -142,7 +143,9 @@ test('Apply: real PDFs, generation/regeneration/history, filling, submission and
   await expect(page.getByRole('row', { name: /React Engineer/ }).getByRole('cell', { name: 'Apply', exact: true })).toBeVisible()
   await expect(page.getByRole('row', { name: /React Engineer/ }).getByRole('link', { name: 'Open board' })).toBeVisible()
   await workspace.go('Jobs')
-  await expect(page.getByRole('row', { name: /React Engineer/ }).getByRole('cell', { name: 'Submitted', exact: true })).toBeVisible()
+  // Jobs reopens with the role's details, which show the confirmed submission.
+  await expect(page.getByRole('dialog', { name: 'React Engineer' })).toContainText('Submitted')
+  await closeDialog(page)
   await workspace.go('Dashboard')
   await expect(page.getByRole('link', { name: '1 submitted', exact: true })).toBeVisible()
   await expect(page.getByRole('link', { name: '0 drafts', exact: true })).toBeVisible()

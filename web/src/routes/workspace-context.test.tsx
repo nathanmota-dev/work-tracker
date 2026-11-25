@@ -50,15 +50,15 @@ async function go(router: ReturnType<typeof createAppRouter>, href: string) {
 it("Jobs → application detail → back restores filters, page and selected details from the URL", async () => {
   const { router } = await mount("/jobs?q=Engineer&page=1&status=saved&selected=20")
   expect(await screen.findByRole("dialog")).toHaveTextContent("Engineer 20")
-  expect(screen.getByText("32 results · Page 2 of 3")).toBeInTheDocument()
+  // The details sheet is modal, so the list behind it is hidden from the accessibility tree.
+  expect(screen.getByRole("button", { name: "Page 2", hidden: true })).toHaveAttribute("aria-current", "page")
   fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Apply" }))
   await screen.findByRole("heading", { name: "Application" })
   await screen.findByLabelText("Additional context")
   act(() => router.history.back())
   expect(await screen.findByRole("dialog")).toHaveTextContent("Engineer 20")
-  expect(screen.getByLabelText("Search Opportunities")).toHaveValue("Engineer")
-  expect(screen.getByLabelText("Filter by status")).toHaveValue("saved")
-  expect(screen.getByText("32 results · Page 2 of 3")).toBeInTheDocument()
+  expect(screen.getByLabelText("Search opportunities")).toHaveValue("Engineer")
+  expect(screen.getByRole("button", { name: "Page 2", hidden: true })).toHaveAttribute("aria-current", "page")
   expect(router.state.location.search).toMatchObject({ page: 1, selected: "20", q: "Engineer" })
 })
 
@@ -109,16 +109,17 @@ it("Search assessment keeps results, pagination and selection while the panel op
   const { router } = await mount("/jobs?keywords=Engineer&location=Remote&maxPages=2")
   fireEvent.click(await screen.findByRole("checkbox", { name: "Select Engineer 1" }))
   fireEvent.click(screen.getByRole("button", { name: "Next" }))
-  await waitFor(() => expect(screen.getByText("32 results · Page 2 of 3")).toBeInTheDocument())
-  fireEvent.click(screen.getByRole("button", { name: "View Engineer 20" }))
+  await waitFor(() => expect(screen.getByRole("button", { name: "Page 2" })).toHaveAttribute("aria-current", "page"))
+  fireEvent.click(screen.getByRole("button", { name: "View details of Engineer 30" }))
   fireEvent.click(await screen.findByRole("button", { name: "Assess fit" }))
   const panel = await screen.findByRole("dialog", { name: "Agent task" })
   expect(router.state.location.pathname).toBe("/jobs")
   fireEvent.change(within(panel).getByLabelText("Additional context"), { target: { value: "Assessment context" } })
   fireEvent.click(within(panel).getByRole("button", { name: "Close" }))
   expect(screen.getByText("1 selected")).toBeInTheDocument()
-  expect(screen.getByText("32 results · Page 2 of 3")).toBeInTheDocument()
-  expect(screen.getByRole("button", { name: "Remove Engineer" })).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Page 2" })).toHaveAttribute("aria-current", "page")
+  // The discovery criteria stay in the URL for the Discover view.
+  expect(router.state.location.search).toMatchObject({ keywords: "Engineer", location: "Remote", maxPages: 2 })
   expect(request.mock.calls.filter(([path]) => path === "search/jobs")).toHaveLength(0)
   await go(router, "/profile")
   act(() => setAgentPanelOpen(true))
@@ -135,8 +136,8 @@ it("Search assessment keeps results, pagination and selection while the panel op
 
 it("uses route defaults for invalid URLs in Jobs, Search, Apply and Launch", async () => {
   const { router } = await mount("/jobs?page=-1&view=bad&status=bad&q=%5B%5D")
-  expect(await screen.findByLabelText("Search Opportunities")).toHaveValue("")
-  expect(screen.getByText("32 results · Page 1 of 3")).toBeInTheDocument()
+  expect(await screen.findByLabelText("Search opportunities")).toHaveValue("")
+  expect(screen.getByRole("button", { name: "Page 1" })).toHaveAttribute("aria-current", "page")
   await go(router, "/search?kind=jobs&maxPages=-5&workType=office")
   expect(await screen.findByLabelText("Pages to search")).toHaveValue(1)
   expect(screen.getByLabelText("Work arrangement")).toHaveValue("")
@@ -146,9 +147,11 @@ it("uses route defaults for invalid URLs in Jobs, Search, Apply and Launch", asy
   expect(await screen.findByLabelText("Skill")).toHaveValue("job-scout")
 })
 
-it("redirects legacy job search links and preserves criteria on return", async () => {
+it("redirects legacy job search links to Discover opportunities and preserves criteria on return", async () => {
   const { router } = await mount("/search?kind=jobs&keywords=Engineer&location=Remote&maxPages=2&workType=remote")
   expect(router.state.location.pathname).toBe("/jobs")
+  expect(router.state.location.search).toMatchObject({ discover: true })
+  expect(await screen.findByRole("heading", { name: "Discover opportunities" })).toBeInTheDocument()
   expect(await screen.findByRole("button", { name: "Remove Engineer" })).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Remove Remote" })).toBeInTheDocument()
   expect(screen.getByLabelText("Pages to search")).toHaveValue(2)

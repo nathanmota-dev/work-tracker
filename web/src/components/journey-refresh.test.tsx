@@ -75,7 +75,7 @@ it("a submission confirmation event refreshes Jobs, Applications, the board and 
   const board = within(render(<ApplicationsPage />).container)
   fireEvent.mouseDown(board.getByRole("tab", { name: "Board" }))
   const dashboard = within(render(<DashboardOverview />).container)
-  expect(within((await jobs.findByText("Platform Engineer")).closest("tr")!).getByText("Filled")).toBeInTheDocument()
+  expect(within((await jobs.findByText("Platform Engineer")).closest("article")!).getByText("Filled")).toBeInTheDocument()
   expect(await list.findByRole("tab", { name: "Tracking (0)" })).toBeInTheDocument()
   expect(within(await board.findByRole("region", { name: "Filled applications" })).getByText("Acme")).toBeInTheDocument()
   expect(await dashboard.findByRole("link", { name: "0 submitted" })).toBeInTheDocument()
@@ -84,7 +84,7 @@ it("a submission confirmation event refreshes Jobs, Applications, the board and 
   act(() => publish({ type: "changed", table: "applications" }))
 
   await waitFor(() =>
-    expect(within(jobs.getByText("Platform Engineer").closest("tr")!).getByText("Submitted")).toBeInTheDocument(),
+    expect(within(jobs.getByText("Platform Engineer").closest("article")!).getByText("Submitted")).toBeInTheDocument(),
   )
   expect(await list.findByRole("tab", { name: "Tracking (1)" })).toBeInTheDocument()
   expect(list.getByRole("tab", { name: "Preparation (0)" })).toBeInTheDocument()

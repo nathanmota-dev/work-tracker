@@ -31,7 +31,17 @@ it("searches and saves all results, reports each outcome and highlights only new
   expect(screen.getByText("Old: Already saved (archived)")).toBeInTheDocument()
   expect(screen.getByText(/Failed — Missing title/)).toBeInTheDocument()
   expect(request).toHaveBeenCalledWith("search/jobs", expect.objectContaining({ keywords: "React", location: "Brazil", workType: "remote", maxPages: 2 }))
-  expect(complete).toHaveBeenCalledWith([1])
+  // The new IDs and every outcome, so Jobs can highlight new cards and keep the summary.
+  expect(complete).toHaveBeenCalledWith([1], expect.arrayContaining([expect.objectContaining({ status: "failed", error: "Missing title" })]))
+})
+it("keeps an explanation on screen when a search has nothing to save", async () => {
+  request.mockResolvedValueOnce("React Engineer at Example Company")
+  const complete = vi.fn()
+  render(<JobDiscovery onResults={complete} />)
+  enter()
+  fireEvent.click(screen.getByRole("button", { name: "Search LinkedIn" }))
+  expect(await screen.findByText(/No savable results/)).toHaveTextContent("React Engineer at Example Company")
+  expect(complete).not.toHaveBeenCalled()
 })
 it("passes the same criteria to the panel and handles its completion once", async () => {
   const complete = vi.fn()
@@ -44,7 +54,7 @@ it("passes the same criteria to the panel and handles its completion once", asyn
   state.agent = { completion: { id: 1, skill: "job-scout" }, jobOutcomes: [{ key: "1", status: "saved", job: { id: 1, title: "Engineer" } }, { key: "2", status: "existing", job: { id: 2, title: "Existing" } }] }
   view.rerender(<JobDiscovery onResults={complete} />)
   expect(await screen.findByText("1 saved · 1 already saved · 0 failed")).toBeInTheDocument()
-  expect(complete).toHaveBeenCalledExactlyOnceWith([1])
+  expect(complete).toHaveBeenCalledExactlyOnceWith([1], state.agent.jobOutcomes)
   view.rerender(<JobDiscovery onResults={complete} />)
   expect(complete).toHaveBeenCalledTimes(1)
 })

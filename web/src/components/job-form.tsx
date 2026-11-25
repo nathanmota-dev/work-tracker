@@ -1,5 +1,6 @@
 import { useState } from "react"
-import { FormDialog, useSubmit } from "@/components/form-dialog"
+import { useSubmit } from "@/components/form-dialog"
+import { FormSection, FormSheet } from "@/components/form-sheet"
 import { Field } from "@/components/workspace-ui"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -15,6 +16,11 @@ const fields = {
   requirements_json: "Requirements (JSON)", description: "Job description",
 }
 type Draft = Record<keyof typeof fields, string>
+const sections: { title: string; keys: (keyof typeof fields)[]; wide?: boolean }[] = [
+  { title: "Role", keys: ["title", "company_name", "link", "location", "work_type", "comp"] },
+  { title: "Tracking", keys: ["status", "fit", "deadline", "source", "source_job_id", "linkedin_job_id"] },
+  { title: "Details", keys: ["description", "requirements_json"], wide: true },
+]
 export type JobSaveResult = { job: Row; existing: boolean; missing: PreparationField[] }
 
 /** The verdict of the posting check on a description saved with this form, if any. */
@@ -42,38 +48,42 @@ export function JobForm({ job, onClose, onSaved }: {
     .map(key => [key, String(job?.[key] ?? (key === "status" ? "saved" : ""))])) as Draft)
   const { busy, error, submit } = useSubmit()
   const missing = preparationMissing(draft)
+  const set = (key: keyof Draft, value: string) => setDraft(previous => ({ ...previous, [key]: value }))
   return (
-    <FormDialog
+    <FormSheet
       title={job ? "Edit job" : "Add job"}
       description="Save an opportunity directly. Add its link and description when you are ready to prepare an application."
       busy={busy}
       error={error}
       submitLabel="Save job"
       canSubmit={!!draft.title.trim() && !!draft.company_name.trim()}
-      className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl"
       onClose={onClose}
       onSubmit={() => void submit(async () => {
         const result = await request<JobSaveResult>(`jobs/${job ? "update" : "create"}`, { ...draft, ...(job ? { id: job.id } : {}) })
         onSaved(result)
       })}
-    >
-      <fieldset disabled={busy} className="grid gap-3 sm:grid-cols-2">
-        {(Object.entries(fields) as [keyof Draft, string][]).map(([key, label]) => (
-          <Field key={key} label={label}>
-            {key === "description" || key === "requirements_json" ? (
-              <Textarea value={draft[key]} onChange={e => setDraft(previous => ({ ...previous, [key]: e.target.value }))} />
-            ) : (
-              <Input type={key === "link" ? "url" : key === "deadline" ? "date" : "text"} required={key === "title" || key === "company_name"}
-                value={draft[key]} onChange={e => setDraft(previous => ({ ...previous, [key]: e.target.value }))} />
-            )}
-          </Field>
-        ))}
-      </fieldset>
-      {missing.length > 0 && (
-        <p role="status" className="text-sm text-muted-foreground">
+      footer={missing.length > 0 && (
+        <p role="status" className="text-xs text-muted-foreground">
           Missing for preparation: {missing.map(key => PREPARATION_FIELDS[key]).join(", ")}.
         </p>
       )}
-    </FormDialog>
+    >
+      {sections.map(section => (
+        <fieldset key={section.title} disabled={busy}>
+          <FormSection title={section.title} className={section.wide ? "sm:grid-cols-1" : undefined}>
+            {section.keys.map(key => (
+              <Field key={key} label={fields[key]}>
+                {section.wide ? (
+                  <Textarea className={key === "description" ? "min-h-40" : undefined} value={draft[key]} onChange={e => set(key, e.target.value)} />
+                ) : (
+                  <Input type={key === "link" ? "url" : key === "deadline" ? "date" : "text"} required={key === "title" || key === "company_name"}
+                    value={draft[key]} onChange={e => set(key, e.target.value)} />
+                )}
+              </Field>
+            ))}
+          </FormSection>
+        </fieldset>
+      ))}
+    </FormSheet>
   )
 }

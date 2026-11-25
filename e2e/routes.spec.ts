@@ -40,7 +40,7 @@ for (const populated of [false, true]) {
         await workspace.ready(title)
         await expect(page.getByText(content, { exact: true }).first()).toBeVisible()
         await expect(page.getByRole('alert')).toHaveCount(0)
-        if (populated && title === 'Jobs') await expect(page.getByRole('cell', { name: 'Company 1', exact: false }).first()).toBeVisible()
+        if (populated && title === 'Jobs') await expect(page.getByRole('article').filter({ hasText: 'Company 1' }).first()).toBeVisible()
         if (populated && title === 'Interviews') await expect(page.getByRole('cell', { name: 'Future Company', exact: true })).toBeVisible()
         if (populated && title === 'Applications') {
           await page.getByRole('tab', { name: 'Board', exact: true }).click()

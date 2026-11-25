@@ -1,5 +1,7 @@
-import { useEffect, useState, type ReactNode } from "react"
-import { JobDiscovery } from "@/components/job-discovery"
+import { useEffect, useState } from "react"
+import { ArrowLeft, Plus, Sparkles } from "lucide-react"
+import { JobDiscovery, SearchOutcomes } from "@/components/job-discovery"
+import type { SearchSaveResult } from "../../../src/jobs/search-results"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -8,102 +10,14 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog"
-import {
-  Page,
-  LoadState,
-  Details,
-  ExternalLink,
-} from "@/components/workspace-ui"
-import {
-  JobActions,
-  JobApplication,
-  JobStats,
-  JobTabs,
-  linkedApplication,
-} from "@/components/job-list"
+import { Page, LoadState } from "@/components/workspace-ui"
+import { JobBoard, JobBoardSkeleton } from "@/components/job-board"
+import { JobCard } from "@/components/job-card"
+import { JobDetailsSheet } from "@/components/job-details-sheet"
 import { useApi, request, text, type Row } from "@/lib/api"
-import { openApply } from "@/lib/preparation"
-import { prepareSkill } from "@/lib/agent"
 import { JobForm, postingNotice, type JobSaveResult } from "@/components/job-form"
-import { PostingCheck } from "@/components/posting-check"
-import { RankingDetail } from "@/components/ranking-detail"
-import { ResumeMatchDetail } from "@/components/resume-match-detail"
-import { jobColumns } from "@/components/job-columns"
 import { useAtsBest, withAtsMatch } from "@/lib/ats"
-import { GateDetails } from "@/components/gate-badge"
 import { useWorkspaceState } from "@/lib/workspace-state"
-import { applyLabel } from "@/lib/application-journey"
-
-function JobDetailActions({
-  selected,
-  busy,
-  error,
-  actions,
-  close,
-}: {
-  selected: Row | null
-  busy: boolean
-  error: string
-  close: () => void
-  actions: (row: Row) => ReactNode
-}) {
-  const application = selected ? linkedApplication(selected) : undefined
-  return (
-    <>
-      {error && (
-        <p role="alert" className="text-sm text-destructive">{error}</p>
-      )}
-      {selected && <PostingCheck guard={selected.description_guard_json} description={selected.description} />}
-      {selected && <GateDetails jobId={selected.id} />}
-      <div className="flex flex-wrap gap-2">
-        <ExternalLink value={selected?.link} label="View opportunity" />
-        <Button
-          disabled={busy || !!selected?.archived_at}
-          onClick={() => openApply(selected?.id, application?.id)}
-        >
-          {applyLabel(application)}
-        </Button>
-        <Button
-          variant="outline"
-          disabled={busy || !!selected?.archived_at}
-          onClick={() => {
-            close()
-            prepareSkill("deep-scout", {
-              query: text(
-                selected?.link ??
-                  selected?.linkedin_job_id ??
-                  selected?.title,
-              ),
-            })
-          }}
-        >
-          Assess fit
-        </Button>
-        <Button
-          variant="outline"
-          disabled={busy}
-          onClick={() => {
-            close()
-            prepareSkill("requirements-check", { jobIds: text(selected?.id) })
-          }}
-        >
-          Check requirements
-        </Button>
-      </div>
-      {!!selected?.archived_at && (
-        <p className="text-sm text-muted-foreground">
-          Restore this role before preparing a new application.
-        </p>
-      )}
-      {selected && <RankingDetail jobId={selected.id} />}
-      {selected && <ResumeMatchDetail jobId={selected.id} />}
-      {selected && (
-        <JobApplication job={selected} />
-      )}
-      {selected && actions(selected)}
-    </>
-  )
-}
 
 function DeleteJobDialog({
   deleting,
@@ -172,7 +86,6 @@ function useJobs() {
     if (selection.length !== search.selection?.length || search.selected && !exists)
       update({ selection, selected: exists ? search.selected : "" })
   }, [api.data, api.loading, search, update])
-  const selected = api.data?.find((row) => row.id === selectedId) ?? null
   const [editing, setEditing] = useState<Row | "new" | null>(null)
   const [notice, setNotice] = useState("")
   const [posting, setPosting] = useState("")
@@ -181,6 +94,8 @@ function useJobs() {
   const [error, setError] = useState("")
   const ats = useAtsBest()
   const rows = withAtsMatch(api.data ?? [], ats.data)
+  // From the rows with their resume match, so the details show the same score as the card.
+  const selected = rows.find((row) => row.id === selectedId) ?? null
   const active = rows.filter((row) => !row.archived_at)
   const archived = rows.filter((row) => !!row.archived_at)
 
@@ -202,20 +117,10 @@ function useJobs() {
     }
   }
 
-  function actions(row: Row, includePreparation = true) {
-    return (
-      <JobActions
-        row={row}
-        busy={busy}
-        includePreparation={includePreparation}
-        onMutate={(action, target) => void mutate(action, target)}
-        onDelete={(target) => {
-          setError("")
-          setSelectedId(null)
-          setDeleting(target)
-        }}
-      />
-    )
+  function remove(target: Row) {
+    setError("")
+    setSelectedId(null)
+    setDeleting(target)
   }
   function edit(job: Row | "new" | null) {
     setNotice("")
@@ -234,30 +139,61 @@ function useJobs() {
     update({ selected: String(result.job.id), view })
   }
   return { api, selected, deleting, busy, error, active, archived, editing, notice, posting,
-    setSelectedId, edit, setDeleting, setError, actions, saved, mutate }
+    setSelectedId, edit, setDeleting, setError, remove, saved, mutate }
+}
+
+function DiscoverJobsPage({ onBack, onResults }: { onBack: () => void; onResults: (ids: number[], outcomes: SearchSaveResult[]) => void }) {
+  return (
+    <Page
+      title="Discover opportunities"
+      description="Search LinkedIn and save new roles for triage."
+      back={
+        <Button variant="ghost" size="icon-sm" className="-ml-2 shrink-0 text-muted-foreground hover:text-foreground"
+          aria-label="Back to jobs" title="Back to jobs" onClick={onBack}>
+          <ArrowLeft />
+        </Button>
+      }
+    >
+      <JobDiscovery onResults={onResults} />
+    </Page>
+  )
 }
 
 export function JobsPage() {
   const { api, selected, deleting, busy, error, active, archived, editing, notice, posting,
-    setSelectedId, edit, setDeleting, setError, actions, saved, mutate } = useJobs()
-  const { update } = useWorkspaceState("jobs")
+    setSelectedId, edit, setDeleting, setError, remove, saved, mutate } = useJobs()
+  const { search, update } = useWorkspaceState("jobs")
   const [arrived, setArrived] = useState<number[]>([])
+  const [outcomes, setOutcomes] = useState<SearchSaveResult[]>([])
+  if (search.discover || search.focus)
+    return (
+      <DiscoverJobsPage
+        onBack={() => update({ discover: false, focus: false })}
+        onResults={(ids, results) => {
+          setArrived(ids)
+          setOutcomes(results)
+          update({ discover: false, focus: false, view: "new", page: 0, q: "", status: "", selection: [], selected: "" })
+          api.refresh()
+        }}
+      />
+    )
   return (
     <Page
       title="Jobs"
-      description="Discover, triage and shortlist your next opportunity."
+      description="Triage and shortlist your next opportunity."
       actions={
-        <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={() => edit("new")}>Add job</Button>
-        </div>
+        <>
+          <Button size="sm" variant="outline" onClick={() => update({ discover: true })}>
+            <Sparkles /> Discover opportunities
+          </Button>
+          <Button size="sm" onClick={() => edit("new")}>
+            <Plus /> Add job
+          </Button>
+        </>
       }
     >
-      <JobDiscovery onResults={ids => {
-        setArrived(ids)
-        update({ view: "new", page: 0, q: "", status: "", selection: [], selected: "" })
-        api.refresh()
-      }} />
-      <LoadState {...api} retry={api.refresh} />
+      {api.loading && !api.data ? <JobBoardSkeleton /> : <LoadState {...api} loading={false} retry={api.refresh} />}
+      <SearchOutcomes outcomes={outcomes} onDismiss={() => setOutcomes([])} />
       {notice && <p role="status" className="text-sm">{notice}</p>}
       {posting && <p role="status" aria-label="Saved posting check" className="text-sm">{posting}</p>}
       {editing && <JobForm job={editing === "new" ? undefined : editing} onClose={() => edit(null)} onSaved={saved} />}
@@ -268,31 +204,34 @@ export function JobsPage() {
       )}
       {api.data && (
         <>
-          <JobStats jobs={active} />
-          <JobTabs
+          <JobBoard
             active={active}
             archived={archived}
-            columns={jobColumns(actions, arrived)}
+            renderCard={(row, selection) => (
+              <JobCard
+                row={row}
+                selected={selection.selected}
+                fresh={arrived.includes(Number(row.id))}
+                busy={busy}
+                onToggle={selection.toggle}
+                onOpen={() => setSelectedId(Number(row.id))}
+                onMutate={(action, target) => void mutate(action, target)}
+                onDelete={remove}
+              />
+            )}
             onMutate={mutate}
-            onSelect={(row) => setSelectedId(Number(row.id))}
           />
         </>
       )}
-      <Details
+      <JobDetailsSheet
         row={selected}
-        omit={["ats_match", "description_guard_json", "gate_verdict", "gate_unverified", "ranking_status", "ranking_overall", "ranking_verdict", "ranking_attempts", "ranking_expired_reason", "closing_soon"]}
-        title={text(selected?.title)}
+        busy={busy}
+        error={error}
         onClose={() => setSelectedId(null)}
-      >
-        <Button variant="outline" disabled={busy} onClick={() => selected && edit(selected)}>Edit job</Button>
-        <JobDetailActions
-          close={() => setSelectedId(null)}
-          selected={selected}
-          busy={busy}
-          error={error}
-          actions={(row) => actions(row, false)}
-        />
-      </Details>
+        onEdit={edit}
+        onMutate={(action, target) => void mutate(action, target)}
+        onDelete={remove}
+      />
       <DeleteJobDialog
         deleting={deleting}
         busy={busy}

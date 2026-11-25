@@ -47,7 +47,8 @@ it("paginates and resets pagination when filtering activity", () => {
     target: { value: "Activity 0" },
   })
   expect(screen.getByText("Activity 0")).toBeInTheDocument()
-  expect(screen.getByRole("button", { name: "Previous" })).toBeDisabled()
+  // One page left: the page numbers are hidden.
+  expect(screen.queryByRole("button", { name: "Previous" })).not.toBeInTheDocument()
 })
 it("shows loading, empty and error states and retries", () => {
   const instance = render(<ActivityPage />)

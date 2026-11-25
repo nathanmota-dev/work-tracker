@@ -35,21 +35,32 @@ beforeEach(() => {
 })
 const tab = (name: string) => fireEvent.keyDown(screen.getByRole("tab", { name }), { key: "Enter" })
 
-const choose = (label: string, option: string) => {
-  fireEvent.keyDown(screen.getByRole("combobox", { name: label }), { key: "Enter" })
-  fireEvent.keyDown(screen.getByRole("option", { name: option }), { key: "Enter" })
+type Scope = Pick<typeof screen, "getByRole">
+/** Opens a card's or the details' ⋯ menu and picks one of its items. */
+const menu = async (title: string, item: string, scope: Scope = screen) => {
+  fireEvent.keyDown(scope.getByRole("button", { name: `More actions for ${title}` }), { key: "Enter" })
+  fireEvent.click(await screen.findByRole("menuitem", { name: item }))
 }
+/** Picks an option of a filter pill, such as Sort. */
+const choose = async (label: RegExp, option: string) => {
+  fireEvent.keyDown(screen.getByRole("button", { name: label }), { key: "Enter" })
+  fireEvent.click(await screen.findByRole("menuitemradio", { name: option }))
+}
+const open = (title: string) => fireEvent.click(screen.getByRole("button", { name: `View details of ${title}` }))
+const details = () => within(screen.getByRole("dialog"))
+const card = (title: string) => within(screen.getByRole("article", { name: title }))
+const order = () => screen.getAllByRole("article").map(item => item.getAttribute("aria-label"))
 
-it("shows active roles by default and archives/restores directly from the list", async () => {
+it("shows active roles by default and archives/restores from the card menu", async () => {
   render(<JobsPage />)
   expect(await screen.findByText("Engineer")).toBeInTheDocument()
   expect(screen.queryByText("Old role")).not.toBeInTheDocument()
-  fireEvent.click(screen.getByRole("button", { name: "Archive Engineer" }))
+  await menu("Engineer", "Archive")
   await screen.findByRole("tab", { name: "New (0)" })
   expect(request).toHaveBeenCalledWith("jobs/archive", { id: 1 })
   tab("Archived (2)")
   expect(screen.getByText("Old role")).toBeInTheDocument()
-  fireEvent.click(screen.getByRole("button", { name: "Restore Engineer" }))
+  await menu("Engineer", "Restore")
   await screen.findByRole("tab", { name: "Archived (1)" })
   expect(request).toHaveBeenCalledWith("jobs/restore", { id: 1 })
   tab("New (1)")
@@ -60,71 +71,74 @@ it("keeps archived details readable and disables application preparation until r
   render(<JobsPage />)
   await screen.findByText("Engineer")
   tab("Archived (1)")
-  fireEvent.click(screen.getByRole("button", { name: "View Old role" }))
-  const details = within(screen.getByRole("dialog"))
-  expect(details.getByText("applied")).toBeInTheDocument()
-  expect(details.getByRole("button", { name: "Apply" })).toBeDisabled()
-  expect(details.getByRole("button", { name: "Assess fit" })).toBeDisabled()
-  fireEvent.click(details.getByRole("button", { name: "Restore Old role" }))
+  open("Old role")
+  expect(details().getByText("Archived")).toBeInTheDocument()
+  expect(details().getByRole("button", { name: "Apply" })).toBeDisabled()
+  expect(details().getByRole("button", { name: "Assess fit" })).toBeDisabled()
+  await menu("Old role", "Restore", details())
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
   await screen.findByRole("tab", { name: "New (2)" })
   tab("New (2)")
-  fireEvent.click(screen.getByRole("button", { name: "View Old role" }))
-  expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Apply" })).toBeEnabled()
+  open("Old role")
+  expect(details().getByRole("button", { name: "Apply" })).toBeEnabled()
 })
 
 it("requires explicit deletion confirmation, supports cancellation and refreshes after deletion", async () => {
   render(<JobsPage />)
-  fireEvent.click(await screen.findByRole("button", { name: "Delete Engineer" }))
+  await screen.findByText("Engineer")
+  await menu("Engineer", "Delete")
   expect(screen.getByRole("dialog")).toHaveTextContent("permanently removes")
   expect(request).not.toHaveBeenCalledWith("jobs/delete", expect.anything())
   fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
-  fireEvent.click(screen.getByRole("button", { name: "View Engineer" }))
-  fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete Engineer" }))
+  open("Engineer")
+  await menu("Engineer", "Delete", details())
   expect(screen.getAllByRole("dialog")).toHaveLength(1)
   fireEvent.click(screen.getByRole("button", { name: "Delete job" }))
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
   expect(request).toHaveBeenCalledWith("jobs/delete", { id: 1 })
-  await screen.findByText("No opportunities yet")
+  await screen.findByText("No roles yet")
 })
 
 it("keeps failed deletions reviewable and allows retry", async () => {
   render(<JobsPage />)
-  fireEvent.click(await screen.findByRole("button", { name: "Delete Engineer" }))
+  await screen.findByText("Engineer")
+  await menu("Engineer", "Delete")
   request.mockRejectedValueOnce(new Error("Archive this linked job to preserve history."))
   fireEvent.click(screen.getByRole("button", { name: "Delete job" }))
   expect(await screen.findByRole("alert")).toHaveTextContent("Archive this linked job")
   expect(screen.getByRole("dialog")).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Delete job" })).toBeEnabled()
   fireEvent.click(screen.getByRole("button", { name: "Delete job" }))
-  await screen.findByText("No opportunities yet")
+  await screen.findByText("No roles yet")
 })
 
-it("preserves rows after failed archiving and prevents duplicate actions while saving", async () => {
+it("preserves cards after failed archiving and prevents duplicate actions while saving", async () => {
   render(<JobsPage />)
   await screen.findByText("Engineer")
   let reject!: (error: Error) => void
   request.mockImplementationOnce(() => new Promise((_, fail) => { reject = fail }))
-  fireEvent.click(screen.getByRole("button", { name: "Archive Engineer" }))
-  expect(screen.getByRole("button", { name: "Archive Engineer" })).toBeDisabled()
-  expect(screen.getByRole("button", { name: "Delete Engineer" })).toBeDisabled()
+  await menu("Engineer", "Archive")
+  await waitFor(() => expect(screen.getByRole("button", { name: "More actions for Engineer" })).toBeDisabled())
+  expect(screen.getByRole("checkbox", { name: "Select Engineer" })).toBeDisabled()
   await act(async () => reject(new Error("Archive failed")))
   expect(screen.getByRole("alert")).toHaveTextContent("Archive failed")
   expect(screen.getByText("Engineer")).toBeInTheDocument()
-  expect(screen.getByRole("button", { name: "Archive Engineer" })).toBeEnabled()
+  expect(screen.getByRole("button", { name: "More actions for Engineer" })).toBeEnabled()
 })
 
-it("refreshes archive state in an open details dialog after a backend event", async () => {
+it("refreshes archive state in open details after a backend event", async () => {
   render(<JobsPage />)
-  fireEvent.click(await screen.findByRole("button", { name: "View Engineer" }))
+  await screen.findByText("Engineer")
+  open("Engineer")
   jobs[0].archived_at = "2026-10-11T12:00:00Z"
   act(() => publish({ type: "changed", table: "jobs" }))
-  await waitFor(() => expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Apply" })).toBeDisabled())
-  expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Restore Engineer" })).toBeInTheDocument()
+  await waitFor(() => expect(details().getByRole("button", { name: "Apply" })).toBeDisabled())
+  await menu("Engineer", "Restore", details())
+  expect(request).toHaveBeenCalledWith("jobs/restore", { id: 1 })
 })
 
-it("shows the linked application with its step and contextual next action", async () => {
+it("shows the linked application on the card and its next action in the details", async () => {
   jobs = [
     { id: 1, title: "Engineer", company_name: "Acme", archived_at: null, shortlisted_at: "2026-01-01", application_id: 9, application_phase: "prepared", application_view: "preparation", application_origin: "preparation" },
     { id: 3, title: "Tracked role", company_name: "Beta", archived_at: null, shortlisted_at: "2026-01-01", application_id: 11, application_phase: "submitted", application_view: "tracking", application_origin: "manual" },
@@ -133,19 +147,19 @@ it("shows the linked application with its step and contextual next action", asyn
   render(<JobsPage />)
   await screen.findByRole("tab", { name: "Shortlist (2)" })
   tab("Shortlist (2)")
-  const row = async (title: string) => within((await screen.findByText(title)).closest("tr")!)
-  expect((await row("Engineer")).getByText("Prepared")).toBeInTheDocument()
-  expect((await row("Tracked role")).getByText("Submitted")).toBeInTheDocument()
-  expect((await row("Tracked role")).getByRole("button", { name: "View application" })).toBeInTheDocument()
-  fireEvent.click((await row("Engineer")).getByRole("button", { name: "Continue application" }))
+  expect((await screen.findByRole("article", { name: "Engineer" })) && card("Engineer").getByText("Prepared")).toBeInTheDocument()
+  expect(card("Tracked role").getByText("Submitted")).toBeInTheDocument()
+  open("Engineer")
+  fireEvent.click(details().getByRole("button", { name: "Continue application" }))
   expect(window.location.hash).toBe("#/apply?jobId=1&applicationId=9")
-  fireEvent.click(screen.getByRole("button", { name: "View Tracked role" }))
-  const details = within(screen.getByRole("dialog"))
-  expect(details.getByText("Application #11 · Manual · Submitted")).toBeInTheDocument()
-  fireEvent.click(details.getByRole("button", { name: "View application" }))
+  fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" })
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
+  open("Tracked role")
+  expect(details().getByText("Application #11 · Manual · Submitted")).toBeInTheDocument()
+  fireEvent.click(details().getByRole("button", { name: "View application" }))
   expect(window.location.hash).toBe("#/apply?jobId=3&applicationId=11")
-  expect(details.getByRole("link", { name: "Open board" })).toHaveAttribute("href", "#/applications?view=board&highlight=11")
-  expect(details.getByRole("link", { name: "View in Applications" })).toHaveAttribute("href", "#/applications")
+  expect(details().getByRole("link", { name: "Open board" })).toHaveAttribute("href", "#/applications?view=board&highlight=11")
+  expect(details().getByRole("link", { name: "View in Applications" })).toHaveAttribute("href", "#/applications")
 })
 
 it("moves a new role to the shortlist only after explicit triage", async () => {
@@ -155,30 +169,70 @@ it("moves a new role to the shortlist only after explicit triage", async () => {
     return original(path, body)
   })
   render(<JobsPage />)
-  fireEvent.click(await screen.findByRole("button", { name: "Move to shortlist" }))
+  await screen.findByText("Engineer")
+  await menu("Engineer", "Move to shortlist")
   await screen.findByRole("tab", { name: "Shortlist (1)" })
   tab("Shortlist (1)")
   expect(screen.getByText("Engineer")).toBeInTheDocument()
-  expect(screen.getByRole("button", { name: "Apply" })).toBeInTheDocument()
+  open("Engineer")
+  expect(details().getByRole("button", { name: "Apply" })).toBeInTheDocument()
   expect(request).toHaveBeenCalledWith("jobs/shortlist", { id: 1 })
 })
 
-it("archives selected new roles and keeps failed bulk actions retryable", async () => {
+it("archives selected new roles from the selection bar and keeps failed bulk actions retryable", async () => {
   jobs.push({ id: 3, title: "Another", company_name: "Acme", status: "saved" })
   render(<JobsPage />)
+  expect(screen.queryByRole("toolbar", { name: "Selection actions" })).not.toBeInTheDocument()
   fireEvent.click(await screen.findByRole("checkbox", { name: "Select Engineer" }))
   fireEvent.click(screen.getByRole("checkbox", { name: "Select Another" }))
+  const bar = within(screen.getByRole("toolbar", { name: "Selection actions" }))
+  expect(bar.getByRole("status")).toHaveTextContent("2 selected")
   request.mockRejectedValueOnce(new Error("Archive unavailable"))
-  fireEvent.click(screen.getByRole("button", { name: "Archive selected" }))
+  fireEvent.click(bar.getByRole("button", { name: "Archive" }))
   expect(await screen.findByRole("alert")).toHaveTextContent("Archive unavailable")
   expect(screen.getByRole("checkbox", { name: "Select Engineer" })).toBeChecked()
   expect(request).not.toHaveBeenCalledWith("jobs/archive", { id: 3 })
-  fireEvent.click(screen.getByRole("button", { name: "Archive selected" }))
+  fireEvent.click(within(screen.getByRole("toolbar", { name: "Selection actions" })).getByRole("button", { name: "Archive" }))
   await screen.findByRole("tab", { name: "Archived (3)" })
   expect(request).toHaveBeenCalledWith("jobs/archive", { id: 3 })
+  expect(screen.queryByRole("toolbar", { name: "Selection actions" })).not.toBeInTheDocument()
 })
 
-it("shows the triage score column, sorts by score and keeps the triage note in the details", async () => {
+it("selects every filtered role and clears the selection from the bar", async () => {
+  jobs.push({ id: 3, title: "Another", company_name: "Acme", status: "saved" })
+  render(<JobsPage />)
+  fireEvent.click(await screen.findByRole("checkbox", { name: "Select Engineer" }))
+  const bar = () => within(screen.getByRole("toolbar", { name: "Selection actions" }))
+  fireEvent.click(bar().getByRole("button", { name: "Select all 2" }))
+  expect(bar().getByRole("status")).toHaveTextContent("2 selected")
+  expect(screen.getByRole("checkbox", { name: "Select Another" })).toBeChecked()
+  fireEvent.click(bar().getByRole("button", { name: "Clear selection" }))
+  expect(screen.queryByRole("toolbar", { name: "Selection actions" })).not.toBeInTheDocument()
+})
+
+it("searches and filters by work type and score band", async () => {
+  jobs = [
+    { id: 1, title: "Frontend", company_name: "Acme", archived_at: null, work_type: "Remote", description: "React and TypeScript" },
+    { id: 3, title: "Backend", company_name: "Beta", archived_at: null, work_type: "On-site", ranking_status: "scored", ranking_overall: 85, ranking_verdict: "Strong Fit" },
+  ]
+  render(<JobsPage />)
+  await screen.findByText("Frontend")
+  fireEvent.change(screen.getByRole("searchbox", { name: "Search opportunities" }), { target: { value: "react" } })
+  expect(order()).toEqual(["Frontend"])
+  expect(screen.getByText(/1 of 2 roles/)).toBeInTheDocument()
+  fireEvent.click(screen.getByRole("button", { name: "Clear search" }))
+  await choose(/^Work type/, "On-site")
+  expect(order()).toEqual(["Backend"])
+  await choose(/^Work type/, "Any")
+  await choose(/^Score/, "Strong")
+  expect(order()).toEqual(["Backend"])
+  await choose(/^Score/, "Not scored")
+  expect(order()).toEqual(["Frontend"])
+  await choose(/^Score/, "Weak")
+  expect(screen.getByText("No matching roles")).toBeInTheDocument()
+})
+
+it("shows the triage score on each card, sorts by score and keeps the triage note in the details", async () => {
   jobs = [
     { id: 1, title: "Plain", company_name: "Acme", archived_at: null, ranking_status: null },
     { id: 3, title: "Middle", company_name: "Acme", archived_at: null, ranking_status: "scored", ranking_overall: 60, ranking_verdict: "Good Fit" },
@@ -190,25 +244,26 @@ it("shows the triage score column, sorts by score and keeps the triage note in t
   ]
   render(<JobsPage />)
   await screen.findByText("Plain")
-  expect(screen.getByRole("columnheader", { name: "Score" })).toBeInTheDocument()
-  expect(screen.getByText("82 · Strong fit")).toBeInTheDocument()
-  expect(screen.getByText("🔥 Closing soon")).toBeInTheDocument()
-  expect(screen.getByText("Check manually")).toBeInTheDocument()
-  expect(screen.getByText("Unreachable (attempt 1)")).toBeInTheDocument()
-  expect(screen.getByText("Expired (deadline passed)")).toBeInTheDocument()
-  expect(screen.getByRole("button", { name: "Rank new roles" })).toBeInTheDocument()
-  const order = () => screen.getAllByRole("button", { name: /^View / }).map(button => button.getAttribute("aria-label"))
-  choose("Sort jobs", "Sort: Highest score")
-  expect(order().slice(0, 3)).toEqual(["View Top", "View Urgent", "View Middle"])
-  choose("Sort jobs", "Sort: Recently saved")
-  expect(order()[0]).toBe("View Plain")
-  fireEvent.click(screen.getByRole("button", { name: "View Top" }))
-  const details = within(screen.getByRole("dialog"))
-  expect(details.getByText("title")).toBeInTheDocument()
-  for (const key of ["ranking overall", "ranking status", "ranking verdict", "closing soon"]) expect(details.queryByText(key)).not.toBeInTheDocument()
+  const top = card("Top").getByRole("meter", { name: "Fit score" })
+  expect(top).toHaveAttribute("aria-valuenow", "82")
+  expect(top).toHaveAttribute("data-tone", "good")
+  expect(card("Middle").getByRole("meter", { name: "Fit score" })).toHaveAttribute("data-tone", "good")
+  expect(card("Urgent").getByText("Closing soon")).toBeInTheDocument()
+  expect(card("Plain").getByText("Not scored yet")).toBeInTheDocument()
+  expect(card("Blocked").getByText("Check manually")).toBeInTheDocument()
+  expect(card("Broken").getByText("Unreachable (attempt 1)")).toBeInTheDocument()
+  expect(card("Closed").getByText("Expired (deadline passed)")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: /Rank roles/ })).toBeInTheDocument()
+  await choose(/^Sort/, "Highest score")
+  expect(order().slice(0, 3)).toEqual(["Top", "Urgent", "Middle"])
+  await choose(/^Sort/, "Recently saved")
+  expect(order()[0]).toBe("Plain")
+  open("Top")
+  expect(details().getByRole("meter", { name: "Fit score" })).toHaveAttribute("title", expect.stringMatching(/Triage score from the posting text only/))
+  for (const key of ["ranking overall", "ranking status", "ranking verdict", "closing soon"]) expect(details().queryByText(key)).not.toBeInTheDocument()
 })
 
-it("collapses failed jobs in New, shows each requirements verdict and checks requirements from the detail and a selection", async () => {
+it("lists failed jobs with the rest, shows the requirements verdict in the details and checks requirements from the detail and a selection", async () => {
   const prepareSkill = vi.spyOn(await import("@/lib/agent"), "prepareSkill").mockImplementation(() => {})
   jobs = [
     { id: 1, title: "Engineer", company_name: "Acme", status: "saved", archived_at: null, gate_verdict: "pass", gate_unverified: true },
@@ -219,29 +274,25 @@ it("collapses failed jobs in New, shows each requirements verdict and checks req
     ? { gate: { verdict: "fail", unverified: false, language: { status: "fail", summary: "Requires a language you do not declare: Russian.", findings: [{ verdict: "fail", note: "Requires Russian.", quote: "Fluent Russian required" }] }, eligibility: { status: "off", summary: "Set your work eligibility to enable the eligibility gate.", findings: [] } } }
     : fallback(path, body)))
   render(<JobsPage />)
-  expect(await screen.findByText("Pass (unverified)")).toBeInTheDocument()
-  expect(screen.queryByText("Russian role")).not.toBeInTheDocument()
+  expect(await screen.findByText("Russian role")).toBeInTheDocument()
   expect(screen.getByRole("tab", { name: "New (2)" })).toBeInTheDocument()
-  expect(screen.getByRole("status", { name: "Failed jobs" })).toHaveTextContent("(1 hidden)")
-  fireEvent.click(screen.getByRole("checkbox", { name: /Hide failed/ }))
-  expect(screen.getByText("Fail")).toBeInTheDocument()
   fireEvent.click(screen.getByRole("checkbox", { name: "Select Russian role" }))
-  fireEvent.click(screen.getByRole("button", { name: "Check requirements" }))
+  fireEvent.click(within(screen.getByRole("toolbar", { name: "Selection actions" })).getByRole("button", { name: "Check requirements" }))
   expect(prepareSkill).toHaveBeenLastCalledWith("requirements-check", { jobIds: "3" })
-  fireEvent.click(screen.getByRole("button", { name: "View Russian role" }))
-  const details = within(screen.getByRole("dialog"))
-  expect(await details.findByRole("status", { name: "Requirements check" })).toHaveTextContent("Fluent Russian required")
-  expect(details.queryByText("gate_verdict")).not.toBeInTheDocument()
-  fireEvent.click(details.getByRole("button", { name: "Check requirements" }))
+  open("Russian role")
+  expect(details().getByText("Fail")).toBeInTheDocument()
+  expect(await details().findByRole("status", { name: "Requirements check" })).toHaveTextContent("Fluent Russian required")
+  expect(details().queryByText("gate_verdict")).not.toBeInTheDocument()
+  fireEvent.click(details().getByRole("button", { name: "Check requirements" }))
   expect(prepareSkill).toHaveBeenLastCalledWith("requirements-check", { jobIds: "3" })
   prepareSkill.mockRestore()
 })
 
-it("shows each job's best resume match, sorts by it and colors the triage badge", async () => {
+it("falls back to the best resume match on the card, sorts by it and shows it in the details", async () => {
   jobs = [
     { id: 1, title: "Plain", company_name: "Acme", archived_at: null },
     { id: 3, title: "Node role", company_name: "Acme", archived_at: null, ranking_status: "scored", ranking_overall: 50, ranking_verdict: "Moderate Fit" },
-    { id: 4, title: "C# role", company_name: "Acme", archived_at: null, ranking_status: "scored", ranking_overall: 80, ranking_verdict: "Strong Fit" },
+    { id: 4, title: "C# role", company_name: "Acme", archived_at: null },
     { id: 5, title: "Vague role", company_name: "Acme", archived_at: null },
   ]
   best = [
@@ -250,15 +301,38 @@ it("shows each job's best resume match, sorts by it and colors the triage badge"
     { job_id: 5, document_key: "variant:c", variant_id: "c", label: "Back-End · C#", score: null, band: null },
   ]
   render(<JobsPage />)
-  expect(await screen.findByText("90 · Back-End · C#")).toBeInTheDocument()
-  expect(screen.getByRole("columnheader", { name: "Resume match" })).toBeInTheDocument()
-  expect(screen.getByText("90 · Back-End · C#").parentElement).toHaveTextContent("Strong match")
-  expect(screen.getByText("55 · Back-End · Node.js").parentElement).toHaveAttribute("data-tone", "warn")
-  expect(screen.getByText("Not enough keywords")).toBeInTheDocument()
-  expect(screen.getByText("80 · Strong fit")).toHaveAttribute("data-tone", "good")
-  expect(screen.getByText("50 · Moderate fit")).toHaveAttribute("data-tone", "warn")
-  choose("Sort jobs", "Sort: Best resume match")
-  expect(screen.getAllByRole("button", { name: /^View / }).map(button => button.getAttribute("aria-label"))).toEqual(["View C# role", "View Node role", "View Plain", "View Vague role"])
-  fireEvent.click(screen.getByRole("button", { name: "View C# role" }))
-  expect(within(screen.getByRole("dialog")).queryByText("ats match")).not.toBeInTheDocument()
+  const match = await screen.findByRole("meter", { name: "Resume match" })
+  expect(match).toHaveAttribute("aria-valuenow", "90")
+  expect(match).toHaveAttribute("data-tone", "good")
+  expect(card("Node role").getByRole("meter", { name: "Fit score" })).toHaveAttribute("data-tone", "warn")
+  expect(card("Vague role").getByText("Not scored yet")).toBeInTheDocument()
+  await choose(/^Sort/, "Best resume match")
+  expect(order()).toEqual(["C# role", "Node role", "Plain", "Vague role"])
+  open("C# role")
+  expect(details().getByRole("meter", { name: "Resume match" })).toHaveAttribute("aria-valuenow", "90")
+  expect(details().getByText("90 · Back-End · C#")).toBeInTheDocument()
+  expect(details().queryByText("ats match")).not.toBeInTheDocument()
+})
+
+it("opens Discover opportunities as its own view and returns to the cards", async () => {
+  render(<JobsPage />)
+  await screen.findByText("Engineer")
+  fireEvent.click(screen.getByRole("button", { name: "Discover opportunities" }))
+  expect(screen.getByRole("heading", { name: "Discover opportunities" })).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Search LinkedIn" })).toBeDisabled()
+  expect(screen.queryByRole("article", { name: "Engineer" })).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole("button", { name: "Back to jobs" }))
+  expect(screen.getByRole("article", { name: "Engineer" })).toBeInTheDocument()
+})
+
+it("adds a job from the side panel and cancels without saving", async () => {
+  render(<JobsPage />)
+  await screen.findByText("Engineer")
+  fireEvent.click(screen.getByRole("button", { name: "Add job" }))
+  const form = within(screen.getByRole("dialog"))
+  expect(form.getByRole("heading", { name: "Add job" })).toBeInTheDocument()
+  for (const section of ["Role", "Tracking", "Details"]) expect(form.getByRole("heading", { name: section })).toBeInTheDocument()
+  fireEvent.click(form.getByRole("button", { name: "Cancel" }))
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
+  expect(request).not.toHaveBeenCalledWith("jobs/create", expect.anything())
 })
