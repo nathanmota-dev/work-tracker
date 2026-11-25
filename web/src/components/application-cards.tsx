@@ -8,16 +8,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { CountTab, CountTabsList } from "@/components/underline-tabs"
 import { CardBadge, OpportunityCard, ProgressBar, shortDate } from "@/components/opportunity-card"
 import { FilterBar, FilterSearch, FilterSelect } from "@/components/filter-bar"
 import { RecordPagination } from "@/components/records"
 import { Empty } from "@/components/workspace-ui"
 import { NextStepHint } from "@/components/get-started"
-import { AdvanceDialog } from "@/components/advance-dialog"
-import { boardHref, originLabel, phaseLabel } from "@/components/application-list"
+import { boardHref, originLabel, phaseLabel, useAdvance } from "@/components/application-list"
 import { openExternal, text, webUrl, type Row } from "@/lib/api"
-import { ARCHIVE_REASONS, boardAction, type ApplicationStage, type TrackedApplication } from "@/lib/application-board"
+import { ARCHIVE_REASONS, type ApplicationStage, type TrackedApplication } from "@/lib/application-board"
 import { byDeadline, deadlineLabel, type DeadlineLevel } from "@/lib/deadline"
 import {
   ORIGINS,
@@ -67,29 +67,6 @@ function matches(row: Row, query: string) {
   const needle = query.toLowerCase()
   return [row.job_title, row.company_name, row.portal, originLabel(row), phaseLabel(row.phase)]
     .some(value => text(value).toLowerCase().includes(needle))
-}
-
-/** Advances a prepared application to Tracking once it was submitted in the portal. */
-function useAdvance(row: Row) {
-  const [open, setOpen] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState("")
-  async function advance() {
-    setBusy(true)
-    setError("")
-    try {
-      await boardAction("submit", { id: Number(row.id) })
-      setOpen(false)
-    } catch (e) {
-      setError((e as Error).message)
-    } finally {
-      setBusy(false)
-    }
-  }
-  return {
-    ask: () => { setError(""); setOpen(true) },
-    dialog: <AdvanceDialog row={open ? row : null} busy={busy} error={error} onConfirm={() => void advance()} onCancel={() => setOpen(false)} />,
-  }
 }
 
 function ApplicationMenu({ row, onOpen, onPrepare, onAdvance }: {
@@ -181,17 +158,12 @@ export function ApplicationOpportunityCard({ row, board, onOpen, onPrepare }: {
 }
 
 function ViewTabs({ counts }: { counts: Record<ViewFilter, number> }) {
-  const tab = (value: ViewFilter, label: string) => (
-    <TabsTrigger key={value} value={value} aria-label={`${label} (${counts[value]})`}
-      className="-mb-px gap-1.5 rounded-none border-b-2 border-transparent px-0 pt-0 pb-2.5 text-muted-foreground hover:text-foreground data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none">
-      {label}<span className="text-xs font-normal text-muted-foreground tabular-nums">{counts[value]}</span>
-    </TabsTrigger>
-  )
+  const tab = (value: ViewFilter, label: string) => <CountTab key={value} value={value} label={label} count={counts[value]} />
   return (
-    <TabsList aria-label="Application views" className="h-auto gap-6 rounded-none bg-transparent p-0">
+    <CountTabsList label="Application views">
       {tab("all", "All")}
       {(Object.keys(VIEWS) as ApplicationView[]).map(key => tab(key, VIEWS[key].label))}
-    </TabsList>
+    </CountTabsList>
   )
 }
 

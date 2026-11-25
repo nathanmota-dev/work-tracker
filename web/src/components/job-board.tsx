@@ -3,7 +3,8 @@ import { ArrowUpDown, Gauge, Globe } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { OpportunityCardSkeleton } from "@/components/opportunity-card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { CountTab, CountTabsList } from "@/components/underline-tabs"
 import { FilterBar, FilterSearch, FilterSelect } from "@/components/filter-bar"
 import { SelectionBar } from "@/components/selection-bar"
 import { RecordPagination } from "@/components/records"
@@ -55,16 +56,11 @@ function BulkActions({ view, jobs, onMutate, clear, onBatch }: {
 }
 
 function ViewTabs({ counts }: { counts: Record<View, number> }) {
-  const tab = (value: View, label: string) => (
-    <TabsTrigger value={value} aria-label={`${label} (${counts[value]})`}
-      className="-mb-px gap-1.5 rounded-none border-b-2 border-transparent px-0 pt-0 pb-2.5 text-muted-foreground hover:text-foreground data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none">
-      {label}<span className="text-xs font-normal text-muted-foreground tabular-nums">{counts[value]}</span>
-    </TabsTrigger>
-  )
+  const tab = (value: View, label: string) => <CountTab value={value} label={label} count={counts[value]} />
   return (
-    <TabsList aria-label="Job archive filter" className="h-auto gap-6 rounded-none bg-transparent p-0">
+    <CountTabsList label="Job archive filter">
       {tab("new", "New")}{tab("shortlist", "Shortlist")}{tab("archived", "Archived")}
-    </TabsList>
+    </CountTabsList>
   )
 }
 

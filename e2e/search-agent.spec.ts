@@ -72,6 +72,8 @@ for (const [skill, field, input, destination, result] of skills) {
     await expect(page.getByText('Synthetic tool completed', { exact: true })).toBeVisible()
     if (destination === "Recruiters") await workspace.visit("/contacts", "Contacts")
     else if (destination === "Activity") await workspace.visit("/launch?tab=history", "Agent")
+    // The profile audit lands on the Profile's LinkedIn tab.
+    else if (destination === "Profile") await workspace.visit("/profile?tab=linkedin", "Profile")
     else await workspace.go(destination)
     if (destination === 'Recruiters') await expect(page.getByRole('button', { name: 'View Alex Recruiter' })).toBeVisible()
     else await expect(page.getByText(result, { exact: true }).first()).toBeVisible()

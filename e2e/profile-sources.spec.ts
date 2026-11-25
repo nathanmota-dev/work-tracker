@@ -8,44 +8,50 @@ test('Profile sources: upload the LinkedIn export, import files placed by hand, 
   const profileDir = join(workspace.repository, 'base', 'data')
   writeFileSync(workspace.dataFile, JSON.stringify({ skills: ['React', 'TypeScript'], work: [{ company: 'Northwind Labs', start: '2022-11', end: 'Present' }, { company: 'Fabrikam Studio', start: '2017', end: '2019-05' }] }))
 
-  await workspace.go('Profile')
-  await page.getByRole('tab', { name: 'Base resume' }).click()
-  // Base resume names each source without its path and compiles the missing base PDF.
+  // The base resume page names each source without its path and compiles the missing base PDF.
+  await workspace.visit('/resume?id=base', 'Base resume')
   const sources = page.getByRole('list', { name: 'Selected sources' })
   await expect(sources).toContainText('Profile folderdata')
   await expect(sources).not.toContainText(profileDir)
   await expect(page.getByPlaceholder('Folder with your LinkedIn export and resume PDFs')).toBeHidden()
   await expect(panel(page, 'Base resume PDF').locator('.react-pdf__Page__canvas')).toBeVisible({ timeout: 90_000 })
 
-  // The export is uploaded through the interface into the profile folder and imported at once.
-  await page.getByLabel('Choose profile files').setInputFiles('src/test/fixtures/profile/linkedin-export.pdf')
+  // The export is uploaded from the Profile's import sheet into the profile folder and imported at once.
+  await workspace.go('Profile')
+  const openImport = async () => {
+    await page.getByRole('button', { name: 'Import resume', exact: true }).first().click()
+    return page.getByRole('dialog', { name: 'Resume files' })
+  }
+  let sheet = await openImport()
+  await sheet.getByLabel('Choose profile files').setInputFiles('src/test/fixtures/profile/linkedin-export.pdf')
   await expect(page.getByRole('status').filter({ hasText: 'Added linkedin-export.pdf.' })).toBeVisible({ timeout: 30_000 })
   expect(existsSync(join(profileDir, 'linkedin-export.pdf'))).toBe(true)
-  const files = page.getByRole('list', { name: 'Profile files' })
+  let files = sheet.getByRole('list', { name: 'Profile files' })
   await expect(files.getByRole('listitem').filter({ hasText: 'linkedin-export.pdf' })).toContainText('LinkedIn exportImported')
   await expect(files.getByRole('listitem').filter({ hasText: 'resume-data.json' })).toContainText('Data fileImported')
+  await page.keyboard.press('Escape')
+  await expect(sheet).toHaveCount(0)
 
   // The upload filled the empty answers with the export's contact details, shown on Profile with their origin.
-  await page.getByRole('tab', { name: 'LinkedIn', exact: true }).click()
-  const personal = page.getByRole('region', { name: 'Personal information' })
-  await expect(personal.getByText('alex@example.com', { exact: true })).toBeVisible()
-  await expect(personal.getByText('From LinkedIn')).toHaveCount(4)
-  await expect(page.getByRole('region', { name: 'Links' }).getByText('https://www.linkedin.com/in/alex-ex/', { exact: true })).toBeVisible()
+  const personal = page.getByRole('region', { name: 'Personal details' })
+  await expect(personal.getByRole('button', { name: 'Edit Email', exact: true })).toHaveAttribute('title', 'alex@example.com · From LinkedIn')
+  await expect(personal.getByRole('button', { name: 'Edit LinkedIn profile', exact: true })).toContainText('https://www.linkedin.com/in/alex-ex/')
   await expect(page.getByRole('list', { name: 'Skills' })).toContainText('PostgreSQL')
   expect(workspace.query("SELECT key, source FROM answer_autofill ORDER BY key")).toEqual(
     ['city', 'country', 'email', 'first_name', 'full_name', 'languages', 'last_name', 'linkedin_url', 'location', 'summary'].map(key => ({ key, source: 'linkedin' })))
-  await page.getByRole('tab', { name: 'Base resume' }).click()
+  sheet = await openImport()
+  files = sheet.getByRole('list', { name: 'Profile files' })
 
   // A PDF placed in the folder by hand is imported without any action.
   const placed = join(profileDir, 'placed-by-hand.pdf')
   copyFileSync('src/test/fixtures/profile/linkedin-export.pdf', placed)
   appendFileSync(placed, '\n%placed\n')
   await expect(files.getByRole('listitem').filter({ hasText: 'placed-by-hand.pdf' })).toContainText('Imported', { timeout: 30_000 })
-  await page.getByText('4 experiences · 1 education · 3 skills').click()
-  await expect(page.getByRole('list', { name: 'Extracted experiences' })).toContainText('Junior Developer · Fabrikam Studio')
+  await sheet.getByText('4 experiences · 1 education · 3 skills').click()
+  await expect(sheet.getByRole('list', { name: 'Extracted experiences' })).toContainText('Junior Developer · Fabrikam Studio')
 
   // A different month is a conflict; the same year without a month is not.
-  const conflicts = page.getByRole('region', { name: 'Profile conflicts' })
+  const conflicts = sheet.getByRole('region', { name: 'Profile conflicts' })
   await expect(conflicts).toContainText('0 of 1 conflicts decided')
   await conflicts.getByRole('button', { name: 'LinkedIn: 2022-12' }).click()
   await expect(conflicts).toContainText('1 of 1 conflicts decided')

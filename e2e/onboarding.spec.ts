@@ -10,11 +10,12 @@ async function fillAnswers(workspace: Workspace) {
   const { page } = workspace
   for (const [label, value] of [['First name', 'Ada'], ['Last name', 'Lovelace'], ['Email', 'ada@example.com']] as const) {
     await step(workspace, 'Fill essential answers').getByRole('link', { name: 'Add answers' }).click()
-    const dialog = page.getByRole('dialog', { name: /answer/ })
-    await expect(dialog.getByLabel('Field', { exact: true })).toHaveText(label)
-    await dialog.getByLabel('Answer', { exact: true }).fill(value)
-    await dialog.getByRole('button', { name: 'Save answer' }).click()
-    await expect(page.getByRole('dialog')).toHaveCount(0)
+    // The requested field opens in place above the questions.
+    const editor = page.getByRole('region', { name: /answer/ })
+    await expect(editor.getByLabel('Field', { exact: true })).toHaveText(label)
+    await editor.getByLabel('Answer', { exact: true }).fill(value)
+    await editor.getByRole('button', { name: 'Save answer' }).click()
+    await expect(editor).toHaveCount(0)
     await workspace.go('Dashboard')
   }
   await expect(step(workspace, 'Fill essential answers')).toContainText('Done')

@@ -53,7 +53,7 @@ export function NextStepAction({
 }
 
 /** Advances a prepared application to Tracking once the candidate submitted it in the portal. */
-function AdvanceButton({ row }: { row: Row }) {
+export function useAdvance(row: Row) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
@@ -69,13 +69,21 @@ function AdvanceButton({ row }: { row: Row }) {
       setBusy(false)
     }
   }
+  return {
+    ask: () => { setError(""); setOpen(true) },
+    dialog: <AdvanceDialog row={open ? row : null} busy={busy} error={error} onConfirm={() => void advance()} onCancel={() => setOpen(false)} />,
+  }
+}
+
+function AdvanceButton({ row }: { row: Row }) {
+  const advance = useAdvance(row)
   return (
     <>
-      <Button size="sm" variant="ghost" title="Move to Tracking after you submitted it in the portal" onClick={() => { setError(""); setOpen(true) }}>
+      <Button size="sm" variant="ghost" title="Move to Tracking after you submitted it in the portal" onClick={advance.ask}>
         Advance to next step
         <ArrowRight className="size-4" />
       </Button>
-      <AdvanceDialog row={open ? row : null} busy={busy} error={error} onConfirm={() => void advance()} onCancel={() => setOpen(false)} />
+      {advance.dialog}
     </>
   )
 }

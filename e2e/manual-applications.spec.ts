@@ -14,7 +14,7 @@ test('Manual application: missing job is created from its data, a failed link is
   expect(application).toEqual({ id: expect.any(Number), job_id: null })
 
   await workspace.go('Applications')
-  await page.getByRole('button', { name: 'View Manual Engineer' }).click()
+  await page.getByRole('button', { name: 'View details of Manual Engineer' }).click()
   await page.getByRole('dialog').getByRole('button', { name: 'Prepare application' }).click()
   const dialog = page.getByRole('dialog', { name: 'Prepare this application' })
   await expect(dialog.getByLabel('Role title')).toHaveValue('Manual Engineer')
@@ -50,7 +50,7 @@ test('Legacy review: safe fixes keep IDs once, and an ambiguous job is linked on
   await review.getByRole('button', { name: 'Review', exact: true }).click()
   await expect(page).toHaveURL(/review=true/)
   // While reviewing, the list shows only the records that need a decision.
-  await expect(page.getByRole('button', { name: 'View Sent Engineer' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'View details of Sent Engineer' })).toBeVisible()
   await expect(review).toContainText('2 saved jobs match this link.')
   await review.getByRole('button', { name: 'Apply safe fixes (1)' }).click()
   await expect(panel(page, 'Needs review (1)')).toContainText('1 application(s) reconciled.')

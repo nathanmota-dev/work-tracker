@@ -8,8 +8,8 @@ export const routes = [
   ['Interviews', 'interviews', 'Upcoming'],
   ['Interview prep', 'interview-prep', 'Walk into every round with likely questions, grounded answers and a consistency brief.'],
   ['Contacts', 'contacts', 'Preview connection sync'],
-  ['Profile', 'profile', 'Profile assessment'],
-  ['Resumes', 'resumes', 'Resumes for a role and stack, reused for every job that matches. Approving a tailored resume in Apply saves it here too.'],
+  ['Profile', 'profile', 'Personal details'],
+  ['Resumes', 'resumes', 'Your base resume and the resumes tailored from it for a role and stack, reused for every job that matches. Approving a tailored resume in Apply saves it here too.'],
   ['Agent', 'launch', 'Run a skill'],
   ['Settings', 'settings', 'Appearance'],
 ] as const
@@ -43,12 +43,12 @@ for (const populated of [false, true]) {
         if (populated && title === 'Jobs') await expect(page.getByRole('article').filter({ hasText: 'Company 1' }).first()).toBeVisible()
         if (populated && title === 'Interviews') await expect(page.getByRole('cell', { name: 'Future Company', exact: true })).toBeVisible()
         if (populated && title === 'Applications') {
-          await page.getByRole('tab', { name: 'Board', exact: true }).click()
+          await page.getByRole('radio', { name: 'Board', exact: true }).click()
           await expect(page).toHaveURL(/view=board/)
           await expect(page.getByRole('region', { name: 'Draft applications' })).toBeVisible()
           await page.reload()
           await workspace.ready(title)
-          await expect(page.getByRole('tab', { name: 'Board', exact: true })).toHaveAttribute('aria-selected', 'true')
+          await expect(page.getByRole('radio', { name: 'Board', exact: true })).toHaveAttribute('aria-checked', 'true')
         }
       })
     }
@@ -83,7 +83,7 @@ test('shell: redirect, sidebar, command palette, history and narrow window', asy
 })
 
 const readEndpoints = [
-  ['Dashboard', 'overview'], ['Profile', 'profile'], ['Agent', 'acp/providers'],
+  ['Dashboard', 'overview'], ['Profile', 'answers/variants'], ['LinkedIn', 'profile'], ['Agent', 'acp/providers'],
   ['Recruiters', 'recruiters'], ['Outreach', 'outreach'],
   ['Jobs', 'jobs'], ['Applications', 'applications'],
   ['Answers', 'answers/variants'],
@@ -91,10 +91,12 @@ const readEndpoints = [
 ] as const
 for (const [title, endpoint] of readEndpoints) {
   test(`${title}: failed load can be retried`, async ({ workspace, page }) => {
+    // The first Profile visit imports resume files and reloads its answers, which would retry the failure.
+    if (title === 'Profile') await workspace.go('Profile')
     await workspace.go(title === 'Jobs' ? 'Settings' : 'Jobs')
     await workspace.fault(endpoint)
     // A failed request deliberately keeps its loader/error visible.
-    const destinations: Record<string, [string, string]> = { Recruiters: ["/contacts?tab=people", "Contacts"], Outreach: ["/contacts?tab=follow-ups", "Contacts"], Answers: ["/profile?tab=answers", "Profile"], Activity: ["/launch?tab=history", "Agent"] }
+    const destinations: Record<string, [string, string]> = { Recruiters: ["/contacts?tab=people", "Contacts"], Outreach: ["/contacts?tab=follow-ups", "Contacts"], Answers: ["/profile?tab=answers", "Profile"], LinkedIn: ["/profile?tab=linkedin", "Profile"], Activity: ["/launch?tab=history", "Agent"] }
     if (destinations[title]) await page.evaluate(hash => { location.hash = hash }, destinations[title][0])
     else await page.locator('[data-sidebar="sidebar"]').getByRole('link', { name: title, exact: true }).click()
     await expect(page.getByRole('alert').filter({ hasText: 'Synthetic transport failure' })).toBeVisible()
