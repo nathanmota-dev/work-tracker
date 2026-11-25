@@ -35,8 +35,14 @@ async function connect(): Promise<Client> {
 export async function listTools(): Promise<string[]> {
   return (await (await connect()).listTools()).tools.map(t => t.name);
 }
+let inFlight = 0;
+/** Whether a backend LinkedIn call is running; the MCP drives a single shared browser. */
+export function linkedinCallRunning(): boolean { return inFlight > 0; }
 export async function callTool(name: string, args: Record<string, unknown>): Promise<unknown> {
-  const result = await (await connect()).callTool({ name, arguments: args }, undefined, { timeout: 180000 });
+  inFlight++;
+  let result;
+  try { result = await (await connect()).callTool({ name, arguments: args }, undefined, { timeout: 180000 }); }
+  finally { inFlight--; }
   const content = (result.content ?? []) as Array<{ type: string; text?: string }>;
   const text = content.filter(c => c.type === "text").map(c => c.text).join("\n");
   if (result.isError) throw new Error(text || `MCP tool failed: ${name}`);

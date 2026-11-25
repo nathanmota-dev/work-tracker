@@ -7,7 +7,8 @@ import { SessionManager } from "../acp/session.ts";
 import { createServer } from "node:http";
 import { WebSocketServer, WebSocket } from "ws";
 import { randomUUID } from "node:crypto";
-import { closeMcp } from "../mcp/linkedin.ts";
+import { closeMcp, linkedinCallRunning } from "../mcp/linkedin.ts";
+import { jobDetails } from "../mcp/search.ts";
 import { stopAllOwned } from "../acp/process.ts";
 import { PreparationService } from "../preparation/service.ts";
 import { PreparationQueue } from "../preparation/batch-queue.ts";
@@ -19,6 +20,7 @@ import { routeApi } from "./routes.ts";
 import { permissionStore } from "../acp/permission-store.ts";
 import { startProfileWatch, stopProfileWatch } from "../profile/watch.ts";
 import { ensureMcpServers, onInstallChange } from "../mcp/install/index.ts";
+import { DescriptionFetcher } from "../jobs/description-fetch.ts";
 
 /** Internal HTTP boundary, shared by the server adapter and unit tests. */
 export function createRequestHandler({
@@ -73,7 +75,7 @@ export async function startBackend(flags: Flags = {}) {
   const workspace = paths.workspace;
   // The batch queue follows runs and agent sessions to start its next item. Both
   // emit only after startup, once the queue below exists.
-  const observe = (event: unknown) => queue.observe(event);
+  const observe = (event: unknown) => { queue.observe(event); descriptions.observe(event); };
   const acp = new SessionManager(workspace, (event) => {
     broadcast(sockets, event);
     observe(event);
@@ -85,13 +87,14 @@ export async function startBackend(flags: Flags = {}) {
   const variants = new VariantService(acp, event => broadcast(sockets, event), preparation.slot);
   const queue = new PreparationQueue(preparation, () => acp.isRunning || integrationTesting() || chromeLoginOpening(), event => broadcast(sockets, event));
   queue.schedule();
+  const descriptions = descriptionFetcher(acp, preparation, event => broadcast(sockets, event));
   const handleRequest = createRequestHandler({
     token,
     acp,
     preparation,
     queue,
     variants,
-    broadcast: (event) => broadcast(sockets, event),
+    broadcast: (event) => { broadcast(sockets, event); descriptions.observe(event); },
   });
   const server = createServer(nodeRequestListener(handleRequest));
   const wss = new WebSocketServer({ noServer: true });
@@ -135,6 +138,7 @@ export async function startBackend(flags: Flags = {}) {
       return (closing ??= (async () => {
         stopProfileWatch();
         queue.close();
+        descriptions.close();
         await preparation.close();
         variants.close();
         acp.stop();
@@ -169,6 +173,16 @@ export async function dashboardCmd(flags: Flags): Promise<void> {
   };
   process.once("SIGINT", stop);
   process.once("SIGTERM", stop);
+}
+/**
+ * New LinkedIn jobs saved without a description get one in the background, so
+ * their Resume match appears. It waits while anything may use the LinkedIn browser.
+ */
+function descriptionFetcher(acp: SessionManager, preparation: PreparationService, send: (event: unknown) => void): DescriptionFetcher {
+  const fetcher = new DescriptionFetcher({ db, fetchDetails: jobDetails, broadcast: send,
+    busy: () => acp.isRunning || preparation.isBusy || integrationTesting() || chromeLoginOpening() || linkedinCallRunning() });
+  fetcher.schedule();
+  return fetcher;
 }
 function broadcast(sockets: Set<WebSocket>, msg: unknown): void {
   const data = JSON.stringify(msg);

@@ -132,3 +132,16 @@ test("shutdown cancels a pending connection and permits a fresh attempt", async 
   expect(Client).toHaveBeenCalledTimes(2);
   await closeMcp();
 });
+test("reports a running call until it settles, including a failed one", async () => {
+  const { callTool, closeMcp, linkedinCallRunning } = await import("./linkedin.ts");
+  const pending = deferred<unknown>();
+  c.callTool.mockReturnValueOnce(pending.promise);
+  expect(linkedinCallRunning()).toBe(false);
+  const call = callTool("get_job_details", { job_id: "1" });
+  await vi.waitFor(() => expect(c.callTool).toHaveBeenCalled());
+  expect(linkedinCallRunning()).toBe(true);
+  pending.reject(new Error("timeout"));
+  await expect(call).rejects.toThrow("timeout");
+  expect(linkedinCallRunning()).toBe(false);
+  await closeMcp();
+});
