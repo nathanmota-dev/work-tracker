@@ -9,7 +9,7 @@ import { DocumentReview } from "@/components/document-review"
 import { RunRecovery } from "@/components/run-recovery"
 import { FillReviewPanel } from "@/components/fill-review"
 import { openApply } from "@/lib/preparation"
-import { SAVED_RESUME, type ApplyWorkspaceState } from "@/lib/apply-workspace"
+import { BASE_RESUME, SAVED_RESUME, type ApplyWorkspaceState } from "@/lib/apply-workspace"
 import type { StepKey } from "@/lib/application-steps"
 
 type Props = { w: ApplyWorkspaceState }
@@ -57,7 +57,8 @@ export function DescriptionStep({ w }: Props) {
 function ResumeOptions({ w }: Props) {
   const { run } = w
   const target = { jobId: w.search.jobId, applicationId: w.search.applicationId ?? run?.application_id ?? undefined }
-  return <div className="grid gap-3 2xl:grid-cols-2">
+  const baseReady = !!w.sources.data?.config.projectDir
+  return <div className="grid gap-3">
     <Option title="Use a saved resume" description="Reuse a resume already tailored for this role and stack. No agent runs, so you can review and fill right away.">
       <SavedResumePicker disabled={w.busy || w.archived || !w.live || w.readiness.submitted || w.integrations.testing} target={target} onError={w.setError} onUsed={value => { w.setNotice(""); w.apply.context.update(previous => ({ ...previous, runId: value.id })); openApply(w.search.jobId, value.application_id ?? undefined, value.id); w.details.refresh() }} />
     </Option>
@@ -68,7 +69,12 @@ function ResumeOptions({ w }: Props) {
         <CancelRun w={w} filling={false} />
       </div>
       <BlockList label="Generate" blocks={w.generateBlocks} correct={w.correct} />
-      {w.sources.data && <p className="text-xs text-muted-foreground">{w.sources.data.config.projectDir ? "Base resume configured" : "Base resume missing"} · <a className="text-foreground underline" href="#/resume?id=base">Configure resume sources</a></p>}
+    </Option>
+    <Option title="Use your base resume" description="Send the base resume as it is, without tailoring. Its PDF is compiled first if needed.">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="outline" disabled={!baseReady || w.busy || w.archived || !w.live || w.readiness.submitted || w.integrations.testing} onClick={() => void w.action("use-base")}>Use base resume</Button>
+        {w.sources.data && <p className="text-xs text-muted-foreground">{baseReady ? "Base resume configured" : "Base resume missing"} · <a className="text-foreground underline" href="#/resume?id=base">Configure resume sources</a></p>}
+      </div>
     </Option>
   </div>
 }
@@ -94,7 +100,7 @@ export function FillStep({ w }: Props) {
   const { step, index } = stepOf(w, "fill")
   const fill = w.details.data?.fill
   return <StepSection step={step} index={index}>
-    <p className="text-sm">Agent: <span className="font-medium">{agentName(w)}</span>{w.pdfRun?.provider === SAVED_RESUME && <span className="text-muted-foreground"> · fills the saved resume you chose</span>}</p>
+    <p className="text-sm">Agent: <span className="font-medium">{agentName(w)}</span>{w.pdfRun?.provider === SAVED_RESUME && <span className="text-muted-foreground"> · fills the saved resume you chose</span>}{w.pdfRun?.provider === BASE_RESUME && <span className="text-muted-foreground"> · fills your base resume as it is</span>}</p>
     <div className="flex flex-wrap gap-2">
       <Button disabled={w.fillBlocks.length > 0} onClick={() => void w.action("fill")}>Fill application</Button>
       <CancelRun w={w} filling />

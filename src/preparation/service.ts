@@ -6,9 +6,9 @@ import { paths } from "../paths.ts";
 import { openChromePortal } from "../mcp/chrome.ts";
 import { inspectPdf } from "./latex.ts";
 import { PreparationError, snapshotSources, type SourcesSnapshot } from "./sources.ts";
-import { addArtifact, artifactFile, runManifest, runOptions, runRecord, updateRun } from "./store.ts";
+import { addArtifact, artifactFile, cachedPreview, runManifest, runOptions, runRecord, updateRun } from "./store.ts";
 import { preparationDetails, sourcesState } from "./details.ts";
-import { SAVED_RESUME, type PdfArtifact, type PreparationDetails, type PreparationRun, type SourcesState, type SubmissionConfirmation } from "./types.ts";
+import { usesReadyPdf, type PdfArtifact, type PreparationDetails, type PreparationRun, type SourcesState, type SubmissionConfirmation } from "./types.ts";
 import { addCheckpoint, dropCheckpoints, markPortal } from "./recovery.ts";
 import { applyFillResult, fillManifestPath, interruptStaleRuns, readFillResult, webLink, type FillManifest } from "./portal-fill.ts";
 import { ensureDescription, resetProject, restoreSources, type GenerationManifest, type GenerationSources } from "./generation.ts";
@@ -23,6 +23,7 @@ import { missingForPreparation } from "../jobs/preparation.ts";
 import { planTransition } from "../applications/journey.ts";
 import { assertPortalFree } from "./batch-store.ts";
 import { useVariant } from "../variants/apply.ts";
+import { useBase } from "./use-base.ts";
 import { saveTailoredVariant } from "../variants/promote.ts";
 import { jobId, jobRecord, savePastedDescription, type PreparationJob as Job } from "./jobs.ts";
 
@@ -110,14 +111,24 @@ export class PreparationService {
     this.changed(run.id);
     return run;
   }
+  /** Prepare the application with the base resume as it is; its PDF is compiled first when needed. */
+  async useBase(input: Record<string, unknown>): Promise<PreparationRun> {
+    this.assertIdle();
+    const snapshot = snapshotSources();
+    const preview = cachedPreview(snapshot.version) ?? await this.preview();
+    const run = useBase(input, () => this.assertIdle(), snapshot.version, preview);
+    for (const table of ["applications", "activity_log"]) this.broadcast({ type: "changed", table });
+    this.changed(run.id);
+    return run;
+  }
   /** Retry from the persisted checkpoint; an unknown portal outcome needs review. */
   retry(input: Record<string, unknown>, sources?: SourcesSnapshot): PreparationRun {
     this.assertIdle();
     const run = runRecord(String(input.runId ?? ""));
     const from = run.recovery.retryFrom;
-    // A saved resume can be filled again, but never regenerated.
+    // A saved or base resume can be filled again, but never regenerated.
     if (from === "filling") return this.fill({ ...input, runId: run.id });
-    if (run.provider === SAVED_RESUME) throw new PreparationError("Generate a tailored version instead.", 409);
+    if (usesReadyPdf(run.provider)) throw new PreparationError("Generate a tailored version instead.", 409);
     if (!from) throw new PreparationError("This execution has nothing to retry.", 409);
     const job = jobRecord(run.job_id);
     if (job.archived_at) throw new PreparationError("Restore this job before preparing an application.", 409);

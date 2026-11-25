@@ -30,6 +30,12 @@ export function saveDocument(d: Database, runId: string, applicationId: number, 
   d.query("INSERT INTO document_versions (id, run_id, application_id, pdf_hash, source_version, snapshot_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
     .run(pdf.id, runId, applicationId, pdfHash(artifactFile(pdf.id).path), String(manifest.sourceVersion), JSON.stringify(snapshot), now());
 }
+/** Record the base resume, used as it is, as this run's document version. Caller owns the transaction. */
+export function saveBaseDocument(d: Database, input: { runId: string; applicationId: number; pdf: PdfArtifact; job: { description?: string | null }; baseText: string; sourceVersion: string }): void {
+  const snapshot: Snapshot = { description: input.job.description ?? "", extra: "", data: null, baseText: input.baseText, variant: null, job: input.job, report: "" };
+  d.query("INSERT INTO document_versions (id, run_id, application_id, pdf_hash, source_version, snapshot_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
+    .run(input.pdf.id, input.runId, input.applicationId, pdfHash(artifactFile(input.pdf.id).path), input.sourceVersion, JSON.stringify(snapshot), now());
+}
 const readText = (path: unknown): string | null => typeof path === "string" && existsSync(path) ? readFileSync(path, "utf8") : null;
 /**
  * Record a saved resume variant's PDF as this run's document version, with the

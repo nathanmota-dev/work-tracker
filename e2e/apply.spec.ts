@@ -219,3 +219,19 @@ test('Apply: failed regeneration preserves PDF; cancel and sign-in retry keep ap
   await expect(page.getByText(/^Checklist complete\. The application is not submitted yet/)).toBeVisible()
   expect(workspace.query('SELECT fill_status, submission_status FROM applications')).toEqual([{ fill_status: 'filled', submission_status: 'not_submitted' }])
 })
+test('Apply: the base resume is used as it is, without tailoring, and filled by the selected agent', async ({ workspace }) => {
+  const { page } = workspace
+  await selectJob(workspace)
+  await page.getByRole('button', { name: 'Use base resume', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Approve this version', exact: true })).toBeEnabled({ timeout: 60_000 })
+  await expect(panel(page, 'Tailored PDF').locator('.react-pdf__Page__textContent')).toContainText('Base resume.')
+  expect(workspace.calls('tailor')).toHaveLength(0)
+  await page.getByRole('button', { name: 'Approve this version', exact: true }).click()
+  await expect(page.getByRole('region', { name: 'Step 3: Fill portal' })).toContainText('fills your base resume as it is')
+  await page.getByRole('button', { name: 'Fill application', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'I submitted in the browser' })).toBeVisible({ timeout: 30_000 })
+  expect(workspace.calls('fill')).toHaveLength(1)
+  expect(workspace.query("SELECT provider FROM application_runs")).toEqual([{ provider: 'base-resume' }])
+  // The base resume is already in Resumes, so approving it saves nothing there.
+  expect(workspace.query('SELECT COUNT(*) AS n FROM resume_variants')).toEqual([{ n: 0 }])
+})

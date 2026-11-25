@@ -11,7 +11,11 @@ import { openApply, preparationMessages, usePreparation, type SourcesState, type
 
 /** Marks an execution that reused a saved resume; no agent generated it. */
 export const SAVED_RESUME = "saved-resume"
-export type ApplyKind = "generate" | "fill" | "retry" | "cancel" | "submitted" | "description" | "approve"
+/** Marks an execution that used the base resume as it is. */
+export const BASE_RESUME = "base-resume"
+/** No agent generated these executions' PDFs, so the selected agent fills them. */
+export const usesReadyPdf = (provider?: string) => provider === SAVED_RESUME || provider === BASE_RESUME
+export type ApplyKind = "generate" | "fill" | "retry" | "cancel" | "submitted" | "description" | "approve" | "use-base"
 
 /** Open the job description editor and focus it. */
 function focusDescription() {
@@ -57,7 +61,7 @@ export function useApplyWorkspace(search: ReviewSearch, review: boolean, reviewL
   const submitted = details.data?.applicationStatus === "submitted"
   const missingTools = sources.data?.dependencies.some(d => !d.available) ?? true
   // A batch item is filled by the agent that generated it; otherwise by the selected agent.
-  const itemAgent = review && pdfRun && pdfRun.provider !== SAVED_RESUME ? { provider: pdfRun.provider, model: pdfRun.model ?? "" } : undefined
+  const itemAgent = review && pdfRun && !usesReadyPdf(pdfRun.provider) ? { provider: pdfRun.provider, model: pdfRun.model ?? "" } : undefined
   const fillAgent = itemAgent ?? { provider: selectedProvider?.id, model: effectiveModel }
   const readiness = { live, busy: (!!review && pdfRun?.id !== run?.id) || busy || integrations.testing, archived, submitted, sources: !!sources.data?.config.projectDir, tools: !missingTools, descriptionDirty, gateUnconfirmed: gate.unconfirmed, linkedinNeeded: !details.data?.job.description && !!details.data?.job.linkedin_job_id, descriptionMissing: !details.data?.job.description && !details.data?.job.linkedin_job_id, tailored: !!tailored && !!version, approved: !!version?.approvedAt, provider: selectedProvider?.id, model, invalidModel: !!model && !selectedProvider?.models.includes(model), integrations: integrations.data }
   const generateBlocks = review ? [] : applyBlocks(readiness, "generate")
@@ -84,13 +88,15 @@ export function useApplyWorkspace(search: ReviewSearch, review: boolean, reviewL
       case "retry": return { runId: run?.id, extra, reviewed, ...agentFields }
       case "fill": return { runId: pdfRun?.id, extra, versionId: version?.id, ...agentFields }
       case "cancel": return { runId: run?.id, extra }
+      case "use-base": return { jobId: search.jobId, applicationId: search.applicationId ?? run?.application_id ?? undefined }
     }
   }
   async function action(kind: ApplyKind, reviewed = false) {
     setPending(true); setError(""); setNotice("")
     try {
       const payload = body(kind, reviewed)
-      const value = await request<{ id?: string } & Partial<SubmissionConfirmation>>(`application-preparation/${kind}`, payload)
+      const value = await request<{ id?: string; application_id?: number | null } & Partial<SubmissionConfirmation>>(`application-preparation/${kind}`, payload)
+      if (kind === "use-base" && value.id) { const runId = value.id; context.update(previous => ({ ...previous, runId })); openApply(search.jobId, value.application_id ?? undefined, runId) }
       if (kind === "submitted") setNotice(value.alreadySubmitted ? "This submission was already confirmed. The application stays on the board." : "Submission confirmed. The application is now on the board in its initial stage.")
       if (kind === "generate" && value.id) { context.update(previous => ({ ...previous, runId: value.id })); openApply(search.jobId, "applicationId" in payload ? payload.applicationId : undefined, value.id) }
       if (kind === "retry" && run) openApply(search.jobId, search.applicationId, run.id)

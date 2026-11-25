@@ -339,3 +339,18 @@ it("scrolls to a step's section from the stepper", async () => {
   fireEvent.click(within(nav).getAllByRole("button")[2]!)
   expect(scroll).toHaveBeenCalledWith({ behavior: "smooth", block: "start" })
 })
+it("uses the base resume as it is and opens its execution", async () => {
+  const base = request.getMockImplementation()!
+  request.mockImplementation(async (path: string, body?: unknown) => path === "application-preparation/use-base" ? { id: "run-base", application_id: 3 } : base(path, body))
+  render(<ApplyPage />)
+  const resume = await screen.findByRole("region", { name: "Step 2: Resume" })
+  await waitFor(() => expect(within(resume).getByRole("button", { name: "Use base resume" })).toBeEnabled())
+  fireEvent.click(within(resume).getByRole("button", { name: "Use base resume" }))
+  await waitFor(() => expect(request).toHaveBeenCalledWith("application-preparation/use-base", { jobId: 7, applicationId: 3 }))
+  await waitFor(() => expect(window.location.hash).toContain("runId=run-base"))
+})
+it("names the base resume in the Fill portal step", async () => {
+  details.runs[0].provider = "base-resume"
+  render(<ApplyPage />)
+  expect(await screen.findByRole("region", { name: "Step 3: Fill portal" })).toHaveTextContent("fills your base resume as it is")
+})

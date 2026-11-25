@@ -10,7 +10,7 @@ import { DescriptionStep, FillStep, ResumeStep, SubmissionStep } from "@/compone
 import { BatchReviewWorkspace } from "@/components/batch-review-workspace"
 import type { ReviewSearch } from "@/lib/batch-review"
 import { usePageCrumb } from "@/lib/page-crumb"
-import { SAVED_RESUME, useApplyWorkspace, type ApplyWorkspaceState } from "@/lib/apply-workspace"
+import { BASE_RESUME, SAVED_RESUME, useApplyWorkspace, type ApplyWorkspaceState } from "@/lib/apply-workspace"
 import { openApply, type PdfArtifact } from "@/lib/preparation"
 const PdfViewer = lazy(() => import("@/components/pdf-viewer").then(module => ({ default: module.PdfViewer })))
 export function ApplyPage() {
@@ -35,7 +35,7 @@ function WorkspaceAside({ w }: { w: ApplyWorkspaceState }) {
     <PdfPair base={w.base} tailored={w.tailored} tab={route.pdfTab ?? "base"} onTab={pdfTab => update({ pdfTab })} />
     {w.tailored && <p className="text-xs text-muted-foreground">Review the PDF and portal fields before submitting in the browser.</p>}
     <Panel title="Application workspace">
-      {!w.review && !!runs.length && <div className="mb-3"><Field label="Execution history"><SelectControl className={controlClass} value={w.run?.id ?? ""} onChange={e => openApply(w.search.jobId, w.search.applicationId, e.target.value)}>{runs.map(r => <option key={r.id} value={r.id}>{new Date(r.created_at).toLocaleString()} · {r.provider === SAVED_RESUME ? "saved resume" : r.provider} · {r.phase} · {r.status}</option>)}</SelectControl></Field></div>}
+      {!w.review && !!runs.length && <div className="mb-3"><Field label="Execution history"><SelectControl className={controlClass} value={w.run?.id ?? ""} onChange={e => openApply(w.search.jobId, w.search.applicationId, e.target.value)}>{runs.map(r => <option key={r.id} value={r.id}>{new Date(r.created_at).toLocaleString()} · {r.provider === SAVED_RESUME ? "saved resume" : r.provider === BASE_RESUME ? "base resume" : r.provider} · {r.phase} · {r.status}</option>)}</SelectControl></Field></div>}
       <Tabs value={route.workspaceTab ?? "activity"} onValueChange={workspaceTab => update({ workspaceTab })}><TabsList><TabsTrigger value="activity">Agent activity</TabsTrigger><TabsTrigger value="report">Report</TabsTrigger></TabsList><TabsContent value="activity"><AgentConversation messages={w.messages} /></TabsContent><TabsContent value="report"><div className="max-h-[420px] overflow-auto whitespace-pre-wrap text-sm">{w.run?.report ?? "The tailoring report will appear after generation."}</div></TabsContent></Tabs>
     </Panel>
   </aside>

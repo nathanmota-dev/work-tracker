@@ -25,6 +25,7 @@ import { approveDocument } from "./documents.ts";
 import { saveTailoredVariant } from "../variants/promote.ts";
 import { assertPortalFree } from "./batch-store.ts";
 import { PreparationService, readableJobDetails } from "./service.ts";
+import { useBase } from "./use-base.ts";
 import type { PreparationRun, PdfArtifact } from "./types.ts";
 import {
   journeyRecord,
@@ -41,6 +42,7 @@ vi.mock("./documents.ts", () => ({ saveDocument: vi.fn(), documentsForJob: vi.fn
 vi.mock("../db/index.ts", () => ({ db: vi.fn(), now: () => "now" }));
 vi.mock("./batch-store.ts", () => ({ assertPortalFree: vi.fn() }));
 vi.mock("../variants/promote.ts", () => ({ saveTailoredVariant: vi.fn(() => "saved-variant") }));
+vi.mock("./use-base.ts", () => ({ useBase: vi.fn((_input, assertIdle: () => void) => { assertIdle(); return { id: "base-run" }; }) }));
 vi.mock("../variants/apply.ts", () => ({ useVariant: vi.fn((_input, assertIdle: () => void) => { assertIdle(); return { id: "saved" }; }) }));
 vi.mock("../paths.ts", () => ({ paths: { artifacts: "/artifacts" } }));
 vi.mock("../mcp/search.ts", () => ({ jobDetails: vi.fn() }));
@@ -853,4 +855,16 @@ test("a saved resume is filled by the selected agent, and a failed fill retries 
   await settle();
   expect(acp.run).toHaveBeenLastCalledWith("agent", "portal-filler", expect.anything(), "fast");
   expect(run.status).toBe("completed");
+});
+test("using the base resume reuses its compiled PDF, or compiles it first, and is never regenerated", async () => {
+  vi.mocked(snapshotSources).mockReturnValue({ version: "v1" } as never);
+  vi.mocked(cachedPreview).mockReturnValue(pdf);
+  await expect(service.useBase({ jobId: 1 })).resolves.toEqual({ id: "base-run" });
+  expect(useBase).toHaveBeenLastCalledWith({ jobId: 1 }, expect.any(Function), "v1", pdf);
+  expect(broadcast).toHaveBeenCalledWith({ type: "changed", table: "application_runs", runId: "base-run" });
+  stopped("failed", "compiling", "compiling");
+  run.provider = "base-resume";
+  expect(() => service.retry({ runId: "r" })).toThrow("Generate a tailored version instead.");
+  acp.isRunning = true;
+  await expect(service.useBase({ jobId: 1 })).rejects.toThrow("active execution");
 });
