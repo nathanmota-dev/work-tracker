@@ -19,7 +19,8 @@ import { cn } from "@/lib/utils"
 
 export function initials(name: string) {
   const words = name.replace(/[^\p{L}\p{N} ]/gu, " ").split(/\s+/).filter(Boolean)
-  return (words.length > 1 ? words[0][0] + words[1][0] : (words[0] ?? "?").slice(0, 2)).toUpperCase()
+  if (words.length > 1) return (/^\p{L}/u.test(words[1]) ? words[0][0] + words[1][0] : words[0][0]).toUpperCase()
+  return (words[0] ?? "?").slice(0, 2).toUpperCase()
 }
 
 /** Short date as dd/mm/yy; empty when the value is not a date. */
@@ -256,7 +257,7 @@ export function OpportunityCard({ company, title, badges, score, location, menu,
         action={onOpen && <CardDetailsButton label={`View details of ${title}`} onClick={onOpen} />}
       />
       {score && <div className="mt-auto">{score}</div>}
-      <CardLocation>{location}</CardLocation>
+      {location !== null && <CardLocation>{location}</CardLocation>}
       <CardFooter menu={menu} date={date} action={action} />
     </CardShell>
   )

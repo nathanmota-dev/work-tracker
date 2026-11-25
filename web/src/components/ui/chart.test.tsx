@@ -135,12 +135,18 @@ describe("chart primitives", () => {
     expect(() => render(<Consumer />)).toThrow("useChart must be used within a <ChartContainer />")
   })
 
-  it("renders metric history or an empty state", () => {
+  it("renders metric history, a single measurement or an empty state", () => {
+    const first = { captured_at: "2026-01-01", profile_views: 2, search_appearances: 3, score: 40 }
     const { container, unmount } = render(
-      <MetricChart rows={[{ captured_at: "2026-01-01", profile_views: 2, search_appearances: 3 }]} />,
+      <MetricChart rows={[first, { ...first, captured_at: "2026-02-01", profile_views: 5 }]} />,
     )
     expect(container.querySelector("[data-slot=chart]")).not.toBeNull()
     unmount()
+    const single = render(<MetricChart rows={[first]} />)
+    expect(single.container.querySelector("[data-slot=chart]")).toBeNull()
+    expect(screen.getByText("Search appearances").nextElementSibling).toHaveTextContent("3")
+    expect(screen.getByRole("button", { name: "Measure again" })).toBeInTheDocument()
+    single.unmount()
     render(<MetricChart rows={[]} />)
     expect(screen.getByText("Your progress starts here")).toBeInTheDocument()
   })

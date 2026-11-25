@@ -77,7 +77,7 @@ export function createAppRouter(sidebarLayout: RouteComponent) {
           component: page.component,
           beforeLoad: ({ search }) => {
             if (page.path === "recruiters" || page.path === "outreach" || page.path === "search" && search.kind !== "jobs")
-              throw redirect({ to: "/contacts", search: { ...search, tab: page.path === "outreach" ? "follow-ups" : "people" }, replace: true })
+              throw redirect({ to: "/contacts", search: { ...search, tab: page.path === "outreach" ? "follow-ups" : page.path === "search" ? "find" : "people" }, replace: true })
             if (page.path === "answers") throw redirect({ to: "/profile", search: { ...search, tab: "answers" }, replace: true })
             if (page.path === "activity") throw redirect({ to: "/launch", search: { tab: "history" }, replace: true })
             if (page.path === "search" && search.kind === "jobs")

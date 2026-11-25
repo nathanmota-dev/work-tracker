@@ -1,107 +1,125 @@
+import { ChevronDown, MessageSquareReply } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import {
-  Page,
-  Panel,
-  Stats,
-  LoadState,
-  Status,
-} from "@/components/workspace-ui"
-import { Records } from "@/components/records"
-import { useApi, text, type Row } from "@/lib/api"
+import { Page, Stats, LoadState, Empty } from "@/components/workspace-ui"
+import { CardBadge, CardLinkButton } from "@/components/opportunity-card"
+import { CardGrid, CountLine, EntityCard, humanize } from "@/components/entity-card"
+import { linkedinUrl } from "@/components/recruiter-cards"
+import { useApi, openExternal, text, type Row } from "@/lib/api"
 import { prepareSkill } from "@/lib/agent"
+
 type Outreach = {
   funnel: Record<string, number>
   due: Row[]
   blocked: Row[]
   budget: Row
 }
-export function OutreachPage() {
+
+const ACTIONS: Record<string, string> = { withdraw: "Withdraw invite", followup: "Send a follow-up", close: "Close conversation" }
+
+/** "invite unaccepted for 30d (≥ 7d)" as "Invite not accepted after 30 days". */
+export function reasonText(value: unknown) {
+  const reason = String(value ?? "").replace(/\s*\(≥[^)]*\)/g, "").replace(/(\d+)d\b/g, (_, n) => `${n} ${n === "1" ? "day" : "days"}`)
+    .replace(/^invite unaccepted for/, "invite not accepted after")
+  return reason ? reason[0].toUpperCase() + reason.slice(1) : ""
+}
+
+const review = () => prepareSkill("outreach-tracker")
+
+function ActionCard({ row }: { row: Row }) {
+  const name = text(row.person_name ?? row.person_username)
+  const profile = linkedinUrl({ username: row.person_username })
+  return (
+    <EntityCard
+      name={name}
+      eyebrow={text(row.company_name ?? row.company_urn)}
+      title={name}
+      badges={<><CardBadge tone="warn">{ACTIONS[String(row.actionKind)] ?? humanize(row.actionKind)}</CardBadge><CardBadge>{humanize(row.state)}</CardBadge></>}
+      menu={profile && <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => void openExternal(profile).catch(() => {})}>LinkedIn</Button>}
+      action={<CardLinkButton label="Review" onClick={review} />}
+    >
+      <p className="text-sm text-muted-foreground">{reasonText(row.actionReason)}</p>
+    </EntityCard>
+  )
+}
+
+function Lifecycle({ funnel }: { funnel: Record<string, number> }) {
+  const max = Math.max(1, ...Object.values(funnel))
+  return (
+    <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2 xl:grid-cols-4">
+      {Object.entries(funnel).map(([key, count]) => (
+        <div key={key}>
+          <div className="mb-2 flex justify-between text-xs">
+            <span className="text-muted-foreground">{humanize(key)}</span>
+            <span className="tabular-nums">{count}</span>
+          </div>
+          <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+            <div className="h-full rounded-full bg-primary" style={{ width: `${(count / max) * 100}%` }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/** Lifecycle, InMail budget and cooldowns: context, folded below the actions. */
+function OutreachHealth({ data }: { data: Outreach }) {
+  const { budget } = data
+  const summary = `${data.funnel.engaged ?? 0} active · ${data.funnel.invited ?? 0} invited · ${text(budget.credits_remaining)} InMail credits · ${data.blocked.length} in cooldown`
+  return (
+    <details className="group rounded-2xl border bg-card">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-5 [&::-webkit-details-marker]:hidden">
+        <div className="min-w-0">
+          <h3 className="text-sm font-medium">Outreach health</h3>
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">{summary}</p>
+        </div>
+        <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="space-y-6 border-t p-5">
+        <Stats items={[
+          { label: "Active conversations", value: data.funnel.engaged ?? 0 },
+          { label: "InMail credits", value: text(budget.credits_remaining), hint: `${text(budget.credits_used_this_cycle)} used this cycle` },
+          { label: "Credit reserve", value: text(budget.reserve_floor), hint: `${text(budget.plan)} plan · ${text(budget.inmail_monthly_allotment)} monthly · ${text(budget.inmail_rollover_cap)} rollover cap` },
+        ]} className="xl:grid-cols-3" />
+        <section className="space-y-3">
+          <h4 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Connection lifecycle</h4>
+          <Lifecycle funnel={data.funnel} />
+        </section>
+        <section className="space-y-3">
+          <h4 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Companies in cooldown</h4>
+          {data.blocked.length ? (
+            <ul className="flex flex-wrap gap-2">
+              {data.blocked.map(row => (
+                <li key={text(row.company_urn)} className="rounded-full border px-3 py-1 text-xs">
+                  {text(row.company_name ?? row.company_urn)} <span className="text-muted-foreground">· {text(row.count)} blocked</span>
+                </li>
+              ))}
+            </ul>
+          ) : <p className="text-sm text-muted-foreground">No company is in cooldown.</p>}
+        </section>
+      </div>
+    </details>
+  )
+}
+
+/** Due follow-ups first as cards; the funnel and budget stay one click away. */
+export function OutreachPage({ embedded = false }: { embedded?: boolean }) {
   const api = useApi<Outreach>("outreach")
-  const total = Object.values(api.data?.funnel ?? {}).reduce((a, b) => a + b, 0)
   return (
     <Page
       title="Outreach"
-      description="Thoughtful follow-ups. Stronger connections."
-      actions={
-        <Button size="sm" onClick={() => prepareSkill("outreach-tracker")}>
-          Review follow-ups
-        </Button>
-      }
+      description={embedded ? undefined : "Thoughtful follow-ups. Stronger connections."}
+      actions={embedded ? undefined : <Button size="sm" onClick={review}><MessageSquareReply /> Review follow-ups</Button>}
     >
-      <LoadState {...api} retry={api.refresh} />
+      <LoadState {...api} loading={api.loading && !api.data} retry={api.refresh} />
       {api.data && (
         <>
-          <Stats
-            items={[
-              { label: "Active conversations", value: api.data.funnel.engaged },
-              { label: "Actions due", value: api.data.due.length },
-              {
-                label: "InMail credits",
-                value: text(api.data.budget.credits_remaining),
-                hint: `${text(api.data.budget.credits_used_this_cycle)} used this cycle`,
-              },
-              {
-                label: "Credit reserve",
-                value: text(api.data.budget.reserve_floor),
-                hint: `${text(api.data.budget.plan)} plan · ${text(api.data.budget.inmail_monthly_allotment)} monthly · ${text(api.data.budget.inmail_rollover_cap)} rollover cap`,
-              },
-            ]}
-          />
-          <Panel title="Connection lifecycle">
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {Object.entries(api.data.funnel).map(([key, count]) => (
-                <div key={key}>
-                  <div className="mb-2 flex justify-between text-xs">
-                    <span className="capitalize text-muted-foreground">
-                      {key.replaceAll("_", " ")}
-                    </span>
-                    <span>{count}</span>
-                  </div>
-                  <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full rounded-full bg-chart-1"
-                      style={{ width: `${total ? (count / total) * 100 : 0}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Panel>
-          <Records
-            rows={api.data.due}
-            noun="Next actions"
-            columns={[
-              {
-                key: "person_name",
-                label: "Contact",
-                render: (r) => text(r.person_name ?? r.person_username),
-              },
-              {
-                key: "company_name",
-                label: "Company",
-                render: (r) => text(r.company_name ?? r.company_urn),
-              },
-              {
-                key: "state",
-                label: "State",
-                render: (r) => <Status value={r.state} />,
-              },
-              { key: "actionKind", label: "Action" },
-              { key: "actionReason", label: "Reason" },
-            ]}
-          />
-          <Records
-            rows={api.data.blocked}
-            noun="Companies in cooldown"
-            columns={[
-              {
-                key: "company_name",
-                label: "Company",
-                render: (r) => text(r.company_name ?? r.company_urn),
-              },
-              { key: "count", label: "Blocked contacts" },
-            ]}
-          />
+          <CountLine label="Next actions" shown={api.data.due.length} total={api.data.due.length} />
+          {api.data.due.length ? (
+            <CardGrid>{api.data.due.map(row => <ActionCard key={text(row.id)} row={row} />)}</CardGrid>
+          ) : (
+            <Empty title="Nothing due today" description="Nudges, invitation withdrawals and close-outs appear here when they are due." />
+          )}
+          <OutreachHealth data={api.data} />
         </>
       )}
     </Page>

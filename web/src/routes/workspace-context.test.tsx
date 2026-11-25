@@ -218,7 +218,7 @@ it("shows the detail under Applications in the breadcrumb, named after its job",
 it.each([
   ["/recruiters", "/contacts", "people"],
   ["/outreach", "/contacts", "follow-ups"],
-  ["/search?kind=people&keywords=Engineer&company=Acme", "/contacts", "people"],
+  ["/search?kind=people&keywords=Engineer&company=Acme", "/contacts", "find"],
   ["/answers?field=email&returnTo=%2Fapply%3FjobId%3D1", "/profile", "answers"],
   ["/activity", "/launch", "history"],
 ])("redirects legacy hub link %s", async (url, pathname, tab) => {

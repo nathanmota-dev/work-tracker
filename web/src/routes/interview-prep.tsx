@@ -1,29 +1,18 @@
 import { useEffect, useRef, useState } from "react"
+import { Briefcase, Plus } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { AgentConversation } from "@/components/agent-conversation"
-import { CompanyResearchNote } from "@/components/company-research-note"
-import { InterviewPrepPacks } from "@/components/interview-prep-packs"
-import {
-  AgentSelectors,
-  RunFooter,
-  WorkspaceActions,
-  type AgentSelection,
-} from "@/components/launch-form"
-import { DatePicker } from "@/components/ui/date-picker"
-import { SelectControl } from "@/components/ui/select-control"
-import { Input } from "@/components/ui/input"
-import { Empty, Field, LoadState, Page, Panel, Status, controlClass } from "@/components/workspace-ui"
-import { runAgent, supportedEffort, useAgent, type Providers } from "@/lib/agent"
+import { WorkspaceActions } from "@/components/launch-form"
+import { FilterBar, FilterSearch, FilterSelect } from "@/components/filter-bar"
+import { CardGrid, CountLine } from "@/components/entity-card"
+import { InterviewPrepForm, PREP_SKILL, applicationLabel, type AgentChoice, type PrepStart } from "@/components/interview-prep-form"
+import { PackCard, PackSheet, type PrepPack } from "@/components/interview-prep-packs"
+import { Empty, LoadState, Page, Panel, Status } from "@/components/workspace-ui"
+import { supportedEffort, useAgent, type Providers } from "@/lib/agent"
 import { text, useApi, useConnection, type Row } from "@/lib/api"
+import { useWorkspaceState } from "@/lib/workspace-state"
 
-const SKILL = "interview-prep"
-const STAGES = ["Recruiter screen", "Technical interview", "Take-home or case", "Final round", "Offer discussion"]
-type Draft = Record<"stage" | "date" | "format" | "interviewers" | "extra", string>
-
-function label(row: Row) {
-  return `${text(row.company_name)} — ${text(row.job_title)}`
-}
-
-function useAgentChoice(): AgentSelection & { providers: Providers["providers"]; loading: boolean; error: string; retry: () => void } {
+function useAgentChoice(): AgentChoice {
   const api = useApi<Providers>("acp/providers")
   const [choice, setChoice] = useState({ provider: "", model: "", effort: "" })
   const providers = api.data?.providers ?? []
@@ -38,81 +27,78 @@ function useAgentChoice(): AgentSelection & { providers: Providers["providers"];
   }
 }
 
+/** The run's progress, shown only while an interview-prep run is on screen. */
+function PrepWorkspace() {
+  const agent = useAgent()
+  const [error, setError] = useState("")
+  const end = useRef<HTMLDivElement>(null)
+  useEffect(() => { end.current?.scrollIntoView?.({ block: "nearest" }) }, [agent.messages])
+  if (agent.current?.skill !== PREP_SKILL || !agent.running && !agent.messages.length) return null
+  return (
+    <Panel title="Building your pack" action={<div className="flex items-center gap-2"><Status value={agent.status} /><WorkspaceActions agent={agent} onError={setError} /></div>}>
+      <div className="max-h-96 overflow-y-auto">
+        <AgentConversation messages={agent.messages} />
+        <div ref={end} />
+      </div>
+      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+    </Panel>
+  )
+}
+
+function PackBoard({ packs, onRebuild }: { packs: PrepPack[]; onRebuild: (pack: PrepPack) => void }) {
+  const { search, update } = useWorkspaceState("interview-prep")
+  const [application, setApplication] = useState("")
+  const [open, setOpen] = useState<PrepPack | null>(null)
+  const query = (search.q ?? "").toLowerCase()
+  const shown = packs.filter(pack => (!application || String(pack.application_id) === application)
+    && (!query || [pack.application?.company_name, pack.application?.job_title, pack.stage, pack.interviewers].some(value => text(value).toLowerCase().includes(query))))
+  const options = [...new Map(packs.filter(pack => pack.application).map(pack => [String(pack.application_id), applicationLabel(pack.application!)])).entries()]
+    .map(([value, label]) => ({ value, label }))
+  return (
+    <div className="space-y-4">
+      <FilterBar>
+        <FilterSearch value={search.q ?? ""} placeholder="Company, role or stage" label="Search packs" onChange={q => update({ q })} />
+        <FilterSelect icon={Briefcase} label="Application" value={application} anyLabel="All applications" options={options} onChange={setApplication} />
+      </FilterBar>
+      <CountLine label="Preparation packs" shown={shown.length} total={packs.length} />
+      {!shown.length ? (
+        <Empty title={packs.length ? "No matching packs" : "No preparation pack yet"}
+          description={packs.length ? "Try a different search or filter." : "Build a pack before your next round: likely questions, grounded answers and a consistency brief."} />
+      ) : (
+        <CardGrid>{shown.map(pack => <PackCard key={String(pack.id)} pack={pack} onOpen={() => setOpen(pack)} onRebuild={onRebuild} />)}</CardGrid>
+      )}
+      <PackSheet pack={open} onClose={() => setOpen(null)} onRebuild={pack => { setOpen(null); onRebuild(pack) }} />
+    </div>
+  )
+}
+
 export function InterviewPrepPage() {
   const applications = useApi<Row[]>("applications")
+  const packs = useApi<Row[]>("interview-preps")
   const agent = useAgent()
   const live = useConnection()
   const choice = useAgentChoice()
-  const [applicationId, setApplicationId] = useState("")
-  const [draft, setDraft] = useState<Draft>({ stage: STAGES[0], date: "", format: "", interviewers: "", extra: "" })
-  const [error, setError] = useState("")
+  const [building, setBuilding] = useState<PrepStart | null>(null)
   const open = (applications.data ?? []).filter((row) => row.tracking_status !== "archived")
-  const selected = open.find((row) => String(row.id) === applicationId) ?? open[0]
-  const end = useRef<HTMLDivElement>(null)
-  useEffect(() => { end.current?.scrollIntoView?.({ block: "nearest" }) }, [agent.messages])
-  const set = (key: keyof Draft) => (value: string) => setDraft((d) => ({ ...d, [key]: value }))
-  function submit() {
-    setError("")
-    if (!selected || !choice.selectedProvider || !live) return
-    const { extra, ...details } = draft
-    void runAgent(
-      choice.selectedProvider.id,
-      SKILL,
-      { applicationId: String(selected.id), ...details, ...(extra.trim() ? { extra } : {}) },
-      choice.effectiveModel || undefined,
-      choice.effectiveEffort || undefined,
-    )
-  }
+  const byId = new Map((applications.data ?? []).map(row => [Number(row.id), row]))
+  const list: PrepPack[] = (packs.data ?? []).map(pack => ({ ...pack, application: byId.get(Number(pack.application_id)) }))
   return (
     <Page
       title="Interview prep"
       description="Walk into every round with likely questions, grounded answers and a consistency brief."
-      actions={<Status value={agent.status} />}
+      actions={<Button size="sm" disabled={!open.length || agent.running} onClick={() => setBuilding({})}><Plus /> Build pack</Button>}
     >
-      <LoadState {...applications} retry={applications.refresh} />
-      {applications.data && !open.length && (
+      <LoadState {...applications} loading={applications.loading && !applications.data} retry={applications.refresh} />
+      <LoadState {...packs} loading={packs.loading && !packs.data} retry={packs.refresh} />
+      {applications.data && !open.length && !list.length && (
         <Empty title="No applications to prepare for" description="Track an application first, then come back to prepare for its interviews." />
       )}
-      {!!open.length && (
-        <div className="grid min-w-0 gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
-          <Panel title="Build a pack">
-            <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); submit() }}>
-              <Field label="Application">
-                <SelectControl className={controlClass} value={String(selected?.id ?? "")} disabled={agent.running} onChange={(e) => setApplicationId(e.target.value)}>
-                  {open.map((row) => <option key={String(row.id)} value={String(row.id)}>{label(row)}</option>)}
-                </SelectControl>
-              </Field>
-              {typeof selected?.company_name === "string" && selected.company_name.trim() && <CompanyResearchNote key={selected.company_name} company={selected.company_name} />}
-              <Field label="Stage">
-                <SelectControl className={controlClass} value={draft.stage} disabled={agent.running} onChange={(e) => set("stage")(e.target.value)}>
-                  {[...STAGES, ...(STAGES.includes(draft.stage) || !draft.stage ? [] : [draft.stage])].map((stage) => <option key={stage} value={stage}>{stage}</option>)}
-                </SelectControl>
-              </Field>
-              <Field label="Date">
-                <DatePicker value={draft.date} disabled={agent.running} onChange={set("date")} />
-              </Field>
-              <Field label="Format">
-                <Input className={controlClass} placeholder="Phone, video, onsite" value={draft.format} disabled={agent.running} onChange={(e) => set("format")(e.target.value)} />
-              </Field>
-              <Field label="Interviewers">
-                <Input className={controlClass} placeholder="Names and titles, if known" value={draft.interviewers} disabled={agent.running} onChange={(e) => set("interviewers")(e.target.value)} />
-              </Field>
-              <LoadState loading={choice.loading} error={choice.error} retry={choice.retry} />
-              {!!choice.providers.length && <AgentSelectors {...choice} disabled={agent.running} />}
-              <RunFooter extra={draft.extra} onExtra={set("extra")} running={agent.running} canRun={!!choice.selectedProvider && !!selected && live} live={live} waitingForSignIn={agent.status === "Waiting for sign-in"} />
-            </form>
-          </Panel>
-          <div className="flex min-w-0 flex-col gap-4">
-            <Panel title="Saved packs">
-              {selected && <InterviewPrepPacks applicationId={Number(selected.id)} />}
-            </Panel>
-            <Panel title="Agent workspace" action={<WorkspaceActions agent={agent} onError={setError} />}>
-              <AgentConversation messages={agent.messages} />
-              {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-              <div ref={end} />
-            </Panel>
-          </div>
-        </div>
+      <PrepWorkspace />
+      {packs.data && applications.data && (open.length > 0 || list.length > 0) && (
+        <PackBoard packs={list} onRebuild={pack => setBuilding({ applicationId: String(pack.application_id), stage: String(pack.stage ?? "") })} />
+      )}
+      {building && open.length > 0 && (
+        <InterviewPrepForm applications={open} start={building} choice={choice} live={live} onClose={() => setBuilding(null)} />
       )}
     </Page>
   )

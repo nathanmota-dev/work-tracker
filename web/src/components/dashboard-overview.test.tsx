@@ -51,14 +51,10 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers())
 it("shows counters, navigation and empty activity/calendar", () => {
   render(<DashboardOverview />)
-  expect(screen.getByRole("link", { name: "2" })).toHaveAttribute(
-    "href",
-    "/jobs",
-  )
-  expect(screen.getByRole("link", { name: "3" })).toHaveAttribute(
-    "href",
-    "/applications",
-  )
+  expect(screen.getByRole("link", { name: /^Saved opportunities 2/ })).toHaveAttribute("href", "#/jobs")
+  expect(screen.getByRole("link", { name: /^Submitted applications 3/ })).toHaveAttribute("href", "#/applications")
+  expect(screen.getByRole("link", { name: /^Recruiter connections 4/ })).toHaveAttribute("href", "#/contacts")
+  expect(screen.getByRole("link", { name: /^Profile score 80/ })).toHaveAttribute("href", "#/profile")
   expect(screen.getByText("7 still in preparation")).toBeInTheDocument()
   expect(screen.getByText("Chart points: 1")).toBeInTheDocument()
   expect(screen.getByText("A clear calendar")).toBeInTheDocument()
@@ -66,7 +62,7 @@ it("shows counters, navigation and empty activity/calendar", () => {
 })
 it("lists pending deadlines with a discreet empty state", () => {
   const { unmount } = render(<DashboardOverview />)
-  expect(screen.getByText("No deadlines close")).toBeInTheDocument()
+  expect(screen.getByText("No deadlines in the next 7 days.")).toBeInTheDocument()
   unmount()
   ;(records.overview as Record<string, unknown>).deadlines = [
     { kind: "job", id: 1, title: "Closing role", company: "Acme", deadline: "2026-10-17", level: "soon", days_left: 3 },
@@ -103,6 +99,20 @@ it("filters interviews and limits upcoming conversations and activity", () => {
   ])
     expect(screen.queryByText(text)).not.toBeInTheDocument()
   expect(screen.getByText("Activity 4")).toBeInTheDocument()
+  expect(screen.getAllByText(/^In 7\d days$/)).toHaveLength(4)
+})
+it("names the skill behind each activity", () => {
+  records.activity = [
+    { id: 1, summary: "Found roles", skill: "job-scout", ts: "2026-10-14T10:00:00Z" },
+    { id: 2, summary: "Prepared Acme", skill: "work-tracker-resume-tailor", kind: "resume", ts: "2026-10-12T10:00:00Z" },
+    { id: 3, summary: "Synced", skill: "recruiter-sync", ts: "2026-10-13T10:00:00Z" },
+  ]
+  render(<DashboardOverview />)
+  expect(screen.getByText("Discover opportunities")).toBeInTheDocument()
+  expect(screen.getByText("Tailor your resume")).toBeInTheDocument()
+  expect(screen.getByText("Recruiter sync")).toBeInTheDocument()
+  expect(screen.getByText("Today")).toBeInTheDocument()
+  expect(screen.getByText("2 days ago")).toBeInTheDocument()
 })
 it("shows independent query errors and retries the failed section", () => {
   errors.metrics = "metrics offline"
@@ -115,10 +125,10 @@ it("shows independent query errors and retries the failed section", () => {
 it("separates drafts from submitted applications and offers the next step", () => {
   render(<DashboardOverview />)
   for (const [name, href] of [
-    ["4 drafts", "#/applications"],
-    ["1 prepared", "#/applications"],
-    ["1 filled", "#/applications"],
-    ["3 submitted", "#/applications"],
+    ["4 drafts", "#/applications?status=draft"],
+    ["1 prepared", "#/applications?status=prepared"],
+    ["1 filled", "#/applications?status=filled"],
+    ["3 submitted", "#/applications?status=submitted"],
   ])
     expect(screen.getByRole("link", { name })).toHaveAttribute("href", href)
   expect(screen.getByText("7 in preparation · 1 on the board · 1 archived")).toBeInTheDocument()

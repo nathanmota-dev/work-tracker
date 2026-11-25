@@ -73,6 +73,11 @@ export function JobMenu({ row, busy, onMutate, onDelete, align = "start" }: {
   )
 }
 
+/** Whether the card has a score, a resume match or a ranking state to show; otherwise the bar is noise. */
+function hasScore(row: Row) {
+  return rankingLabel(row) !== null || typeof (row.ats_match as AtsBest | undefined)?.score === "number"
+}
+
 /** A saved job as an `OpportunityCard`. */
 export function JobCard({ row, selected, fresh, busy, onToggle, onOpen, onMutate, onDelete }: {
   row: Row
@@ -102,8 +107,8 @@ export function JobCard({ row, selected, fresh, busy, onToggle, onOpen, onMutate
         {deadline ? <CardBadge tone={level === "overdue" ? "danger" : level === "soon" ? "warn" : "muted"} title={`Deadline ${row.deadline}`}>{deadline}</CardBadge>
           : !!row.closing_soon && <CardBadge tone="warn">Closing soon</CardBadge>}
       </>}
-      score={<JobScore row={row} />}
-      location={[row.location, row.work_type].filter(Boolean).map(String).join(" · ")}
+      score={hasScore(row) ? <JobScore row={row} /> : undefined}
+      location={[...new Map([row.location, row.work_type].filter(Boolean).map(value => [String(value).toLowerCase(), String(value)])).values()].join(" · ")}
       menu={<JobMenu row={row} busy={busy} onMutate={onMutate} onDelete={onDelete} />}
       date={shortDate(row.scouted_at)}
       action={<CardLinkButton disabled={!webUrl(row.link)} onClick={() => void openExternal(row.link).catch(() => {})} />}
