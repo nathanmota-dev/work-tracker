@@ -8,6 +8,12 @@ import type { ChildProcessWithoutNullStreams } from "node:child_process";
 let browserUrl: string | undefined;
 let opening: Promise<void> | undefined;
 let activeChild: ChildProcessWithoutNullStreams | undefined;
+/**
+ * Chrome saves cookies periodically, so a sign-in made shortly before the app
+ * quits is lost if Chrome is killed before its own shutdown. Stays below the
+ * desktop shell's five-second backend shutdown limit.
+ */
+export const chromeShutdownMs = 3000;
 
 /** Only the browser opened by this backend is attached to automatically. */
 export function chromeBrowserUrl(): string | undefined { return browserUrl; }
@@ -63,7 +69,7 @@ async function startBrowser(initialUrl: string): Promise<void> {
     "--no-first-run",
     "--no-default-browser-check",
     initialUrl,
-  ], { env: { ...process.env, ...config?.env } });
+  ], { env: { ...process.env, ...config?.env }, graceMs: chromeShutdownMs });
   child.stdout.resume();
   child.stderr.resume();
   let failure: Error | undefined;

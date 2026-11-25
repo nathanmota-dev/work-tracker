@@ -41,7 +41,7 @@ test("opens regular Chrome once, verifies its port, reuses it and forgets closed
       "--remote-debugging-port=0",
       "https://www.linkedin.com/login",
     ]),
-    expect.any(Object),
+    expect.objectContaining({ graceMs: 3000 }),
   );
   expect(rmSync).toHaveBeenCalledWith(
     "/private/chrome/profile/DevToolsActivePort",
@@ -77,7 +77,7 @@ test("keeps the configured executable, Chrome arguments, proxy and environment",
       "--ozone-platform=x11",
       "--proxy-server=http://proxy.invalid",
     ]),
-    { env: expect.objectContaining({ DISPLAY: ":1" }) },
+    { env: expect.objectContaining({ DISPLAY: ":1" }), graceMs: 3000 },
   );
 });
 test("does not replace external connections or accept profile overrides", async () => {

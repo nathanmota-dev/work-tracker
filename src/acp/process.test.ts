@@ -76,3 +76,38 @@ test("oversized capture stops the process and handles processes without a pid", 
   await stopping;
   expect(p.child.kill).toHaveBeenCalledWith("SIGKILL");
 });
+test("a process given a grace period may exit on its own before its group is killed", async () => {
+  const graceful = processDouble();
+  const stuck = processDouble();
+  Object.assign(stuck.child, { pid: 654321 });
+  const { spawnOwned, stopOwned, stopAllOwned } = await import("./process.ts");
+  vi.mocked(spawn).mockReturnValueOnce(graceful.asChild).mockReturnValueOnce(stuck.asChild);
+  spawnOwned("browser", [], { graceMs: 3000 });
+  spawnOwned("browser", [], { graceMs: 3000 });
+  let settled = false;
+  const stopping = stopAllOwned().then(() => { settled = true; });
+  expect(stopOwned(graceful.asChild)).toBe(stopOwned(graceful.asChild));
+  expect(process.kill).toHaveBeenCalledWith(-graceful.child.pid, "SIGTERM");
+  expect(process.kill).toHaveBeenCalledTimes(2);
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(process.kill).not.toHaveBeenCalledWith(-graceful.child.pid, "SIGKILL");
+  graceful.child.emit("close", 0);
+  expect(process.kill).toHaveBeenCalledWith(-graceful.child.pid, "SIGKILL");
+  expect(process.kill).not.toHaveBeenCalledWith(-stuck.child.pid, "SIGKILL");
+  expect(settled).toBe(false);
+  await vi.advanceTimersByTimeAsync(2000);
+  await stopping;
+  expect(process.kill).toHaveBeenCalledWith(-stuck.child.pid, "SIGKILL");
+  expect(vi.getTimerCount()).toBe(0);
+});
+test("a graceful process that already exited only waits for its descendants", async () => {
+  const p = processDouble();
+  vi.mocked(spawn).mockReturnValue(p.asChild);
+  const { spawnOwned, stopOwned } = await import("./process.ts");
+  spawnOwned("browser", [], { graceMs: 3000 });
+  p.child.emit("close", 0);
+  const stopping = stopOwned(p.asChild);
+  await vi.advanceTimersByTimeAsync(300);
+  await stopping;
+  expect(process.kill).toHaveBeenCalledWith(-p.child.pid, "SIGKILL");
+});
