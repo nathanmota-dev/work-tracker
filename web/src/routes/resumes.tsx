@@ -1,10 +1,21 @@
 import { useState } from "react"
+import { Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { LoadState, Page } from "@/components/workspace-ui"
 import { ResumeTile } from "@/components/resume-tile"
 import { BaseResumeTile } from "@/components/base-resume"
 import { ResumeVariantForm, type VariantFormMode } from "@/components/resume-variant-form"
 import { roleOrder, useVariants } from "@/lib/variants"
+
+/** Dashed tile at the end of the grid that starts a new tailored resume. */
+function NewResumeTile({ first, disabled, onClick }: { first: boolean; disabled: boolean; onClick: () => void }) {
+  return <button type="button" aria-label="New tailored resume" disabled={disabled} onClick={onClick}
+    className="flex w-full min-w-0 cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border border-dashed p-4 text-center text-muted-foreground outline-none transition-colors hover:border-foreground/30 hover:bg-accent/30 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50">
+    <span className="grid size-10 place-items-center rounded-full border bg-background"><Plus className="size-4" /></span>
+    <span className="text-sm font-medium text-foreground">New tailored resume</span>
+    <span className="text-xs">{first ? "Generate one for a role and its stacks, such as Back-End · C#, .NET, and reuse it for every matching job." : "For another role or stack."}</span>
+  </button>
+}
 
 /** Saved resumes: generated per role and stacks, imported, or saved when a tailored resume is approved in Apply. */
 export function ResumesPage() {
@@ -21,8 +32,8 @@ export function ResumesPage() {
     <ul aria-label="Saved resumes" className="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-3">
       <li className="flex"><BaseResumeTile /></li>
       {roleOrder.flatMap(role => list.filter(variant => variant.role === role)).map(variant => <li key={variant.id} className="flex"><ResumeTile variant={variant} /></li>)}
+      {variants.data && <li className="flex"><NewResumeTile first={!list.length} disabled={busy} onClick={() => setForm("generate")} /></li>}
     </ul>
-    {variants.data && !list.length && <p className="text-sm text-muted-foreground">Generate a resume once for a role and its stacks, such as Back-End · C#, .NET, and reuse it in Apply for every job with the same stack. You can also import a PDF you already have, or approve a tailored resume in Apply.</p>}
     {form && <ResumeVariantForm mode={form} onClose={() => { setForm(undefined); variants.refresh() }} />}
   </Page>
 }

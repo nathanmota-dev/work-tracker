@@ -5,7 +5,7 @@ export const routes = [
   ['Dashboard', 'dashboard', 'Saved opportunities'],
   ['Jobs', 'jobs', 'Discover opportunities'],
   ['Applications', 'applications', 'New application'],
-  ['Interviews', 'interviews', 'Upcoming'],
+  ['Interviews', 'interviews', 'Make space for the conversations that move you forward.'],
   ['Interview prep', 'interview-prep', 'Walk into every round with likely questions, grounded answers and a consistency brief.'],
   ['Contacts', 'contacts', 'Preview connection sync'],
   ['Profile', 'profile', 'Personal details'],
@@ -41,7 +41,7 @@ for (const populated of [false, true]) {
         await expect(page.getByText(content, { exact: true }).first()).toBeVisible()
         await expect(page.getByRole('alert')).toHaveCount(0)
         if (populated && title === 'Jobs') await expect(page.getByRole('article').filter({ hasText: 'Company 1' }).first()).toBeVisible()
-        if (populated && title === 'Interviews') await expect(page.getByRole('cell', { name: 'Future Company', exact: true })).toBeVisible()
+        if (populated && title === 'Interviews') await expect(page.getByRole('article', { name: 'Future Company', exact: true })).toBeVisible()
         if (populated && title === 'Applications') {
           await page.getByRole('radio', { name: 'Board', exact: true }).click()
           await expect(page).toHaveURL(/view=board/)

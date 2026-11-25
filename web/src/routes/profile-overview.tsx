@@ -86,7 +86,7 @@ function ProfileHeader({ view, onImport }: { view: View; onImport: () => void })
         <ProfileLink href={value("github_url")}>GitHub</ProfileLink>
         <ProfileLink href={value("portfolio_url")}>Portfolio</ProfileLink>
         {contacts.map(item => <span key={item} className="text-muted-foreground">{item}</span>)}
-        <MissingSummary count={view.checks.filter(check => !check.done).length} />
+        <MissingSummary count={view.checks.filter(check => !check.done).length} total={view.checks.length} />
       </div>
     </header>
   )

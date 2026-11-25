@@ -26,7 +26,7 @@ test('Jobs: assessed search runs in the contextual panel with all criteria', asy
 })
 
 test('Search: people/company filters, empty results, errors and retry', async ({ workspace, page }) => {
-  await workspace.visit('/contacts?tab=people', 'Contacts')
+  await workspace.visit('/contacts?tab=find', 'Contacts')
   await page.getByLabel('Keywords').fill('Technical recruiter')
   await page.getByLabel('Company', { exact: true }).fill('Example Company')
   await page.getByLabel('Location', { exact: true }).fill('Brazil')
@@ -75,7 +75,7 @@ for (const [skill, field, input, destination, result] of skills) {
     // The profile audit lands on the Profile's LinkedIn tab.
     else if (destination === "Profile") await workspace.visit("/profile?tab=linkedin", "Profile")
     else await workspace.go(destination)
-    if (destination === 'Recruiters') await expect(page.getByRole('button', { name: 'View Alex Recruiter' })).toBeVisible()
+    if (destination === 'Recruiters') await expect(page.getByRole('article', { name: 'Alex Recruiter' })).toBeVisible()
     else await expect(page.getByText(result, { exact: true }).first()).toBeVisible()
     if (skill === 'experience-bank') expect(workspace.query('SELECT summary FROM activity_log')).toHaveLength(1)
     await workspace.visit('/launch?tab=console', 'Agent')

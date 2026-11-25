@@ -69,6 +69,7 @@ describe("DeadlinePanel", () => {
   })
   it("has a discreet empty state", () => {
     render(<DeadlinePanel items={[]} />)
-    expect(screen.getByText("No deadlines close")).toBeInTheDocument()
+    expect(screen.getByText("No deadlines in the next 7 days.")).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "Deadlines" })).not.toBeInTheDocument()
   })
 })

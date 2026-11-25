@@ -75,8 +75,8 @@ it("lists what is missing and completes it with an answer or an import", async (
   sources = { ...sources, about: null, resume: { experience: [], education: [] } }
   render(<ProfileOverview />)
   const checklist = within(screen.getByRole("region", { name: "What's missing" }))
-  expect(checklist.getByText("1 of 11")).toBeInTheDocument()
-  expect(screen.getByRole("link", { name: "10 items missing" })).toBeInTheDocument()
+  expect(checklist.getByText("1 of 11 complete")).toBeInTheDocument()
+  expect(screen.getByRole("link", { name: "1 of 11 complete" })).toBeInTheDocument()
   fireEvent.click(checklist.getByRole("button", { name: "Add phone" }))
   expect(screen.getByLabelText("Phone")).toHaveValue("")
   expect(screen.getByLabelText("Full name")).toHaveValue("Taylor Example")

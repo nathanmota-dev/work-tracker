@@ -19,6 +19,7 @@ import { handleWorkspaceBackup } from "../backup/http.ts";
 import { handleAnswer } from "../answers/http.ts";
 import { handleOnboarding } from "../onboarding/http.ts";
 import { handleInterviewPreps } from "../interview-prep/http.ts";
+import { handleInterviews } from "../interviews/http.ts";
 import { handleFollowups } from "../followups/http.ts";
 import { handleCompanyResearch } from "../company-research/http.ts";
 import { handleRankings } from "../rankings/http.ts";
@@ -173,6 +174,7 @@ export async function routeApi(path: string, req: Request, context: Context): Pr
     const busy = () => !!(context.acp.isRunning || context.preparation?.isBusy || integrationTesting() || chromeLoginOpening());
     return handleWorkspaceBackup(path, req, { busy, broadcast: context.broadcast });
   }
+  if (path.startsWith("/api/interviews/")) return handleInterviews(path, req, context.broadcast);
   if (path.startsWith("/api/jobs/")) {
     return handleJobAction(path, req, context.broadcast);
   }

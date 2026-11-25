@@ -136,30 +136,22 @@ export function Stats({
   items,
   className = "xl:grid-cols-4",
 }: {
-  items: { label: string; value: ReactNode; hint?: string }[]
+  items: { label: string; value: ReactNode; hint?: string; href?: string }[]
   className?: string
 }) {
   return (
-    <div className={`grid grid-cols-1 gap-3 sm:grid-cols-2 ${className}`}>
-      {items.map((item, index) => (
-        <Card key={item.label} className="gap-0 rounded-2xl py-4 shadow-none">
-          <CardContent className="px-4">
-            <p className="mb-3 flex items-center gap-2 text-[13px] text-muted-foreground">
-              <span
-                className="size-1.5 rounded-full"
-                style={{ background: `var(--chart-${(index % 5) + 1})` }}
-              />
-              {item.label}
-            </p>
-            <p className="text-[22px] font-semibold tracking-tight tabular-nums">
-              {item.value}
-            </p>
-            {item.hint && (
-              <p className="mt-1 text-xs text-muted-foreground">{item.hint}</p>
-            )}
-          </CardContent>
-        </Card>
-      ))}
+    <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${className}`}>
+      {items.map((item) => {
+        const body = <>
+          <p className="text-xs text-muted-foreground">{item.label}</p>
+          <p className="mt-2 text-2xl font-medium tracking-tight tabular-nums">{item.value}</p>
+          {item.hint && <p className="mt-1 truncate text-xs text-muted-foreground" title={item.hint}>{item.hint}</p>}
+        </>
+        const tile = "block min-w-0 rounded-2xl border bg-card p-5"
+        return item.href
+          ? <a key={item.label} href={item.href} className={cn(tile, "outline-none transition-colors hover:border-foreground/20 focus-visible:ring-2 focus-visible:ring-ring")}>{body}</a>
+          : <div key={item.label} className={tile}>{body}</div>
+      })}
     </div>
   )
 }

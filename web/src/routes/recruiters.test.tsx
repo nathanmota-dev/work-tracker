@@ -1,7 +1,7 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
-import { beforeEach, expect, it, vi } from "vitest"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { afterEach, beforeEach, expect, it, vi } from "vitest"
 import { RecruitersPage } from "./recruiters"
-import { publish, request, useApi } from "@/lib/api"
+import { openExternal, publish, request, useApi } from "@/lib/api"
 import { prepareSkill } from "@/lib/agent"
 import { deferred } from "@/test/doubles"
 vi.mock("@/lib/api", async (original) => ({
@@ -9,10 +9,15 @@ vi.mock("@/lib/api", async (original) => ({
   useApi: vi.fn(),
   request: vi.fn(),
   publish: vi.fn(),
+  openExternal: vi.fn(),
 }))
 vi.mock("@/lib/agent", () => ({ prepareSkill: vi.fn() }))
 const refresh = vi.fn()
+afterEach(() => vi.useRealTimers())
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] })
+  vi.setSystemTime(new Date("2026-10-14T12:00:00Z"))
+  vi.mocked(openExternal).mockReset().mockResolvedValue(undefined)
   vi.mocked(useApi).mockImplementation((path) => ({
     data:
       path === "recruiters"
@@ -23,7 +28,9 @@ beforeEach(() => {
               username: "ana",
               company: "Acme",
               status: "pending",
+              date_contacted: "2026-10-12T12:00:00Z",
             },
+            { id: 3, name: "Bea", company: "Other", title: "Talent Partner", status: "interviewing" },
           ]
         : [{ id: 2, name: "Bruno", action: "followup", company: "Other" }],
     loading: false,
@@ -37,15 +44,28 @@ beforeEach(() => {
   vi.mocked(prepareSkill).mockClear()
   refresh.mockClear()
 })
-it("renders contacts, followups, details and skill actions", () => {
+it("renders recruiters as cards with a status filter, details and skill actions", () => {
   render(<RecruitersPage />)
   expect(screen.queryByText("Bruno")).not.toBeInTheDocument()
-  fireEvent.click(screen.getByRole("button", { name: "View Ana" }))
-  expect(screen.getByRole("dialog")).toHaveTextContent("Acme")
-  expect(
-    screen.getByRole("button", { name: "View LinkedIn" }),
-  ).toBeInTheDocument()
-  fireEvent.click(screen.getByRole("button", { name: "Close" }))
+  const card = within(screen.getByRole("article", { name: "Ana" }))
+  expect(card.getByText("Acme")).toBeInTheDocument()
+  expect(card.getByText("Pending")).toBeInTheDocument()
+  expect(card.getByText("Contacted 2 days ago")).toBeInTheDocument()
+  fireEvent.click(card.getByRole("button", { name: "LinkedIn" }))
+  expect(openExternal).toHaveBeenCalledWith("https://www.linkedin.com/in/ana/")
+  expect(screen.getByRole("article", { name: "Bea" })).toBeInTheDocument()
+  fireEvent.pointerDown(screen.getByRole("button", { name: "Status: All · 2" }), { button: 0, ctrlKey: false })
+  fireEvent.click(screen.getByRole("menuitemradio", { name: "Replied · 1" }))
+  expect(screen.getAllByRole("article").map(article => article.getAttribute("aria-label"))).toEqual(["Bea"])
+  fireEvent.change(screen.getByRole("searchbox", { name: "Search recruiters" }), { target: { value: "nobody" } })
+  expect(screen.getByText("No matching recruiters")).toBeInTheDocument()
+  fireEvent.change(screen.getByRole("searchbox", { name: "Search recruiters" }), { target: { value: "" } })
+  fireEvent.click(screen.getByRole("button", { name: "View details of Bea" }))
+  const sheet = within(screen.getByRole("dialog"))
+  expect(sheet.getByText("Talent Partner · Other")).toBeInTheDocument()
+  expect(sheet.getByText("Interviewing")).toBeInTheDocument()
+  expect(sheet.queryByRole("button", { name: "View LinkedIn" })).not.toBeInTheDocument()
+  fireEvent.click(sheet.getByRole("button", { name: "Close" }))
   fireEvent.click(screen.getByRole("button", { name: "Find recruiters" }))
   expect(prepareSkill).toHaveBeenCalledWith("recruiter-outreach")
   expect(screen.queryByRole("button", { name: "Review follow-ups" })).not.toBeInTheDocument()

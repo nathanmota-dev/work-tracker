@@ -96,10 +96,7 @@ export function SearchFilters({
 export function SearchPage() {
   const { kind, values, result, selected, setSelected, busy, error, search, update } = useSearchWorkspace()
   return (
-    <Page
-      title="Find people"
-      description="Find people and recruiters that fit your direction."
-    >
+    <Page title="Find people">
       <Panel title="People & recruiters">
         <form
           className="space-y-4"

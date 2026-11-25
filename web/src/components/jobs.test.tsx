@@ -249,7 +249,8 @@ it("shows the triage score on each card, sorts by score and keeps the triage not
   expect(top).toHaveAttribute("data-tone", "good")
   expect(card("Middle").getByRole("meter", { name: "Fit score" })).toHaveAttribute("data-tone", "good")
   expect(card("Urgent").getByText("Closing soon")).toBeInTheDocument()
-  expect(card("Plain").getByText("Not scored yet")).toBeInTheDocument()
+  // Nothing to show yet: the card leaves the bar out instead of an empty track.
+  expect(card("Plain").queryByRole("meter")).not.toBeInTheDocument()
   expect(card("Blocked").getByText("Check manually")).toBeInTheDocument()
   expect(card("Broken").getByText("Unreachable (attempt 1)")).toBeInTheDocument()
   expect(card("Closed").getByText("Expired (deadline passed)")).toBeInTheDocument()
@@ -305,7 +306,7 @@ it("falls back to the best resume match on the card, sorts by it and shows it in
   expect(match).toHaveAttribute("aria-valuenow", "90")
   expect(match).toHaveAttribute("data-tone", "good")
   expect(card("Node role").getByRole("meter", { name: "Fit score" })).toHaveAttribute("data-tone", "warn")
-  expect(card("Vague role").getByText("Not scored yet")).toBeInTheDocument()
+  expect(card("Vague role").queryByRole("meter")).not.toBeInTheDocument()
   await choose(/^Sort/, "Best resume match")
   expect(order()).toEqual(["C# role", "Node role", "Plain", "Vague role"])
   open("C# role")

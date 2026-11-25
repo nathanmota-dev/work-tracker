@@ -111,7 +111,7 @@ function NextStepButton({ row, onPrepare }: { row: Row; onPrepare: (row: Row) =>
       </Button>
     )
   return (
-    <Button variant="outline" size="sm" className="rounded-full" onClick={() => onPrepare(row)}>
+    <Button size="sm" className="rounded-full" onClick={() => onPrepare(row)}>
       {step.label} <ArrowRight className="size-3.5" />
     </Button>
   )
@@ -137,7 +137,7 @@ export function ApplicationOpportunityCard({ row, board, onOpen, onPrepare }: {
         company={row.company_name ? String(row.company_name) : undefined}
         title={title}
         badges={<>
-          <CardBadge>{originLabel(row)}</CardBadge>
+          {row.origin && row.origin !== "unknown" && <CardBadge>{originLabel(row)}</CardBadge>}
           {score !== null && <CardBadge tone="primary" title="Keyword match of the tailored resume">Match {score}</CardBadge>}
           {row.view === "archived" && <CardBadge>Archived</CardBadge>}
           {!!row.review_reason && <CardBadge tone="warn" title={String(row.review_reason)}>Needs review</CardBadge>}
@@ -146,7 +146,7 @@ export function ApplicationOpportunityCard({ row, board, onOpen, onPrepare }: {
           )}
         </>}
         score={<ApplicationProgress row={row} board={board} />}
-        location={row.portal ? `${text(row.portal)} portal` : "Portal not set"}
+        location={row.portal ? `${text(row.portal)} portal` : null}
         menu={<ApplicationMenu row={row} onOpen={onOpen} onPrepare={onPrepare} onAdvance={advance.ask} />}
         date={applied ? `Applied ${applied}` : "Not submitted"}
         action={<NextStepButton row={row} onPrepare={onPrepare} />}
@@ -184,7 +184,8 @@ export function ApplicationCards({ rows, board, onSelect, onPrepare }: {
   const { search, update } = useWorkspaceState("applications")
   const [view, setView] = useState<ViewFilter>("all")
   const [origin, setOrigin] = useState("")
-  const [phase, setPhase] = useState("")
+  const phase = search.status ?? ""
+  const setPhase = (status: string) => update({ status })
   const [order, setOrder] = useState("")
   const query = search.q ?? ""
   const counts = countRows(rows)

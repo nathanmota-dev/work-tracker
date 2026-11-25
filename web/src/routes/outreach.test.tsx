@@ -1,13 +1,13 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import { beforeEach, expect, it, vi } from "vitest"
-import { OutreachPage } from "./outreach"
+import { OutreachPage, reasonText } from "./outreach"
 import { useApi } from "@/lib/api"
 import { prepareSkill } from "@/lib/agent"
 vi.mock("@/lib/api", async (original) => ({
   ...(await original<typeof import("@/lib/api")>()),
   useApi: vi.fn(),
 }))
-vi.mock("@/lib/agent", () => ({ prepareSkill: vi.fn() }))
+vi.mock("@/lib/agent", () => ({ prepareSkill: vi.fn(), skills: [] }))
 let data: {
   funnel: Record<string, number>
   due: Record<string, unknown>[]
@@ -49,29 +49,42 @@ beforeEach(() => {
     refresh,
   }))
 })
-it("shows credit data, fallbacks, cooldowns and proportional funnel values", () => {
+it("shows due actions first as cards, with credits, cooldowns and the funnel folded below", () => {
   render(<OutreachPage />)
-  expect(screen.getByText("ana-slug")).toBeInTheDocument()
-  expect(screen.getByText("urn:acme")).toBeInTheDocument()
+  const card = within(screen.getByRole("article", { name: "ana-slug" }))
+  expect(card.getByText("urn:acme")).toBeInTheDocument()
+  expect(card.getByText("Send a follow-up")).toBeInTheDocument()
+  expect(card.getByText("Accepted")).toBeInTheDocument()
+  expect(card.getByText("Due today")).toBeInTheDocument()
+  fireEvent.click(card.getByRole("button", { name: "Review" }))
+  expect(prepareSkill).toHaveBeenCalledWith("outreach-tracker")
+  expect(screen.getByText("Outreach health").nextElementSibling).toHaveTextContent("1 active · 3 invited · 0 InMail credits · 1 in cooldown")
   expect(screen.getByText("urn:blocked")).toBeInTheDocument()
   expect(screen.getByText("5 used this cycle")).toBeInTheDocument()
   expect(screen.getByText(/career plan/)).toHaveTextContent("15 rollover cap")
-  const invited = screen.getByText("invited").parentElement!.parentElement!
-  expect(invited.querySelector('[style*="width"]')).toHaveStyle({
-    width: "75%",
-  })
+  const bar = (label: string) => screen.getByText(label).parentElement!.parentElement!.querySelector('[style*="width"]')
+  expect(bar("Invited")).toHaveStyle({ width: "100%" })
+  expect(bar("Engaged")).toHaveStyle({ width: "33.33333333333333%" })
   fireEvent.click(screen.getByRole("button", { name: "Review follow-ups" }))
-  expect(prepareSkill).toHaveBeenCalledWith("outreach-tracker")
+  expect(prepareSkill).toHaveBeenCalledTimes(2)
+})
+it("hides its own header inside Contacts", () => {
+  render(<OutreachPage embedded />)
+  expect(screen.queryByRole("button", { name: "Review follow-ups" })).not.toBeInTheDocument()
 })
 it("handles a zero total and empty due/blocked queues", () => {
   data.funnel = { invited: 0 }
   data.due = []
   data.blocked = []
   render(<OutreachPage />)
-  expect(screen.getByText("No next actions yet")).toBeInTheDocument()
-  expect(screen.getByText("No companies in cooldown yet")).toBeInTheDocument()
-  const invited = screen.getByText("invited").parentElement!.parentElement!
-  expect(invited.querySelector('[style*="width"]')).toHaveStyle({ width: "0%" })
+  expect(screen.getByText("Nothing due today")).toBeInTheDocument()
+  expect(screen.getByText("No company is in cooldown.")).toBeInTheDocument()
+  expect(screen.getByText("Invited").parentElement!.parentElement!.querySelector('[style*="width"]')).toHaveStyle({ width: "0%" })
+})
+it("writes action reasons as sentences", () => {
+  expect(reasonText("invite unaccepted for 30d (≥ 7d)")).toBe("Invite not accepted after 30 days")
+  expect(reasonText("no reply 1d after follow-up (≥ 1d)")).toBe("No reply 1 day after follow-up")
+  expect(reasonText(null)).toBe("")
 })
 it("reports errors and retries", () => {
   vi.mocked(useApi).mockReturnValue({

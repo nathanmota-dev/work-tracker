@@ -13,7 +13,11 @@ const { page } = vi.hoisted(() => ({
 vi.mock("./profile", async () => ({ ProfilePage: await page("LinkedIn profile", "LinkedIn content") }))
 vi.mock("./answers", async () => ({ AnswersPage: await page("Questions", "Questions content") }))
 vi.mock("./profile-overview", () => ({ ProfileOverview: () => <div>Profile overview</div> }))
-vi.mock("./recruiters", async () => ({ RecruitersPage: await page("Recruiters", "People content") }))
+vi.mock("./recruiters", async () => ({
+  RecruitersPage: await page("Recruiters", "People content"),
+  useRecruiterSync: () => ({}),
+  RecruiterActions: () => <button type="button">Find recruiters</button>,
+}))
 vi.mock("./outreach", async () => ({ OutreachPage: await page("Outreach", "Follow-ups content") }))
 vi.mock("./search", async () => ({ SearchPage: await page("Find people", "People search") }))
 vi.mock("./launch", async () => ({ LaunchPage: await page("Agent console", "Console content") }))
@@ -32,7 +36,7 @@ describe("hub search parameters", () => {
 
 describe("hub layout", () => {
   it.each([
-    [ContactsHub, "Contacts", "People", ["Recruiters", "Find people"]],
+    [ContactsHub, "Contacts", "People", ["Recruiters"]],
     [ProfileHub, "Profile", "Profile", []],
     [AgentHub, "Agent", "Console", ["Agent console"]],
   ] as const)("renders one page with its sections stacked inside it", (Hub, title, tab, sections) => {
@@ -48,12 +52,19 @@ describe("hub layout", () => {
     }
   })
 
-  it("switches tabs within the same page", () => {
+  it("switches tabs within the same page, with each tab's header actions", () => {
     render(<ContactsHub />)
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["People", "Follow-ups", "Find people"])
+    expect(screen.getByRole("button", { name: "Find recruiters" })).toBeInTheDocument()
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Follow-ups" }))
     expect(screen.getByText("Follow-ups content")).toBeInTheDocument()
     expect(screen.queryByText("People content")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Find recruiters" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Review follow-ups" })).toBeInTheDocument()
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1)
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Find people" }))
+    expect(screen.getByText("People search")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Review follow-ups" })).not.toBeInTheDocument()
   })
 
   it("opens on the profile and keeps questions, LinkedIn and deal-breakers as tabs", () => {

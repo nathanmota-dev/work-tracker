@@ -89,6 +89,18 @@ describe("api bridge", () => {
     expect(sockets).toHaveLength(3)
     expect(sockets[2]!.url).toContain("token=second")
   })
+  it("allows interview writes only as POST requests", async () => {
+    connectApiBridge({ address: "http://127.0.0.1:4000", token: "fixture" })
+    const fetch = vi.fn(async () => new Response('{"id":3}'))
+    vi.stubGlobal("fetch", fetch)
+    const request = electron.handlers.get("api:request")!
+    for (const action of ["create", "update", "delete"]) {
+      expect(await request({}, `interviews/${action}`, { id: 3 })).toEqual({ id: 3 })
+      expect(fetch).toHaveBeenLastCalledWith(expect.objectContaining({ pathname: `/api/interviews/${action}` }), expect.objectContaining({ method: "POST" }))
+      await expect(request({}, `interviews/${action}`)).rejects.toThrow("Unsupported API request")
+    }
+    await expect(request({}, "interviews/archive", {})).rejects.toThrow("Unsupported API request")
+  })
   it("allows batch review reads and adjustment writes while rejecting arbitrary paths and methods", async () => {
     connectApiBridge({ address: "http://127.0.0.1:4000", token: "fixture" })
     const fetch = vi.fn(async () => new Response('{"ok":true}'))

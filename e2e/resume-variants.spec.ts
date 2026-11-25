@@ -13,8 +13,9 @@ async function addStacks(page: import('@playwright/test').Page, stacks: string[]
 test('Resumes: generate a saved resume once, view it and use it in Apply without tailoring again', async ({ workspace, page }) => {
   test.setTimeout(180_000)
   await workspace.go('Resumes')
-  // Before any tailored resume, the grid holds only the base resume.
-  await expect(page.getByRole('list', { name: 'Saved resumes' }).getByRole('listitem')).toHaveCount(1)
+  // Before any tailored resume, the grid holds only the base resume and the tile that starts one.
+  await expect(page.getByRole('list', { name: 'Saved resumes' }).getByRole('listitem')).toHaveCount(2)
+  await expect(page.getByRole('button', { name: 'New tailored resume' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Base resume (default)' })).toBeVisible()
   await page.getByRole('button', { name: 'New resume' }).click()
   const dialog = page.getByRole('dialog', { name: 'New resume' })

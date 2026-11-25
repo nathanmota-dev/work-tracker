@@ -3,7 +3,7 @@ import { choose, panel, jobMenu, openJob } from './ui'
 
 const card = (workspace: Workspace) => panel(workspace.page, 'Get started')
 const step = (workspace: Workspace, title: string) => card(workspace).locator('li[id^="get-started-"]').filter({ has: workspace.page.getByRole('heading', { name: new RegExp(`^\\d\\. ${title}$`) }) })
-const progress = (workspace: Workspace, done: number) => expect(card(workspace)).toContainText(`${done} of 5 steps complete.`)
+const progress = (workspace: Workspace, done: number) => expect(card(workspace)).toContainText(`${done} of 5 steps complete`)
 
 /** Follow the answers step until every essential answer is saved. */
 async function fillAnswers(workspace: Workspace) {
