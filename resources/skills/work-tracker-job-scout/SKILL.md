@@ -164,14 +164,16 @@ If a `search_jobs` call still fails (a stale browser session from a prior run is
 holding the profile — common on Windows), run `work-tracker linkedin reset` once to
 clear it, then retry the call.
 
-### 3. Get Details for Top Matches
+### 3. Get Details for Every Role You Will Save
 
-For the most promising job IDs:
+Call `get_job_details` for **every** role you will save in §5b, one at a time, not only the top matches:
 ```
 get_job_details(job_id)
 ```
 
 Extract: requirements, YoE asked, stack match, compensation (if listed), team info, English requirement.
+
+**Keep the posting text for §5b.** Work Tracker computes the Resume match (ATS) score from the saved description, so a role saved without one shows no score. Keep the posting body: the text under "About the job", without LinkedIn's page chrome ("Apply", "Save", Premium offers, "About the company", similar jobs). Copy it as written; never summarize or rewrite it.
 
 ### 4. Assess Fit
 
@@ -201,7 +203,10 @@ Include job ID links as: `[{id}](https://www.linkedin.com/jobs/view/{id}/)`
 
 ### 5b. Persist to Work Tracker
 
-Save each shortlisted role to the Work Tracker database (powers the dashboard's Jobs section):
+Save each shortlisted role to the Work Tracker database (powers the dashboard's Jobs section),
+**always with its posting text** from §3. Write the text to
+`$WORK_TRACKER_HOME/artifacts/postings/{id}.txt` first (create the folder if needed) so
+quotes and line breaks survive the shell:
 
 ```
 work-tracker job save \
@@ -209,8 +214,18 @@ work-tracker job save \
   --location "{City}" --work-type "{remote|hybrid|onsite}" \
   --comp "{comp if known}" --fit "{strong|good|stretch}" \
   --link "https://www.linkedin.com/jobs/view/{id}/" \
+  --description "$(cat "$WORK_TRACKER_HOME/artifacts/postings/{id}.txt")" \
   [--deadline YYYY-MM-DD]
 ```
+
+Report the posting-check verdict it prints. If `get_job_details` failed for a role, save it
+without `--description` and tell the user that role has no Resume match until its description
+is added.
+
+`job save` prints `job #<n> saved`: `<n>` is the **Work Tracker job ID**. Every later
+`work-tracker` command that takes a job ID (`--id`, `--job-id`, `--job-ids`) expects that
+number, never the LinkedIn ID. When a role already exists, `job save` prints its existing
+Work Tracker ID; add a missing description with `work-tracker job update --id <n> --description "…"`.
 
 Pass `--deadline` **only** when the posting itself states an application closing
 date ("Apply by", "Applications close on", a closing date field). Convert that
