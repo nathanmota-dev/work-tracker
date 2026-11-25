@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { beforeEach, expect, it, vi } from "vitest"
 import { ApplyPage } from "@/routes/apply"
 import { LaunchPage } from "@/routes/launch"
@@ -51,7 +51,7 @@ it("fills using the displayed run and exposes the report", async () => {
   render(<ApplyPage />)
   await waitFor(() => expect(screen.getByRole("button", { name: "Fill application" })).toBeEnabled())
   fireEvent.click(screen.getByRole("button", { name: "Fill application" }))
-  await waitFor(() => expect(request).toHaveBeenCalledWith("application-preparation/fill", { runId: "run-1", extra: "", versionId: "pdf-1" }))
+  await waitFor(() => expect(request).toHaveBeenCalledWith("application-preparation/fill", { runId: "run-1", extra: "", versionId: "pdf-1", provider: "opencode" }))
   fireEvent.keyDown(screen.getByRole("tab", { name: "Report" }), { key: "Enter" })
   expect(await screen.findByText("Emphasized React")).toBeInTheDocument()
 })
@@ -99,7 +99,7 @@ it("selects the validated PDF run when filling after a failed newer execution", 
   render(<ApplyPage />)
   await waitFor(() => expect(screen.getByRole("button", { name: "Fill application" })).toBeEnabled())
   fireEvent.click(screen.getByRole("button", { name: "Fill application" }))
-  await waitFor(() => expect(request).toHaveBeenCalledWith("application-preparation/fill", { runId: "run-1", extra: "", versionId: "pdf-1" }))
+  await waitFor(() => expect(request).toHaveBeenCalledWith("application-preparation/fill", { runId: "run-1", extra: "", versionId: "pdf-1", provider: "opencode" }))
   await waitFor(() => expect(window.location.hash).toContain("runId=run-1"))
 })
 
@@ -186,7 +186,7 @@ it("continues an interrupted fill in the same run only after the portal was revi
   fireEvent.click(screen.getByRole("checkbox", { name: "I reviewed the portal in the browser" }))
   await waitFor(() => expect(screen.getByRole("button", { name: "Fill again" })).toBeEnabled())
   fireEvent.click(screen.getByRole("button", { name: "Fill again" }))
-  await waitFor(() => expect(request).toHaveBeenCalledWith("application-preparation/retry", { runId: "run-1", extra: "", reviewed: true }))
+  await waitFor(() => expect(request).toHaveBeenCalledWith("application-preparation/retry", { runId: "run-1", extra: "", reviewed: true, provider: "opencode" }))
   expect(window.location.hash).toContain("runId=run-1")
 })
 
@@ -310,4 +310,47 @@ it("reports a refused saved resume", async () => {
   render(<ApplyPage />)
   fireEvent.click(await screen.findByRole("button", { name: "Use this resume" }))
   expect(await screen.findByText("This saved resume is archived.")).toBeInTheDocument()
+})
+it("offers a saved resume next to generation and fills it with the selected agent", async () => {
+  details.runs[0].provider = "saved-resume"
+  render(<ApplyPage />)
+  const resume = await screen.findByRole("region", { name: "Step 2: Resume" })
+  expect(within(resume).getByRole("heading", { name: "Use a saved resume" })).toBeInTheDocument()
+  expect(within(resume).getByRole("heading", { name: "Generate a tailored resume" })).toBeInTheDocument()
+  const fill = screen.getByRole("region", { name: "Step 3: Fill portal" })
+  expect(fill).toHaveTextContent("Agent: OpenCode · fills the saved resume you chose")
+  await waitFor(() => expect(within(fill).getByRole("button", { name: "Fill application" })).toBeEnabled())
+  fireEvent.click(within(fill).getByRole("button", { name: "Fill application" }))
+  await waitFor(() => expect(request).toHaveBeenCalledWith("application-preparation/fill", { runId: "run-1", extra: "", versionId: "pdf-1", provider: "opencode" }))
+})
+it("shows a failed fill's error and recovery inside the Fill portal step", async () => {
+  details.runs[0] = { ...details.runs[0], status: "failed", phase: "filling", error: "Unknown ACP provider", recovery: { checkpoints: ["compiled"], retryFrom: "filling", reviewRequired: true, summary: "Portal filling failed." } }
+  render(<ApplyPage />)
+  const fill = await screen.findByRole("region", { name: "Step 3: Fill portal" })
+  expect(await within(fill).findByText("Unknown ACP provider")).toBeInTheDocument()
+  expect(within(fill).getByRole("status")).toHaveTextContent("Portal filling failed.")
+  expect(within(screen.getByRole("region", { name: "Step 2: Resume" })).queryByText("Unknown ACP provider")).toBeNull()
+})
+it("scrolls to a step's section from the stepper", async () => {
+  const scroll = vi.fn()
+  Element.prototype.scrollIntoView = scroll
+  render(<ApplyPage />)
+  const nav = await screen.findByRole("navigation", { name: "Application progress" })
+  fireEvent.click(within(nav).getAllByRole("button")[2]!)
+  expect(scroll).toHaveBeenCalledWith({ behavior: "smooth", block: "start" })
+})
+it("uses the base resume as it is and opens its execution", async () => {
+  const base = request.getMockImplementation()!
+  request.mockImplementation(async (path: string, body?: unknown) => path === "application-preparation/use-base" ? { id: "run-base", application_id: 3 } : base(path, body))
+  render(<ApplyPage />)
+  const resume = await screen.findByRole("region", { name: "Step 2: Resume" })
+  await waitFor(() => expect(within(resume).getByRole("button", { name: "Use base resume" })).toBeEnabled())
+  fireEvent.click(within(resume).getByRole("button", { name: "Use base resume" }))
+  await waitFor(() => expect(request).toHaveBeenCalledWith("application-preparation/use-base", { jobId: 7, applicationId: 3 }))
+  await waitFor(() => expect(window.location.hash).toContain("runId=run-base"))
+})
+it("names the base resume in the Fill portal step", async () => {
+  details.runs[0].provider = "base-resume"
+  render(<ApplyPage />)
+  expect(await screen.findByRole("region", { name: "Step 3: Fill portal" })).toHaveTextContent("fills your base resume as it is")
 })

@@ -1,5 +1,9 @@
 /** Provider of a run that reuses a saved resume variant instead of calling an agent. */
 export const SAVED_RESUME = "saved-resume";
+/** Provider of a run that uses the base resume as it is, without tailoring. */
+export const BASE_RESUME = "base-resume";
+/** A run that used a ready PDF: no agent generated it, so it is filled but never regenerated. */
+export const usesReadyPdf = (provider: string): boolean => provider === SAVED_RESUME || provider === BASE_RESUME;
 export type LatexEngine = "pdflatex" | "xelatex" | "lualatex";
 export interface ResumeSourcesConfig {
   projectDir: string;

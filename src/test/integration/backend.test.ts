@@ -7,6 +7,8 @@ import { promisify } from "node:util";
 import { WebSocket } from "ws";
 import { Database } from "../../db/sqlite.ts";
 import { SCHEMA_VERSION } from "../../db/schema.ts";
+
+const appVersion = (JSON.parse(readFileSync(new URL("../../../package.json", import.meta.url), "utf8")) as { version: string }).version;
 const exec = promisify(execFile);
 const previousEnv = { ...process.env };
 const home = mkdtempSync(join(tmpdir(), "work tracker integration "));
@@ -232,7 +234,7 @@ test("CLI operations, answer API and private skill setup", async () => {
   const wrapper = join(home, "bin", "work-tracker");
   expect(
     (await exec(wrapper, ["--version"], { env: process.env })).stdout,
-  ).toContain("work-tracker 0.0.1");
+  ).toContain(`work-tracker ${appVersion}`);
   expect(JSON.parse((await cli("doctor")).stdout).home).toBe(home);
 });
 test("missing MCP is lazy and surfaced when requested", async () => {

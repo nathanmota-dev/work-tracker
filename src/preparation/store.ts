@@ -33,8 +33,8 @@ export function runManifest(id: string): RunManifest {
   if (!row) throw new PreparationError("Preparation run not found.", 404);
   return JSON.parse(row.manifest_json);
 }
-export function updateRun(id: string, fields: Partial<Omit<PreparationRun, "events" | "artifacts" | "recovery">> & { manifest_json?: string; events_json?: string }): void {
-  const allowed = ["status", "phase", "application_id", "error", "report", "manifest_json", "events_json"];
+export function updateRun(id: string, fields: Partial<Omit<PreparationRun, "events" | "artifacts" | "recovery">> & { manifest_json?: string; events_json?: string; options_json?: string }): void {
+  const allowed = ["status", "phase", "application_id", "error", "report", "manifest_json", "events_json", "options_json"];
   const keys = Object.keys(fields).filter(key => allowed.includes(key));
   if (!keys.length) return;
   db().query(`UPDATE application_runs SET ${keys.map(key => `${key} = ?`).join(", ")}, updated_at = ? WHERE id = ?`).run(...keys.map(key => (fields as Record<string, string | number | null>)[key] ?? null), now(), id);

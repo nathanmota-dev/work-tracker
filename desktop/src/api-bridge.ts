@@ -71,6 +71,7 @@ const writes = new Set([
   "application-preparation/retry",
   "application-preparation/submitted",
   "application-preparation/use-variant",
+  "application-preparation/use-base",
   "resume-variants/generate",
   "resume-variants/regenerate",
   "resume-variants/update",

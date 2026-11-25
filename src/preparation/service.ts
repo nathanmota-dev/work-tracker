@@ -6,12 +6,13 @@ import { paths } from "../paths.ts";
 import { openChromePortal } from "../mcp/chrome.ts";
 import { inspectPdf } from "./latex.ts";
 import { PreparationError, snapshotSources, type SourcesSnapshot } from "./sources.ts";
-import { addArtifact, artifactFile, runManifest, runOptions, runRecord, updateRun } from "./store.ts";
+import { addArtifact, artifactFile, cachedPreview, runManifest, runOptions, runRecord, updateRun } from "./store.ts";
 import { preparationDetails, sourcesState } from "./details.ts";
-import { SAVED_RESUME, type PdfArtifact, type PreparationDetails, type PreparationRun, type SourcesState, type SubmissionConfirmation } from "./types.ts";
+import { usesReadyPdf, type PdfArtifact, type PreparationDetails, type PreparationRun, type SourcesState, type SubmissionConfirmation } from "./types.ts";
 import { addCheckpoint, dropCheckpoints, markPortal } from "./recovery.ts";
 import { applyFillResult, fillManifestPath, interruptStaleRuns, readFillResult, webLink, type FillManifest } from "./portal-fill.ts";
 import { ensureDescription, resetProject, restoreSources, type GenerationManifest, type GenerationSources } from "./generation.ts";
+import { fillAgent, type FillAgent } from "./fill-agent.ts";
 import { ExecutionSlot, type PreparationAgent } from "./executor.ts";
 import { basePreview, compileWithCorrection, copyBaseline, texSources, warnLength, writeProject, type Compiled } from "./pipeline.ts";
 export type { PreparationAgent } from "./executor.ts";
@@ -22,6 +23,7 @@ import { missingForPreparation } from "../jobs/preparation.ts";
 import { planTransition } from "../applications/journey.ts";
 import { assertPortalFree } from "./batch-store.ts";
 import { useVariant } from "../variants/apply.ts";
+import { useBase } from "./use-base.ts";
 import { saveTailoredVariant } from "../variants/promote.ts";
 import { jobId, jobRecord, savePastedDescription, type PreparationJob as Job } from "./jobs.ts";
 
@@ -109,14 +111,25 @@ export class PreparationService {
     this.changed(run.id);
     return run;
   }
+  /** Prepare the application with the base resume as it is; its PDF is compiled first when needed. */
+  async useBase(input: Record<string, unknown>): Promise<PreparationRun> {
+    this.assertIdle();
+    const snapshot = snapshotSources();
+    const preview = cachedPreview(snapshot.version) ?? await this.preview();
+    const run = useBase(input, () => this.assertIdle(), snapshot.version, preview);
+    for (const table of ["applications", "activity_log"]) this.broadcast({ type: "changed", table });
+    this.changed(run.id);
+    return run;
+  }
   /** Retry from the persisted checkpoint; an unknown portal outcome needs review. */
   retry(input: Record<string, unknown>, sources?: SourcesSnapshot): PreparationRun {
     this.assertIdle();
     const run = runRecord(String(input.runId ?? ""));
-    if (run.provider === SAVED_RESUME) throw new PreparationError("Generate a tailored version instead.", 409);
     const from = run.recovery.retryFrom;
-    if (!from) throw new PreparationError("This execution has nothing to retry.", 409);
+    // A saved or base resume can be filled again, but never regenerated.
     if (from === "filling") return this.fill({ ...input, runId: run.id });
+    if (usesReadyPdf(run.provider)) throw new PreparationError("Generate a tailored version instead.", 409);
+    if (!from) throw new PreparationError("This execution has nothing to retry.", 409);
     const job = jobRecord(run.job_id);
     if (job.archived_at) throw new PreparationError("Restore this job before preparing an application.", 409);
     const d = db();
@@ -148,9 +161,9 @@ export class PreparationService {
     d.transaction(() => settleExecution(d, run.application_id!, run.phase === "filling" ? "fill" : "preparation", outcome, id))();
     this.broadcast({ type: "changed", table: "applications" });
   }
-  private async agent(id: string, manifestPath: string, skill: string, extra: string, signal: AbortSignal): Promise<boolean> {
-    const run = runRecord(id);
-    if (await this.slot.runAgent(run.provider, run.model, skill, { runId: id, manifestPath, extra }, signal)) return true;
+  private async agent(id: string, manifestPath: string, skill: string, extra: string, signal: AbortSignal, chosen?: FillAgent): Promise<boolean> {
+    const { provider, model } = chosen ?? runRecord(id);
+    if (await this.slot.runAgent(provider, model, skill, { runId: id, manifestPath, extra }, signal)) return true;
     updateRun(id, { status: "waiting_for_sign_in" }); this.changed(id); return false;
   }
   /** Run generation from `from`, skipping phases whose checkpoints a retry reuses. */
@@ -224,6 +237,7 @@ export class PreparationService {
     // Never repeat a portal action whose outcome is unknown without the candidate's review.
     if (run.recovery.reviewRequired && input.reviewed !== true) throw new PreparationError("The previous portal fill stopped without a result, so the portal may hold a partial fill. Review it in the browser, then confirm before filling again.", 409);
     const version = approvedDocument(id, input.versionId);
+    const agent = fillAgent(run, input);
     const file = artifactFile(version.id);
     const d = db();
     const application = journeyRecord(d, run.application_id);
@@ -246,7 +260,7 @@ export class PreparationService {
       signal.throwIfAborted();
       // From here the agent may act on the portal; a stop without a result needs review.
       markPortal(id, true);
-      if (!await this.agent(id, manifestPath, "portal-filler", String(input.extra ?? ""), signal)) { markPortal(id, false); return; }
+      if (!await this.agent(id, manifestPath, "portal-filler", String(input.extra ?? ""), signal, agent)) { markPortal(id, false); return; }
       const result = readFillResult(fill);
       d.transaction(() => applyFillResult(d, fill, result))();
       this.broadcast({ type: "changed", table: "applications" });
