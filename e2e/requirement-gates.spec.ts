@@ -1,6 +1,7 @@
 import { test, expect } from './fixtures'
+import { jobCard, openJob, selectAllJobs, selectionBar } from './ui'
 
-test('Requirement gates: declare languages, check jobs with the agent, hide the failed one and prepare it after confirming', async ({ workspace, page }) => {
+test('Requirement gates: declare languages, check jobs with the agent, mark the failed one and prepare it after confirming', async ({ workspace, page }) => {
   workspace.cli(['job', 'save', '--linkedin-id', '9101', '--title', 'Russian Engineer', '--company', 'Example Company', '--link', 'https://example.com/jobs/9101', '--description', 'Build React apps. Fluent Russian required.'])
   workspace.cli(['job', 'save', '--linkedin-id', '9102', '--title', 'English Engineer', '--company', 'Example Company', '--link', 'https://example.com/jobs/9102', '--description', 'Build React apps. Fluent English required.'])
 
@@ -23,9 +24,9 @@ test('Requirement gates: declare languages, check jobs with the agent, hide the 
 
   // Both new jobs start unchecked; the synthetic agent stores a quoted extraction for each.
   await workspace.go('Jobs')
-  await expect(page.getByRole('row', { name: /Russian Engineer/ })).toContainText('Not checked')
-  await page.getByRole('button', { name: /^Select all filtered results/ }).click()
-  await page.getByRole('button', { name: 'Check requirements' }).click()
+  await expect(jobCard(page, 'Russian Engineer')).not.toContainText('requirements')
+  await selectAllJobs(page, 'Russian Engineer', 2)
+  await selectionBar(page).getByRole('button', { name: 'Check requirements' }).click()
   const agent = page.getByRole('dialog', { name: 'Agent task' })
   await expect(agent.getByRole('heading', { name: 'Check requirements' })).toBeVisible()
   await agent.getByRole('button', { name: 'Run agent' }).click()
@@ -36,16 +37,13 @@ test('Requirement gates: declare languages, check jobs with the agent, hide the 
     { title: 'English Engineer', verdict: 'flag' }, { title: 'Russian Engineer', verdict: 'fail' },
   ])
 
-  // New hides the failed job by default; it stays counted and comes back with the filter off.
-  await expect(page.getByRole('row', { name: /English Engineer/ })).toContainText('Flag')
-  await expect(page.getByRole('row', { name: /Russian Engineer/ })).toHaveCount(0)
-  await expect(page.getByRole('status', { name: 'Failed jobs' })).toHaveText('(1 hidden)')
+  // Both stay listed in New; each card names its verdict.
+  await expect(jobCard(page, 'English Engineer')).toContainText('Requirements flagged')
+  await expect(jobCard(page, 'Russian Engineer')).toContainText('Fails requirements')
   await expect(page.getByRole('tab', { name: 'New (2)' })).toBeVisible()
-  await page.getByRole('checkbox', { name: /Hide failed/ }).uncheck()
-  const failed = page.getByRole('row', { name: /Russian Engineer/ })
-  await expect(failed).toContainText('Fail')
-  await failed.getByRole('button', { name: 'View Russian Engineer' }).click()
+  await openJob(page, 'Russian Engineer')
   const details = page.getByRole('dialog', { name: 'Russian Engineer' })
+  await expect(details.getByText('Fail', { exact: true }).first()).toBeVisible()
   await expect(details.getByRole('status', { name: 'Requirements check' })).toContainText('Requires Russian (fluent), which is not in your languages.')
   await expect(details.getByRole('status', { name: 'Requirements check' })).toContainText('Fluent Russian required.')
 

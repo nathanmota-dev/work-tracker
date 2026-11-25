@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import { beforeEach, expect, it, vi } from "vitest"
 import { prepareSkill } from "@/lib/agent"
-import { RankNewRoles, RankSelected, RankingRunSummary, RankingScore } from "./job-ranking-action"
+import { RankRolesMenu, RankSelected, RankingRunSummary } from "./job-ranking-action"
 
 const agent = vi.hoisted(() => ({ state: { completion: null as { skill: string; id: number } | null } }))
 vi.mock("@/lib/agent", () => ({ prepareSkill: vi.fn(), useAgent: () => agent.state }))
@@ -16,16 +16,6 @@ beforeEach(() => {
   window.desktop = { request, readPdf: vi.fn(), savePdf: vi.fn(), chooseSource: vi.fn(), connectionStatus: async () => true, getVersion: async () => "1", openExternal: vi.fn(), onEvent: () => () => {} }
 })
 
-it("shows the score, retry states and the closing soon marker as text", () => {
-  const { rerender } = render(<RankingScore row={{ ranking_status: "scored", ranking_overall: 78, ranking_verdict: "Strong Fit", closing_soon: true }} />)
-  expect(screen.getByText("78 · Strong fit")).toHaveAttribute("title", expect.stringContaining("posting text only"))
-  expect(screen.getByText("🔥 Closing soon")).toBeInTheDocument()
-  rerender(<RankingScore row={{ ranking_status: "unreachable", ranking_attempts: 1 }} />)
-  expect(screen.getByText("Unreachable (attempt 1)")).toBeInTheDocument()
-  rerender(<RankingScore row={{}} />)
-  expect(screen.getByText("—")).toBeInTheDocument()
-})
-
 it("previews the selection, says how many are deferred and opens the skill in context", async () => {
   request.mockResolvedValue(preview())
   render(<RankSelected jobs={[{ id: 3 }, { id: 4 }]} />)
@@ -35,20 +25,24 @@ it("previews the selection, says how many are deferred and opens the skill in co
   expect(prepareSkill).toHaveBeenCalledWith("job-ranking", { jobIds: "3,4" })
 })
 
-it("ranks new roles or everything again, and opens nothing when there is nothing to rank", async () => {
+it("ranks new roles or everything again from the Rank roles menu, and opens nothing when there is nothing to rank", async () => {
+  const pick = async (item: string) => {
+    fireEvent.keyDown(screen.getByRole("button", { name: /Rank roles/ }), { key: "Enter" })
+    fireEvent.click(await screen.findByRole("menuitem", { name: item }))
+  }
   request.mockResolvedValueOnce(preview({ items: [], eligible: 0, deferred: 0, expired: 0, already_ranked: 4 }))
-  render(<RankNewRoles />)
+  render(<RankRolesMenu />)
   expect(screen.getByTitle(/Triage score from the posting text only/)).toBeInTheDocument()
-  fireEvent.click(screen.getByRole("button", { name: "Rank new roles" }))
+  await pick("Rank new roles")
   expect(await screen.findByRole("status", { name: "Ranking plan" })).toHaveTextContent("Nothing new to rank. Skipped: 4 already ranked.")
   expect(request).toHaveBeenLastCalledWith("rankings/candidates", undefined)
   expect(prepareSkill).not.toHaveBeenCalled()
   request.mockResolvedValueOnce(preview())
-  fireEvent.click(screen.getByRole("button", { name: "Rank all again" }))
+  await pick("Rank all again")
   await vi.waitFor(() => expect(prepareSkill).toHaveBeenCalledWith("job-ranking", { jobIds: "", all: "true" }))
   expect(request).toHaveBeenLastCalledWith("rankings/candidates?all=true", undefined)
   request.mockRejectedValueOnce(new Error("Backend is starting."))
-  fireEvent.click(screen.getByRole("button", { name: "Rank new roles" }))
+  await pick("Rank new roles")
   expect(await screen.findByText("Backend is starting.")).toBeInTheDocument()
 })
 

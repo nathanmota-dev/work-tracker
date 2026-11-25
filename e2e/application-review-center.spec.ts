@@ -1,16 +1,16 @@
 import { test, expect } from './fixtures'
-import { choose, panel } from './ui'
+import { choose, panel, selectAllJobs, selectionBar } from './ui'
 
 test('Review center: select five jobs, recover a failure, adjust, restart, review, fill and confirm each submission', async ({ workspace }) => {
   test.setTimeout(300_000)
   for (let i = 1; i <= 5; i++) workspace.cli(['job', 'save', '--linkedin-id', String(9900 + i), '--title', `Review role ${i}`, '--company', `Synthetic review ${i}`, '--link', `https://example.test/review/${i}`])
   workspace.setScenario({ agent: 'error' })
   await workspace.go('Jobs')
-  await workspace.page.getByRole('button', { name: 'Select all filtered results (5)', exact: true }).click()
-  await workspace.page.getByRole('button', { name: 'Move selected to shortlist' }).click()
+  await selectAllJobs(workspace.page, 'Review role 1', 5)
+  await selectionBar(workspace.page).getByRole('button', { name: 'Move to shortlist' }).click()
   await workspace.page.getByRole('tab', { name: 'Shortlist (5)' }).click()
-  await workspace.page.getByRole('button', { name: 'Select all filtered results (5)', exact: true }).click()
-  await workspace.page.getByRole('button', { name: 'Prepare selected', exact: true }).click()
+  await selectAllJobs(workspace.page, 'Review role 1', 5)
+  await selectionBar(workspace.page).getByRole('button', { name: 'Prepare selected', exact: true }).click()
   await choose(workspace.page, 'Batch agent', 'opencode')
   await workspace.page.getByRole('button', { name: 'Create batch (5)', exact: true }).click()
   await workspace.page.getByRole('link', { name: 'Review batch', exact: true }).click()

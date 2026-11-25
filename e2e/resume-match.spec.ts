@@ -1,6 +1,7 @@
 import { test, expect } from './fixtures'
 import { join } from 'node:path'
 import { writeTextPdf } from './fixtures/pdf'
+import { jobCard, openJob } from './ui'
 
 test('Resume match: Jobs shows the best saved resume per job, the detail lists its terms and Apply preselects it', async ({ workspace, page }) => {
   await workspace.go('Jobs')
@@ -18,12 +19,15 @@ test('Resume match: Jobs shows the best saved resume per job, the detail lists i
   workspace.cli(['job', 'save', '--linkedin-id', '9502', '--title', 'Node Engineer', '--company', 'Example Company', '--link', 'https://example.com/jobs/9502',
     '--description', 'Requisitos: Node.js, TypeScript, PostgreSQL'])
   await workspace.go('Jobs')
-  const row = (title: string) => page.getByRole('row').filter({ hasText: title })
-  await expect(row('Dotnet Engineer')).toContainText('90 · Back-End · C#, .NET')
-  await expect(row('Dotnet Engineer')).toContainText('Strong match')
-  await expect(row('Node Engineer')).toContainText('100 · Back-End · Node.js')
+  // Without a triage score each card shows its best resume's match in the band's color.
+  const match = (title: string) => jobCard(page, title).getByRole('meter', { name: 'Resume match' })
+  await expect(match('Dotnet Engineer')).toHaveAttribute('aria-valuenow', '90')
+  await expect(match('Dotnet Engineer')).toHaveAttribute('data-tone', 'good')
+  await expect(match('Node Engineer')).toHaveAttribute('aria-valuenow', '100')
 
-  await page.getByRole('button', { name: 'View Dotnet Engineer' }).click()
+  await openJob(page, 'Dotnet Engineer')
+  await expect(page.getByRole('dialog')).toContainText('90 · Back-End · C#, .NET')
+  await expect(page.getByRole('dialog')).toContainText('Strong match')
   const detail = page.getByRole('region', { name: 'Resume match' })
   await expect(detail.getByRole('listitem', { name: 'Back-End · C#, .NET' })).toContainText('Missing: Docker')
   await expect(detail.getByRole('listitem', { name: 'Back-End · Node.js' })).toContainText('Missing: C# (required), .NET (required), SQL Server (required)')

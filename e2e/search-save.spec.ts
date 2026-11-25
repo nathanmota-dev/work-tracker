@@ -1,7 +1,11 @@
 import { test, expect } from './fixtures'
+import { jobMenu, selectionBar } from './ui'
+
+const discover = (page: import('@playwright/test').Page) => page.getByRole('button', { name: 'Discover opportunities', exact: true }).click()
 
 test('Jobs: direct search, bulk triage, archive and duplicate outcomes', async ({ workspace, page }) => {
   await workspace.go('Jobs')
+  await discover(page)
   await page.getByLabel('Keywords').fill('React')
   await page.getByLabel('Location', { exact: true }).fill('Remote')
   workspace.setScenario({ mcp: 'mixed' })
@@ -12,10 +16,11 @@ test('Jobs: direct search, bulk triage, archive and duplicate outcomes', async (
   await expect(page.getByText('Just added')).toHaveCount(2)
   await page.getByRole('checkbox', { name: 'Select React Engineer', exact: true }).check()
   await page.getByRole('checkbox', { name: 'Select New Engineer', exact: true }).check()
-  await page.getByRole('button', { name: 'Move selected to shortlist' }).click()
+  await selectionBar(page).getByRole('button', { name: 'Move to shortlist' }).click()
   await page.getByRole('tab', { name: 'Shortlist (2)' }).click()
-  await page.getByRole('button', { name: 'Archive New Engineer', exact: true }).click()
+  await jobMenu(page, 'New Engineer', 'Archive')
   await expect(page.getByRole('tab', { name: 'Archived (1)' })).toBeVisible()
+  await discover(page)
   await page.getByRole('button', { name: 'Search LinkedIn' }).click()
   await expect(page.getByText('0 saved · 2 already saved · 2 failed')).toBeVisible()
   await expect(page.getByRole('tab', { name: 'New (0)' })).toHaveAttribute('data-state', 'active')
@@ -23,11 +28,14 @@ test('Jobs: direct search, bulk triage, archive and duplicate outcomes', async (
   await expect(page.getByText('New Engineer: Already saved (archived)')).toBeVisible()
   expect(workspace.query('SELECT * FROM jobs')).toHaveLength(2)
   expect(workspace.calls('prompt')).toHaveLength(0)
-  await expect(page.getByLabel('Keywords')).toHaveValue('React')
-  await expect(page.getByLabel('Location', { exact: true })).toHaveValue('Remote')
+  // The criteria stay filled for the next search.
+  await discover(page)
+  await expect(page.getByRole('button', { name: 'Remove React', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Remove Remote', exact: true })).toBeVisible()
   await workspace.fault('jobs/save-search')
   await page.getByRole('button', { name: 'Search LinkedIn' }).click()
   await expect(page.getByRole('alert')).toContainText('Synthetic transport failure')
+  // A failed save keeps the criteria on screen to retry.
   await page.getByRole('button', { name: 'Search LinkedIn' }).click()
   await expect(page.getByText('0 saved · 2 already saved · 2 failed')).toBeVisible()
 })
@@ -35,6 +43,7 @@ test('Jobs: direct search, bulk triage, archive and duplicate outcomes', async (
 test('Jobs: prose-only MCP output remains readable', async ({ workspace, page }) => {
   workspace.setScenario({ mcp: 'prose' })
   await workspace.go('Jobs')
+  await discover(page)
   await page.getByLabel('Keywords').fill('React')
   await page.getByRole('button', { name: 'Search LinkedIn' }).click()
   await expect(page.getByText(/No savable results/)).toContainText('React Engineer at Example Company')

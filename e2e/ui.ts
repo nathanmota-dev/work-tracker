@@ -14,3 +14,35 @@ export function panel(page: Page, title: string): Locator {
   return page.locator('[data-slot="card"]').filter({ has: page.getByRole('heading', { name: title, exact: true, level: 2 }) })
 }
 export async function closeDialog(page: Page) { await page.keyboard.press('Escape'); await expect(page.getByRole('dialog')).toHaveCount(0) }
+
+/** A saved job's card on Jobs, named by its title. */
+export function jobCard(page: Page, title: string): Locator {
+  return page.getByRole('article', { name: title, exact: true })
+}
+/** Opens a job's ⋯ menu (on its card, or inside `scope` such as the details) and picks an item. */
+export async function jobMenu(page: Page, title: string, item: string, scope: Page | Locator = page) {
+  await scope.getByRole('button', { name: `More actions for ${title}`, exact: true }).click()
+  await page.getByRole('menuitem', { name: item, exact: true }).click()
+}
+export async function openJob(page: Page, title: string) {
+  await page.getByRole('button', { name: `View details of ${title}`, exact: true }).click()
+}
+/** Picks an option of a Jobs filter pill (Work type, Score or Sort). */
+export async function filterJobs(page: Page, filter: 'Work type' | 'Score' | 'Sort', option: string) {
+  await page.getByRole('button', { name: new RegExp(`^${filter}:`) }).click()
+  await page.getByRole('menuitemradio', { name: option, exact: true }).click()
+}
+/** Titles of the job cards in their on-screen order. */
+export async function jobOrder(page: Page): Promise<string[]> {
+  return (await page.getByRole('article').evaluateAll(cards => cards.map(card => card.getAttribute('aria-label') ?? '')))
+}
+/** The floating bar of bulk actions, shown while jobs are selected. */
+export function selectionBar(page: Page): Locator {
+  return page.getByRole('toolbar', { name: 'Selection actions' })
+}
+/** Selects one job, then every job the filters show. */
+export async function selectAllJobs(page: Page, first: string, total: number) {
+  await page.getByRole('checkbox', { name: `Select ${first}`, exact: true }).click()
+  if (total > 1) await selectionBar(page).getByRole('button', { name: `Select all ${total}`, exact: true }).click()
+  await expect(selectionBar(page).getByRole('status')).toHaveText(`${total} selected`)
+}

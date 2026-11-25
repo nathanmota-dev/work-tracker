@@ -1,5 +1,5 @@
 import { test, expect, type Workspace } from './fixtures'
-import { choose, panel } from './ui'
+import { choose, panel, jobMenu, openJob } from './ui'
 
 const card = (workspace: Workspace) => panel(workspace.page, 'Get started')
 const step = (workspace: Workspace, title: string) => card(workspace).locator('li[id^="get-started-"]').filter({ has: workspace.page.getByRole('heading', { name: new RegExp(`^\\d\\. ${title}$`) }) })
@@ -48,7 +48,8 @@ test('Get started: a new workspace reaches its first prepared application by fol
   await progress(workspace, 3)
 
   await step(workspace, 'Run your first search').getByRole('link', { name: 'Search jobs' }).click()
-  await workspace.ready('Jobs')
+  // The checklist opens Jobs straight in its Discover opportunities view.
+  await expect(page.getByRole('heading', { name: 'Discover opportunities', exact: true, level: 1 })).toBeVisible()
   await expect(page.getByLabel('Keywords')).toBeFocused()
   await page.getByLabel('Keywords').fill('React')
   await page.getByRole('button', { name: 'Search LinkedIn' }).click()
@@ -59,11 +60,12 @@ test('Get started: a new workspace reaches its first prepared application by fol
   await step(workspace, 'Prepare your first application').getByRole('link', { name: 'Open the shortlist' }).click()
   await workspace.ready('Jobs')
   await expect(page.getByRole('tab', { name: 'Shortlist (0)' })).toHaveAttribute('data-state', 'active')
-  await expect(page.getByText('No opportunities yet')).toBeVisible()
+  await expect(page.getByText('No roles yet')).toBeVisible()
   await page.getByRole('tab', { name: 'New (1)' }).click()
-  await page.getByRole('row', { name: /React Engineer/ }).getByRole('button', { name: 'Move to shortlist' }).click()
+  await jobMenu(page, 'React Engineer', 'Move to shortlist')
   await page.getByRole('tab', { name: 'Shortlist (1)' }).click()
-  await page.getByRole('row', { name: /React Engineer/ }).getByRole('button', { name: 'Apply', exact: true }).click()
+  await openJob(page, 'React Engineer')
+  await page.getByRole('dialog', { name: 'React Engineer' }).getByRole('button', { name: 'Apply', exact: true }).click()
   await workspace.ready('Application')
   await page.locator('summary', { hasText: /^Job description$/ }).click()
   await page.getByLabel('Job description', { exact: true }).fill('React, TypeScript and testing')
@@ -88,7 +90,7 @@ test('Get started: manual tracking starts without an agent and keeps its choices
 
   // Empty lists point at the next step of the trail.
   await workspace.go('Jobs')
-  await expect(workspace.page.getByText('No opportunities yet')).toBeVisible()
+  await expect(workspace.page.getByText('No roles yet')).toBeVisible()
   await expect(workspace.page.getByRole('link', { name: 'Fill essential answers' })).toHaveAttribute('href', '#/dashboard?step=answers')
   await workspace.go('Dashboard')
   await fillAnswers(workspace)

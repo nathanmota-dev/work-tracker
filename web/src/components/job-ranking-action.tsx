@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react"
-import { ScoreBadge } from "@/components/score-badge"
-import { verdictTone } from "@/lib/ats"
+import { ChevronDown, Gauge } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { request, type Row } from "@/lib/api"
 import { prepareSkill, useAgent } from "@/lib/agent"
 import {
-  TRIAGE_NOTE, candidatesPath, previewText, rankingLabel, runSummary,
+  TRIAGE_NOTE, candidatesPath, previewText, runSummary,
   type RankingCandidates, type RankingRun,
 } from "@/lib/ranking"
 
@@ -13,17 +13,6 @@ import {
 let pendingRun: RankingRun | null = null
 let summarized = -1
 let lastSummary = ""
-
-/** Score, verdict or retry state of a job, with the closing-soon marker as text. */
-export function RankingScore({ row }: { row: Row }) {
-  const label = rankingLabel(row)
-  return (
-    <div className="flex flex-wrap items-center gap-1">
-      {label ? <ScoreBadge tone={row.ranking_status === "scored" ? verdictTone(row.ranking_verdict) : "none"} title={TRIAGE_NOTE}>{label}</ScoreBadge> : <span>—</span>}
-      {!!row.closing_soon && <span className="whitespace-nowrap text-xs" title="Deadline within 7 days">🔥 Closing soon</span>}
-    </div>
-  )
-}
 
 /** Previews the run, then opens the triage skill in the agent panel; the page stays usable. */
 function useRankingLaunch() {
@@ -58,19 +47,28 @@ function Notice({ text }: { text: string }) {
 export function RankSelected({ jobs }: { jobs: Row[] }) {
   const { busy, notice, launch } = useRankingLaunch()
   return <>
-    <Button size="sm" variant="outline" disabled={busy || !jobs.length} onClick={() => void launch({ jobIds: jobs.map(job => job.id) })}>Rank selected</Button>
+    <Button size="sm" variant="ghost" aria-label="Rank selected" disabled={busy || !jobs.length} onClick={() => void launch({ jobIds: jobs.map(job => job.id) })}>Rank</Button>
     <Notice text={notice} />
   </>
 }
 
-/** Top of New: rank the roles that still need triage, or re-rank everything after a profile change. */
-export function RankNewRoles() {
+/** Rank the roles that still need triage, or re-rank everything after a profile change. */
+export function RankRolesMenu() {
   const { busy, notice, launch } = useRankingLaunch()
   return (
-    <div className="ml-auto flex flex-wrap items-center gap-2" title={TRIAGE_NOTE}>
+    <div className="flex flex-wrap items-center justify-end gap-2" title={TRIAGE_NOTE}>
       <Notice text={notice} />
-      <Button size="sm" disabled={busy} onClick={() => void launch({})}>Rank new roles</Button>
-      <Button size="sm" variant="outline" disabled={busy} onClick={() => void launch({ all: true })}>Rank all again</Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button size="sm" variant="outline" disabled={busy}>
+            <Gauge /> Rank roles <ChevronDown className="size-3.5 text-muted-foreground" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onSelect={() => void launch({})}>Rank new roles</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => void launch({ all: true })}>Rank all again</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   )
 }

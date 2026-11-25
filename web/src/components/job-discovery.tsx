@@ -10,7 +10,23 @@ import { structuredSearchRows, type SearchSaveResult } from "../../../src/jobs/s
 
 let shownCompletion: number | undefined
 
-export function JobDiscovery({ onResults }: { onResults: (ids: number[]) => void }) {
+/** "2 saved · 1 already saved · 0 failed" and each item's outcome, after a search saved its results. */
+export function SearchOutcomes({ outcomes, onDismiss }: { outcomes: SearchSaveResult[]; onDismiss?: () => void }) {
+  if (!outcomes.length) return null
+  const count = (status: SearchSaveResult["status"]) => outcomes.filter(r => r.status === status).length
+  return <div className="rounded-xl border bg-card px-4 py-3 text-sm">
+    <div className="flex items-center justify-between gap-3">
+      <p role="status" className="font-medium">{count("saved")} saved · {count("existing")} already saved · {count("failed")} failed</p>
+      {onDismiss && <Button size="sm" variant="ghost" onClick={onDismiss}>Dismiss</Button>}
+    </div>
+    <ul className="mt-2 space-y-0.5 text-muted-foreground">{outcomes.map((item, index) => <li key={`${item.key}:${index}`}>
+      {item.job ? `${text(item.job.title)}: ${item.status === "existing" ? "Already saved" : "Saved"}${item.job.archived_at ? " (archived)" : ""}` : `Result ${index + 1}: Failed — ${item.error}`}
+    </li>)}</ul>
+  </div>
+}
+
+/** Search criteria; `onResults` runs once a search saved its results, with the new job IDs and every outcome. */
+export function JobDiscovery({ onResults }: { onResults: (ids: number[], outcomes: SearchSaveResult[]) => void }) {
   const { search, update } = useWorkspaceState("jobs")
   const agent = useAgent()
   const [busy, setBusy] = useState(false)
@@ -32,7 +48,7 @@ export function JobDiscovery({ onResults }: { onResults: (ids: number[]) => void
     shownCompletion = completion.id
     const outcomes = agent.jobOutcomes
     setOutcomes(outcomes)
-    onComplete.current(outcomes.filter(item => item.status === "saved" && !item.job?.archived_at).map(item => Number(item.job?.id)))
+    onComplete.current(outcomes.filter(item => item.status === "saved" && !item.job?.archived_at).map(item => Number(item.job?.id)), outcomes)
   }, [agent.completion, agent.jobOutcomes])
 
   async function discover() {
@@ -55,11 +71,12 @@ export function JobDiscovery({ onResults }: { onResults: (ids: number[]) => void
         results.push(...response.results)
         setOutcomes([...results])
       }
-      if (mounted.current) onResults(results.filter(item => item.status === "saved").map(item => Number(item.job?.id)))
+      // Without savable rows the explanation stays here instead of returning to the list.
+      if (mounted.current && rows.length) onResults(results.filter(item => item.status === "saved").map(item => Number(item.job?.id)), results)
     } catch (e) { setError((e as Error).message) }
     finally { setBusy(false) }
   }
-  return <Panel title="Discover opportunities">
+  return <Panel title="Search criteria">
     <form ref={form} className="space-y-4" onSubmit={event => { event.preventDefault(); void discover() }}>
       <SearchFilters kind="jobs" values={values} busy={busy} set={(key, value) => update({ [key]: value })} />
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!search.assess} disabled={busy}
@@ -72,11 +89,6 @@ export function JobDiscovery({ onResults }: { onResults: (ids: number[]) => void
     </div>
     {error && <p role="alert">{error}</p>}
     {output && <p role="status" className="mt-3 whitespace-pre-wrap text-sm">{output}</p>}
-    {!!outcomes.length && <div className="mt-3 text-sm">
-      <p role="status">{outcomes.filter(r => r.status === "saved").length} saved · {outcomes.filter(r => r.status === "existing").length} already saved · {outcomes.filter(r => r.status === "failed").length} failed</p>
-      <ul>{outcomes.map((item, index) => <li key={`${item.key}:${index}`}>
-        {item.job ? `${text(item.job.title)}: ${item.status === "existing" ? "Already saved" : "Saved"}${item.job.archived_at ? " (archived)" : ""}` : `Result ${index + 1}: Failed — ${item.error}`}
-      </li>)}</ul>
-    </div>}
+    {!!outcomes.length && <div className="mt-3"><SearchOutcomes outcomes={outcomes} /></div>}
   </Panel>
 }

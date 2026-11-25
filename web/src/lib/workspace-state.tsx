@@ -12,7 +12,11 @@ export function WorkspaceRoute() {
   const path = useRouterState({ select: state => state.location.pathname })
   useNavigationScroll(path)
   const [remembered, setRemembered] = useState<Record<string, WorkspaceSearch>>({})
-  useEffect(() => { setRemembered(previous => ({ ...previous, [path]: search })) }, [path, search])
+  useEffect(() => {
+    // Discover opportunities is a transient view of Jobs: the sidebar link always returns to the cards.
+    const { discover: _discover, focus: _focus, ...kept } = search
+    setRemembered(previous => ({ ...previous, [path]: kept }))
+  }, [path, search])
   const update = useCallback((patch: Patch) => {
     void navigate({ to: ".", search: previous => ({ ...previous, ...patch }), replace: true, resetScroll: false })
   }, [navigate])

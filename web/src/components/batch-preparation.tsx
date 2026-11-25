@@ -12,15 +12,20 @@ import { batchReviewHref } from "@/lib/batch-review"
 import type { PreparationBatch } from "@/lib/preparation"
 import type { BatchPreview } from "../../../src/preparation/types"
 
-export function BatchPreparation({ jobs, onCreated }: { jobs: Row[]; onCreated: () => void }) {
+/** "Batch created with N jobs." with links to the queue and to the batch review. */
+export function BatchCreatedNotice({ batch }: { batch: PreparationBatch }) {
+  return <span role="status" className="text-sm">Batch created with {batch.items.length} jobs. <a className="underline" href="#/applications">Open preparation queue</a><span aria-hidden="true"> · </span><a className="underline" href={batchReviewHref(batch.id)}>Review batch</a></span>
+}
+
+/** "Prepare selected": reviews the jobs in a dialog and creates one batch; `onCreated` receives it. */
+export function BatchPreparation({ jobs, onCreated }: { jobs: Row[]; onCreated: (batch: PreparationBatch) => void }) {
   const [reviewing, setReviewing] = useState<Row[]>()
-  const [notice, setNotice] = useState("")
-  const [batchLink, setBatchLink] = useState("")
+  const [created, setCreated] = useState<PreparationBatch>()
   return <>
-    <Button size="sm" disabled={!jobs.length} onClick={() => { setNotice(""); setReviewing(jobs) }}>Prepare selected</Button>
-    {notice && <span role="status" className="text-sm">{notice} <a className="underline" href="#/applications">Open preparation queue</a><span aria-hidden="true"> · </span><a className="underline" href={batchLink}>Review batch</a></span>}
+    <Button size="sm" disabled={!jobs.length} onClick={() => { setCreated(undefined); setReviewing(jobs) }}>Prepare selected</Button>
+    {created && <BatchCreatedNotice batch={created} />}
     {reviewing && <BatchDialog jobs={reviewing} onClose={() => setReviewing(undefined)} onCreated={batch => {
-      setReviewing(undefined); setNotice(`Batch created with ${batch.items.length} jobs.`); setBatchLink(batchReviewHref(batch.id)); onCreated()
+      setReviewing(undefined); setCreated(batch); onCreated(batch)
     }} />}
   </>
 }

@@ -11,7 +11,7 @@ test('Jobs: pending load is visible and resolves through the real backend', asyn
   await expect(page.getByLabel('Loading workspace')).toBeVisible()
   await workspace.release()
   await workspace.ready('Jobs')
-  await expect(page.getByRole('heading', { name: 'No opportunities yet' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'No roles yet' })).toBeVisible()
 })
 
 test('Settings: missing compiler is reported and preview is disabled', async ({ workspace, page }) => {

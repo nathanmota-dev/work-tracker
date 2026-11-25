@@ -35,12 +35,12 @@ describe("workspace API flows", () => {
     render(<JobsPage />)
     expect(await screen.findByText("Frontend Engineer")).toBeInTheDocument()
     fireEvent.change(
-      screen.getByRole("textbox", { name: "Search Opportunities" }),
+      screen.getByRole("searchbox", { name: "Search opportunities" }),
       { target: { value: "Acme" } },
     )
     expect(screen.queryByText("Designer")).not.toBeInTheDocument()
     fireEvent.click(
-      screen.getByRole("button", { name: "View Frontend Engineer" }),
+      screen.getByRole("button", { name: "View details of Frontend Engineer" }),
     )
     expect(screen.getByRole("dialog")).toBeInTheDocument()
     expect(request).toHaveBeenCalledWith("jobs", undefined)
@@ -95,7 +95,7 @@ describe("workspace API flows", () => {
       "Backend unavailable",
     )
     fireEvent.click(screen.getByRole("button", { name: "Try again" }))
-    expect(await screen.findByText("No opportunities yet")).toBeInTheDocument()
+    expect(await screen.findByText("No roles yet")).toBeInTheDocument()
   })
   it("submits people searches to the matching endpoint", async () => {
     request.mockResolvedValue({
@@ -133,7 +133,8 @@ describe("workspace API flows", () => {
       target: { value: "Role 0" },
     })
     expect(screen.getByText("Role 0")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Previous" })).toBeDisabled()
+    // One page left: the page numbers are hidden.
+    expect(screen.queryByRole("button", { name: "Previous" })).not.toBeInTheDocument()
   })
   it("normalizes MCP text and structured search results", () => {
     expect(

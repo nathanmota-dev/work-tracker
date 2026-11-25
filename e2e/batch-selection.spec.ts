@@ -1,9 +1,9 @@
 import { test, expect } from './fixtures'
-import { choose } from './ui'
+import { choose, selectAllJobs, selectionBar } from './ui'
 import { DatabaseSync } from 'node:sqlite'
 import { join } from 'node:path'
 
-test('Jobs: select across pages, review five jobs and create one batch with shared and overridden context', async ({ workspace, page }) => {
+test('Jobs: select all filtered roles, review five jobs and create one batch with shared and overridden context', async ({ workspace, page }) => {
   test.setTimeout(180_000)
   for (let i = 1; i <= 17; i++) workspace.cli(['job', 'save', '--linkedin-id', String(9800 + i), '--title', `Bulk role ${String(i).padStart(2, '0')}`, '--company', `Synthetic ${i}`, '--link', `https://example.test/jobs/${i}`])
   // Distinct timestamps exercise newest-first ordering even on fast local runs.
@@ -11,20 +11,18 @@ test('Jobs: select across pages, review five jobs and create one batch with shar
   try { database.exec("UPDATE jobs SET scouted_at = datetime('2026-01-01', '+' || id || ' seconds')") }
   finally { database.close() }
   await workspace.go('Jobs')
-  await page.getByRole('button', { name: 'Select all filtered results (17)', exact: true }).click()
-  await page.getByRole('button', { name: 'Move selected to shortlist' }).click()
+  await selectAllJobs(page, 'Bulk role 01', 17)
+  await selectionBar(page).getByRole('button', { name: 'Move to shortlist' }).click()
   await page.getByRole('tab', { name: 'Shortlist (17)' }).click()
-  await page.getByRole('button', { name: 'Select page (15)', exact: true }).click()
-  await expect(page.getByRole('status').filter({ hasText: /^15 selected$/ })).toBeVisible()
-  await page.getByRole('button', { name: 'Next', exact: true }).click()
-  await expect(page.getByRole('status').filter({ hasText: /^15 selected$/ })).toBeVisible()
-  await page.getByRole('button', { name: 'Clear selection', exact: true }).click()
-  await page.getByRole('button', { name: 'Previous', exact: true }).click()
-  await page.getByRole('textbox', { name: 'Search Opportunities', exact: true }).fill('Bulk role 0')
-  await page.getByRole('button', { name: 'Select all filtered results (9)', exact: true }).click()
-  for (let i = 6; i <= 9; i++) await page.getByRole('checkbox', { name: `Select Bulk role 0${i}`, exact: true }).uncheck()
-  await expect(page.getByRole('status').filter({ hasText: /^5 selected$/ })).toBeVisible()
-  await page.getByRole('button', { name: 'Prepare selected', exact: true }).click()
+  await selectAllJobs(page, 'Bulk role 01', 17)
+  await selectionBar(page).getByRole('button', { name: 'Clear selection', exact: true }).click()
+  await expect(selectionBar(page)).toHaveCount(0)
+  await page.getByRole('searchbox', { name: 'Search opportunities', exact: true }).fill('Bulk role 0')
+  // Each search word must match, so "0" also finds Bulk role 10.
+  await selectAllJobs(page, 'Bulk role 01', 10)
+  for (const i of ['06', '07', '08', '09', '10']) await page.getByRole('checkbox', { name: `Select Bulk role ${i}`, exact: true }).uncheck()
+  await expect(selectionBar(page).getByRole('status')).toHaveText('5 selected')
+  await selectionBar(page).getByRole('button', { name: 'Prepare selected', exact: true }).click()
   const dialog = page.getByRole('dialog')
   await expect(dialog).toContainText('5 selected · 5 eligible · 0 excluded')
   await choose(page, 'Batch agent', 'opencode')

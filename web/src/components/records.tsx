@@ -12,6 +12,16 @@ import { ArrowUpRight, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+  pageWindow,
+} from "@/components/ui/pagination"
 import { Empty, Panel, controlClass } from "@/components/workspace-ui"
 import { useWorkspaceState } from "@/lib/workspace-state"
 import { text, type Row } from "@/lib/api"
@@ -140,41 +150,36 @@ function RecordTable({
   )
 }
 
-function Pagination({
-  total,
+export function RecordPagination({
   current,
   lastPage,
   onPage,
 }: {
-  total: number
   current: number
   lastPage: number
   onPage: (page: number) => void
 }) {
+  if (lastPage === 0) return null
   return (
-    <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
-      <span>
-        {total} results · Page {current + 1} of {lastPage + 1}
-      </span>
-      <div className="flex gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={current === 0}
-          onClick={() => onPage(current - 1)}
-        >
-          Previous
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={current >= lastPage}
-          onClick={() => onPage(current + 1)}
-        >
-          Next
-        </Button>
-      </div>
-    </div>
+    <Pagination className="mt-6 justify-end">
+      <PaginationContent>
+        <PaginationItem>
+          <PaginationPrevious disabled={current === 0} onClick={() => onPage(current - 1)} />
+        </PaginationItem>
+        {pageWindow(current, lastPage).map((page, i) => (
+          <PaginationItem key={page === "gap" ? `gap-${i}` : page}>
+            {page === "gap" ? <PaginationEllipsis /> : (
+              <PaginationLink isActive={page === current} aria-label={`Page ${page + 1}`} onClick={() => onPage(page)}>
+                {page + 1}
+              </PaginationLink>
+            )}
+          </PaginationItem>
+        ))}
+        <PaginationItem>
+          <PaginationNext disabled={current >= lastPage} onClick={() => onPage(current + 1)} />
+        </PaginationItem>
+      </PaginationContent>
+    </Pagination>
   )
 }
 
@@ -266,8 +271,7 @@ export function Records({
             onSelect={onSelect}
             rowKey={rowKey}
           />
-          <Pagination
-            total={filtered.length}
+          <RecordPagination
             current={current}
             lastPage={lastPage}
             onPage={page => update({ page })}
