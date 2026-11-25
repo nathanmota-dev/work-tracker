@@ -60,13 +60,13 @@ describe("workspace API flows", () => {
     })
     fireEvent.click(screen.getByRole("button", { name: "Save answer" }))
     expect(await screen.findByRole("alert")).toHaveTextContent("Save failed")
-    expect(screen.getByRole("dialog")).toBeInTheDocument()
+    expect(screen.getByRole("region", { name: "Edit answer" })).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText("Answer"), {
       target: { value: "New" },
     })
     fireEvent.click(screen.getByRole("button", { name: "Save answer" }))
     await waitFor(() =>
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+      expect(screen.queryByRole("region", { name: "Edit answer" })).not.toBeInTheDocument(),
     )
     expect(request).toHaveBeenCalledWith("answer", {
       key: "name",

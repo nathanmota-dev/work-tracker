@@ -97,6 +97,23 @@ export interface ProfileAbout {
   certifications: string[];
 }
 
+/** One role or course as the Profile page shows it; `source` tells which files describe it. */
+export interface ResumeEntry {
+  title: string;
+  organization: string;
+  start: ProfileDate;
+  end: ProfileDate;
+  location: string;
+  bullets: string[];
+  skills: string[];
+  source: "data" | "linkedin" | "both";
+}
+/** Experience and education merged from the data file and the LinkedIn export, most recent first. */
+export interface ProfileResume {
+  experience: ResumeEntry[];
+  education: ResumeEntry[];
+}
+
 export type AssetStatus ="imported" | "pending" | "failed";
 export interface ProfileAssetState {
   file: string;
@@ -104,7 +121,7 @@ export interface ProfileAssetState {
   status: AssetStatus;
   warnings: string[];
 }
-/** What Profile → Base resume shows about the profile folder. */
+/** What the Profile page shows about the profile folder. */
 export interface ProfileSourcesState {
   profileDir: string;
   dataFile: string;
@@ -114,6 +131,7 @@ export interface ProfileSourcesState {
   /** Personal details found in the sources, ready to fill the answer catalog. */
   personal: PersonalField[];
   about: ProfileAbout | null;
+  resume: ProfileResume;
   warnings: string[];
   /** True while files of the folder are still being imported in the background. */
   importing?: boolean;

@@ -1,14 +1,11 @@
 import type { ReactNode } from "react"
 import { useWorkspaceState } from "@/lib/workspace-state"
-import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Empty, Page, PageSection, Panel } from "@/components/workspace-ui"
-import { ResumeSources } from "@/components/resume-sources"
-import { ProfileSources } from "@/components/profile-sources"
+import { Page, PageSection } from "@/components/workspace-ui"
 import { DealBreakers } from "@/components/deal-breakers"
 import { AgentIndicator } from "@/components/agent-indicator"
-import { prepareSkill } from "@/lib/agent"
 import { ProfilePage } from "./profile"
+import { ProfileOverview } from "./profile-overview"
 import { AnswersPage } from "./answers"
 import { RecruitersPage } from "./recruiters"
 import { OutreachPage } from "./outreach"
@@ -20,7 +17,7 @@ import { ActivityPage } from "./activity"
 function Hub({ path, title, description, tabs, aside, children }: {
   path: string
   title: string
-  description: string
+  description?: string
   tabs: [string, string][]
   aside?: ReactNode
   children: (tab: string) => ReactNode
@@ -29,13 +26,18 @@ function Hub({ path, title, description, tabs, aside, children }: {
   const tab = search.tab ?? tabs[0][0]
   return (
     <Page title={title} description={description}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b">
         <Tabs value={tab} onValueChange={(value) => update({ tab: value })}>
-          <TabsList aria-label={`${title} sections`}>
-            {tabs.map(([value, label]) => <TabsTrigger key={value} value={value}>{label}</TabsTrigger>)}
+          <TabsList aria-label={`${title} sections`} className="h-auto gap-6 rounded-none bg-transparent p-0">
+            {tabs.map(([value, label]) => (
+              <TabsTrigger key={value} value={value}
+                className="-mb-px rounded-none border-b-2 border-transparent px-0 pt-0 pb-2.5 text-muted-foreground hover:text-foreground data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none">
+                {label}
+              </TabsTrigger>
+            ))}
           </TabsList>
         </Tabs>
-        {aside}
+        {aside && <div className="pb-2">{aside}</div>}
       </div>
       <PageSection>{children(tab)}</PageSection>
     </Page>
@@ -55,45 +57,17 @@ export function ContactsHub() {
   )
 }
 
-function BaseResume() {
-  return (
-    <Page title="Base resume" description="The LaTeX project every tailored resume starts from, and the profile evidence it is tailored with.">
-      <ResumeSources friendly />
-      <ProfileSources />
-    </Page>
-  )
-}
-
-function Experiences() {
-  return (
-    <Page
-      title="Experiences"
-      description="Achievements and projects that do not fit on your base resume."
-      actions={<Button size="sm" onClick={() => prepareSkill("experience-bank")}>Update experiences</Button>}
-    >
-      <Panel title="Experience bank">
-        <Empty
-          title="Capture what your resume leaves out"
-          description="The agent interviews you about recent work and saves it to your experience bank. Tailored resumes use it when a role asks for experience your base resume does not show."
-        />
-      </Panel>
-    </Page>
-  )
-}
-
 export function ProfileHub() {
   return (
     <Hub
       path="profile"
       title="Profile"
-      description="Everything your applications and your agent know about you."
-      tabs={[["linkedin", "LinkedIn"], ["resume", "Base resume"], ["answers", "Answers"], ["experiences", "Experiences"], ["deal-breakers", "Deal-breakers"]]}
+      tabs={[["profile", "Profile"], ["answers", "Questions"], ["linkedin", "LinkedIn"], ["deal-breakers", "Deal-breakers"]]}
     >
-      {(tab) => tab === "resume" ? <BaseResume />
-        : tab === "answers" ? <AnswersPage />
-        : tab === "experiences" ? <Experiences />
+      {(tab) => tab === "answers" ? <AnswersPage />
+        : tab === "linkedin" ? <ProfilePage />
         : tab === "deal-breakers" ? <DealBreakers />
-        : <ProfilePage />}
+        : <ProfileOverview />}
     </Hub>
   )
 }

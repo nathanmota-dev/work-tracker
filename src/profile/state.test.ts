@@ -21,6 +21,7 @@ test("lists the data file and the folder's PDFs with the extracted experience", 
     assets: [{ file: "resume-data.json", kind: "data", status: "imported", warnings: [] }, { file: "new.pdf", kind: null, status: "pending", warnings: [] }],
     linkedin: { experiences: 1, education: 1, skills: 2, languages: 0, entries: [role] },
     personal: [], about: { headline: "", summary: "", currentCompany: "Northwind Labs", skills: ["React", "Go"], languages: [], certifications: [] },
+    resume: { experience: [{ title: "Engineer", organization: "Northwind Labs", start: "2022-12", end: "Present", location: "", bullets: [], skills: [], source: "linkedin" }], education: [] },
   });
   expect(profileEvidence).toHaveBeenCalledWith("/profile", { skills: ["React"] });
 });
@@ -28,7 +29,7 @@ test("lists the data file and the folder's PDFs with the extracted experience", 
 test("reports an unreadable data file and a configuration without a profile folder", () => {
   vi.mocked(fs.readFileSync).mockImplementation(() => { throw Object.assign(new Error("ENOENT: missing"), { code: "ENOENT" }); });
   expect(profileSourcesState(config({ dataFile: "/data/resume-data.json" }))).toEqual({
-    profileDir: "", dataFile: "/data/resume-data.json", linkedin: null, conflicts: [], personal: [], about: null,
+    profileDir: "", dataFile: "/data/resume-data.json", linkedin: null, conflicts: [], personal: [], about: null, resume: { experience: [], education: [] },
     assets: [{ file: "resume-data.json", kind: "data", status: "failed", warnings: ["The resume data file does not exist."] }],
     warnings: ["resume-data.json: The resume data file does not exist."],
   });

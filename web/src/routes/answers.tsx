@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { Page, LoadState, Field } from "@/components/workspace-ui"
+import { Page, LoadState } from "@/components/workspace-ui"
 import { Records, type Column } from "@/components/records"
-import { useApi, request, publish, date, type Row } from "@/lib/api"
+import { useApi, date, type Row } from "@/lib/api"
 import { useWorkspaceState } from "@/lib/workspace-state"
-import { AnswerEditor, draftError, type AnswerDraft } from "@/components/answer-editor"
+import { AnswerPanel, useAnswerEditor } from "@/components/answer-panel"
 import { AnswerTables, type CatalogRow } from "@/components/answer-tables"
 import { ANSWER_CATALOG, CATEGORY_LABELS, answerLanguage } from "../../../src/answers/catalog"
+
+/** Categories Questions lists; contact, links and the professional profile live on the Profile page. */
+export const QUESTION_CATEGORIES = ["eligibility", "eeo"] as const
 
 function savedRows(rows: Row[], advanced: boolean): Row[] {
   return rows.map(row => ({ ...row, language: row.language ?? "default",
@@ -25,29 +27,6 @@ function languageError(language: string, fallback: string): string {
   try { answerLanguage(language); if (fallback) answerLanguage(fallback); return "" }
   catch (error) { return (error as Error).message }
 }
-function useAnswerEditor() {
-  const [draft, setDraft] = useState<AnswerDraft | null>(null)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState("")
-  const [notice, setNotice] = useState("")
-  const [confirmDelete, setConfirmDelete] = useState(false)
-  function open(next: AnswerDraft) { setError(""); setNotice(""); setConfirmDelete(false); setDraft(next) }
-  async function mutate(deleting = false) {
-    if (!draft || !deleting && draftError(draft)) return
-    setBusy(true); setError(""); setNotice("")
-    try {
-      const language = answerLanguage(draft.language)
-      await request(deleting ? "answer/delete" : "answer", {
-        key: draft.key.trim(), language,
-        ...(!deleting ? { value: draft.value, category: draft.category.trim() || "custom" } : {}),
-      })
-      publish({ type: "changed" })
-      setDraft(null); setNotice(deleting ? "Answer deleted." : "Answer saved.")
-    } catch (e) { setError((e as Error).message) }
-    finally { setBusy(false) }
-  }
-  return { draft, setDraft, busy, error, notice, confirmDelete, setConfirmDelete, open, mutate }
-}
 export function AnswersPage() {
   const api = useApi<Row[]>("answers/variants")
   const editor = useAnswerEditor()
@@ -56,10 +35,10 @@ export function AnswersPage() {
   const [fallback, setFallback] = useState("")
   const rows = savedRows(api.data ?? [], advanced)
   const custom = rows.filter(row => !ANSWER_CATALOG.some(spec => spec.key === row.key))
-  function open(key: string, lang = language) {
-    const row = rows.find(r => r.key === key && r.language === lang)
-    editor.open({ key, value: String(row?.value ?? ""), category: String(row?.category ?? ANSWER_CATALOG.find(s => s.key === key)?.category ?? "custom"), language: lang, existing: !!row })
-  }
+  const open = (key: string, lang = language) => editor.open(rows, key, lang)
+  // A question listed here is edited inside its row; a new, custom or other field opens above the list.
+  const listed = (key: string) => ANSWER_CATALOG.some(spec => spec.key === key && (QUESTION_CATEGORIES as readonly string[]).includes(spec.category))
+  const inRow = !!editor.draft && !advanced && listed(editor.draft.key)
   // A correction link from the Apply checklist opens that field's editor once.
   const { search: route, update } = useWorkspaceState("answers")
   const [requested, setRequested] = useState("")
@@ -68,31 +47,28 @@ export function AnswersPage() {
   // Once its editor closes, the requested field leaves the URL so returning to this tab does not reopen it.
   const closed = !editor.draft && !!requested && route.field === requested
   useEffect(() => { if (closed) update({ field: "" }) }, [closed, update])
-  const draft = editor.draft
-  let duplicate = false
-  try { duplicate = !!draft && !draft.existing && rows.some(row => row.key === draft.key.trim() && row.language === answerLanguage(draft.language)) } catch { /* editor displays language validation */ }
-  return <Page title="Answers" description="Your reusable details, ready for the next application."
-    actions={<Button size="sm" onClick={() => open("")}>Add answer</Button>}>
+  return <Page title="Questions" description="What application portals ask that a resume does not answer: eligibility, availability and human review questions."
+    actions={<Button size="sm" onClick={() => open("")}>Add question</Button>}>
     {route.returnTo && <a className="text-sm underline" href={`#${route.returnTo}`}>Back to the application checklist</a>}
     {editor.notice && <p role="status" className="text-sm">{editor.notice}</p>}
     <LoadState {...api} retry={api.refresh} />
-    <div className="flex flex-wrap items-end gap-4">
-      <Field label="Requested language"><Input value={language} onChange={e => setLanguage(e.target.value)} /></Field>
-      <Field label="Explicit fallback language (optional)"><Input value={fallback} placeholder="No fallback" onChange={e => setFallback(e.target.value)} /></Field>
-      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={advanced} onChange={e => setAdvanced(e.target.checked)} />Advanced mode</label>
+    <div role="group" aria-label="Answer language" className="flex flex-wrap items-center gap-2 text-sm">
+      <div className="flex items-center gap-2 rounded-full border py-1 pr-1 pl-3.5">
+        <span aria-hidden className="text-muted-foreground">Language</span>
+        <Input aria-label="Requested language" className="h-7 w-28 rounded-full border-0 bg-muted/50 shadow-none" value={language} onChange={e => setLanguage(e.target.value)} />
+      </div>
+      <div className="flex items-center gap-2 rounded-full border py-1 pr-1 pl-3.5">
+        <span aria-hidden className="text-muted-foreground">Fallback</span>
+        <Input aria-label="Explicit fallback language (optional)" className="h-7 w-28 rounded-full border-0 bg-muted/50 shadow-none" value={fallback} placeholder="None" onChange={e => setFallback(e.target.value)} />
+      </div>
+      <label className="flex h-9 cursor-pointer items-center gap-2 rounded-full border px-3.5"><input type="checkbox" checked={advanced} onChange={e => setAdvanced(e.target.checked)} />Advanced mode</label>
     </div>
     {languageError(language, fallback) && <p role="alert">{languageError(language, fallback)}</p>}
     {api.data && <>
-      <AnswerTables rows={rows.map(row => ({ key: String(row.key), value: row.value == null ? null : String(row.value), language: String(row.language), source: row.autofill_source as CatalogRow["source"] }))}
+      {editor.draft && !inRow && <AnswerPanel editor={editor} rows={rows} advanced={advanced} />}
+      <AnswerTables categories={QUESTION_CATEGORIES} editor={key => inRow && editor.draft?.key === key ? <AnswerPanel editor={editor} rows={rows} advanced={advanced} /> : null} rows={rows.map(row => ({ key: String(row.key), value: row.value == null ? null : String(row.value), language: String(row.language), source: row.autofill_source as CatalogRow["source"] }))}
         language={language} fallback={fallback} onEdit={open} />
-      {custom.length > 0 && <Records rows={custom} noun="Custom answers" columns={columns} rowKey={row => `${row.key}:${row.language}`} onSelect={row => open(String(row.key), String(row.language))} />}
+      {custom.length > 0 && <Records rows={custom} noun="Custom questions" columns={columns} rowKey={row => `${row.key}:${row.language}`} onSelect={row => open(String(row.key), String(row.language))} />}
     </>}
-    <Dialog open={!!draft} onOpenChange={value => { if (!value && !editor.busy) editor.setDraft(null) }}>
-      <DialogContent><DialogHeader><DialogTitle>{draft?.existing ? "Edit answer" : "Add an answer"}</DialogTitle>
-        <DialogDescription>Saved answers are available to your application workflows.</DialogDescription></DialogHeader>
-        {draft && <AnswerEditor {...editor} draft={draft} advanced={advanced} duplicate={duplicate}
-          onSave={() => void editor.mutate()} onDelete={() => void editor.mutate(true)} />}
-      </DialogContent>
-    </Dialog>
   </Page>
 }

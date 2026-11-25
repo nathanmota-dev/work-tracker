@@ -41,10 +41,10 @@ function SourceFields({ draft, busy, change, choose }: Fields) {
 }
 /**
  * The LaTeX project, data file and profile folder of every tailored resume.
- * `friendly` (Profile → Base resume) names each source without its path, keeps
+ * `friendly` (Resumes → Base resume) names each source without its path, keeps
  * the paths under Advanced and shows the base PDF, compiling it when missing.
  */
-export function ResumeSources({ onPreview, friendly = false }: { onPreview?: (artifact: PdfArtifact) => void; friendly?: boolean }) {
+export function ResumeSources({ onPreview, friendly = false, fill = false }: { onPreview?: (artifact: PdfArtifact) => void; friendly?: boolean; fill?: boolean }) {
   const api = useApi<SourcesState>("resume-sources")
   const [draft, setDraft] = useState(empty)
   const [busy, setBusy] = useState(false)
@@ -113,5 +113,5 @@ export function ResumeSources({ onPreview, friendly = false }: { onPreview?: (ar
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     </form>}
   </Panel>
-  return friendly ? <>{panel}<PdfViewer title="Base resume PDF" artifact={data?.preview ?? shown.current} /></> : panel
+  return friendly ? <>{panel}<div className={fill ? "flex h-[85dvh] min-h-0 flex-col xl:h-auto" : undefined}><PdfViewer title="Base resume PDF" artifact={data?.preview ?? shown.current} fill={fill} /></div></> : panel
 }

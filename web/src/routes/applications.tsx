@@ -1,7 +1,6 @@
 import { useState } from "react"
-import { Columns3, Plus } from "lucide-react"
+import { Columns3, LayoutGrid, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Page,
   Details,
@@ -18,8 +17,8 @@ import {
   BoardDialogs,
   useBoardDialogs,
 } from "@/components/application-board-panel"
+import { ApplicationCards } from "@/components/application-cards"
 import {
-  ApplicationList,
   NextStepAction,
   originLabel,
   phaseLabel,
@@ -33,6 +32,7 @@ import {
 } from "@/lib/application-journey"
 import { openApply } from "@/lib/preparation"
 import { useWorkspaceState } from "@/lib/workspace-state"
+import { cn } from "@/lib/utils"
 
 function ApplicationDetailsSheet({
   selected,
@@ -68,6 +68,33 @@ function ApplicationDetailsSheet({
         )}
       </div>
     </Details>
+  )
+}
+
+/** Cards or board, as a segmented pill next to the page actions. */
+function LayoutToggle({ value, onChange }: { value: "list" | "board"; onChange: (value: "list" | "board") => void }) {
+  const option = (key: "list" | "board", label: string, Icon: typeof LayoutGrid) => (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={value === key}
+      aria-label={label}
+      title={label}
+      onClick={() => onChange(key)}
+      className={cn(
+        "inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-full px-3 text-xs text-muted-foreground transition-colors hover:text-foreground",
+        value === key && "bg-background text-foreground shadow-sm",
+      )}
+    >
+      <Icon className="size-3.5" />
+      {label}
+    </button>
+  )
+  return (
+    <div role="radiogroup" aria-label="Applications layout" className="inline-flex items-center rounded-full border bg-muted/50 p-0.5">
+      {option("list", "Cards", LayoutGrid)}
+      {option("board", "Board", Columns3)}
+    </div>
   )
 }
 
@@ -109,6 +136,7 @@ export function ApplicationsPage() {
       description="Every application, from first draft to the final stage."
       actions={
         <>
+          <LayoutToggle value={layout} onChange={(view) => update({ view })} />
           {layout === "board" && (
             <Button
               size="sm"
@@ -133,14 +161,9 @@ export function ApplicationsPage() {
         onOpenChange={(review) => update({ review })}
       />
       <ApplicationBanners />
-      <Tabs value={layout} onValueChange={(view) => update({ view })}>
-        <TabsList aria-label="Applications layout">
-          <TabsTrigger value="list">List</TabsTrigger>
-          <TabsTrigger value="board">Board</TabsTrigger>
-        </TabsList>
-      </Tabs>
       {layout === "list" && api.data && (
-        <ApplicationList
+        <ApplicationCards
+          board={{ records: board.records, stages: board.stages }}
           rows={reviewing ? rows.filter((row) => !!row.review_reason) : rows}
           onSelect={setSelected}
           onPrepare={prepare}

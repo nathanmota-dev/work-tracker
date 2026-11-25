@@ -57,7 +57,7 @@ it("a failed requirements check blocks generation until the user confirms the qu
 it("warns about undecided profile conflicts without blocking generation", () => {
   const { rerender } = render(<ProfileConflictsWarning count={2} />)
   expect(screen.getByText(/Your profile has 2 undecided conflicts/)).toBeInTheDocument()
-  expect(screen.getByRole("link", { name: "Decide in Profile → Base resume" })).toHaveAttribute("href", "#/profile?tab=resume")
+  expect(screen.getByRole("link", { name: "Decide in Profile" })).toHaveAttribute("href", "#/profile?tab=profile")
   rerender(<ProfileConflictsWarning count={1} />)
   expect(screen.getByText(/1 undecided conflict between/)).toBeInTheDocument()
   rerender(<ProfileConflictsWarning count={0} />)

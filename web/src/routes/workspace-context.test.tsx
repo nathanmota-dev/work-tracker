@@ -171,10 +171,10 @@ it("Apply checklist → Answers correction → back keeps the review, and comple
   const { router } = await mount("/apply?jobId=1&applicationId=10")
   fireEvent.click(await screen.findByRole("checkbox", { name: "Completed Gender in the portal" }))
   await go(router, screen.getByRole("link", { name: "Add answer for Phone" }).getAttribute("href")!.slice(1))
-  expect(await screen.findByRole("dialog")).toHaveTextContent("Add an answer")
+  expect(await screen.findByRole("region", { name: "Add an answer" })).toBeInTheDocument()
   expect(router.state.location.search).toMatchObject({ field: "phone", returnTo: "/apply?jobId=1&applicationId=10" })
-  fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" })
-  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
+  fireEvent.keyDown(screen.getByRole("region", { name: "Add an answer" }), { key: "Escape" })
+  await waitFor(() => expect(screen.queryByRole("region", { name: "Add an answer" })).not.toBeInTheDocument())
   await go(router, screen.getByRole("link", { name: "Back to the application checklist" }).getAttribute("href")!.slice(1))
   expect(await screen.findByRole("checkbox", { name: "Completed Gender in the portal" })).toBeChecked()
   expect(screen.getByText("1 pending field to complete in the portal.")).toBeInTheDocument()
@@ -183,7 +183,7 @@ it("Apply checklist → Answers correction → back keeps the review, and comple
   expect(screen.getByRole("button", { name: "I submitted in the browser" })).toBeInTheDocument()
   expect(request).not.toHaveBeenCalledWith("application-preparation/submitted", expect.anything())
   await go(router, "/answers?returnTo=https%3A%2F%2Fexample.com")
-  expect(await screen.findByRole("heading", { name: "Answers" })).toBeInTheDocument()
+  expect(await screen.findByRole("heading", { name: "Questions" })).toBeInTheDocument()
   expect(screen.queryByRole("link", { name: "Back to the application checklist" })).not.toBeInTheDocument()
 })
 
@@ -198,9 +198,9 @@ it("redirects the old board link to the Applications board and keeps its search"
 
 it("keeps the Applications layout in the URL and highlights the linked card", async () => {
   const { router } = await mount("/applications")
-  fireEvent.mouseDown(await screen.findByRole("tab", { name: "Board" }))
+  fireEvent.click(await screen.findByRole("radio", { name: "Board" }))
   await waitFor(() => expect(router.state.location.search).toMatchObject({ view: "board" }))
-  fireEvent.mouseDown(screen.getByRole("tab", { name: "List" }))
+  fireEvent.click(screen.getByRole("radio", { name: "Cards" }))
   await waitFor(() => expect(router.state.location.search).not.toHaveProperty("view"))
   await go(router, "/applications?view=board&highlight=6")
   const card = (await screen.findByRole("button", { name: "View Company 6 application" })).closest("[data-slot=card]")
@@ -231,7 +231,7 @@ it.each([
 
 it("persists Profile and Contacts tabs in the URL", async () => {
   const { router } = await mount("/profile")
-  fireEvent.mouseDown(await screen.findByRole("tab", { name: "Answers" }))
+  fireEvent.mouseDown(await screen.findByRole("tab", { name: "Questions" }))
   await waitFor(() => expect(router.state.location.search.tab).toBe("answers"))
   await go(router, "/contacts")
   fireEvent.mouseDown(await screen.findByRole("tab", { name: "Follow-ups" }))

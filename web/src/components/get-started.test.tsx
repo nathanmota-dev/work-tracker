@@ -52,7 +52,7 @@ it("renders each step from the workspace with links to the exact correction", as
   expect(view.getByText("• LaTeX and PDF tools: missing latexmk")).toBeInTheDocument()
   expect(view.getByText("• Email: invalid")).toBeInTheDocument()
   expect(view.getByRole("link", { name: "Open integrations" })).toHaveAttribute("href", "#/settings?section=integrations&target=acp%2Fclaude-code")
-  expect(view.getByRole("link", { name: "Open base resume" })).toHaveAttribute("href", "#/profile?tab=resume")
+  expect(view.getByRole("link", { name: "Open base resume" })).toHaveAttribute("href", "#/resume?id=base")
   expect(view.getByRole("link", { name: "Add answers" })).toHaveAttribute("href", "#/profile?tab=answers&field=last_name")
   expect(view.getByRole("link", { name: "Search jobs" })).toHaveAttribute("href", "#/jobs?focus=true")
   expect(view.getByRole("link", { name: "Open the shortlist" })).toHaveAttribute("href", "#/jobs?view=shortlist")

@@ -5,7 +5,7 @@ import { ResumeDetailPage } from "@/routes/resume-detail"
 import { desktopWith, variant } from "@/test/variants"
 vi.mock("@tanstack/react-router", async original => ({ ...(await original<typeof import("@tanstack/react-router")>()), useSearch: vi.fn() }))
 vi.mock("@/components/ui/select-control", () => ({ SelectControl: ({ children, ...props }: React.ComponentProps<"select">) => <select {...props}>{children}</select> }))
-vi.mock("@/components/pdf-viewer", () => ({ PdfViewer: ({ title, artifact }: { title: string; artifact: { id: string } }) => <section aria-label={title}>{artifact.id}</section> }))
+vi.mock("@/components/pdf-viewer", () => ({ PdfViewer: ({ title, artifact }: { title: string; artifact?: { id: string } | null }) => <section aria-label={title}>{artifact?.id}</section> }))
 
 let variants: ReturnType<typeof variant>[]
 let desktop: ReturnType<typeof desktopWith>
@@ -38,4 +38,13 @@ it("explains a resume without a PDF yet and an unknown one", async () => {
   render(<ResumeDetailPage />)
   expect(await screen.findByText("Saved resume not found")).toBeInTheDocument()
   expect(screen.getByRole("link", { name: "Back to Resumes" })).toBeInTheDocument()
+})
+
+it("opens the base resume as the default, with its sources beside its PDF", async () => {
+  vi.mocked(useSearch).mockReturnValue({ id: "base" })
+  desktopWith({ "resume-sources": { config: { projectDir: "/latex", mainFile: "resume.tex", dataFile: "", engine: "pdflatex", profileDir: "" }, dependencies: [], preview: { id: "pdf-base", kind: "preview", pages: 1, warnings: [] }, warnings: [], busy: false } })
+  render(<ResumeDetailPage />)
+  expect(screen.getByRole("heading", { level: 1, name: "Base resume" })).toBeInTheDocument()
+  expect(await screen.findByRole("region", { name: "Base resume PDF" })).toHaveTextContent("pdf-base")
+  expect(screen.getByRole("link", { name: "Back to Resumes" })).toHaveAttribute("href", "#/resumes")
 })

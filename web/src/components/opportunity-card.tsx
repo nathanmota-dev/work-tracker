@@ -86,16 +86,56 @@ export function ScoreBar({ label, value, tone, empty = "Not scored yet", title, 
           </span>
         )}
       </div>
-      <div className="flex gap-[3px]" aria-hidden>
-        {Array.from({ length: segments }, (_, i) => (
-          <span key={i} className="h-2.5 flex-1 rounded-[2px] bg-muted">
-            {i < filled && (
-              <span className={cn("block size-full origin-left rounded-[2px] motion-safe:animate-[score-segment_260ms_ease-out_both]", FILLED[tone])}
-                style={{ animationDelay: `${i * 35}ms` }} />
-            )}
-          </span>
-        ))}
+      <Segments total={segments} filled={filled} fill={FILLED[tone]} />
+    </div>
+  )
+}
+
+/** The segmented track shared by the score and progress bars. */
+function Segments({ total, filled, fill }: { total: number; filled: number; fill: string }) {
+  return (
+    <div className="flex gap-[3px]" aria-hidden>
+      {Array.from({ length: total }, (_, i) => (
+        <span key={i} className="h-2.5 flex-1 rounded-[2px] bg-muted">
+          {i < filled && (
+            <span className={cn("block size-full origin-left rounded-[2px] motion-safe:animate-[score-segment_260ms_ease-out_both]", fill)}
+              style={{ animationDelay: `${i * 35}ms` }} />
+          )}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+export type ProgressTone = "primary" | "good" | "muted"
+const PROGRESS: Record<ProgressTone, string> = {
+  primary: "bg-primary",
+  good: "bg-emerald-500",
+  muted: "bg-muted-foreground/40",
+}
+
+/** Step `current` of `total` on the same segmented track; `step` names where it is now. */
+export function ProgressBar({ label = "Progress", step, current, total, tone = "primary", title, segments = 20 }: {
+  label?: string
+  step: string
+  current: number
+  total: number
+  tone?: ProgressTone
+  title?: string
+  segments?: number
+}) {
+  const ratio = total > 0 ? Math.max(0, Math.min(1, current / total)) : 0
+  return (
+    <div title={title} role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={total}
+      aria-valuenow={current} aria-valuetext={`${step}, step ${current} of ${total}`}>
+      <div className="mb-2 flex items-baseline justify-between gap-2">
+        <span className="text-xs text-muted-foreground">{label}</span>
+        <span className="min-w-0 truncate text-sm font-medium">
+          {step}
+          {total > 0 && <span className="ml-1.5 text-xs font-normal text-muted-foreground tabular-nums">{current}/{total}</span>}
+        </span>
       </div>
+      <Segments total={segments} filled={Math.round(ratio * segments)} fill={PROGRESS[tone]} />
     </div>
   )
 }

@@ -21,11 +21,11 @@ export function applyBlocks(input: ReadinessInput, operation: "generate" | "fill
   if (!input.provider) blocks.push({ message: "No ACP provider is available.", label: "Configure an agent", href: correctionLink(), step: "connect" })
   if (input.invalidModel) blocks.push({ message: "The saved model is unavailable for this provider.", label: "Choose a model", action: "model" })
   if (operation === "generate") {
-    if (!input.sources) blocks.push({ message: "Choose a valid LaTeX project before generating.", label: "Configure resume sources", href: "#/profile?tab=resume", step: "resume" })
+    if (!input.sources) blocks.push({ message: "Choose a valid LaTeX project before generating.", label: "Configure resume sources", href: "#/resume?id=base", step: "resume" })
     if (!input.tools) blocks.push({ message: "Required LaTeX or PDF tools are unavailable.", label: "Check installed tools", href: correctionLink(), step: "resume" })
     if (input.gateUnconfirmed) blocks.push({ message: "This job failed a deal-breaker check. Review the quoted requirement and confirm before preparing.", label: "Review requirements", action: "gate" })
     if (input.descriptionDirty || input.descriptionMissing) blocks.push({ message: input.descriptionDirty ? "Save your description changes before generating." : "This job needs a description.", label: "Edit job description", action: "description" })
-  } else if (!input.tailored) blocks.push({ message: "Generate and review a validated PDF before filling.", label: "Configure resume sources", href: "#/profile?tab=resume" })
+  } else if (!input.tailored) blocks.push({ message: "Generate and review a validated PDF before filling.", label: "Configure resume sources", href: "#/resume?id=base" })
   if (operation === "fill" && input.tailored && input.approved === false) blocks.push({ message: "Approve the displayed document version before filling.", label: "Review document", action: "review" })
   const targets: Target[] = [...(input.provider ? [`acp/${input.provider}` as Target] : []), ...(operation === "fill" ? ["mcp/chrome" as const] : input.linkedinNeeded ? ["mcp/linkedin" as const] : [])]
   for (const target of targets) {
@@ -57,7 +57,7 @@ export function GateWarning({ gate, confirmed, onConfirm }: { gate?: StoredGate 
 /** Undecided profile conflicts warn without blocking: the base resume keeps its value meanwhile. */
 export function ProfileConflictsWarning({ count }: { count: number }) {
   if (!count) return null
-  return <p role="status">Your profile has {count} undecided {count === 1 ? "conflict" : "conflicts"} between your data file and LinkedIn. <a className="underline" href="#/profile?tab=resume">Decide in Profile → Base resume</a></p>
+  return <p role="status">Your profile has {count} undecided {count === 1 ? "conflict" : "conflicts"} between your data file and LinkedIn. <a className="underline" href="#/profile?tab=profile">Decide in Profile</a></p>
 }
 function ProfileConflicts() {
   const profile = useProfileSources()

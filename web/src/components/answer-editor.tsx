@@ -17,31 +17,40 @@ const YES_NO = ["Yes", "No"]
 const isoDate = (value: string) => { const br = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value.trim()); return br ? `${br[3]}-${br[2]}-${br[1]}` : value }
 
 /** The control that fits the field: text, email, phone, URL, date, choice, yes/no, several choices or tags. */
-function ValueInput({ input, value, disabled, invalid, onChange }: { input: AnswerInput; value: string; disabled: boolean; invalid: boolean; onChange: (value: string) => void }) {
-  const common = { disabled, "aria-invalid": invalid, "aria-describedby": invalid ? "answer-validation" : undefined }
-  if (input.kind === "tags") return <TagField label="Answer" value={value} onChange={onChange} suggestions={input.suggestions} disabled={disabled} placeholder={input.urls ? "https://… and press Enter" : undefined} />
+function ValueInput({ input, value, disabled, invalid, onChange, label = "Answer", describedBy = "answer-validation" }: { input: AnswerInput; value: string; disabled: boolean; invalid: boolean; onChange: (value: string) => void; label?: string; describedBy?: string }) {
+  const common = { disabled, "aria-invalid": invalid, "aria-describedby": invalid ? describedBy : undefined }
+  if (input.kind === "tags") return <TagField label={label} value={value} onChange={onChange} suggestions={input.suggestions} disabled={disabled} placeholder={input.urls ? "https://… and press Enter" : undefined} />
   if (input.kind === "multiselect") {
     const picked = answerEntries(value).map(item => item.toLowerCase())
     const toggle = (option: string) => onChange(input.options.filter(item => item === option ? !picked.includes(item.toLowerCase()) : picked.includes(item.toLowerCase())).join(", "))
-    return <fieldset className="space-y-2" disabled={disabled}><legend className="mb-1 text-sm font-medium">Answer</legend>
+    return <fieldset className="space-y-2" disabled={disabled}><legend className="mb-1 text-sm font-medium">{label}</legend>
       <div className="flex flex-wrap gap-x-4 gap-y-2">{input.options.map(option => <label key={option} className="flex items-center gap-2 text-sm">
         <input type="checkbox" checked={picked.includes(option.toLowerCase())} onChange={() => toggle(option)} />{option}</label>)}</div>
       <p className="text-xs text-muted-foreground">Pick every level you apply for; the agent uses the one that fits each role.</p></fieldset>
   }
   const choices = input.kind === "yesno" ? [...YES_NO, ...(["Prefer not to say"])] : input.kind === "select" ? [...input.options] : null
-  if (choices) return <Field label="Answer"><SelectControl className={controlClass} value={value} {...common} onChange={e => onChange(e.target.value)}>
+  if (choices) return <Field label={label}><SelectControl className={controlClass} value={value} {...common} onChange={e => onChange(e.target.value)}>
     <option value="">Choose…</option>
     {choices.map(option => <option key={option} value={option}>{option}</option>)}
     {value && !choices.some(option => option.toLowerCase() === value.toLowerCase()) && <option value={value}>{value}</option>}
   </SelectControl></Field>
   return null
 }
-function SimpleInput({ input, value, disabled, invalid, onChange, free }: { input: AnswerInput; value: string; disabled: boolean; invalid: boolean; onChange: (value: string) => void; free: boolean }) {
-  const common = { disabled, "aria-invalid": invalid, "aria-describedby": invalid ? "answer-validation" : undefined }
-  if (input.kind === "textarea" || free) return <Field label="Answer"><Textarea className={`${controlClass} h-28 py-2`} value={value} {...common} onChange={e => onChange(e.target.value)} /></Field>
-  if (input.kind === "date") return <Field label="Answer"><DatePicker value={isoDate(value)} max={new Date().toISOString().slice(0, 10)} disabled={disabled} aria-label="Answer" onChange={onChange} /></Field>
+function SimpleInput({ input, value, disabled, invalid, onChange, free, label = "Answer", describedBy = "answer-validation" }: { input: AnswerInput; value: string; disabled: boolean; invalid: boolean; onChange: (value: string) => void; free: boolean; label?: string; describedBy?: string }) {
+  const common = { disabled, "aria-invalid": invalid, "aria-describedby": invalid ? describedBy : undefined }
+  if (input.kind === "textarea" || free) return <Field label={label}><Textarea className={`${controlClass} h-28 py-2`} value={value} {...common} onChange={e => onChange(e.target.value)} /></Field>
+  if (input.kind === "date") return <Field label={label}><DatePicker value={isoDate(value)} max={new Date().toISOString().slice(0, 10)} disabled={disabled} aria-label={label} onChange={onChange} /></Field>
   const type = { email: "email", phone: "tel", url: "url" }[input.kind as string] ?? "text"
-  return <Field label="Answer"><Input type={type} value={value} {...common} autoComplete="off" onChange={e => onChange(e.target.value)} /></Field>
+  return <Field label={label}><Input type={type} value={value} {...common} autoComplete="off" onChange={e => onChange(e.target.value)} /></Field>
+}
+
+/** The control of one catalog field, labelled by `label`; used in place of the dialog by inline editors. */
+export function AnswerField({ fieldKey, label, value, disabled, invalid, describedBy, onChange }: {
+  fieldKey: string; label: string; value: string; disabled: boolean; invalid: boolean; describedBy?: string; onChange: (value: string) => void
+}) {
+  const input = answerInput(fieldKey)
+  const props = { input, value, disabled, invalid, label, describedBy, onChange }
+  return ["tags", "multiselect", "select", "yesno"].includes(input.kind) ? <ValueInput {...props} /> : <SimpleInput {...props} free={false} />
 }
 
 export function AnswerEditor({ draft, setDraft, advanced, busy, error, duplicate, onSave, onDelete, confirmDelete, setConfirmDelete }: {

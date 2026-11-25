@@ -93,7 +93,7 @@ function ApplyWorkspace({ search, review, reviewLocked = false }: { search: Revi
   return <Page title="Application" description="One role, from job description to confirmed submission." actions={<Status value={run?.decisionStatus ? "Waiting for decision" : run ? `${run.phase} · ${run.status}` : "Ready"} />}>
     {review}
     {details.data && <ApplicationStepper steps={steps} />}
-    {!review && sources.data && <p className="text-sm text-muted-foreground">{sources.data.config.projectDir ? "Base resume configured" : "Base resume missing"} · <a className="text-foreground underline" href="#/profile?tab=resume">Configure resume sources</a></p>}
+    {!review && sources.data && <p className="text-sm text-muted-foreground">{sources.data.config.projectDir ? "Base resume configured" : "Base resume missing"} · <a className="text-foreground underline" href="#/resume?id=base">Configure resume sources</a></p>}
     <Panel title="Opportunity">
       {!review && <AgentModelFields providers={providers.data?.providers ?? []} provider={selectedProvider} model={effectiveModel} disabled={busy} onProvider={id => { setProvider(id); setModel("") }} onModel={setModel} />}
       <LoadState loading={providers.loading && !providers.data} error={providers.error || details.error} retry={() => { providers.refresh(); details.refresh() }} />

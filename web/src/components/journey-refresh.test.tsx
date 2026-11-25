@@ -73,7 +73,7 @@ it("a submission confirmation event refreshes Jobs, Applications, the board and 
   const jobs = within(render(<JobsPage />).container)
   const list = within(render(<ApplicationsPage />).container)
   const board = within(render(<ApplicationsPage />).container)
-  fireEvent.mouseDown(board.getByRole("tab", { name: "Board" }))
+  fireEvent.click(board.getByRole("radio", { name: "Board" }))
   const dashboard = within(render(<DashboardOverview />).container)
   expect(within((await jobs.findByText("Platform Engineer")).closest("article")!).getByText("Filled")).toBeInTheDocument()
   expect(await list.findByRole("tab", { name: "Tracking (0)" })).toBeInTheDocument()

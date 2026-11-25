@@ -10,7 +10,7 @@ let state: ProfileSourcesState
 const conflict = (key: string, chosen: "data" | "linkedin" | null) => ({ key, field: "work.start", label: `Northwind Labs ${key}: start date`, values: { data: "2024-07", linkedin: "2024-08" }, chosen })
 beforeEach(() => {
   state = {
-    profileDir: "/profile", dataFile: "/profile/resume-data.json",
+    profileDir: "/profile", dataFile: "/profile/resume-data.json", resume: { experience: [], education: [] },
     assets: [
       { file: "resume-data.json", kind: "data", status: "imported", warnings: [] },
       { file: "linkedin.pdf", kind: "linkedin", status: "imported", warnings: [] },
