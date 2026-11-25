@@ -1,12 +1,12 @@
 import { beforeEach, expect, test, vi } from "vitest";
 import { db } from "../db/index.ts";
 import type { Database } from "../db/sqlite.ts";
-import { memoryDatabase } from "../test/memory-db.ts";
+import { insertApplication, insertJob, memoryDatabase } from "../test/memory-db.ts";
 import { deferred } from "../test/doubles.ts";
 import { snapshotSources, type SourcesSnapshot } from "../preparation/sources.ts";
 import { ExecutionSlot } from "../preparation/executor.ts";
 import { generateVariant, type GenerationHooks } from "./generate.ts";
-import { updateVariant } from "./store.ts";
+import { insertTailoredVariant, updateVariant } from "./store.ts";
 import { currentSourceVersion, VariantService } from "./service.ts";
 
 vi.mock("../db/index.ts", () => ({ db: vi.fn(), now: () => "2026-11-24T12:00:00.000Z" }));
@@ -109,6 +109,18 @@ test("edits, archives and lists variants; a restart interrupts generations", asy
   expect(service.list()).toEqual([]);
   expect(service.list({ includeArchived: true })).toHaveLength(1);
   service.close();
+});
+
+test("a resume tailored for an application lists its score for that job and cannot be regenerated", () => {
+  const job = insertJob(d, { title: "Full Stack", description: "Requirements: C#, .NET, Angular, SQL Server" });
+  const application = insertApplication(d, { job_id: job });
+  d.exec("INSERT INTO pdf_artifacts (id, run_id, kind, path, pages, text, warnings_json) VALUES ('pdf', NULL, 'variant', '/a/resume.pdf', 1, 'C# .NET Angular', '[]')");
+  const id = "123e4567-e89b-12d3-a456-426614174001";
+  insertTailoredVariant(id, { name: "Full Stack", role: "fullstack", stacks: ["C#", "Angular"] }, { jobId: job, applicationId: application, documentVersionId: "doc", pdfArtifactId: "pdf", provider: "opencode", model: null, report: "Report", sourceVersion: "v1" });
+  const [listed] = service.list();
+  expect(listed).toMatchObject({ id, source: { jobId: job, applicationId: application, company: "Example Corp", title: "Full Stack" }, match: { score: 75, band: "strong" } });
+  expect(service.get(id).match).toBeNull();
+  expect(() => service.regenerate({ id })).toThrow("Tailor it again in Apply");
 });
 
 test("Apply, the batch queue and variants share one execution slot", async () => {

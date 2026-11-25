@@ -89,6 +89,8 @@ export const MIGRATIONS: readonly Migration[] = [
   { version: 21, name: "ats scores", up: ensureCurrentSchema },
   // Additive: no answer changes until the profile sources are imported again.
   { version: 22, name: "answer autofill", up: ensureCurrentSchema },
+  // Additive: existing saved resumes keep null origin columns; approved tailored resumes are copied when the app starts.
+  { version: 23, name: "saved tailored resumes", up: ensureCurrentSchema },
 ];
 
 /** Keeps pre-triage jobs in the shortlist; very old workspaces may lack `scouted_at`. */

@@ -21,13 +21,29 @@ export interface VariantInput extends VariantProfile {
   model: string | null;
 }
 
+/** The application whose approved tailored resume a saved resume was copied from. */
+export interface VariantSource {
+  jobId: number;
+  applicationId: number;
+  documentVersionId: string | null;
+  company: string | null;
+  title: string | null;
+}
+/** The ATS keyword score of a saved resume against its source job; `score` is null when the job names too few keywords. */
+export interface VariantMatch {
+  score: number | null;
+  band: "strong" | "partial" | "weak" | null;
+}
+
 /**
- * A resume generated once per role and stacks, or imported as a ready PDF, and
- * reused across applications.
+ * A resume generated once per role and stacks, imported as a ready PDF, or
+ * copied from an approved tailored resume, and reused across applications.
  *
  * @property sourceVersion Version of the sources it was generated from; null when imported.
  * @property stale Generated from sources that changed since.
  * @property pdf The current PDF; earlier PDFs stay on disk for the documents that used them.
+ * @property source The application it was tailored for; null when generated in Resumes or imported.
+ * @property match Its score against the source job, filled by the list; null otherwise.
  */
 export interface ResumeVariant extends VariantProfile {
   id: string;
@@ -47,6 +63,8 @@ export interface ResumeVariant extends VariantProfile {
   createdAt: string;
   updatedAt: string;
   stale: boolean;
+  source: VariantSource | null;
+  match: VariantMatch | null;
 }
 
 /** The manifest the resume-tailor skill reads: a role and stacks instead of a job. */

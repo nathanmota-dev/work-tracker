@@ -22,6 +22,7 @@ import {
 } from "./store.ts";
 import { addCheckpoint, dropCheckpoints, markPortal } from "./recovery.ts";
 import { approveDocument } from "./documents.ts";
+import { saveTailoredVariant } from "../variants/promote.ts";
 import { assertPortalFree } from "./batch-store.ts";
 import { PreparationService, readableJobDetails } from "./service.ts";
 import type { PreparationRun, PdfArtifact } from "./types.ts";
@@ -39,6 +40,7 @@ type ApiEvent = Record<string, unknown>;
 vi.mock("./documents.ts", () => ({ saveDocument: vi.fn(), documentsForJob: vi.fn(() => []), approvedDocument: vi.fn(() => ({ id: "tailored", pdfHash: "hash" })), approveDocument: vi.fn(), freezeDocumentUse: vi.fn(), verifyDocumentUse: vi.fn(), recordDocumentUse: vi.fn() }));
 vi.mock("../db/index.ts", () => ({ db: vi.fn(), now: () => "now" }));
 vi.mock("./batch-store.ts", () => ({ assertPortalFree: vi.fn() }));
+vi.mock("../variants/promote.ts", () => ({ saveTailoredVariant: vi.fn(() => "saved-variant") }));
 vi.mock("../variants/apply.ts", () => ({ useVariant: vi.fn((_input, assertIdle: () => void) => { assertIdle(); return { id: "saved" }; }) }));
 vi.mock("../paths.ts", () => ({ paths: { artifacts: "/artifacts" } }));
 vi.mock("../mcp/search.ts", () => ({ jobDetails: vi.fn() }));
@@ -778,10 +780,24 @@ test("a fill that fails before the agent starts does not require review", async 
   expect(vi.mocked(markPortal).mock.calls).toEqual([["r", false]]);
 });
 
-test("approves a version through the service and notifies its execution", () => {
-  vi.mocked(approveDocument).mockReturnValue({ id: "tailored", runId: "r" } as ReturnType<typeof approveDocument>);
+test("approves a version through the service, saves it in Resumes and notifies its execution", () => {
+  vi.mocked(approveDocument).mockReturnValue({ id: "tailored", runId: "r", variant: null } as ReturnType<typeof approveDocument>);
   expect(service.approve({ runId: "r", versionId: "tailored" })).toMatchObject({ id: "tailored" });
+  expect(saveTailoredVariant).toHaveBeenCalledWith("tailored");
+  expect(broadcast).toHaveBeenCalledWith({ type: "changed", table: "resume_variants", variantId: "saved-variant" });
   expect(broadcast).toHaveBeenCalledWith({ type: "changed", table: "application_runs", runId: "r" });
+});
+
+test("a version made from a saved resume is not saved again, and a failed save keeps the approval", () => {
+  vi.mocked(saveTailoredVariant).mockClear();
+  vi.mocked(approveDocument).mockReturnValue({ id: "tailored", runId: "r", variant: { id: "v1" } } as ReturnType<typeof approveDocument>);
+  service.approve({ runId: "r", versionId: "tailored" });
+  expect(saveTailoredVariant).not.toHaveBeenCalled();
+  vi.mocked(approveDocument).mockReturnValue({ id: "tailored", runId: "r", variant: null } as ReturnType<typeof approveDocument>);
+  vi.mocked(saveTailoredVariant).mockImplementationOnce(() => { throw new Error("disk full"); });
+  expect(service.approve({ runId: "r", versionId: "tailored" })).toMatchObject({ id: "tailored" });
+  expect(d.query).toHaveBeenCalledWith(expect.stringContaining("activity_log"));
+  expect(d.statement.run).toHaveBeenCalledWith("Could not save the approved resume in Resumes: disk full");
 });
 
 test("a batch generates and restarts from its recorded sources instead of the current ones", async () => {

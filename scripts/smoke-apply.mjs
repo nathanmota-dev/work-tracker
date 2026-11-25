@@ -102,7 +102,9 @@ try {
   if (!content.includes('Seu Nome Completo') || !content.includes('Base PDF') || !content.includes('Tailored PDF')) throw new Error('The two readable PDFs were not displayed: ' + content.slice(-1500));
   if (JSON.parse(readFileSync(join(home, 'config.json'), 'utf8')).resumeSources) throw new Error('Automatic detection unexpectedly saved resume settings');
   await evaluate("location.hash = '/resumes'; true");
-  await waitFor(() => evaluate("(() => { const view = [...document.querySelectorAll('article[aria-label=\"Smoke imported resume\"] button')].find(button => button.textContent === 'View'); view?.click(); return !!view })()"));
+  // The saved resume's card opens its page, which renders the PDF.
+  await waitFor(() => evaluate("(() => { const card = document.querySelector('a[aria-label=\"Smoke imported resume\"]'); card?.click(); return !!card })()"));
+  await waitFor(() => evaluate("location.hash.startsWith('#/resume?id=') && document.querySelector('h1')?.textContent === 'Smoke imported resume'"));
   await waitFor(() => evaluate("(() => { const canvas = document.querySelector('.react-pdf__Page__canvas'); if (!canvas?.width) return false; const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data; let ink = false; for (let i = 0; i < pixels.length; i += 4) if (pixels[i+3] && pixels[i] + pixels[i+1] + pixels[i+2] < 700) { ink = true; break } const layer = document.querySelector('.react-pdf__Page__textContent'); return ink && layer?.textContent.length > 100 })()"));
   console.log(`PASS: Apply detects repository sources without configuration and displays two PDF canvases with selectable text, and Resumes renders a saved resume's PDF (${command})`);
 } finally {

@@ -1,9 +1,12 @@
 import { randomUUID } from "node:crypto";
+import { sourceScores } from "../ats/store.ts";
+import { db } from "../db/index.ts";
 import { PreparationError, snapshotSources, type SourcesSnapshot } from "../preparation/sources.ts";
 import type { ExecutionSlot, PreparationAgent } from "../preparation/executor.ts";
 import { archiveVariant, insertVariant, interruptStaleVariants, listVariants, updateVariant, variantRecord } from "./store.ts";
 import { variantId, variantInput, variantProfile } from "./validation.ts";
 import { generateVariant } from "./generate.ts";
+import { saveApprovedTailoredResumes } from "./promote.ts";
 import type { ResumeVariant, VariantPhase } from "./types.ts";
 
 /** The current sources' version; null when they are not configured or unreadable. */
@@ -19,6 +22,7 @@ export class VariantService {
   private unsubscribe?: () => void;
   constructor(private acp: PreparationAgent, private broadcast: (event: unknown) => void, private slot: ExecutionSlot) {
     interruptStaleVariants();
+    saveApprovedTailoredResumes();
     this.unsubscribe = acp.subscribe?.(event => {
       const id = this.slot.activeFor("variant");
       if (!event.runId || id !== event.runId) return;
@@ -28,8 +32,12 @@ export class VariantService {
     });
   }
   private changed(id?: string): void { this.broadcast({ type: "changed", table: "resume_variants", variantId: id }); }
+  /** With each tailored resume's score against the job it was tailored for. */
   list(input: { includeArchived?: boolean } = {}): ResumeVariant[] {
-    return listVariants({ includeArchived: input.includeArchived, currentVersion: currentSourceVersion() });
+    const version = currentSourceVersion();
+    const variants = listVariants({ includeArchived: input.includeArchived, currentVersion: version });
+    const scores = sourceScores(db(), variants.flatMap(variant => variant.source ? [{ variantId: variant.id, jobId: variant.source.jobId }] : []), () => version);
+    return variants.map(variant => ({ ...variant, match: scores.get(variant.id) ?? null }));
   }
   get(id: string): ResumeVariant { return variantRecord(id, currentSourceVersion()); }
   /** `sources` lets a caller generate from a recorded snapshot instead of the current sources. */
@@ -46,6 +54,7 @@ export class VariantService {
     this.slot.assertIdle();
     const variant = variantRecord(variantId(input.id));
     if (variant.origin === "imported") throw new PreparationError("An imported resume cannot be regenerated. Import the new PDF instead.", 409);
+    if (variant.source) throw new PreparationError("This resume was tailored for an application. Tailor it again in Apply.", 409);
     if (variant.archivedAt) throw new PreparationError("Restore this saved resume before regenerating it.", 409);
     const provider = typeof input.provider === "string" && input.provider ? input.provider : variant.provider;
     if (!provider) throw new PreparationError("Select an agent.");

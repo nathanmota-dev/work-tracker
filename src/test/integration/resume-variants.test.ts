@@ -114,6 +114,33 @@ test("imports a ready PDF, archives variants and refuses archived ones in Apply"
   expect(() => services.preparation.useVariant({ jobId, variantId: id })).toThrow("archived");
 });
 
+test("approving a resume tailored in Apply saves it in Resumes, scored and offered for other jobs", async () => {
+  const insert = (title: string) => (database.db().query("INSERT INTO jobs (title, company_name, description, link) VALUES (?, 'Acme', 'Requirements: C#, .NET and Angular', 'https://example.com/acme') RETURNING id").get(title) as { id: number }).id;
+  const tailoredJob = insert("Desenvolvedor Full Stack .NET/Angular");
+  const started = services.preparation.generate({ jobId: tailoredJob, provider: "opencode" });
+  let run = store.runRecord(started.id);
+  for (let i = 0; i < 300 && run.status === "running"; i++) { await new Promise(resolve => setTimeout(resolve, 100)); run = store.runRecord(started.id); }
+  expect(run).toMatchObject({ status: "completed", phase: "review" });
+  const [version] = documents.documentsForJob(tailoredJob, run.application_id);
+  const before = services.variants.list().length;
+  services.preparation.approve({ runId: run.id, versionId: version!.id });
+  const saved = services.variants.list().find(item => item.source?.applicationId === run.application_id)!;
+  expect(saved).toMatchObject({
+    name: "Desenvolvedor Full Stack .NET/Angular", role: "fullstack", stacks: [".NET", "Angular", "C#"], status: "ready", report: "# Changes\nEmphasized .NET.",
+    source: { jobId: tailoredJob, documentVersionId: version!.id, company: "Acme" }, match: { score: expect.any(Number) },
+  });
+  expect(services.variants.list()).toHaveLength(before + 1);
+  // Its own copy, with the approved bytes.
+  expect(store.artifactFile(saved.pdf!.id).path).toContain(join("variants", saved.id));
+  expect(documents.pdfHash(store.artifactFile(saved.pdf!.id).path)).toBe(version!.pdfHash);
+  // Approving again does not add another saved resume, and the next job with the same stack is scored against it.
+  services.preparation.approve({ runId: run.id, versionId: version!.id });
+  expect(services.variants.list()).toHaveLength(before + 1);
+  const { readJob } = await import("../../ats/store.ts");
+  const next = insert("Full Stack Engineer");
+  expect(readJob(database.db(), next, variantModule.currentSourceVersion).documents.map(item => item.variant_id)).toContain(saved.id);
+}, 120000);
+
 test("cancelling leaves the variant cancelled without a PDF, and a restart interrupts a generation", async () => {
   mode = "hold";
   const started = services.variants.generate({ ...input, name: "Held" });

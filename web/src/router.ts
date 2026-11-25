@@ -85,7 +85,7 @@ export function createAppRouter(sidebarLayout: RouteComponent) {
           },
           validateSearch: (search: Record<string, unknown>) => validateWorkspaceSearch(page.path, search),
           search: { middlewares: [stripSearchParams(validateWorkspaceSearch(page.path, {}))] },
-          staticData: { title: page.title, ...(page.path === "apply" && { parent: { title: "Applications", to: "/applications" } }) },
+          staticData: { title: page.title, ...(page.path === "apply" && { parent: { title: "Applications", to: "/applications" } }), ...(page.path === "resume" && { parent: { title: "Resumes", to: "/resumes" } }) },
         }),
       ),
     ]),

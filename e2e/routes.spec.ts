@@ -9,7 +9,7 @@ export const routes = [
   ['Interview prep', 'interview-prep', 'Walk into every round with likely questions, grounded answers and a consistency brief.'],
   ['Contacts', 'contacts', 'Preview connection sync'],
   ['Profile', 'profile', 'Profile assessment'],
-  ['Resumes', 'resumes', 'Resumes for a role and stack, generated once and reused for every job that matches.'],
+  ['Resumes', 'resumes', 'Resumes for a role and stack, reused for every job that matches. Approving a tailored resume in Apply saves it here too.'],
   ['Agent', 'launch', 'Run a skill'],
   ['Settings', 'settings', 'Appearance'],
 ] as const

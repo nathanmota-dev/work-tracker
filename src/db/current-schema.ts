@@ -3,7 +3,7 @@ import { SCHEMA_SQL, COLUMN_MIGRATIONS, APPLICATION_BOARD_INDEX_SQL, DEFAULT_APP
 import { DEADLINE_COLUMNS } from "./deadline-schema.ts";
 import { POSTING_GUARD_COLUMNS } from "./posting-guard-schema.ts";
 import { GATE_COLUMNS } from "./gate-schema.ts";
-import { VARIANT_COLUMNS } from "./variant-schema.ts";
+import { VARIANT_COLUMNS, VARIANT_INDEX_SQL } from "./variant-schema.ts";
 
 /** Every additive column migration, including the ones feature modules keep apart. */
 export const ALL_COLUMN_MIGRATIONS: Record<string, Record<string, string>>[] = [COLUMN_MIGRATIONS, DEADLINE_COLUMNS, POSTING_GUARD_COLUMNS, GATE_COLUMNS, VARIANT_COLUMNS];
@@ -45,6 +45,7 @@ export function ensureCurrentSchema(d: Database): void {
   d.exec(SCHEMA_SQL);
   applyColumnMigrations(d);
   d.exec(APPLICATION_BOARD_INDEX_SQL);
+  d.exec(VARIANT_INDEX_SQL);
   const at = new Date().toISOString();
   DEFAULT_APPLICATION_STAGES.forEach((stage, position) => {
     d.query(`INSERT INTO application_stages (key, name, category, position, created_at, updated_at)
