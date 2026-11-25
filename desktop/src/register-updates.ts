@@ -1,10 +1,11 @@
 import { app, BrowserWindow, ipcMain, Notification } from "electron"
 import { AppUpdates } from "./app-updates"
 import { createUpdateDriver } from "./update-driver"
+import { createReleaseCheckDriver } from "./update-release-check"
 import { updateStore } from "./update-state"
 import type { UpdateState } from "../../web/src/types/updates"
 
-/** Only an AppImage can replace itself; dev runs and unpacked installs stay unavailable. */
+/** Only an AppImage can replace itself; other packaged installs can still check for releases. */
 export function installedFormat(): UpdateState["format"] {
   if (!app.isPackaged || process.platform !== "linux" || !["x64", "arm64"].includes(process.arch)) return null
   if (process.env.SNAP || process.env.FLATPAK_ID) return null
@@ -21,7 +22,7 @@ export function registerUpdates() {
       app.relaunch({ ...(executable ? { execPath: executable } : {}), args: process.argv.slice(1) })
       app.quit()
     },
-  }) : null
+  }) : app.isPackaged ? createReleaseCheckDriver(app.getVersion()) : null
   const updates = new AppUpdates({
     installedVersion: app.getVersion(), format, driver, store: updateStore(app.getPath("userData")),
     broadcast: (state) => {

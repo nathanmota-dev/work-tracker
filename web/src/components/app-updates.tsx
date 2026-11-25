@@ -15,7 +15,7 @@ const statuses: Record<UpdateStatus, string> = {
   downloading: "Downloading the update…",
   ready: "The update is downloaded and ready to install.",
   installing: "Installing the update and restarting…",
-  unavailable: "Automatic updates are only available in the AppImage installed from a release.",
+  unavailable: "Update checks are only available in the installed app.",
   error: "The last update action failed.",
 }
 const errors: Record<UpdateError, string> = {
@@ -34,7 +34,8 @@ export function AppUpdates() {
   const [confirm, setConfirm] = useState(false)
   const busy = ["checking", "downloading", "installing"].includes(state.status)
   const ready = state.status === "ready" || (state.status === "error" && state.retryAction === "install")
-  const downloadable = state.status === "available" || (state.status === "error" && state.retryAction === "download")
+  const selfUpdating = state.format === "AppImage"
+  const downloadable = selfUpdating && (state.status === "available" || (state.status === "error" && state.retryAction === "download"))
   return (
     <Panel title="Updates">
       <div className="flex min-w-0 flex-col gap-4" aria-busy={busy}>
@@ -47,6 +48,7 @@ export function AppUpdates() {
           </>}
         </dl>
         <p role="status" className="text-sm">{statuses[state.status]}</p>
+        {!selfUpdating && state.release && <p className="text-sm text-muted-foreground">This installation cannot update itself. Download the new version from the release page.</p>}
         {state.error && <p role="alert" className="text-sm text-destructive">{errors[state.error]}</p>}
         {state.status === "downloading" && <div className="flex items-center gap-3">
           <progress className="h-2 w-full accent-primary" aria-label="Download progress" value={state.progress ?? 0} max={100} />
