@@ -64,7 +64,7 @@ const skills = [
 /** Opens a skill's agent panel from the screen the skill belongs to; Jobs takes its search or role there. */
 async function openSkill(workspace: Workspace, page: Page, skill: (typeof skills)[number][0], input: string) {
   if (skill === 'job-scout' || skill === 'deep-scout') {
-    await workspace.visit('/jobs?discover=true', 'Discover opportunities')
+    await workspace.visit(`/jobs?discover=true${skill === 'deep-scout' ? '&mode=assess' : ''}`, 'Discover opportunities')
     if (skill === 'deep-scout') {
       await page.getByLabel('Job link or title').fill(input)
       await page.getByRole('button', { name: 'Assess with agent' }).click()

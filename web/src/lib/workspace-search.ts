@@ -21,7 +21,7 @@ export function validateWorkspaceSearch(path: string, search: Record<string, unk
     keywords: string(search.keywords), location: string(search.location),
     workType: choice(search.workType, ["remote", "hybrid", "on-site"], ""), maxPages: integer(search.maxPages, 1, 1, 10),
     assess: search.assess === true || search.assess === "true", focus: search.focus === true || search.focus === "true",
-    discover: search.discover === true || search.discover === "true",
+    discover: search.discover === true || search.discover === "true", mode: choice(search.mode, ["search", "assess"], "search"),
   }
   if (path === "applications") return {
     ...records, view: choice(search.view, ["list", "board"], "list"), tab: choice(search.tab, ["active", "archived"], "active"),
@@ -51,6 +51,6 @@ export type WorkspaceSearch = {
   savedJobId?: number; kind?: string; keywords?: string; location?: string; company?: string; workType?: string; maxPages?: number; resultId?: string
   jobId?: number; applicationId?: number; runId?: string; provider?: string; model?: string; effort?: string; pdfTab?: string; workspaceTab?: string
   batchId?: string; itemId?: string; pendingOnly?: boolean
-  skill?: string; target?: string; query?: string; username?: string; url?: string; jobIds?: string
+  mode?: string; skill?: string; target?: string; query?: string; username?: string; url?: string; jobIds?: string
   field?: string; returnTo?: string; step?: string; id?: string
 }

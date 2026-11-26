@@ -91,7 +91,7 @@ export function JobDiscovery({ onResults }: { onResults: (ids: number[], outcome
     } catch (e) { setError((e as Error).message) }
     finally { setBusy(false) }
   }
-  return <Panel title="Search criteria">
+  return <Panel title="Find new roles">
     <form ref={form} className="space-y-4" onSubmit={event => { event.preventDefault(); void discover() }}>
       <SearchFilters kind="jobs" values={values} busy={busy} set={setValue} />
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!search.assess} disabled={busy}

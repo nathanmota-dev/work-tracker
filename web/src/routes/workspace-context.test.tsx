@@ -128,7 +128,12 @@ it("Search assessment keeps results, pagination and selection while the panel op
   act(() => setAgentPanelOpen(false))
   // A role that is not saved yet is assessed from Discover opportunities.
   await go(router, "/jobs?discover=true")
-  fireEvent.change(await screen.findByLabelText("Job link or title"), { target: { value: "other" } })
+  expect(await screen.findByRole("heading", { name: "Find new roles" })).toBeInTheDocument()
+  fireEvent.mouseDown(screen.getByRole("tab", { name: "Assess a role" }))
+  const role = await screen.findByLabelText("Job link or title")
+  expect(screen.queryByRole("heading", { name: "Find new roles" })).not.toBeInTheDocument()
+  expect(router.state.location.search).toMatchObject({ mode: "assess" })
+  fireEvent.change(role, { target: { value: "other" } })
   fireEvent.click(screen.getByRole("button", { name: "Assess with agent" }))
   expect(await screen.findByRole("button", { name: "Remove other" })).toBeInTheDocument()
   expect(screen.getByLabelText("Additional context", { selector: "[role=dialog] textarea" })).toHaveValue("")
