@@ -18,7 +18,7 @@ export function RoleAssessment() {
   const defaults = useDefaultAgent()
   const { selectedProvider, effectiveModel, effectiveEffort } = defaults
   const canRun = !!selectedProvider && live && !agent.running && !!role.trim()
-  return <DiscoverLayout title="Assess one role" output={<AgentExecution fill />}>
+  return <DiscoverLayout title="Assess one role" output={<AgentExecution fill skills={["deep-scout"]} />}>
     <form className="space-y-4" onSubmit={event => {
       event.preventDefault()
       if (canRun && selectedProvider) void runAgent(selectedProvider.id, "deep-scout", { query: role.trim() }, effectiveModel || undefined, effectiveEffort || undefined)

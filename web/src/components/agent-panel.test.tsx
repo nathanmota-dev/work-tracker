@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, expect, it, vi } from "vitest"
-import { AgentPanel, AgentCompletion } from "./agent-panel"
+import { AgentPanel, AgentCompletion, AgentExecution } from "./agent-panel"
 import { AgentIndicator } from "./agent-indicator"
 import { clearAgent, dismissAgentCompletion, prepareSkill, runAgent, setAgentPanelOpen } from "@/lib/agent"
 import { publish } from "@/lib/api"
@@ -123,4 +123,26 @@ it("adds the opening screen's instructions after the user's context", async () =
   fireEvent.click(screen.getByRole("button", { name: "Run agent" }))
   await waitFor(() => expect(request).toHaveBeenCalledWith("acp/run", { provider: "opencode", skill: "job-scout", params: { query: "React", extra: "Brazil only\n\nPages to search: 2." } }))
   expect(screen.getByRole("link", { name: "Change the default agent" })).toHaveAttribute("href", "/launch?tab=setup")
+})
+
+it("keeps each screen to its own skills: their last conversation stays and other runs never show", async () => {
+  await act(() => runAgent("opencode", "job-scout", { query: "React" }))
+  act(() => publish({ type: "acp-status", status: "done" }))
+  await act(() => runAgent("opencode", "outreach-tracker", {}))
+  const jobs = render(<AgentExecution skills={["job-scout"]} />)
+  expect(screen.getByText(/query: React/)).toBeInTheDocument()
+  expect(screen.queryByText("Review follow-ups")).not.toBeInTheDocument()
+  // Another skill's run only blocks; its status and Cancel belong to its own screen.
+  expect(screen.getByRole("status")).toHaveTextContent("Your agent is busy with Review follow-ups")
+  expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument()
+  jobs.unmount()
+  act(() => publish({ type: "acp-status", status: "done" }))
+  const followups = render(<AgentExecution skills={["outreach-tracker"]} />)
+  expect(screen.getByText("Review follow-ups")).toBeInTheDocument()
+  expect(screen.queryByText(/query: React/)).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole("button", { name: "Clear" }))
+  expect(screen.queryByText("Review follow-ups")).not.toBeInTheDocument()
+  followups.unmount()
+  render(<AgentExecution skills={["job-scout"]} />)
+  expect(screen.getByText(/query: React/)).toBeInTheDocument()
 })

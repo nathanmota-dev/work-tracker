@@ -117,10 +117,13 @@ export function SkillFields({ fields, skill, params, setParams, username, disabl
   )
 }
 
-export function WorkspaceActions({ agent, onError }: { agent: ReturnType<typeof useAgent>; onError: (message: string) => void }) {
+/** Cancel the active run, or clear the conversation; `skills` limits both to a screen's own skills. */
+export function WorkspaceActions({ agent, onError, skills }: { agent: ReturnType<typeof useAgent>; onError: (message: string) => void; skills?: readonly string[] }) {
+  const own = !skills || !!agent.current && skills.includes(agent.current.skill)
+  const messages = skills ? agent.messages.filter(message => message.skill && skills.includes(message.skill)) : agent.messages
   return (
     <div className="flex gap-2">
-      {agent.running || agent.status === "Waiting for sign-in" ? (
+      {own && (agent.running || agent.status === "Waiting for sign-in") ? (
         <Button
           size="sm"
           variant="outline"
@@ -135,8 +138,8 @@ export function WorkspaceActions({ agent, onError }: { agent: ReturnType<typeof 
         <Button
           size="sm"
           variant="ghost"
-          disabled={!agent.messages.length}
-          onClick={clearAgent}
+          disabled={!messages.length || own && agent.running}
+          onClick={() => clearAgent(skills)}
         >
           Clear
         </Button>

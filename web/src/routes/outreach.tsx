@@ -125,7 +125,7 @@ export function OutreachPage() {
   const review = useFollowupReview()
   return (
     <Page title="Follow-ups" fill>
-      <DiscoverLayout title="Review follow-ups with your agent" output={<AgentExecution fill />}>
+      <DiscoverLayout title="Review follow-ups with your agent" output={<AgentExecution fill skills={["outreach-tracker"]} />}>
         <form className="space-y-4" onSubmit={event => { event.preventDefault(); review.run() }}>
           <p className="text-sm text-muted-foreground">Your agent checks what is due today, drafts each message and detects replies. It never sends anything without your approval.</p>
           <Field label="Additional context">

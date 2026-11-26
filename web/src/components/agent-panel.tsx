@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router"
 import { useApi, useConnection } from "@/lib/api"
 import { candidateFromAnswers } from "@/lib/candidate-profile"
 import type { Row } from "@/lib/api"
-import { dismissAgentCompletion, runAgent, setAgentPanelOpen, skills, updateAgentDraft, useAgent } from "@/lib/agent"
+import { dismissAgentCompletion, runAgent, setAgentPanelOpen, skills as skillCatalog, updateAgentDraft, useAgent } from "@/lib/agent"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
 import { AgentConversation } from "@/components/agent-conversation"
@@ -44,7 +44,7 @@ function AgentPanelForm() {
   const profile = useApi<Row[]>("answers")
   const live = useConnection()
   const draft = agent.draft ?? agent.current ?? { skill: "job-scout", params: {} }
-  const selected = skills.find(skill => skill.id === draft.skill) ?? skills[0]
+  const selected = skillCatalog.find(skill => skill.id === draft.skill) ?? skillCatalog[0]
   const { params, setParams } = usePanelParams(draft, selected.fields)
   return <form className="space-y-4" onSubmit={event => {
     event.preventDefault()
@@ -64,19 +64,28 @@ function AgentPanelForm() {
   </form>
 }
 
-/** The run in progress: status, stop or clear, pending permissions, sign-in and the conversation. `fill` lets the conversation take the remaining height. */
-export function AgentExecution({ fill }: { fill?: boolean }) {
+/**
+ * The run in progress: status, stop or clear, pending permissions, sign-in and the conversation.
+ * `skills` keeps a screen to its own runs: their last conversation stays, and another skill's run never shows here.
+ * `fill` lets the conversation take the remaining height.
+ */
+export function AgentExecution({ fill, skills }: { fill?: boolean; skills?: readonly string[] }) {
   const agent = useAgent()
   const permissions = useApi<PermissionSnapshot>("acp/permissions")
   const [error, setError] = useState("")
+  const own = !skills || !!agent.current && skills.includes(agent.current.skill)
+  const messages = skills ? agent.messages.filter(message => message.skill && skills.includes(message.skill)) : agent.messages
+  const busy = !own && (agent.running || agent.status === "Waiting for sign-in") && agent.current
+  const name = (skill?: string) => skillCatalog.find(item => item.id === skill)?.name ?? skill
   return <div className={fill ? "flex min-h-0 flex-1 flex-col gap-3" : "space-y-5"}>
-    {agent.running && agent.draft && <p role="status" className="rounded border p-3 text-sm">An agent is already running. Your new task, {skills.find(skill => skill.id === agent.draft?.skill)?.name ?? agent.draft.skill}, is kept as a draft. Finish or stop the current run before starting it.</p>}
-    {agent.current && <p className="text-sm">Current task: {skills.find(skill => skill.id === agent.current?.skill)?.name ?? agent.current.skill}</p>}
+    {own && agent.running && agent.draft && <p role="status" className="rounded border p-3 text-sm">An agent is already running. Your new task, {name(agent.draft.skill)}, is kept as a draft. Finish or stop the current run before starting it.</p>}
+    {busy && <p role="status" className="rounded border p-3 text-sm">Your agent is busy with {name(busy.skill)}. This task can start once that run finishes.</p>}
+    {own && agent.current && <p className="text-sm">Current task: {name(agent.current.skill)}</p>}
     {/* "Ready" says nothing the run button does not; only an active state is shown. */}
-    <div className="flex items-center justify-between gap-3"><p className="text-sm">{agent.status === "Ready" ? "" : agent.status}</p><WorkspaceActions agent={agent} onError={setError} /></div>
-    {permissions.data?.pending.map(item => <Button key={item.id} variant="outline" onClick={() => reviewPermission(item.runId)}>Review permission: {item.title}</Button>)}
-    {agent.status === "Waiting for sign-in" && <BrowserSignIn />}
-    <AgentConversation messages={agent.messages} fill={fill} />
+    <div className="flex items-center justify-between gap-3"><p className="text-sm">{!own || agent.status === "Ready" ? "" : agent.status}</p><WorkspaceActions agent={agent} onError={setError} skills={skills} /></div>
+    {own && permissions.data?.pending.map(item => <Button key={item.id} variant="outline" onClick={() => reviewPermission(item.runId)}>Review permission: {item.title}</Button>)}
+    {own && agent.status === "Waiting for sign-in" && <BrowserSignIn />}
+    <AgentConversation messages={messages} fill={fill} />
     {error && <p role="alert">{error}</p>}
   </div>
 }

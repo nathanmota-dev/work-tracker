@@ -42,7 +42,7 @@ export function AgentJobSearch({ onResults, focus }: { onResults: (ids: number[]
   // Every criterion is needed before the agent can start.
   const filled = !!role.trim() && !!inputs.location?.trim() && !!inputs.extra?.trim()
   const canRun = !!selectedProvider && live && !agent.running && filled
-  return <DiscoverLayout title="Find jobs with your agent" output={<AgentExecution fill />}>
+  return <DiscoverLayout title="Find jobs with your agent" output={<AgentExecution fill skills={["job-scout"]} />}>
       <form ref={form} className="space-y-4" onSubmit={event => {
         event.preventDefault()
         if (!canRun || !selectedProvider) return
