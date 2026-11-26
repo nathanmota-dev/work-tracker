@@ -1,4 +1,5 @@
 import { expect, type Page, type Locator } from '@playwright/test'
+import type { Workspace } from './fixtures'
 
 export async function choose(page: Page, label: string, option: string) {
   await page.getByRole('combobox', { name: new RegExp(`^${label}(?:$|\\s)`) }).click()
@@ -45,4 +46,19 @@ export async function selectAllJobs(page: Page, first: string, total: number) {
   await page.getByRole('checkbox', { name: `Select ${first}`, exact: true }).click()
   if (total > 1) await selectionBar(page).getByRole('button', { name: `Select all ${total}`, exact: true }).click()
   await expect(selectionBar(page).getByRole('status')).toHaveText(`${total} selected`)
+}
+
+/** The global agent panel, opened from the sidebar; opening is idempotent, and a closing panel still looks visible. */
+export async function agentPanel(page: Page): Promise<Locator> {
+  const agent = page.getByRole('dialog', { name: 'Agent task' })
+  await page.getByRole('button', { name: 'Open agent task' }).click()
+  await expect(agent).toBeVisible()
+  return agent
+}
+/** Starts an agent task as a user does: assessing a role from Jobs › Discover opens the agent panel. */
+export async function assessRole(workspace: Workspace, role: string): Promise<Locator> {
+  await workspace.visit('/jobs?discover=true', 'Discover opportunities')
+  await workspace.page.getByLabel('Job link or title').fill(role)
+  await workspace.page.getByRole('button', { name: 'Assess with agent' }).click()
+  return agentPanel(workspace.page)
 }

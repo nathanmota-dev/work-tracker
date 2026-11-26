@@ -1,12 +1,12 @@
 import { test, expect } from './fixtures'
-import { choose } from './ui'
+import { agentPanel, assessRole, choose } from './ui'
 
 test('Permissions: keyboard choice, session memory, persistent allowlist, revocation and navigation', async ({ workspace, page }) => {
   workspace.setScenario({ agent: 'permission' })
-  await workspace.go('Agent')
+  const agent = page.getByRole('dialog', { name: 'Agent task' })
   const start = async () => {
-    await page.getByLabel('Role, keywords or job URL').fill('Synthetic')
-    await page.getByRole('button', { name: 'Run agent' }).click()
+    await assessRole(workspace, 'Synthetic')
+    await agent.getByRole('button', { name: 'Run agent' }).click()
   }
   await start()
   const dialog = page.getByRole('dialog', { name: 'Agent tool permission' })
@@ -14,15 +14,16 @@ test('Permissions: keyboard choice, session memory, persistent allowlist, revoca
   expect(workspace.calls('permission-result')).toHaveLength(0)
   await dialog.getByRole('button', { name: 'Decide later' }).click()
   await workspace.go('Jobs')
-  await page.getByRole('button', { name: 'Review permission' }).click()
+  // The open agent panel covers the header, and offers the pending review itself.
+  await agent.getByRole('button', { name: /^Review permission:/ }).click()
   await choose(page, 'Remember this tool', 'Allow for this session')
   await dialog.getByRole('button', { name: 'Allow once' }).focus()
   await page.keyboard.press('Enter')
   await expect(dialog).toHaveCount(0)
   await expect.poll(() => workspace.calls('permission-result').length).toBe(2)
   for (const value of workspace.calls('permission-result')) expect(value.result).toEqual({ outcome: { outcome: 'selected', optionId: 'approve-exact' } })
-  await workspace.go('Agent')
-  await expect(page.getByRole('button', { name: 'Run agent' })).toBeEnabled()
+  await agentPanel(page)
+  await expect(agent.getByRole('button', { name: 'Run agent' })).toBeEnabled()
   await start() // A new ACP session must ask again.
   await expect(dialog).toBeVisible()
   await dialog.getByRole('button', { name: 'Refuse', exact: true }).focus()
@@ -31,7 +32,9 @@ test('Permissions: keyboard choice, session memory, persistent allowlist, revoca
   await start()
   await choose(page, 'Remember this tool', 'Add to allowlist')
   await dialog.getByRole('button', { name: 'Allow once' }).click()
-  await expect(page.getByRole('button', { name: 'Run agent' })).toBeEnabled()
+  await expect(agent.getByRole('button', { name: 'Run agent' })).toBeEnabled()
+  await agent.getByRole('button', { name: 'Close', exact: true }).click()
+  await expect(agent).toBeHidden()
   await workspace.go('Settings')
   await page.getByRole('tab', { name: 'Permissions', exact: true }).click()
   await expect(page.getByText('opencode · linkedin_get_person_profile · Allowlist')).toBeVisible()
@@ -39,7 +42,6 @@ test('Permissions: keyboard choice, session memory, persistent allowlist, revoca
   await expect(page.getByText('linkedin_get_person_profile: Refused · Refuse')).toBeVisible()
   await page.getByRole('button', { name: 'Revoke linkedin_get_person_profile' }).click()
   await expect(page.getByText('No remembered tools.')).toBeVisible()
-  await workspace.go('Agent')
   await start()
   await expect(dialog).toBeVisible()
   await dialog.getByRole('button', { name: 'Cancel request' }).click()
