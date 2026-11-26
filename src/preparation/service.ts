@@ -13,6 +13,7 @@ import { addCheckpoint, dropCheckpoints, markPortal } from "./recovery.ts";
 import { applyFillResult, fillManifestPath, interruptStaleRuns, readFillResult, webLink, type FillManifest } from "./portal-fill.ts";
 import { ensureDescription, resetProject, restoreSources, type GenerationManifest, type GenerationSources } from "./generation.ts";
 import { fillAgent, type FillAgent } from "./fill-agent.ts";
+import { writeFillContext } from "./fill-context.ts";
 import { resolvePortalUrl } from "./apply-link.ts";
 import { ExecutionSlot, type PreparationAgent } from "./executor.ts";
 import { basePreview, compileWithCorrection, copyBaseline, texSources, warnLength, writeProject, type Compiled } from "./pipeline.ts";
@@ -247,8 +248,9 @@ export class PreparationService {
     const url = webLink(application.external_url || job.link);
     const manifest = runManifest(id);
     const manifestPath = fillManifestPath(manifest.manifestPath);
-    const fill: FillManifest = { versionId: version.id, pdfHash: version.pdfHash, runId: id, job: { ...job, description: version.description }, applicationId: run.application_id, pdfPath: file.path, url, resultPath: join(dirname(manifest.manifestPath), "fill-result.json"), reportPath: manifest.reportPath, coverPath: manifest.coverPath ?? null };
+    const fill: FillManifest = { versionId: version.id, pdfHash: version.pdfHash, runId: id, job: { ...job, description: version.description }, applicationId: run.application_id, pdfPath: file.path, url, resultPath: join(dirname(manifest.manifestPath), "fill-result.json"), contextPath: join(dirname(manifest.manifestPath), "fill-context.json"), reportPath: manifest.reportPath, coverPath: manifest.coverPath ?? null };
     rmSync(fill.resultPath, { force: true });
+    writeFillContext(version, fill.contextPath!);
     writeFileSync(manifestPath, JSON.stringify(fill, null, 2), { mode: 0o600 });
     d.transaction(() => {
       transition(d, application.id, "fill.start", "api", { runId: id });

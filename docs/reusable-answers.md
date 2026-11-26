@@ -9,7 +9,10 @@ Empty contact and link fields are filled from the resume sources (data file,
 LinkedIn export, resume PDFs); see Profile → LinkedIn. Saved answers are never
 replaced, and the catalog shows which source filled a value.
 The matcher distinguishes ambiguous labels from missing answers and never invents
-values or fills demographic fields.
+values or fills demographic fields. It leaves open questions unmatched, even when
+they mention a word such as "name" or "location". During a managed portal fill the
+agent may draft those from the candidate's profile; see
+[fill review](fill-review.md).
 
 Enable **Advanced mode** to edit custom keys and categories. Existing canonical
 keys (for example `email`, `linkedin_url` and `work_authorization`) remain unchanged

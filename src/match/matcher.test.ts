@@ -132,3 +132,35 @@ test("Portuguese portal labels match the saved profile answers", () => {
   expect(result.matched.map(m => m.key)).toEqual(["full_name", "birth_date", "state", "city", "neighborhood", "address", "postal_code", "languages", "accepts_clt", "desired_role", "experience_level", "salary_expectation"]);
   expect(result.unfilled).toEqual([{ label: "Gênero *", skip: "eeo-human-only", key: "eeo_gender" }]);
 });
+
+test.each([
+  "Tell us the name of a project you are proud of",
+  "Describe a project where you used PostgreSQL in your current location",
+  "Conte um projeto em que você usou React. Qual era o nome?",
+  "Qual o nome do projeto de que você mais se orgulha?",
+  "Company name",
+  "Nome da empresa",
+  "How did you learn about this opening on LinkedIn?",
+  "Describe the availability strategy of a system you built",
+  "How did you debug a race condition in production?",
+  "Você tem disponibilidade para trabalhar presencialmente em São Paulo três vezes por semana?",
+])("an open or unrelated question is never filled with a saved value: %s", label => {
+  const answers = { full_name: "A B", location: "SP", state: "SP", linkedin_url: "https://linkedin.com/in/me", notice_period: "Two weeks" };
+  expect(matchLabels([label], { answers })).toEqual({ matched: [], unfilled: [{ label, skip: "no-match" }] });
+});
+
+test.each([
+  ["What is your name?", "full_name"],
+  ["Please enter your full name", "full_name"],
+  ["Qual é o link do seu perfil no LinkedIn?", "linkedin_url"],
+  ["Share your GitHub", "github_url"],
+  ["Your current location", "location"],
+])("a short direct question still matches: %s", (label, key) => {
+  const answers = { full_name: "A B", location: "SP", linkedin_url: "https://linkedin.com/in/me", github_url: "https://github.com/me" };
+  expect(matchLabels([label], { answers }).matched.map(entry => entry.key)).toEqual([key]);
+});
+
+test("demographic wording is recognized even inside a writing prompt", () => {
+  const [entry] = matchLabels(["Please describe any disability we should know about"], { answers: {} }).unfilled;
+  expect(entry).toMatchObject({ skip: "eeo-human-only", key: "eeo_disability" });
+});

@@ -6,6 +6,7 @@ import { journeyRecord, settleExecution, transition } from "../applications/jour
 import { PreparationError } from "./sources.ts";
 import { addCheckpoint, markPortal, parseRecovery } from "./recovery.ts";
 import { verifyDocumentUse, recordDocumentUse } from "./documents.ts";
+import { reviewDrafts } from "./fill-drafts.ts";
 import { updateRun } from "./store.ts";
 
 /** Written next to the run manifest for the portal agent; also read back after a restart. */
@@ -17,6 +18,8 @@ export interface FillManifest {
   pdfPath: string;
   url: string;
   resultPath: string;
+  /** Evidence the agent may draft answers from; absent in manifests written before drafts. */
+  contextPath?: string;
   reportPath: string;
   coverPath: string | null;
   [key: string]: unknown;
@@ -30,11 +33,12 @@ export function webLink(value: unknown): string {
 export function fillManifestPath(manifestPath: string): string { return join(dirname(manifestPath), "fill-manifest.json"); }
 
 /** Validate the agent's fill result file; throws when it is missing or malformed. */
-export function readFillResult(manifest: Pick<FillManifest, "resultPath" | "url" | "versionId" | "pdfHash" | "pdfPath">): FillResult {
+export function readFillResult(manifest: Pick<FillManifest, "resultPath" | "contextPath" | "url" | "versionId" | "pdfHash" | "pdfPath">): FillResult {
   const result = JSON.parse(readFileSync(manifest.resultPath, "utf8")) as Record<string, unknown>;
-  if (!result.fields || typeof result.fields !== "object" || Array.isArray(result.fields) || !Array.isArray(result.unfilled)) throw new Error("The agent did not produce a valid fill result. Review the browser and retry.");
+  if (!result.fields || typeof result.fields !== "object" || Array.isArray(result.fields) || !Array.isArray(result.unfilled) || !(result.drafted === undefined || Array.isArray(result.drafted))) throw new Error("The agent did not produce a valid fill result. Review the browser and retry.");
   if (manifest.versionId && (result.versionId !== manifest.versionId || result.pdfHash !== manifest.pdfHash || result.pdfPath !== manifest.pdfPath)) throw new PreparationError("The portal result must identify the approved PDF actually used.", 409);
-  return { fields: result.fields as Record<string, unknown>, unfilled: result.unfilled, externalUrl: result.externalUrl ? webLink(result.externalUrl) : manifest.url, portal: String(result.portal ?? "generic") };
+  const reviewed = reviewDrafts(result.fields as Record<string, unknown>, result.unfilled, (result.drafted ?? []) as unknown[], manifest.contextPath);
+  return { ...reviewed, externalUrl: result.externalUrl ? webLink(result.externalUrl) : manifest.url, portal: String(result.portal ?? "generic") };
 }
 
 /**

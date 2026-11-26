@@ -13,6 +13,8 @@ import { KEY_SPECS, type Category, type KeySpec } from "./synonyms.ts";
  *   2. synonym  — normalized label contains a synonym phrase (0.9)
  *   3. fuzzy    — token overlap / small edit distance to a synonym (0.6–0.8)
  * Anything below the threshold is left unmatched and surfaced, never guessed.
+ * A phrase merely contained in an open question ("describe a project where…")
+ * is not a match: those questions ask for a written answer, not a saved value.
  */
 
 export type MatchReason = "exact" | "synonym" | "fuzzy";
@@ -57,6 +59,7 @@ export function normalize(label: string): string {
     .replace(/\(required\)|\(optional\)/g, " ")
     .replace(/[^a-z0-9+/ ]+/g, " ") // keep + and / (e.g. "race/ethnicity", "c++")
     .replace(/\s+/g, " ")
+    .replace(/\brace conditions?\b/g, "concurrency") // a software term, not a demographic question
     .trim();
 }
 
@@ -77,6 +80,29 @@ export function editDistance(a: string, b: string): number {
   return prev[b.length]!;
 }
 
+const PROMPT = /^(tell|describe|explain|share|walk|give|why|how|conte|descreva|explique|fale|cite|compartilhe|relate|como|por que|porque)\b/;
+const STORY = /\b(project|projeto|situation|situacao|example|exemplo|challenge|desafio)\b/;
+/** Words that may surround "name"/"nome" while it still means the candidate's own name. */
+const NAME_FILLERS = new Set("your full legal complete candidate applicant preferred please enter type what is s the my seu sua o a qual e informe digite completo candidato candidata de do da".split(" "));
+
+/** A long question or writing prompt, which a saved value cannot answer. */
+function isOpenQuestion(norm: string): boolean {
+  const words = norm.split(" ").length;
+  return words > 12 || (words > 5 && PROMPT.test(norm)) || (words > 7 && STORY.test(norm));
+}
+
+/**
+ * Whether a synonym found inside a longer label identifies what the label asks.
+ * Demographic keys always do, since recognizing them only leaves the field to
+ * the candidate. A bare "name" must not belong to something else ("company
+ * name"). In an open question only a multi-word eligibility phrase counts.
+ */
+function containedMatch(norm: string, synonym: string, spec: KeySpec): boolean {
+  if (spec.neverAutofill) return true;
+  if (synonym === "name" || synonym === "nome") return norm.split(" ").every(word => word === synonym || NAME_FILLERS.has(word));
+  return !isOpenQuestion(norm) || (spec.category === "eligibility" && synonym.includes(" "));
+}
+
 interface Candidate {
   spec: KeySpec;
   confidence: number;
@@ -94,6 +120,7 @@ function scoreSpec(norm: string, spec: KeySpec): Candidate | null {
       return { spec, confidence: 1.0, reason: "exact" }; // can't beat exact
     }
     if (` ${norm} `.includes(` ${s} `) || ` ${s} `.includes(` ${norm} `)) {
+      if (!containedMatch(norm, s, spec)) continue;
       // Weight by synonym specificity: a multi-word phrase ("require
       // sponsorship") is a far stronger signal than an incidental single-word
       // hit ("location" inside a long sentence). Caps below the 1.0 exact tier.

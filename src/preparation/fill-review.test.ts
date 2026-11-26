@@ -53,3 +53,19 @@ test("reviews the stored result with its portal, approved PDF and submission sta
   d.query("UPDATE applications SET portal = 'workday', external_url = NULL, unfilled_json = NULL WHERE id = ?").run(id);
   expect(fillReview(d, id)).toMatchObject({ portal: "workday", portalLabel: "workday", reviewUrl: null });
 });
+
+test("shows each draft with its text, evidence and how it was checked", () => {
+  const items = fillChecklist({}, [
+    { label: "Project", reason: "ai-draft", answer: "I built it.", evidence: ["report export", 7, ""] },
+    { label: "Scenario", reason: "ai-draft-general", answer: "I would check logs." },
+    { label: "Story", reason: "ai-draft-unverified", answer: "" },
+    { label: "Salary", reason: "ai-draft-restricted", answer: "10000", evidence: [] },
+    { label: "Webhook", reason: "no-evidence", answer: "ignored" },
+  ]);
+  expect(items.map(({ reason, answer, evidence, result, correctionKey }) => [reason, answer, evidence, result, correctionKey])).toEqual([
+    ["ai-draft", "I built it.", ["report export"], "pending", null], ["ai-draft-general", "I would check logs.", [], "pending", null],
+    ["ai-draft-unverified", null, [], "pending", null], ["ai-draft-restricted", "10000", [], "pending", null], ["no-evidence", null, undefined, "pending", null],
+  ]);
+  expect(items[1]!.reasonText).toMatch(/general knowledge, not from your profile/);
+  expect(items[4]!.reasonText).toBe("Your profile has nothing to answer this with. Answer it in the portal yourself.");
+});

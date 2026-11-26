@@ -42,6 +42,14 @@ test("reads a valid fill result and defaults its portal and URL", () => {
     expect(() => readFillResult(manifest)).toThrow("valid fill result");
   }
 });
+test("checks drafted answers against the fill's evidence", () => {
+  const contextPath = "/artifacts/r/fill-context.json";
+  files[contextPath] = '{"resume":"Built the report export"}';
+  files[manifest.resultPath] = '{"fields":{},"unfilled":[],"drafted":[{"label":"Project","answer":"The export.","basis":"profile","evidence":["Built the report export"]}]}';
+  expect(readFillResult({ ...manifest, contextPath }).unfilled).toEqual([{ label: "Project", reason: "ai-draft", answer: "The export.", evidence: ["Built the report export"] }]);
+  files[manifest.resultPath] = '{"fields":{},"unfilled":[],"drafted":{}}';
+  expect(() => readFillResult(manifest)).toThrow("valid fill result");
+});
 test("applying a fill result stores it, completes the run and clears the portal marker", () => {
   applyFillResult(d.asDatabase, manifest, readFillResult(manifest));
   expect(d.statement.run).toHaveBeenCalledWith('{"name":"Ana"}', "[]", "https://portal.invalid/", "lever", manifest.pdfPath, "r", manifest.reportPath, manifest.coverPath, 2);

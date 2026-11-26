@@ -9,6 +9,11 @@ const REASONS: Record<FillPendingReason, string> = {
   ambiguous: "The question matches more than one saved answer. Answer it in the portal yourself.",
   "eeo-human-only": "Demographic question. It is never filled automatically; answer it in the portal yourself.",
   "no-match": "No saved answer matches this question. Answer it in the portal yourself.",
+  "no-evidence": "Your profile has nothing to answer this with. Answer it in the portal yourself.",
+  "ai-draft": "Written by the AI from your profile. Read it in the portal before submitting.",
+  "ai-draft-general": "Written by the AI from general knowledge, not from your profile. Rewrite it in your own words if it does not reflect you.",
+  "ai-draft-unverified": "The AI cited text that could not be confirmed in your profile. Rewrite or erase it in the portal.",
+  "ai-draft-restricted": "The AI wrote an answer to a question only you should answer. Erase it in the portal and answer it yourself.",
   other: "The agent left this field for your review. Check it in the portal.",
 };
 const CORRECTABLE = new Set<FillPendingReason>(["no-stored-answer", "invalid-answer"]);
@@ -40,7 +45,13 @@ function pendingItem(entry: unknown): FillChecklistItem {
   const value = entry && typeof entry === "object" ? entry as Record<string, unknown> : { key: text(entry) };
   const key = text(value.key) || null;
   const { reason, reasonText } = reasonFor(key, text(value.reason) || text(value.skip));
-  return { label: label(key, text(value.label)), key, answer: null, result: "pending", reason, reasonText, correctionKey: CORRECTABLE.has(reason) ? correction(key) : null };
+  return { label: label(key, text(value.label)), key, ...draft(reason, value), result: "pending", reason, reasonText, correctionKey: CORRECTABLE.has(reason) ? correction(key) : null };
+}
+
+/** The text a draft left in the portal and the profile quotes behind it. */
+function draft(reason: FillPendingReason, value: Record<string, unknown>): Pick<FillChecklistItem, "answer" | "evidence"> {
+  if (!reason.startsWith("ai-draft")) return { answer: null };
+  return { answer: text(value.answer) || null, evidence: Array.isArray(value.evidence) ? value.evidence.map(text).filter(Boolean) : [] };
 }
 
 /** Map a stored fill result to a checklist: filled fields with the answer used, then pending fields with their reason. */

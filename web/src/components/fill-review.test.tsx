@@ -85,6 +85,24 @@ it("distinguishes a confirmed submission and previous results of an unfinished f
   expect(screen.getByRole("link", { name: "Correct answer for Phone" })).toBeInTheDocument()
 })
 
+it("shows AI drafts to review with the profile evidence behind them", () => {
+  const draft = { key: null, result: "pending" as const, correctionKey: null }
+  const items = [
+    { ...draft, label: "Project", answer: "I built the export.", evidence: ["report export", "Node.js"], reason: "ai-draft" as const, reasonText: "Written by the AI from your profile." },
+    { ...draft, label: "Scenario", answer: "I would check logs.", evidence: [], reason: "ai-draft-general" as const, reasonText: "From general knowledge." },
+    review.items[2]!,
+  ]
+  const { rerender } = render(<FillReviewPanel review={{ ...review, items, filled: 0, pending: 3 }} fillBlocked={false} onFillAgain={vi.fn()} />)
+  expect(screen.getByText("Greenhouse · 0 filled · 3 pending · 2 AI drafts to review")).toBeInTheDocument()
+  expect(screen.getByText("I built the export.")).toBeInTheDocument()
+  expect(screen.getByText("Based on: “report export” · “Node.js”")).toBeInTheDocument()
+  expect(screen.getAllByText(/^Based on:/)).toHaveLength(1)
+  fireEvent.click(screen.getByRole("checkbox", { name: "Reviewed AI draft for Project" }))
+  expect(screen.getByText("2 pending fields to complete in the portal.")).toBeInTheDocument()
+  rerender(<FillReviewPanel review={{ ...review, items: items.slice(1, 2) }} fillBlocked={false} onFillAgain={vi.fn()} />)
+  expect(screen.getByText("Greenhouse · 2 filled · 2 pending · 1 AI draft to review")).toBeInTheDocument()
+})
+
 it("links corrections outside Apply without a return path", () => {
   expect(answerCorrectionHref("phone", "#/applications")).toBe("#/answers?field=phone")
 })
