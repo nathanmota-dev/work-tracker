@@ -2,12 +2,17 @@ import { fireEvent, render, screen, within } from "@testing-library/react"
 import { beforeEach, expect, it, vi } from "vitest"
 import { OutreachPage, reasonText } from "./outreach"
 import { useApi } from "@/lib/api"
-import { prepareSkill } from "@/lib/agent"
+import { runAgent } from "@/lib/agent"
+import { resetSkillInputsCache } from "@/lib/skill-inputs"
 vi.mock("@/lib/api", async (original) => ({
   ...(await original<typeof import("@/lib/api")>()),
   useApi: vi.fn(),
+  useConnection: () => true,
 }))
-vi.mock("@/lib/agent", () => ({ prepareSkill: vi.fn(), skills: [] }))
+const agent = vi.hoisted(() => ({ running: false }))
+vi.mock("@/lib/agent", () => ({ runAgent: vi.fn(), useAgent: () => agent, skills: [] }))
+vi.mock("@/lib/default-agent", () => ({ useDefaultAgent: () => ({ selectedProvider: { id: "opencode", displayName: "OpenCode", models: [] }, effectiveModel: "", effectiveEffort: "" }) }))
+vi.mock("@/components/agent-panel", () => ({ AgentExecution: () => <div>Agent conversation</div> }))
 let data: {
   funnel: Record<string, number>
   due: Record<string, unknown>[]
@@ -41,9 +46,12 @@ beforeEach(() => {
     },
   }
   refresh.mockClear()
-  vi.mocked(prepareSkill).mockClear()
-  vi.mocked(useApi).mockImplementation(() => ({
-    data,
+  vi.mocked(runAgent).mockClear()
+  localStorage.clear()
+  resetSkillInputsCache()
+  agent.running = false
+  vi.mocked(useApi).mockImplementation((path: string) => ({
+    data: path === "answers" ? [] : data,
     error: "",
     loading: false,
     refresh,
@@ -56,8 +64,10 @@ it("shows due actions first as cards, with credits, cooldowns and the funnel fol
   expect(card.getByText("Send a follow-up")).toBeInTheDocument()
   expect(card.getByText("Accepted")).toBeInTheDocument()
   expect(card.getByText("Due today")).toBeInTheDocument()
+  // Reviewing runs the agent in place, beside the actions.
+  expect(screen.getByText("Agent conversation")).toBeInTheDocument()
   fireEvent.click(card.getByRole("button", { name: "Review" }))
-  expect(prepareSkill).toHaveBeenCalledWith("outreach-tracker")
+  expect(runAgent).toHaveBeenCalledWith("opencode", "outreach-tracker", {}, undefined, undefined)
   expect(screen.getByText("Outreach health").nextElementSibling).toHaveTextContent("1 active · 3 invited · 0 InMail credits · 1 in cooldown")
   expect(screen.getByText("urn:blocked")).toBeInTheDocument()
   expect(screen.getByText("5 used this cycle")).toBeInTheDocument()
@@ -65,12 +75,17 @@ it("shows due actions first as cards, with credits, cooldowns and the funnel fol
   const bar = (label: string) => screen.getByText(label).parentElement!.parentElement!.querySelector('[style*="width"]')
   expect(bar("Invited")).toHaveStyle({ width: "100%" })
   expect(bar("Engaged")).toHaveStyle({ width: "33.33333333333333%" })
+  fireEvent.change(screen.getByLabelText("Additional context"), { target: { value: "Skip Acme" } })
   fireEvent.click(screen.getByRole("button", { name: "Review follow-ups" }))
-  expect(prepareSkill).toHaveBeenCalledTimes(2)
+  expect(runAgent).toHaveBeenLastCalledWith("opencode", "outreach-tracker", { extra: "Skip Acme" }, undefined, undefined)
 })
-it("hides its own header inside Contacts", () => {
-  render(<OutreachPage embedded />)
-  expect(screen.queryByRole("button", { name: "Review follow-ups" })).not.toBeInTheDocument()
+it("keeps the review context and waits while the agent runs", () => {
+  localStorage.setItem("work-tracker-skill-inputs-v1:outreach-tracker", JSON.stringify({ extra: "Be brief" }))
+  agent.running = true
+  render(<OutreachPage />)
+  expect(screen.getByLabelText("Additional context")).toHaveValue("Be brief")
+  expect(screen.getByRole("button", { name: "Agent is running…" })).toBeDisabled()
+  expect(screen.queryByRole("button", { name: "Review" })).not.toBeInTheDocument()
 })
 it("handles a zero total and empty due/blocked queues", () => {
   data.funnel = { invited: 0 }
@@ -87,12 +102,12 @@ it("writes action reasons as sentences", () => {
   expect(reasonText(null)).toBe("")
 })
 it("reports errors and retries", () => {
-  vi.mocked(useApi).mockReturnValue({
-    data: undefined,
+  vi.mocked(useApi).mockImplementation((path: string) => ({
+    data: path === "answers" ? [] : undefined,
     loading: false,
-    error: "outreach offline",
+    error: path === "answers" ? "" : "outreach offline",
     refresh,
-  })
+  }))
   render(<OutreachPage />)
   expect(screen.getByRole("alert")).toHaveTextContent("outreach offline")
   fireEvent.click(screen.getByRole("button", { name: "Try again" }))

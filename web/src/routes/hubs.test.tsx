@@ -60,12 +60,11 @@ describe("hub layout", () => {
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Follow-ups" }))
     expect(screen.getByText("Follow-ups content")).toBeInTheDocument()
     expect(screen.queryByText("People content")).not.toBeInTheDocument()
+    // Follow-ups starts its review from its own form, so the header has no action.
     expect(screen.queryByRole("button", { name: "Find recruiters" })).not.toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Review follow-ups" })).toBeInTheDocument()
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1)
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Find people" }))
     expect(screen.getByText("People search")).toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: "Review follow-ups" })).not.toBeInTheDocument()
   })
 
   it("opens on the profile and keeps questions, LinkedIn and deal-breakers as tabs", () => {

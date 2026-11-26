@@ -7,15 +7,18 @@ import type { useDefaultAgent } from "@/lib/default-agent"
  * The layout every Discover view shares: the form on the left, its output on the right,
  * both columns the same size. From lg up they fill the visible height and each scrolls on its own.
  */
-export function DiscoverLayout({ title, output, outputTitle = "Agent workspace", children }: {
+export function DiscoverLayout({ title, output, outputTitle = "Agent workspace", bare, children }: {
   title: string
   output: ReactNode
   outputTitle?: string
+  /** The output brings its own panels, so it only gets the column and its scroll. */
+  bare?: boolean
   children: ReactNode
 }) {
   return <div className="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-2">
     <div className="flex min-h-0 flex-col"><Panel title={title} fill><div className="min-h-0 flex-1 overflow-y-auto">{children}</div></Panel></div>
-    <div className="flex h-[70dvh] min-h-0 flex-col lg:h-auto"><Panel title={outputTitle} fill>{output}</Panel></div>
+    {bare ? <div className="min-h-0 space-y-4 lg:overflow-y-auto">{output}</div>
+      : <div className="flex h-[70dvh] min-h-0 flex-col lg:h-auto"><Panel title={outputTitle} fill>{output}</Panel></div>}
   </div>
 }
 

@@ -55,9 +55,9 @@ export async function agentPanel(page: Page): Promise<Locator> {
   await expect(agent).toBeVisible()
   return agent
 }
-/** Prepares an agent task as a user does: Contacts › Follow-ups opens the agent panel with "Review follow-ups", ready to run. */
+/** Prepares an agent task as a user does: Profile's "Update experiences" opens the agent panel, ready to run. */
 export async function prepareAgentTask(workspace: Workspace): Promise<Locator> {
-  await workspace.visit('/contacts?tab=follow-ups', 'Contacts')
-  await workspace.page.getByRole('button', { name: 'Review follow-ups', exact: true }).first().click()
+  await workspace.visit('/profile', 'Profile')
+  await workspace.page.getByRole('button', { name: 'Update experiences', exact: true }).click()
   return agentPanel(workspace.page)
 }

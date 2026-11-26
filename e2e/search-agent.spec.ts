@@ -53,6 +53,19 @@ test('Jobs: assessing a role runs the agent in place and saves it with a fit rat
   await expect(page.getByText('React Engineer', { exact: true }).first()).toBeVisible()
 })
 
+test('Contacts: reviewing follow-ups runs the agent in place, with the saved context', async ({ workspace, page }) => {
+  await workspace.visit('/contacts?tab=follow-ups', 'Contacts')
+  await page.getByLabel('Additional context').fill('Emphasize testing experience')
+  await page.getByRole('button', { name: 'Review follow-ups', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: 'Agent task' })).toHaveCount(0)
+  await expect(panel(page, 'Agent workspace').getByRole('log')).toContainText('Synthetic workflow completed.')
+  expect(workspace.calls('prompt')[0]?.text).toContain('Emphasize testing experience')
+  await workspace.visit('/launch?tab=history', 'Agent')
+  await expect(page.getByText('Synthetic workflow completed', { exact: true }).first()).toBeVisible()
+  await workspace.visit('/contacts?tab=follow-ups', 'Contacts')
+  await expect(page.getByLabel('Additional context')).toHaveValue('Emphasize testing experience')
+})
+
 test('Search: people/company filters, empty results, errors and retry', async ({ workspace, page }) => {
   await workspace.visit('/contacts?tab=find', 'Contacts')
   await page.getByLabel('Keywords').fill('Technical recruiter')
@@ -73,11 +86,10 @@ test('Search: people/company filters, empty results, errors and retry', async ({
   expect(await workspace.external()).toContain('https://www.linkedin.com/in/alex-recruiter/')
 })
 
-// Finding jobs and assessing a role run in place on Jobs › Discover; their own tests cover them.
+// Finding jobs, assessing a role and reviewing follow-ups run in place; their own tests cover them.
 const skills = [
   ['profile-optimizer', 'LinkedIn username', 'synthetic-candidate', 'Profile', '88 / 100'],
   ['recruiter-outreach', 'Target company', 'Example Company', 'Recruiters', 'Alex Recruiter'],
-  ['outreach-tracker', '', '', 'Activity', 'Synthetic workflow completed'],
   ['experience-bank', '', '', 'Activity', 'Synthetic workflow completed'],
 ] as const
 
@@ -86,7 +98,6 @@ async function openSkill(workspace: Workspace, page: Page, skill: (typeof skills
   const [hash, title, button] = {
     'profile-optimizer': ['/profile?tab=linkedin', 'Profile', 'Audit profile'],
     'recruiter-outreach': ['/contacts?tab=people', 'Contacts', 'Find recruiters'],
-    'outreach-tracker': ['/contacts?tab=follow-ups', 'Contacts', 'Review follow-ups'],
     'experience-bank': ['/profile', 'Profile', 'Update experiences'],
   }[skill]
   await workspace.visit(hash, title)
