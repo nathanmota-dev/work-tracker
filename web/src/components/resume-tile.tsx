@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge"
 import { Status } from "@/components/workspace-ui"
-import { ATS_NOTE, NOT_ENOUGH, atsTone, bandLabels, type ScoreTone } from "@/lib/ats"
+import { ATS_NOTE, NOT_ENOUGH, atsTone, bandLabels, type AtsBest, type ScoreTone } from "@/lib/ats"
 import { cn } from "@/lib/utils"
 import { resumeHref, roleLabels, type ResumeVariant } from "@/lib/variants"
 
@@ -9,11 +9,11 @@ const RING: Record<ScoreTone, string> = { good: "stroke-emerald-500", warn: "str
 const RADIUS = 15
 const LENGTH = 2 * Math.PI * RADIUS
 
-/** The resume's ATS score against the job it was tailored for, as a ring; the number and its label carry the meaning. */
-function ScoreRing({ match }: { match: NonNullable<ResumeVariant["match"]> }) {
+/** A resume's ATS score against a job, as a ring; the number and its label carry the meaning. */
+export function ScoreRing({ match, subject = "its job" }: { match: Pick<AtsBest, "score" | "band">; subject?: string }) {
   const tone = atsTone(match)
   const label = match.score === null || !match.band ? NOT_ENOUGH : `${match.score} · ${bandLabels[match.band]}`
-  return <span role="img" aria-label={`Match with its job: ${label}`} title={ATS_NOTE} className="relative grid size-12 place-items-center rounded-full bg-background">
+  return <span role="img" aria-label={`Match with ${subject}: ${label}`} title={ATS_NOTE} className="relative grid size-12 place-items-center rounded-full bg-background">
     <svg viewBox="0 0 36 36" className="absolute inset-0 -rotate-90" aria-hidden>
       <circle cx="18" cy="18" r={RADIUS} fill="none" strokeWidth="3" className="stroke-muted" />
       {match.score !== null && <circle cx="18" cy="18" r={RADIUS} fill="none" strokeWidth="3" strokeLinecap="round" className={RING[tone]} strokeDasharray={`${(match.score / 100) * LENGTH} ${LENGTH}`} />}

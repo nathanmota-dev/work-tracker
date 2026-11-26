@@ -37,6 +37,7 @@ export function validateWorkspaceSearch(path: string, search: Record<string, unk
     jobId: integer(search.jobId, 1, 0) || undefined, applicationId: integer(search.applicationId, 1, 0) || undefined,
     runId: string(search.runId) || undefined, provider: typeof search.provider === "string" ? search.provider : undefined, model: typeof search.model === "string" ? search.model : undefined,
     pdfTab: choice(search.pdfTab, ["base", "tailored"], "base"), workspaceTab: choice(search.workspaceTab, ["activity", "report"], "activity"),
+    step: choice(search.step, ["description", "resume", "fill", "submission"], "") || undefined,
   }
   // The console tab became Setup; skills now start from their own screens.
   if (path === "launch") return { tab: choice(search.tab, ["setup", "history"], "setup"), target: string(search.target) }
