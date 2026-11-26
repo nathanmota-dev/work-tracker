@@ -13,6 +13,7 @@ import { addCheckpoint, dropCheckpoints, markPortal } from "./recovery.ts";
 import { applyFillResult, fillManifestPath, interruptStaleRuns, readFillResult, webLink, type FillManifest } from "./portal-fill.ts";
 import { ensureDescription, resetProject, restoreSources, type GenerationManifest, type GenerationSources } from "./generation.ts";
 import { fillAgent, type FillAgent } from "./fill-agent.ts";
+import { resolvePortalUrl } from "./apply-link.ts";
 import { ExecutionSlot, type PreparationAgent } from "./executor.ts";
 import { basePreview, compileWithCorrection, copyBaseline, texSources, warnLength, writeProject, type Compiled } from "./pipeline.ts";
 export type { PreparationAgent } from "./executor.ts";
@@ -256,7 +257,10 @@ export class PreparationService {
     })();
     return this.start(id, async signal => {
       await inspectPdf(file.path, signal);
-      await openChromePortal(url);
+      fill.url = await resolvePortalUrl(url, job.linkedin_job_id);
+      signal.throwIfAborted();
+      if (fill.url !== url) this.savePortalUrl(application.id, manifestPath, fill);
+      await openChromePortal(fill.url);
       signal.throwIfAborted();
       // From here the agent may act on the portal; a stop without a result needs review.
       markPortal(id, true);
@@ -265,6 +269,12 @@ export class PreparationService {
       d.transaction(() => applyFillResult(d, fill, result))();
       this.broadcast({ type: "changed", table: "applications" });
     });
+  }
+  /** Keep the employer's link on the application, so the next fill and the board use it. */
+  private savePortalUrl(applicationId: number, manifestPath: string, fill: FillManifest): void {
+    db().query("UPDATE applications SET external_url = ?, updated_at = ? WHERE id = ? AND submission_status = 'not_submitted'").run(fill.url, now(), applicationId);
+    writeFileSync(manifestPath, JSON.stringify(fill, null, 2), { mode: 0o600 });
+    this.broadcast({ type: "changed", table: "applications" });
   }
   /**
    * Record the candidate's confirmation for the application filled by this

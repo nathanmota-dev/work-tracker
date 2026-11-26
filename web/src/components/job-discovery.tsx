@@ -4,7 +4,7 @@ import { Empty } from "@/components/workspace-ui"
 import { Search } from "lucide-react"
 import { DiscoverLayout } from "@/components/discover-layout"
 import { useSkillInputs } from "@/lib/skill-inputs"
-import { SetupNotice } from "@/components/get-started"
+import { IntegrationNotice } from "@/components/integration-notice"
 import { SearchFilters } from "@/routes/search"
 import { useWorkspaceState } from "@/lib/workspace-state"
 import { request, text } from "@/lib/api"
@@ -77,7 +77,7 @@ export function JobDiscovery({ onResults }: { onResults: (ids: number[], outcome
   }
   const results = <div role="log" aria-label="Search results" className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-2">
     {busy && <p role="status" className="text-sm">Searching LinkedIn…</p>}
-    {error && <><p role="alert" className="text-sm text-destructive">{error}</p><SetupNotice step="connect">LinkedIn search needs a tested LinkedIn MCP.</SetupNotice></>}
+    {error && <><p role="alert" className="text-sm text-destructive">{error}</p><IntegrationNotice target="mcp/linkedin" always>LinkedIn search needs a working LinkedIn MCP.</IntegrationNotice></>}
     {output && <p role="status" className="whitespace-pre-wrap text-sm">{output}</p>}
     {!!outcomes.length && <SearchOutcomes outcomes={outcomes} />}
     {!busy && !error && !output && !outcomes.length && <Empty title="No search yet" description="Results are saved to Jobs and summarized here."><Search className="size-5 text-chart-1" /></Empty>}
@@ -88,6 +88,6 @@ export function JobDiscovery({ onResults }: { onResults: (ids: number[], outcome
       <SearchFilters kind="jobs" values={values} busy={busy} set={setValue} />
       <Button className="w-full" disabled={busy || !values.keywords.trim()}>{busy ? "Searching LinkedIn…" : "Search LinkedIn"}</Button>
     </form>
-    <div className="mt-3"><SetupNotice step="connect" pendingOnly>LinkedIn search needs the LinkedIn MCP. You can still add jobs by hand.</SetupNotice></div>
+    <div className="mt-3"><IntegrationNotice target="mcp/linkedin">LinkedIn search needs the LinkedIn MCP. You can still add jobs by hand.</IntegrationNotice></div>
   </DiscoverLayout>
 }

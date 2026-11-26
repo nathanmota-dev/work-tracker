@@ -3,8 +3,9 @@ import { beforeEach, expect, it, vi } from "vitest"
 import { JobDiscovery } from "./job-discovery"
 import { readSkillInputs, resetSkillInputsCache } from "@/lib/skill-inputs"
 import { LINKEDIN_SEARCH } from "./job-discovery"
-// The Get started checklist reads its own status; these flows cover other requests.
-vi.mock("@/components/get-started", () => ({ NextStepHint: ({ fallback }: { fallback?: string }) => <>{fallback}</>, SetupNotice: () => null }))
+// The Get started checklist and the integration notices read their own status; these flows cover other requests.
+vi.mock("@/components/get-started", () => ({ NextStepHint: ({ fallback }: { fallback?: string }) => <>{fallback}</> }))
+vi.mock("@/components/integration-notice", () => ({ IntegrationNotice: () => null }))
 
 const state = vi.hoisted(() => ({ agent: { completion: null as null | { id: number; skill: string }, jobOutcomes: [] as unknown[] } }))
 vi.mock("@/lib/agent", () => ({ prepareSkill: vi.fn(), useAgent: () => state.agent }))

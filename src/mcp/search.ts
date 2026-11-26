@@ -59,3 +59,7 @@ export async function searchPeople(p: PeopleSearchParams): Promise<unknown> {
 export async function jobDetails(jobId: string): Promise<unknown> {
   return callTool("get_job_details", { job_id: jobId });
 }
+/** How a posting takes applications and, for external ones, the employer's form link. */
+export async function jobApplyLink(jobId: string): Promise<unknown> {
+  return callTool("get_job_apply_url", { job_id: jobId });
+}

@@ -3,7 +3,7 @@ import { beforeEach, expect, it, vi } from "vitest"
 import { AgentJobSearch } from "./agent-job-search"
 import { dismissAgentCompletion, prepareSkill, runAgent } from "@/lib/agent"
 import { readSkillInputs, resetSkillInputsCache } from "@/lib/skill-inputs"
-vi.mock("@/components/get-started", () => ({ SetupNotice: () => null }))
+vi.mock("@/components/integration-notice", () => ({ IntegrationNotice: () => null }))
 vi.mock("@/components/agent-panel", async (original) => ({
   ...await original<typeof import("@/components/agent-panel")>(),
   AgentExecution: ({ fill }: { fill?: boolean }) => <div>{fill ? "Filled agent workspace" : "Agent workspace"}</div>,

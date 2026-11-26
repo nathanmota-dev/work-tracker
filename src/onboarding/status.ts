@@ -4,34 +4,21 @@ import { ANSWER_CATALOG, resolveAnswer, type AnswerValue } from "../answers/cata
 import { phaseSql } from "../applications/journey-summary.ts";
 import { commandFingerprint, configSnapshot, targets, type Target } from "../integrations/config.ts";
 import { executable } from "../integrations/http.ts";
-import { installStates } from "../mcp/install/index.ts";
 import { dependencyStatus } from "../preparation/latex.ts";
 import { snapshotSources, sourcesConfig } from "../preparation/sources.ts";
 import { readPreferences, verifiedFingerprints } from "./store.ts";
 import { ONBOARDING_STEPS, OPTIONAL_STEPS, type OnboardingItem, type OnboardingStatus, type OnboardingStep, type StepId } from "./types.ts";
 
-function integration(target: Target, verified: Map<string, string>, config: ReturnType<typeof configSnapshot>["config"]): OnboardingItem {
-  if (!executable(target)) {
-    const install = installStates().find(item => `mcp/${item.name}` === target);
-    return { key: target, ready: false, reason: install?.state === "installing" ? "installing" : "missing_executable", target };
-  }
-  if (verified.get(target) !== commandFingerprint(target, config)) return { key: target, ready: false, reason: "untested", target };
-  return { key: target, ready: true, target };
-}
-
-/** Any tested ACP agent counts; otherwise point at the workspace default first. */
-function connectItems(d: Database): OnboardingItem[] {
-  let snapshot: ReturnType<typeof configSnapshot>;
-  try { snapshot = configSnapshot(); }
-  catch { return [{ key: "config", ready: false, reason: "invalid_config" }]; }
+/** ACP agents whose current command passed a diagnostic; an unreadable config has none. */
+export function readyAgents(d: Database = db()): Target[] {
+  let config: ReturnType<typeof configSnapshot>["config"];
+  try { config = configSnapshot().config; }
+  catch { return []; }
   const verified = verifiedFingerprints(d);
-  const preferred = `acp/${snapshot.config.provider ?? "opencode"}` as Target;
-  const agents = targets.filter(target => target.startsWith("acp/"))
-    .sort((a, b) => Number(b === preferred) - Number(a === preferred))
-    .map(target => integration(target, verified, snapshot.config));
-  const agent = agents.find(item => item.ready) ?? agents.find(item => item.reason === "untested") ?? agents[0]!;
-  return [{ ...agent, key: "agent" }, ...(["mcp/linkedin", "mcp/chrome"] as const).map(target => integration(target, verified, snapshot.config))];
+  return targets.filter(target => target.startsWith("acp/"))
+    .filter(target => executable(target) && verified.get(target) === commandFingerprint(target, config));
 }
+export const agentReady = (d: Database = db()): boolean => readyAgents(d).length > 0;
 
 // Many views read the status after each change; reuse one recent tool check.
 let tools: { engine: string; at: number; result: ReturnType<typeof dependencyStatus> } | undefined;
@@ -67,7 +54,6 @@ function count(d: Database, sql: string): number {
 export async function onboardingStatus(d: Database = db()): Promise<OnboardingStatus> {
   const preferences = readPreferences(d);
   const items: Record<StepId, OnboardingItem[]> = {
-    connect: connectItems(d),
     resume: await resumeItems(),
     answers: answerItems(d),
     search: [{ key: "jobs", ready: count(d, "SELECT COUNT(*) AS n FROM jobs") > 0 }],
@@ -79,5 +65,6 @@ export async function onboardingStatus(d: Database = db()): Promise<OnboardingSt
     return { id, optional, items: items[id], state: done ? "done" : optional && preferences.skipped.includes(id) ? "skipped" : "pending" };
   });
   const next = steps.find(step => step.state === "pending")?.id ?? null;
-  return { steps, hidden: preferences.hidden, completedAt: preferences.completedAt, complete: !next, next };
+  const agents = readyAgents(d);
+  return { agentReady: agents.length > 0, readyAgents: agents, setupCompletedAt: preferences.setupCompletedAt, steps, hidden: preferences.hidden, completedAt: preferences.completedAt, complete: !next, next };
 }

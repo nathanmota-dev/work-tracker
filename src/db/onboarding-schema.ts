@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS onboarding_state (
   hidden       INTEGER NOT NULL DEFAULT 0 CHECK (hidden IN (0, 1)),
   skipped_json TEXT NOT NULL DEFAULT '[]',
   completed_at TEXT,
+  setup_completed_at TEXT,
   updated_at   TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS integration_verifications (
@@ -16,3 +17,8 @@ CREATE TABLE IF NOT EXISTS integration_verifications (
   checked_at  TEXT NOT NULL
 );
 `;
+
+/** Added after the first release of the table; older workspaces get it as a column migration. */
+export const ONBOARDING_COLUMNS: Record<string, Record<string, string>> = {
+  onboarding_state: { setup_completed_at: "TEXT" },
+};

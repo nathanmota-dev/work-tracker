@@ -3,6 +3,15 @@ import { join } from "node:path";
 import { loadConfig } from "../paths.ts";
 import { chromeBrowserUrl, hasChromeConnection } from "./chrome.ts";
 import { fallbackChrome } from "./install/browser.ts";
+const LAUNCH_OPTIONS = /^(--executablePath|--executable-path|-e|--channel)(=|$)/;
+/** Drop the options chrome-devtools-mcp only accepts when it launches Chrome itself, with their values. */
+function withoutLaunchOptions(args: string[]): string[] {
+  return args.filter((arg, index) => {
+    if (LAUNCH_OPTIONS.test(arg)) return false;
+    const previous = args[index - 1];
+    return !(previous && LAUNCH_OPTIONS.test(previous) && !previous.includes("=") && !arg.startsWith("-"));
+  });
+}
 export function mcpServers() {
   const cfg = loadConfig();
   return (["linkedin", "chrome"] as const).map(name => {
@@ -15,7 +24,8 @@ export function mcpServers() {
     if (name === "chrome" && args.some(a => /^(--user-data-dir|--userDataDir)(=|$)/.test(a))) throw new Error("Configure MCP arguments without profile flags; Work Tracker owns its Chrome browser profile");
     if (name === "chrome" && !hasChromeConnection(args)) {
       const browserUrl = chromeBrowserUrl();
-      if (browserUrl) args.push("--browser-url", browserUrl);
+      // The backend already launched Chrome with these options; MCP rejects them beside --browser-url.
+      if (browserUrl) args.splice(0, args.length, ...withoutLaunchOptions(args), "--browser-url", browserUrl);
       // Without a Chrome on this computer, MCP launches the build the app downloaded.
       else if (!args.some(a => /^(--executablePath|--executable-path|-e|--channel)(=|$)/.test(a))) {
         const executable = fallbackChrome();

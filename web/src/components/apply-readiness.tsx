@@ -18,7 +18,7 @@ export function applyBlocks(input: ReadinessInput, operation: "generate" | "fill
   if (input.busy) blocks.push({ message: "An execution is active. Wait for it to finish or cancel it below.", label: "View activity", href: "#/activity" })
   if (input.archived) blocks.push({ message: "This job is archived.", label: "Restore in Jobs", href: "#/jobs" })
   if (input.submitted) blocks.push({ message: "This application has already been submitted.", label: "Open the board", href: "#/applications?view=board" })
-  if (!input.provider) blocks.push({ message: "No ACP provider is available.", label: "Configure an agent", href: agentSetupLink(), step: "connect" })
+  if (!input.provider) blocks.push({ message: "No ACP provider is available.", label: "Configure an agent", href: agentSetupLink() })
   if (input.invalidModel) blocks.push({ message: "The saved model is unavailable for this provider.", label: "Choose a model", action: "model" })
   if (operation === "generate") {
     if (!input.sources) blocks.push({ message: "Choose a valid LaTeX project before generating.", label: "Configure resume sources", href: "#/resume?id=base", step: "resume" })
@@ -30,9 +30,9 @@ export function applyBlocks(input: ReadinessInput, operation: "generate" | "fill
   const targets: Target[] = [...(input.provider ? [`acp/${input.provider}` as Target] : []), ...(operation === "fill" ? ["mcp/chrome" as const] : input.linkedinNeeded ? ["mcp/linkedin" as const] : [])]
   for (const target of targets) {
     const entry = input.integrations?.entries.find(entry => entry.target === target)
-    if (entry?.executable === false) blocks.push({ message: `${integrationLabels[target]} executable is missing.`, label: `Configure ${integrationLabels[target]}`, href: correctionLink(target), step: "connect" })
+    if (entry?.executable === false) blocks.push({ message: `${integrationLabels[target]} executable is missing.`, label: `Configure ${integrationLabels[target]}`, href: correctionLink(target) })
     else if (entry?.diagnostic && (!target.startsWith("acp/") || entry.diagnostic.model === input.model)) {
-      for (const check of entry.diagnostic.checks.filter(diagnosticBlocks)) blocks.push({ message: `${integrationLabels[target]}: ${check.message}`, label: `Correct ${integrationLabels[target]}`, href: correctionLink(target), step: "connect" })
+      for (const check of entry.diagnostic.checks.filter(diagnosticBlocks)) blocks.push({ message: `${integrationLabels[target]}: ${check.message}`, label: `Correct ${integrationLabels[target]}`, href: correctionLink(target) })
     }
   }
   return blocks
