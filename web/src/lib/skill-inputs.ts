@@ -8,7 +8,7 @@ export type SkillInputs = Partial<Record<SkillInputField, string>>
 
 /** What each skill keeps; skills about one record (a job, an application) take everything from the screen that opens them. */
 const SAVED_FIELDS: Partial<Record<string, readonly SkillInputField[]>> = {
-  "job-scout": ["query", "location", "extra", "workType", "maxPages"],
+  "job-scout": ["query", "location", "extra"],
   "recruiter-outreach": ["company", "location", "extra"],
   "profile-optimizer": ["username", "extra"],
   "outreach-tracker": ["extra"],

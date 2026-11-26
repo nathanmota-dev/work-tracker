@@ -1,7 +1,11 @@
 import { test, expect } from './fixtures'
 import { jobMenu, selectionBar } from './ui'
 
-const discover = (page: import('@playwright/test').Page) => page.getByRole('button', { name: 'Discover opportunities', exact: true }).click()
+/** Opens the direct LinkedIn search of Discover opportunities. */
+const discover = async (page: import('@playwright/test').Page) => {
+  await page.getByRole('button', { name: 'Discover opportunities', exact: true }).click()
+  await page.getByRole('tab', { name: 'Search LinkedIn', exact: true }).click()
+}
 
 test('Jobs: direct search, bulk triage, archive and duplicate outcomes', async ({ workspace, page }) => {
   await workspace.go('Jobs')

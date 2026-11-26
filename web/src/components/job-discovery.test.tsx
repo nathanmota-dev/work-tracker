@@ -1,8 +1,8 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, expect, it, vi } from "vitest"
 import { JobDiscovery } from "./job-discovery"
-import { prepareSkill } from "@/lib/agent"
 import { readSkillInputs, resetSkillInputsCache } from "@/lib/skill-inputs"
+import { LINKEDIN_SEARCH } from "./job-discovery"
 // The Get started checklist reads its own status; these flows cover other requests.
 vi.mock("@/components/get-started", () => ({ NextStepHint: ({ fallback }: { fallback?: string }) => <>{fallback}</>, SetupNotice: () => null }))
 
@@ -51,25 +51,6 @@ it("keeps an explanation on screen when a search has nothing to save", async () 
   expect(await screen.findByText(/No savable results/)).toHaveTextContent("React Engineer at Example Company")
   expect(complete).not.toHaveBeenCalled()
 })
-it("passes the same criteria to the panel and handles its completion once", async () => {
-  const complete = vi.fn()
-  const view = render(<JobDiscovery onResults={complete} />)
-  enter()
-  fireEvent.click(screen.getByLabelText("Assess fit with agent"))
-  fireEvent.change(screen.getByLabelText("Additional context"), { target: { value: "Junior roles only" } })
-  fireEvent.click(screen.getByRole("button", { name: "Search with agent" }))
-  // The panel reads role, location and context from the same saved inputs; the screen adds its instructions.
-  expect(prepareSkill).toHaveBeenCalledWith("job-scout", { instructions: expect.stringContaining("Work arrangement: remote. Pages to search: 2.") })
-  expect(readSkillInputs("job-scout")).toMatchObject({ location: "Brazil", workType: "remote", maxPages: "2", extra: "Junior roles only" })
-  expect(readSkillInputs("job-scout").query).toContain("React")
-  expect(request).not.toHaveBeenCalledWith("search/jobs", expect.anything())
-  state.agent = { completion: { id: 1, skill: "job-scout" }, jobOutcomes: [{ key: "1", status: "saved", job: { id: 1, title: "Engineer" } }, { key: "2", status: "existing", job: { id: 2, title: "Existing" } }] }
-  view.rerender(<JobDiscovery onResults={complete} />)
-  expect(await screen.findByText("1 saved · 1 already saved · 0 failed")).toBeInTheDocument()
-  expect(complete).toHaveBeenCalledExactlyOnceWith([1], state.agent.jobOutcomes)
-  view.rerender(<JobDiscovery onResults={complete} />)
-  expect(complete).toHaveBeenCalledTimes(1)
-})
 it("keeps errors retryable and displays unstructured output", async () => {
   replies.push(() => { throw new Error("Offline") })
   reply("No matching jobs")
@@ -97,6 +78,9 @@ it("restores the last search criteria after leaving the screen", async () => {
   resetSkillInputsCache()
   render(<JobDiscovery onResults={vi.fn()} />)
   expect(screen.getByText("Brazil")).toBeInTheDocument()
+  // The direct search keeps its own criteria, apart from the agent's job search.
+  expect(readSkillInputs(LINKEDIN_SEARCH)).toMatchObject({ location: "Brazil", workType: "remote", maxPages: "2" })
+  expect(readSkillInputs("job-scout")).toEqual({})
   expect(screen.getByLabelText("Work arrangement")).toHaveValue("remote")
   expect(screen.getByLabelText("Pages to search")).toHaveValue(2)
 })

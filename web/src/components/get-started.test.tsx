@@ -64,7 +64,7 @@ it("renders each step from the workspace with links to the exact correction, one
   expect(view.getByText("• Email: invalid")).toBeInTheDocument()
   expect(view.getByRole("link", { name: "Add answers" })).toHaveAttribute("href", "#/profile?tab=answers&field=last_name")
   fireEvent.click(step(/^4\. Run your first search/))
-  expect(view.getByRole("link", { name: "Search jobs" })).toHaveAttribute("href", "#/jobs?focus=true")
+  expect(view.getByRole("link", { name: "Search jobs" })).toHaveAttribute("href", "#/jobs?focus=true&mode=search")
   fireEvent.click(step(/^5\. Prepare your first application/))
   expect(view.getByRole("link", { name: "Open the shortlist" })).toHaveAttribute("href", "#/jobs?view=shortlist")
   fireEvent.click(step(/^5\. Prepare your first application/))

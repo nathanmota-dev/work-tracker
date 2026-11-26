@@ -44,7 +44,7 @@ it("handles corrupt drafts and unavailable storage without claiming restoration"
 
 it("validates existing route controls and defaults malformed search parameters", () => {
   expect(validateWorkspaceSearch("jobs", { page: -4, view: "other", q: [], status: {}, selected: {}, selection: ["1", "2", "1", 3] }))
-    .toMatchObject({ page: 0, view: "new", q: "", status: "", selected: "", selection: ["1", "2"], keywords: "", location: "", maxPages: 1, assess: false })
+    .toMatchObject({ page: 0, view: "new", q: "", status: "", selected: "", selection: ["1", "2"], keywords: "", location: "", maxPages: 1, mode: "find" })
   expect(validateWorkspaceSearch("search", { kind: "bad", maxPages: 11, workType: "invalid", keywords: {} }))
     .toMatchObject({ kind: "people", maxPages: 1, workType: "", keywords: "" })
   for (const invalid of [true, null, {}, [], 1.5, "", "NaN", Infinity])

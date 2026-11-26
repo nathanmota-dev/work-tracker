@@ -320,7 +320,9 @@ it("opens Discover opportunities as its own view and returns to the cards", asyn
   await screen.findByText("Engineer")
   fireEvent.click(screen.getByRole("button", { name: "Discover opportunities" }))
   expect(screen.getByRole("heading", { name: "Discover opportunities" })).toBeInTheDocument()
-  expect(screen.getByRole("button", { name: "Search LinkedIn" })).toBeDisabled()
+  // Finding jobs with the agent comes first, then the direct search and the role assessment.
+  expect(screen.getAllByRole("tab").map(tab => tab.textContent)).toEqual(["Find jobs", "Search LinkedIn", "Assess a role"])
+  expect(screen.getByRole("button", { name: "Find jobs with agent" })).toBeDisabled()
   expect(screen.queryByRole("article", { name: "Engineer" })).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole("button", { name: "Back to jobs" }))
   expect(screen.getByRole("article", { name: "Engineer" })).toBeInTheDocument()

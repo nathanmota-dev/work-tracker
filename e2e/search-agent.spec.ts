@@ -2,22 +2,23 @@ import type { Page } from '@playwright/test'
 import { choose, panel } from './ui'
 import { test, expect, type Workspace } from './fixtures'
 
-test('Jobs: assessed search runs in the contextual panel with all criteria', async ({ workspace, page }) => {
+test('Jobs: finding jobs with the agent runs in the contextual panel with all criteria', async ({ workspace, page }) => {
   await workspace.go('Jobs')
   await page.getByRole('button', { name: 'Discover opportunities', exact: true }).click()
-  await page.getByLabel('Keywords').fill('React')
+  // Finding jobs with the agent is the first view.
+  await expect(page.getByRole('tab', { name: 'Find jobs', exact: true })).toHaveAttribute('data-state', 'active')
+  await page.getByLabel('Roles').fill('React')
   await page.getByLabel('Location', { exact: true }).fill('Brazil')
-  await choose(page, 'Work arrangement', 'Remote')
-  await page.getByLabel('Pages to search').fill('2')
-  await page.getByLabel('Assess fit with agent', { exact: true }).check()
-  await page.getByRole('button', { name: 'Search with agent' }).click()
+  await page.getByLabel('Additional context').fill('Junior roles only')
+  await page.getByRole('button', { name: 'Find jobs with agent' }).click()
   const agent = page.getByRole('dialog', { name: 'Agent task' })
   await expect(agent).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Discover opportunities', exact: true, level: 1 })).toBeVisible()
   await expect(agent.getByRole('button', { name: 'Remove React' })).toBeVisible()
   await agent.getByRole('button', { name: 'Run agent' }).click()
   await expect(agent.getByRole('log')).toContainText('Synthetic workflow completed.')
-  expect(workspace.calls('prompt')[0]?.text).toContain('Work arrangement: remote. Pages to search: 2.')
+  expect(workspace.calls('prompt')[0]?.text).toContain('Junior roles only')
+  expect(workspace.calls('prompt')[0]?.text).toContain('Save discovered jobs for triage')
   await agent.getByRole('button', { name: 'Close', exact: true }).click()
   await expect(page.getByRole('tab', { name: 'New (1)' })).toHaveAttribute('data-state', 'active')
   await expect(page.getByText('1 saved · 0 already saved · 0 failed')).toBeVisible()
@@ -29,7 +30,10 @@ test('Jobs: assessed search runs in the contextual panel with all criteria', asy
   await workspace.visit('/jobs?discover=true', 'Discover opportunities')
   await expect(workspace.page.getByRole('button', { name: 'Remove React' })).toBeVisible()
   await expect(workspace.page.getByRole('button', { name: 'Remove Brazil' })).toBeVisible()
-  await expect(workspace.page.getByRole('combobox', { name: /^Work arrangement/ })).toContainText('Remote')
+  await expect(workspace.page.getByLabel('Additional context')).toHaveValue('Junior roles only')
+  // The direct LinkedIn search keeps its own, separate criteria.
+  await workspace.page.getByRole('tab', { name: 'Search LinkedIn', exact: true }).click()
+  await expect(workspace.page.getByRole('button', { name: 'Remove React' })).toHaveCount(0)
 })
 
 test('Search: people/company filters, empty results, errors and retry', async ({ workspace, page }) => {
@@ -70,9 +74,8 @@ async function openSkill(workspace: Workspace, page: Page, skill: (typeof skills
       await page.getByRole('button', { name: 'Assess with agent' }).click()
       return
     }
-    await page.getByLabel('Keywords').fill(input)
-    await page.getByLabel('Assess fit with agent', { exact: true }).check()
-    await page.getByRole('button', { name: 'Search with agent' }).click()
+    await page.getByLabel('Roles').fill(input)
+    await page.getByRole('button', { name: 'Find jobs with agent' }).click()
     return
   }
   const [hash, title, button] = {

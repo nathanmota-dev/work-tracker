@@ -54,6 +54,7 @@ test.describe('workspace context', () => {
     workspace.setScenario({ mcp: 'structured' })
     await workspace.go('Jobs')
     await page.getByRole('button', { name: 'Discover opportunities', exact: true }).click()
+    await page.getByRole('tab', { name: 'Search LinkedIn', exact: true }).click()
     await page.getByLabel('Keywords').fill('React')
     await page.getByLabel('Location', { exact: true }).fill('Remote')
     await page.getByRole('button', { name: 'Search LinkedIn' }).click()
@@ -71,6 +72,7 @@ test.describe('workspace context', () => {
     await expect(page.getByRole('checkbox', { name: 'Select React Engineer', exact: true })).toBeChecked()
     // The discovery criteria are kept for the next search.
     await page.getByRole('button', { name: 'Discover opportunities', exact: true }).click()
+    await page.getByRole('tab', { name: 'Search LinkedIn', exact: true }).click()
     await expect(page.getByRole('button', { name: 'Remove React', exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Remove Remote', exact: true })).toBeVisible()
     await page.getByRole('button', { name: 'Back to jobs', exact: true }).click()
