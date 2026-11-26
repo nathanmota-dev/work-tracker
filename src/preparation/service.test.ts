@@ -2,7 +2,7 @@ import { beforeEach, afterEach, expect, test, vi } from "vitest";
 import * as fs from "node:fs";
 import { db } from "../db/index.ts";
 import { databaseDouble, deferred } from "../test/doubles.ts";
-import { jobDetails } from "../mcp/search.ts";
+import { jobApplyLink, jobDetails } from "../mcp/search.ts";
 import { openChromePortal } from "../mcp/chrome.ts";
 import { compileLatex, dependencyStatus, inspectPdf } from "./latex.ts";
 import {
@@ -45,7 +45,7 @@ vi.mock("../variants/promote.ts", () => ({ saveTailoredVariant: vi.fn(() => "sav
 vi.mock("./use-base.ts", () => ({ useBase: vi.fn((_input, assertIdle: () => void) => { assertIdle(); return { id: "base-run" }; }) }));
 vi.mock("../variants/apply.ts", () => ({ useVariant: vi.fn((_input, assertIdle: () => void) => { assertIdle(); return { id: "saved" }; }) }));
 vi.mock("../paths.ts", () => ({ paths: { artifacts: "/artifacts" } }));
-vi.mock("../mcp/search.ts", () => ({ jobDetails: vi.fn() }));
+vi.mock("../mcp/search.ts", () => ({ jobDetails: vi.fn(), jobApplyLink: vi.fn() }));
 vi.mock("../mcp/chrome.ts", () => ({ openChromePortal: vi.fn() }));
 vi.mock("./latex.ts", () => ({
   compileLatex: vi.fn(),
@@ -574,6 +574,29 @@ test.each([
   await settle();
   expect(run.status).toBe("failed");
   expect(actions()).not.toContain("fill.complete");
+});
+test("fill replaces a LinkedIn posting with the employer's link and keeps it on the application", async () => {
+  journey.external_url = "https://www.linkedin.com/jobs/view/123/";
+  job.linkedin_job_id = "123";
+  vi.mocked(jobApplyLink).mockResolvedValue({ apply: { type: "external", url: "https://jobs.lever.co/acme/1" } });
+  service.fill({ runId: "r" });
+  await settle();
+  expect(openChromePortal).toHaveBeenCalledWith("https://jobs.lever.co/acme/1");
+  expect(d.query).toHaveBeenCalledWith(expect.stringContaining("UPDATE applications SET external_url = ?"));
+  expect(d.statement.run).toHaveBeenCalledWith("https://jobs.lever.co/acme/1", "now", 2);
+  expect(fs.writeFileSync).toHaveBeenLastCalledWith(expect.stringContaining("fill-manifest.json"), expect.stringContaining('"url": "https://jobs.lever.co/acme/1"'), { mode: 0o600 });
+  expect(acp.run).toHaveBeenCalled();
+});
+test("fill stops before opening Chrome when a LinkedIn posting has no employer link", async () => {
+  journey.external_url = "https://www.linkedin.com/jobs/view/123/";
+  job.linkedin_job_id = "123";
+  vi.mocked(jobApplyLink).mockResolvedValue({ apply: { type: "closed" } });
+  service.fill({ runId: "r" });
+  await settle();
+  expect(run.status).toBe("failed");
+  expect(run.error).toContain("no longer accepts applications");
+  expect(openChromePortal).not.toHaveBeenCalled();
+  expect(acp.run).not.toHaveBeenCalled();
 });
 test("rejects archived/unvalidated/submitted fill targets and unsafe portal URLs", () => {
   job.archived_at = "now";

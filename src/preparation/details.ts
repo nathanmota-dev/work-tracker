@@ -32,6 +32,6 @@ export function preparationDetails(input: Record<string, unknown>, busy: boolean
   const record = application ? journeyRecord(db(), application.id) : null;
   return {
     job, runs, documents: documentsForJob(job.id, requestedApplication), fill: record ? fillReview(db(), record.id) : null, busy, applicationStatus: record?.status ?? null, uploadedRunId: record?.preparation_run_id ?? null,
-    journey: record && { id: record.id, origin: record.origin, attempt: record.attempt, preparation_status: record.preparation_status, fill_status: record.fill_status, submission_status: record.submission_status, submitted_at: record.submitted_at, review_reason: record.review_reason },
+    journey: record && { id: record.id, origin: record.origin, attempt: record.attempt, preparation_status: record.preparation_status, fill_status: record.fill_status, submission_status: record.submission_status, submitted_at: record.submitted_at, review_reason: record.review_reason, external_url: record.external_url },
   };
 }

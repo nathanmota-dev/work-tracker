@@ -8,6 +8,7 @@ import { SavedResumePicker } from "@/components/saved-resume-picker"
 import { DocumentReview } from "@/components/document-review"
 import { RunRecovery } from "@/components/run-recovery"
 import { FillReviewPanel } from "@/components/fill-review"
+import { PortalLink } from "@/components/portal-link"
 import { openApply } from "@/lib/preparation"
 import { BASE_RESUME, SAVED_RESUME, type ApplyWorkspaceState } from "@/lib/apply-workspace"
 import type { StepKey } from "@/lib/application-steps"
@@ -101,6 +102,7 @@ export function FillStep({ w }: Props) {
   const fill = w.details.data?.fill
   return <StepSection step={step} index={index}>
     <p className="text-sm">Agent: <span className="font-medium">{agentName(w)}</span>{w.pdfRun?.provider === SAVED_RESUME && <span className="text-muted-foreground"> · fills the saved resume you chose</span>}{w.pdfRun?.provider === BASE_RESUME && <span className="text-muted-foreground"> · fills your base resume as it is</span>}</p>
+    {!w.review && <PortalLink applicationId={w.details.data?.journey?.id} url={w.details.data?.journey?.external_url} disabled={w.busy || w.submitted} onSaved={w.details.refresh} />}
     <div className="flex flex-wrap gap-2">
       <Button disabled={w.fillBlocks.length > 0} onClick={() => void w.action("fill")}>Fill application</Button>
       <CancelRun w={w} filling />
