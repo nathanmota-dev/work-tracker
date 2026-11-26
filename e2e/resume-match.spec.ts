@@ -1,9 +1,9 @@
 import { test, expect } from './fixtures'
 import { join } from 'node:path'
 import { writeTextPdf } from './fixtures/pdf'
-import { jobCard, openJob } from './ui'
+import { jobCard, openJob, panel, resumeCard } from './ui'
 
-test('Resume match: Jobs shows the best saved resume per job, the detail lists its terms and Apply preselects it', async ({ workspace, page }) => {
+test('Resume match: Jobs shows the best saved resume per job, the detail lists its terms and Apply lists it first with its score', async ({ workspace, page }) => {
   await workspace.go('Jobs')
   const resumes = [
     { name: 'Back-End · Node.js', stacks: ['Node.js'], lines: ['Synthetic Candidate', 'Node.js, TypeScript, PostgreSQL and Docker services'] },
@@ -36,7 +36,9 @@ test('Resume match: Jobs shows the best saved resume per job, the detail lists i
 
   const id = workspace.query("SELECT id FROM jobs WHERE linkedin_job_id = '9501'")[0]!.id
   await workspace.visit(`/apply?jobId=${id}`, 'Application')
-  await expect(page.getByRole('combobox', { name: /^Saved resume/ })).toContainText('Back-End · C#, .NET — 1 page · 90')
-  await expect(page.getByLabel('Resume match (ATS keywords)')).toContainText('90 · Strong match')
+  // The Resume step lists the base resume, then the saved resumes from the best match for this job.
+  const cards = panel(page, 'Choose a resume').locator('button[aria-pressed]')
+  await expect.poll(() => cards.evaluateAll(items => items.map(item => item.getAttribute('aria-label')))).toEqual(['Base resume', 'Back-End · C#, .NET', 'Back-End · Node.js'])
+  await expect(resumeCard(page, 'Back-End · C#, .NET').locator('[role="img"]')).toHaveAttribute('aria-label', 'Match with this job: 90 · Strong match')
   expect(workspace.query('SELECT COUNT(*) AS n FROM ats_scores')[0]!.n).toBeGreaterThanOrEqual(4)
 })

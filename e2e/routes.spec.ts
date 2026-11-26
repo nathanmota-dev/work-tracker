@@ -77,9 +77,9 @@ test('shell: redirect, sidebar, command palette, history and narrow window', asy
   await workspace.resize(700)
   workspace.cli(['job', 'save', '--linkedin-id', '9700', '--title', 'Narrow Engineer', '--company', 'Narrow Company'])
   await workspace.visit('/apply?jobId=1', 'Application')
-  await expect(page.getByRole('tab', { name: 'Base PDF' })).toBeVisible()
-  await page.getByRole('tab', { name: 'Tailored PDF' }).click()
-  await expect(page.getByRole('heading', { name: 'Tailored PDF', exact: true })).toBeVisible()
+  // A narrow window stacks the resume cards above the chosen resume's PDF.
+  await expect(page.getByRole('heading', { name: 'Choose a resume', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Base resume PDF', exact: true })).toBeVisible()
 })
 
 const readEndpoints = [

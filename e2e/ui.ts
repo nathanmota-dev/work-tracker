@@ -14,6 +14,17 @@ export async function choose(page: Page, label: string, option: string) {
 export function panel(page: Page, title: string): Locator {
   return page.locator('[data-slot="card"]').filter({ has: page.getByRole('heading', { name: title, exact: true, level: 2 }) })
 }
+/** Opens one view of the application from its progress stepper, such as "Resume" or "Fill portal". */
+export async function openStep(page: Page, label: 'Job description' | 'Resume' | 'Fill portal' | 'Confirm submission') {
+  const button = page.getByRole('navigation', { name: 'Application progress' }).getByRole('button', { name: new RegExp(`^${label}`) })
+  await button.click()
+  await expect(button).toHaveAttribute('aria-pressed', 'true')
+}
+/** A resume card of the application's Resume step; `application` is the one this application already uses. */
+export function resumeCard(page: Page, name: string, application = false): Locator {
+  const card = panel(page, 'Choose a resume').getByRole('button', { name, exact: true })
+  return application ? card.filter({ hasText: 'This application' }) : card.filter({ hasNotText: 'This application' })
+}
 export async function closeDialog(page: Page) { await page.keyboard.press('Escape'); await expect(page.getByRole('dialog')).toHaveCount(0) }
 
 /** A saved job's card on Jobs, named by its title. */

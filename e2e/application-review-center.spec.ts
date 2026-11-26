@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures'
-import { choose, panel, selectAllJobs, selectionBar } from './ui'
+import { choose, openStep, panel, selectAllJobs, selectionBar } from './ui'
 
 test('Review center: select five jobs, recover a failure, adjust, restart, review, fill and confirm each submission', async ({ workspace }) => {
   test.setTimeout(300_000)
@@ -24,7 +24,7 @@ test('Review center: select five jobs, recover a failure, adjust, restart, revie
   expect(workspace.query('SELECT COUNT(*) AS n FROM applications')).toEqual([{ n: 5 }])
   expect(workspace.calls('fill')).toHaveLength(0)
   await workspace.resize(1400)
-  await expect(panel(workspace.page, 'Tailored PDF').locator('.react-pdf__Page__textContent')).toContainText('Tailored resume.')
+  await expect(panel(workspace.page, 'Tailored resume PDF').locator('.react-pdf__Page__textContent')).toContainText('Tailored resume.')
   const firstDocument = workspace.query('SELECT id, pdf_hash FROM document_versions ORDER BY rowid')[0]!
   // A transport failure keeps the request editable and the validated document intact.
   await workspace.page.getByRole('textbox', { name: 'Document adjustment' }).fill('Emphasize the existing React experience')
@@ -49,10 +49,14 @@ test('Review center: select five jobs, recover a failure, adjust, restart, revie
   for (let position = 1; position <= 5; position++) {
     await workspace.page.getByRole('navigation', { name: 'Batch items' }).getByRole('link', { name: new RegExp(`^${position}\\. `) }).click()
     await expect(workspace.page.getByRole('region', { name: 'Selected batch item' })).toContainText(`Item ${position} of 5`)
+    // The chosen step stays in the URL across items, so each item starts from its Resume step.
+    await openStep(workspace.page, 'Resume')
     await workspace.page.getByRole('button', { name: 'Approve this version', exact: true }).click()
-    await expect(workspace.page.getByRole('button', { name: 'I submitted in the browser', exact: true })).toBeVisible({ timeout: 60_000 })
+    await expect(workspace.page.getByRole('navigation', { name: 'Application progress' }).getByRole('listitem', { name: '4. Confirm submission: Current step' })).toBeVisible({ timeout: 60_000 })
+    await openStep(workspace.page, 'Fill portal')
     await expect(workspace.page.getByRole('list', { name: 'Fill checklist' })).toContainText('Gender')
     for (const label of ['Phone', 'Gender']) await workspace.page.getByRole('checkbox', { name: `Completed ${label} in the portal` }).check()
+    await openStep(workspace.page, 'Confirm submission')
     expect(workspace.query("SELECT COUNT(*) AS n FROM applications WHERE submission_status = 'submitted'")).toEqual([{ n: position - 1 }])
     if (position === 1) {
       await workspace.fault('application-preparation/submitted')

@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures'
-import { panel } from './ui'
+import { openStep, panel } from './ui'
 
 test('Manual application: missing job is created from its data, a failed link is retried, and its detail opens with the same identity', async ({ workspace, page }) => {
   await workspace.go('Applications')
@@ -31,11 +31,12 @@ test('Manual application: missing job is created from its data, a failed link is
   const [job] = workspace.query('SELECT id, title, company_name, comp, link, description FROM jobs')
   expect(job).toEqual({ id: expect.any(Number), title: 'Manual Engineer', company_name: 'Manual Company', comp: 'USD 90k', link: 'https://manual.example/jobs/42', description: 'Build the synthetic platform.' })
   await expect(page).toHaveURL(new RegExp(`jobId=${job!.id}&applicationId=${application!.id}`))
-  await expect(page.locator('p', { hasText: 'Manual Company · Manual Engineer' })).toBeVisible()
   await expect(page.getByRole('navigation', { name: 'Caminho da página' }).locator('[aria-current="page"]')).toHaveText('Manual Company · Manual Engineer')
   await expect(page.getByRole('combobox', { name: /^Saved job/ })).toHaveCount(0)
   await expect(page.getByRole('listitem', { name: '4. Confirm submission: Done' })).toBeVisible()
   await expect(page.getByText(/^Submitted on /)).toBeVisible()
+  await openStep(page, 'Job description')
+  await expect(panel(page, 'Manual Company · Manual Engineer')).toBeVisible()
   expect(workspace.query('SELECT id, job_id, origin, submission_status FROM applications')).toEqual([{ id: application!.id, job_id: job!.id, origin: 'manual', submission_status: 'submitted' }])
   expect(workspace.query('SELECT event_type FROM application_events')).toEqual([{ event_type: 'created' }])
 })

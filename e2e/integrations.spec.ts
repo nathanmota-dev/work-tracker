@@ -45,7 +45,6 @@ test('Integrations: validated saves, hidden values, independent sessions and App
   await page.getByRole('button', { name: 'Test saved integration' }).click()
   await expect(page.getByLabel('Diagnostic results')).toContainText('separate LinkedIn session answered')
   await workspace.visit('/apply?jobId=1', 'Application')
-  await page.getByRole('button', { name: 'Test availability again' }).click()
   await expect(page.getByRole('button', { name: 'Generate resume', exact: true })).toBeEnabled()
   expect(workspace.query('SELECT id FROM application_runs')).toEqual([])
   const config = JSON.parse(readFileSync(join(workspace.home, 'config.json'), 'utf8'))
