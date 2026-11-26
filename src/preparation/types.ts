@@ -112,18 +112,28 @@ export interface DocumentVersion {
   variant?: { id: string; name: string; role: string; stacks: string[] } | null;
 }
 
-/** Why the portal agent left a field for the candidate; matches the matcher's skip codes. */
-export type FillPendingReason = "no-stored-answer" | "invalid-answer" | "ambiguous" | "eeo-human-only" | "no-match" | "other";
+/**
+ * How a drafted answer was checked: backed by the candidate's profile, general
+ * knowledge, quotes not found, or a question only the candidate may answer.
+ */
+export type FillDraftReason = "ai-draft" | "ai-draft-general" | "ai-draft-unverified" | "ai-draft-restricted";
+/**
+ * Why a field is left for the candidate: the matcher's skip codes, a question
+ * the profile cannot answer, or a draft to review.
+ */
+export type FillPendingReason = "no-stored-answer" | "invalid-answer" | "ambiguous" | "eeo-human-only" | "no-match" | "no-evidence" | "other" | FillDraftReason;
 /**
  * One portal field from the fill result, readable without its JSON.
  *
- * @property answer Value the agent entered; null for pending fields.
+ * @property answer Value the agent entered; null for pending fields without a draft.
+ * @property evidence Profile quotes a draft is based on.
  * @property correctionKey Saved-answer key the candidate can add or correct in Answers.
  */
 export interface FillChecklistItem {
   label: string;
   key: string | null;
   answer: string | null;
+  evidence?: string[];
   result: "filled" | "pending";
   reason: FillPendingReason | null;
   reasonText: string | null;

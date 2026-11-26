@@ -41,6 +41,7 @@ type ApiEvent = Record<string, unknown>;
 vi.mock("./documents.ts", () => ({ saveDocument: vi.fn(), documentsForJob: vi.fn(() => []), approvedDocument: vi.fn(() => ({ id: "tailored", pdfHash: "hash" })), approveDocument: vi.fn(), freezeDocumentUse: vi.fn(), verifyDocumentUse: vi.fn(), recordDocumentUse: vi.fn() }));
 vi.mock("../db/index.ts", () => ({ db: vi.fn(), now: () => "now" }));
 vi.mock("./batch-store.ts", () => ({ assertPortalFree: vi.fn() }));
+vi.mock("./fill-context.ts", () => ({ writeFillContext: vi.fn() }));
 vi.mock("../variants/promote.ts", () => ({ saveTailoredVariant: vi.fn(() => "saved-variant") }));
 vi.mock("./use-base.ts", () => ({ useBase: vi.fn((_input, assertIdle: () => void) => { assertIdle(); return { id: "base-run" }; }) }));
 vi.mock("../variants/apply.ts", () => ({ useVariant: vi.fn((_input, assertIdle: () => void) => { assertIdle(); return { id: "saved" }; }) }));

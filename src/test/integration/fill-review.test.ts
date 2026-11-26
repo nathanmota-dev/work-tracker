@@ -11,8 +11,15 @@ let answers: typeof import("../../answers/store.ts");
 let service: import("../../preparation/service.ts").PreparationService;
 let jobId: number;
 let broken = false;
+let withDrafts = false;
 const skills: string[] = [];
 const LABELS = ["Email", "Phone", "Gender", "Favorite color"];
+
+/** One draft quoting the approved resume and one quoting something it never said. */
+const drafts = (context: { resume: string }) => withDrafts ? [
+  { label: "Tell us about a project", answer: "A generic project.", basis: "profile", evidence: [context.resume.match(/Generic project[^\n]*delivered/)![0]] },
+  { label: "Describe a launch", answer: "I led a launch.", basis: "profile", evidence: ["led the global launch"] },
+] : [];
 
 /** Synthetic portal agent: matches the form labels against the saved answers, as the skill does. */
 async function portal(manifestPath: string): Promise<void> {
@@ -25,6 +32,7 @@ async function portal(manifestPath: string): Promise<void> {
     versionId: manifest.versionId, pdfHash: manifest.pdfHash, pdfPath: manifest.pdfPath, portal: "greenhouse", externalUrl: "https://boards.greenhouse.io/example/jobs/1",
     fields: { resume: manifest.pdfPath, ...Object.fromEntries(plan.matched.map(entry => [entry.key, entry.value])) },
     unfilled: plan.unfilled.map(({ label, key, skip }) => ({ label, key, reason: skip })),
+    drafted: drafts(JSON.parse(readFileSync(manifest.contextPath, "utf8"))),
   }));
 }
 async function complete(id: string) {
@@ -38,7 +46,7 @@ beforeAll(async () => {
   const { PreparationService } = await import("../../preparation/service.ts");
   const project = join(home, "source");
   mkdirSync(project);
-  writeFileSync(join(project, "resume.tex"), "\\documentclass{article}\n\\begin{document}\nGeneric project.\n\\end{document}\n");
+  writeFileSync(join(project, "resume.tex"), "\\documentclass{article}\n\\begin{document}\nGeneric project delivered.\n\\end{document}\n");
   sources.saveSources({ projectDir: project, mainFile: "resume.tex", dataFile: "", engine: "pdflatex" });
   jobId = (database.db().query("INSERT INTO jobs (title, company_name, description, link) VALUES ('Engineer', 'Example', 'Generic role', 'https://example.com/apply') RETURNING id").get() as { id: number }).id;
   answers.saveAnswer({ key: "email", value: "candidate@example.com" });
@@ -85,11 +93,21 @@ test("correcting an answer and filling again keeps the approved PDF and updates 
   expect(readFileSync(store.artifactFile(version.id).path)).toEqual(pdf);
   expect(database.db().query("SELECT fields_filled_json, unfilled_json FROM applications WHERE id = ?").get(other.id)).toEqual({ fields_filled_json: '{"email":"other@example.com"}', unfilled_json: "[]" });
 
+  // Drafted answers stay pending, marked by whether the approved resume supports them.
+  withDrafts = true;
+  await complete(service.fill({ runId: run.id }).id);
+  withDrafts = false;
+  const drafted = service.details({ jobId, applicationId: run.application_id }).fill!;
+  expect(drafted).toMatchObject({ filled: 3, pending: 4 });
+  expect(drafted.items.filter(item => item.answer && item.result === "pending").map(item => [item.label, item.reason])).toEqual([
+    ["Tell us about a project", "ai-draft"], ["Describe a launch", "ai-draft-unverified"],
+  ]);
+
   // A failed retry keeps the previous evidence and never reports a new fill or a submission.
   broken = true;
   expect((await complete(service.fill({ runId: run.id }).id)).status).toBe("failed");
   const failed = service.details({ jobId, applicationId: run.application_id });
-  expect(failed.fill).toEqual(second.fill);
+  expect(failed.fill).toEqual(drafted);
   expect(failed.journey).toMatchObject({ fill_status: "filled", submission_status: "not_submitted" });
   broken = false;
 }, 60000);

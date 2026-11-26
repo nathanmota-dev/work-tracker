@@ -171,7 +171,10 @@ per-posting custom questions the adapter deliberately doesn't map. For
 > Truthfulness guardrails carry over from `work-tracker-resume-tailor`: **never invent
 > answers** (work authorization, years of experience, EEO). The matcher already
 > refuses to fill EEO fields and anything with no stored value — respect its
-> `unfilled` list, don't fill those by hand from assumptions.
+> `unfilled` list, don't fill those by hand from assumptions. The one exception is
+> a managed fill, where open questions may be drafted from the candidate's
+> evidence, under the rules in
+> [managed PDF filling](references/managed-pdf.md), and reported for review.
 
 ### 4a. Widget mechanics (per `widget` type; learned against live forms)
 
