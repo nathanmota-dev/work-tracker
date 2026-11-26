@@ -122,7 +122,7 @@ export function ResumeView({ w }: Props) {
   const pdf: PdfArtifact | null | undefined = choice === "application" ? w.tailored : choice === "base" ? w.base : variant?.pdf
   const current = w.tailored ? applicationResume(w) : undefined
   const title = choice === "application" ? current?.name : choice === "base" ? "Base resume" : variant?.name
-  return <div className="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-2">
+  return <div className="grid gap-4 lg:min-h-[32rem] lg:flex-1 lg:grid-cols-2">
     <div className="flex min-h-0 flex-col gap-4 lg:overflow-y-auto lg:pr-1">
       <Panel title="Choose a resume">
         <div className="space-y-3">

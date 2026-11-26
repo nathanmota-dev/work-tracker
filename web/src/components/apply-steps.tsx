@@ -39,7 +39,7 @@ function agentName(w: ApplyWorkspaceState) {
 export function FillView({ w }: Props) {
   const fill = w.details.data?.fill
   const filling = w.run?.phase === "filling"
-  return <div className="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-2">
+  return <div className="grid gap-4 lg:min-h-[32rem] lg:flex-1 lg:grid-cols-2">
     <div className="flex min-h-0 flex-col"><Panel title="Fill portal" fill><div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
       <p className="text-sm text-muted-foreground">Your agent opens the application portal in Chrome and fills it with the approved resume{w.pdfRun?.provider === SAVED_RESUME ? " (the saved resume you chose)" : w.pdfRun?.provider === BASE_RESUME ? " (your base resume as it is)" : ""}. It never submits: you review and submit in the browser.</p>
       {!w.review && <PortalLink applicationId={w.details.data?.journey?.id} url={w.details.data?.journey?.external_url} disabled={w.busy || w.submitted} onSaved={w.details.refresh} />}
