@@ -3,7 +3,7 @@ import { Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Field, controlClass } from "@/components/workspace-ui"
-import { SetupNotice } from "@/components/get-started"
+import { IntegrationNotice } from "@/components/integration-notice"
 import { TagField, locationSuggestions, roleSuggestions } from "@/components/tag-field"
 import { SearchOutcomes } from "@/components/job-discovery"
 import { dismissAgentCompletion, runAgent, useAgent } from "@/lib/agent"
@@ -62,7 +62,7 @@ export function AgentJobSearch({ onResults, focus }: { onResults: (ids: number[]
         <Button className="w-full" disabled={!canRun}><Sparkles /> {agent.running ? "Agent is running…" : "Find jobs with agent"}</Button>
         <AgentRunNote agent={defaults} live={live} />
       </form>
-      <div className="mt-3"><SetupNotice step="connect" pendingOnly>Finding jobs needs your agent and the LinkedIn MCP. You can still add jobs by hand.</SetupNotice></div>
+      <div className="mt-3"><IntegrationNotice target="mcp/linkedin">Finding jobs needs the LinkedIn MCP. You can still add jobs by hand.</IntegrationNotice></div>
       {!!outcomes.length && <div className="mt-3"><SearchOutcomes outcomes={outcomes} /></div>}
   </DiscoverLayout>
 }

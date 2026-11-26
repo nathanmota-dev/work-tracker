@@ -12,6 +12,7 @@ import {
   Status,
 } from "@/components/workspace-ui"
 import { useConnection } from "@/lib/api"
+import { Button } from "@/components/ui/button"
 function AppearancePanel() {
   const { theme, setTheme } = useTheme()
   return (
@@ -70,6 +71,17 @@ function ConnectionPanel() {
   )
 }
 
+function IntroductionPanel() {
+  return (
+    <Panel title="Introduction">
+      <p className="mb-4 text-sm text-muted-foreground">
+        Walk through the setup screens and the tour of the main features again.
+      </p>
+      <Button size="sm" asChild><a href="#/onboarding?replay=1">Replay introduction</a></Button>
+    </Panel>
+  )
+}
+
 export function SettingsPage() {
   return (
     <Page title="Settings" description="A workspace that feels like yours.">
@@ -87,6 +99,7 @@ export function SettingsPage() {
             <AppearancePanel />
             <ConnectionPanel />
             <BrowserSignIn />
+            <IntroductionPanel />
           </div>
         </TabsContent>
         <TabsContent value="resume"><ResumeSources /></TabsContent>

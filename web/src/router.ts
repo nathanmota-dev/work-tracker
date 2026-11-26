@@ -12,6 +12,8 @@ import { WorkspaceRoute } from "@/lib/workspace-state"
 import { validateWorkspaceSearch } from "@/lib/workspace-search"
 import { Dashboard } from "@/routes/dashboard"
 import { SettingsPage } from "@/routes/settings"
+import { OnboardingRoute } from "@/routes/onboarding"
+import { withSetupGate } from "@/components/onboarding/setup-gate"
 import { workspacePages } from "@/routes/workspace-pages"
 
 export function createAppRouter(sidebarLayout: RouteComponent) {
@@ -25,10 +27,21 @@ export function createAppRouter(sidebarLayout: RouteComponent) {
     },
   })
 
+  // The workspace opens only after the full-screen setup has connected an agent.
+  const onboardingRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "onboarding",
+    validateSearch: (search: Record<string, unknown>): { replay?: boolean } => (search.replay === true || search.replay === "1" || search.replay === 1 ? { replay: true } : {}),
+    component: function Onboarding() {
+      return OnboardingRoute({ replay: onboardingRoute.useSearch().replay })
+    },
+    staticData: { title: "Set up Work Tracker" },
+  })
+
   const sidebarRoute = createRoute({
     getParentRoute: () => rootRoute,
     id: "sidebar",
-    component: sidebarLayout,
+    component: withSetupGate(sidebarLayout),
     staticData: { title: "Workspace" },
   })
 
@@ -66,6 +79,7 @@ export function createAppRouter(sidebarLayout: RouteComponent) {
 
   const routeTree = rootRoute.addChildren([
     indexRoute,
+    onboardingRoute,
     sidebarRoute.addChildren([
       dashboardRoute.addChildren([dashboardIndexRoute]),
       settingsRoute,

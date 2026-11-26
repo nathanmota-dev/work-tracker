@@ -60,6 +60,8 @@ try {
   writeFileSync(agent, `require('node:readline').createInterface({input:process.stdin}).on('line',line=>{const m=JSON.parse(line);if(m.id!==undefined)process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result:m.method==='session/new'?{sessionId:'smoke',models:{availableModels:[]}}:{}})+'\\n')})`);
   writeFileSync(join(home, 'config.json'), JSON.stringify({ acp: Object.fromEntries(['opencode','claude-code'].map(name => [name, { command: process.execPath, args: [agent] }])) }));
   const db = new DatabaseSync(join(home, 'work-tracker.db'));
+  // The workspace opens only after its full-screen setup; this check starts past it, on Apply.
+  db.prepare("INSERT INTO onboarding_state (id, setup_completed_at, updated_at) VALUES (1, ?, ?)").run(new Date().toISOString(), new Date().toISOString());
   db.prepare("INSERT INTO jobs (id, title, company_name, description, link) VALUES (1, 'React Engineer', 'Example Company', 'React developer role', 'https://example.com/apply')").run();
   db.prepare("INSERT INTO applications (id, job_id, status, resume_path) VALUES (1, 1, 'draft', ?)").run(pdf);
   const at = new Date().toISOString();

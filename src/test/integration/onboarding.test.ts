@@ -64,54 +64,60 @@ async function testIntegration(m: Modules, target: string) {
   return await (await m.integrations.handleIntegrations("/api/integrations/test", request, false, broadcast)).json() as { checks: { state: string }[] };
 }
 
-test("Get started follows a new workspace to its first application and survives backup and restore", async () => {
+test("Setup and Get started follow a new workspace to its first application and survive backup and restore", async () => {
   const source = await workspace("source");
-  expect(await status(source)).toMatchObject({ complete: false, next: "connect", hidden: false, completedAt: null });
-  expect(await states(source)).toEqual(["pending", "pending", "pending", "pending", "pending"]);
+  expect(await status(source)).toMatchObject({ complete: false, next: "resume", hidden: false, completedAt: null, agentReady: false, setupCompletedAt: null });
+  expect(await states(source)).toEqual(["pending", "pending", "pending", "pending"]);
+  // The full-screen setup cannot finish before an agent passes its test.
+  expect((await save(source, { setupCompleted: true })).status).toBe(400);
 
-  // Manual tracking: skip the agent steps, then fill answers and add records by hand.
-  expect((await save(source, { skipped: ["connect", "resume"] })).status).toBe(200);
+  // An agent alone completes the setup: the MCP servers are not part of it.
+  const project = join(root, "resume");
+  mkdirSync(project, { recursive: true });
+  writeFileSync(join(project, "resume.tex"), "\\documentclass{article}\\begin{document}Ada\\end{document}\n");
+  const command = { command: process.execPath, args: [fixture], env: { FIXTURE_MODE: "normal", FIXTURE_DIAGNOSTIC: "1" } };
+  const config = (agent: typeof command) => JSON.stringify({ username: "fixture", acp: { opencode: agent }, mcp: { linkedin: command, chrome: command } });
+  writeFileSync(join(source.home, "config.json"), config(command));
+  await testIntegration(source, "acp/opencode");
+  expect(await status(source)).toMatchObject({ agentReady: true, readyAgents: ["acp/opencode"] });
+  expect(broadcast).toHaveBeenCalledWith({ type: "changed", table: "integrations" });
+  expect(await (await save(source, { setupCompleted: true })).json()).toMatchObject({ setupCompletedAt: expect.any(String) });
+
+  // Without a resume project: skip it, then fill answers and add records by hand.
+  expect((await save(source, { skipped: ["resume"] })).status).toBe(200);
   for (const [key, value] of [["first_name", "Ada"], ["last_name", "Lovelace"], ["email", "ada@example.com"]]) source.answers.saveAnswer({ key, value });
   source.database.db().exec("INSERT INTO jobs (id, title, company_name) VALUES (1, 'Engineer', 'Example Corp')");
   expect(await status(source)).toMatchObject({ next: "apply", complete: false });
-  expect(await states(source)).toEqual(["skipped", "skipped", "done", "done", "pending"]);
+  expect(await states(source)).toEqual(["skipped", "done", "done", "pending"]);
   source.database.db().exec("INSERT INTO applications (id, job_id, attempt, preparation_status) VALUES (1, 1, 1, 'in_progress')");
   expect((await status(source)).next).toBe("apply");
   source.database.db().exec("UPDATE applications SET submission_status = 'submitted' WHERE id = 1");
   expect(await status(source)).toMatchObject({ complete: true, next: null });
 
-  // Resuming the agent steps: a passing diagnostic and real resume sources complete them.
+  // Real resume sources complete the skipped step.
   await save(source, { skipped: [] });
-  const project = join(root, "resume");
-  mkdirSync(project, { recursive: true });
-  writeFileSync(join(project, "resume.tex"), "\\documentclass{article}\\begin{document}Ada\\end{document}\n");
-  const command = { command: process.execPath, args: [fixture], env: { FIXTURE_MODE: "normal", FIXTURE_DIAGNOSTIC: "1" } };
-  writeFileSync(join(source.home, "config.json"), JSON.stringify({ username: "fixture", acp: { opencode: command }, mcp: { linkedin: command, chrome: command },
-    resumeSources: { projectDir: project, mainFile: "resume.tex", dataFile: "", engine: "pdflatex" } }));
-  expect(await states(source)).toEqual(["pending", "done", "done", "done", "done"]);
-  for (const target of ["acp/opencode", "mcp/linkedin"]) await testIntegration(source, target);
-  expect((await status(source)).steps[0]!.items.map(item => item.ready)).toEqual([true, true, false]);
-  await testIntegration(source, "mcp/chrome");
-  expect(await status(source)).toMatchObject({ complete: true });
-  expect(broadcast).toHaveBeenCalledWith({ type: "changed", table: "integrations" });
+  writeFileSync(join(source.home, "config.json"), JSON.stringify({ ...JSON.parse(config(command)), resumeSources: { projectDir: project, mainFile: "resume.tex", dataFile: "", engine: "pdflatex" } }));
+  expect(await states(source)).toEqual(["done", "done", "done", "done"]);
 
-  // A failing diagnostic of the same command makes the step pending again.
-  writeFileSync(join(source.home, "config.json"), JSON.stringify({ username: "fixture", acp: { opencode: command }, mcp: { linkedin: { ...command, env: { FIXTURE_MODE: "auth", FIXTURE_DIAGNOSTIC: "1" } }, chrome: command },
-    resumeSources: { projectDir: project, mainFile: "resume.tex", dataFile: "", engine: "pdflatex" } }));
-  expect((await status(source)).steps[0]!.items[1]).toMatchObject({ ready: false, reason: "untested" });
-  expect((await testIntegration(source, "mcp/linkedin")).checks.at(-1)?.state).toBe("authentication_required");
-  expect((await status(source)).steps[0]!.state).toBe("pending");
-  await save(source, { skipped: ["connect"], hidden: true, completed: true });
+  // A failing diagnostic of a changed command leaves no ready agent, but the finished setup stays finished.
+  const failing = { ...command, env: { FIXTURE_MODE: "auth", FIXTURE_DIAGNOSTIC: "1" } };
+  writeFileSync(join(source.home, "config.json"), config(failing));
+  expect((await status(source)).agentReady).toBe(false);
+  await testIntegration(source, "acp/opencode");
+  expect(await status(source)).toMatchObject({ agentReady: false, setupCompletedAt: expect.any(String) });
+  writeFileSync(join(source.home, "config.json"), config(command));
+  await testIntegration(source, "acp/opencode");
+  await save(source, { skipped: ["resume"], hidden: true, completed: true });
 
   const destination = join(root, "destination");
   mkdirSync(destination);
   const backup = source.create.createBackup(destination);
   const restored = await workspace("restored");
-  expect(await status(restored)).toMatchObject({ hidden: false, next: "connect" });
+  expect(await status(restored)).toMatchObject({ hidden: false, next: "resume", setupCompletedAt: null });
   restored.restore.restoreBackup(backup.path, backup.fingerprint);
   const after = await status(restored);
-  expect(after).toMatchObject({ hidden: true, completedAt: expect.any(String), complete: true, next: null });
-  expect(after.steps.map(step => step.state)).toEqual(["skipped", "done", "done", "done", "done"]);
+  expect(after).toMatchObject({ hidden: true, completedAt: expect.any(String), setupCompletedAt: expect.any(String), complete: true, next: null });
+  expect(after.steps.map(step => step.state)).toEqual(["skipped", "done", "done", "done"]);
   // Passing diagnostics are restored with the config whose commands they verified.
-  expect(after.steps[0]!.items.map(item => item.ready)).toEqual([true, false, true]);
+  expect(after).toMatchObject({ agentReady: true, readyAgents: ["acp/opencode"] });
 });

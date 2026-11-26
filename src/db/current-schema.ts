@@ -4,9 +4,10 @@ import { DEADLINE_COLUMNS } from "./deadline-schema.ts";
 import { POSTING_GUARD_COLUMNS } from "./posting-guard-schema.ts";
 import { GATE_COLUMNS } from "./gate-schema.ts";
 import { VARIANT_COLUMNS, VARIANT_INDEX_SQL } from "./variant-schema.ts";
+import { ONBOARDING_COLUMNS } from "./onboarding-schema.ts";
 
 /** Every additive column migration, including the ones feature modules keep apart. */
-export const ALL_COLUMN_MIGRATIONS: Record<string, Record<string, string>>[] = [COLUMN_MIGRATIONS, DEADLINE_COLUMNS, POSTING_GUARD_COLUMNS, GATE_COLUMNS, VARIANT_COLUMNS];
+export const ALL_COLUMN_MIGRATIONS: Record<string, Record<string, string>>[] = [COLUMN_MIGRATIONS, DEADLINE_COLUMNS, POSTING_GUARD_COLUMNS, GATE_COLUMNS, VARIANT_COLUMNS, ONBOARDING_COLUMNS];
 
 /** Add any declared columns that don't yet exist. */
 function applyColumnMigrations(d: Database): void {

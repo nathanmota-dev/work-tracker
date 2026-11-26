@@ -54,6 +54,12 @@ export class Workspace {
     const db = new DatabaseSync(join(this.home, 'work-tracker.db'))
     try { return db.prepare(sql).all() as Record<string, unknown>[] } finally { db.close() }
   }
+  /** Marks the full-screen setup as finished, as for a workspace whose agent is connected. */
+  finishSetup() {
+    const db = new DatabaseSync(join(this.home, 'work-tracker.db'))
+    try { db.prepare("INSERT INTO onboarding_state (id, setup_completed_at, updated_at) VALUES (1, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z') ON CONFLICT(id) DO UPDATE SET setup_completed_at = excluded.setup_completed_at").run() }
+    finally { db.close() }
+  }
   seed() {
     const db = new DatabaseSync(join(this.home, 'work-tracker.db'))
     try {
@@ -108,7 +114,9 @@ export class Workspace {
       dialog.showSaveDialog = async () => ({ canceled: !state.e2eSave, filePath: state.e2eSave ?? "" })
     })
     await expect.poll(() => this.page.evaluate(() => window.desktop!.connectionStatus())).toBe(true)
-    await this.ready('Dashboard')
+    // A workspace whose setup is unfinished opens on the full-screen setup instead of the Dashboard.
+    const [state] = this.query('SELECT setup_completed_at FROM onboarding_state WHERE id = 1')
+    await this.ready(state?.setup_completed_at ? 'Dashboard' : 'Welcome to Work Tracker')
   }
   async ready(title: string) {
     // Restored record dialogs hide the page heading from the accessibility tree.
@@ -160,13 +168,16 @@ export class Workspace {
   }
 }
 
-type Fixtures = { workspace: Workspace; page: Page; populated: boolean }
+/** @property setup Whether the workspace has already finished the full-screen setup; most journeys start on the Dashboard. */
+type Fixtures = { workspace: Workspace; page: Page; populated: boolean; setup: boolean }
 export const test = base.extend<Fixtures>({
   populated: [false, { option: true }],
-  workspace: async ({ populated }, use, info) => {
+  setup: [true, { option: true }],
+  workspace: async ({ populated, setup }, use, info) => {
     const workspace = new Workspace()
     let started = false
     try {
+      if (setup) workspace.finishSetup()
       if (populated) workspace.seed()
       await workspace.start()
       started = true

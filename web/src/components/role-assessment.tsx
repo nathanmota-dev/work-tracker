@@ -3,7 +3,7 @@ import { Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Field } from "@/components/workspace-ui"
-import { SetupNotice } from "@/components/get-started"
+import { IntegrationNotice } from "@/components/integration-notice"
 import { AgentExecution } from "@/components/agent-panel"
 import { AgentRunNote, DiscoverLayout } from "@/components/discover-layout"
 import { runAgent, useAgent } from "@/lib/agent"
@@ -28,6 +28,6 @@ export function RoleAssessment() {
       <Button className="w-full" disabled={!canRun}><Sparkles /> {agent.running ? "Agent is running…" : "Assess with agent"}</Button>
       <AgentRunNote agent={defaults} live={live} />
     </form>
-    <div className="mt-3"><SetupNotice step="connect" pendingOnly>Assessing a role needs your agent and the LinkedIn MCP.</SetupNotice></div>
+    <div className="mt-3"><IntegrationNotice target="mcp/linkedin">Assessing a role needs the LinkedIn MCP.</IntegrationNotice></div>
   </DiscoverLayout>
 }
