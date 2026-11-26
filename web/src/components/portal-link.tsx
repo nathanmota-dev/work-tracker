@@ -19,7 +19,7 @@ export function PortalLink({ applicationId, url, disabled, onSaved }: { applicat
   const changed = draft !== undefined && draft.trim() !== (url ?? "")
   async function save() {
     setPending(true); setError("")
-    try { await boardAction("update", { id: applicationId!, external_url: value.trim() }); setDraft(undefined); onSaved() }
+    try { await boardAction("portal-link", { id: applicationId!, external_url: value.trim() }); setDraft(undefined); onSaved() }
     catch (e) { setError((e as Error).message) }
     finally { setPending(false) }
   }

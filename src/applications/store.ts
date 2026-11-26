@@ -10,6 +10,7 @@ import type {
   ApplicationStage,
   JobLinkOptions,
   JobLinkResult,
+  PortalLinkResult,
   QuietApplications,
   QuietResolution,
   ReviewItem,
@@ -28,6 +29,7 @@ import {
 } from "./records.ts";
 import { openApplication, resolveJob, startTracking, transition } from "./journey-store.ts";
 import { jobLinkOptions, linkJob } from "./job-link.ts";
+import { savePortalLink } from "./portal-link.ts";
 import { archive, trackedChanges } from "./archive.ts";
 import { submit } from "./submit.ts";
 import { quietApplications, quietDays } from "./quiet.ts";
@@ -54,6 +56,7 @@ type Result = {
     | ApplicationDetails
     | JobLinkOptions
     | JobLinkResult
+    | PortalLinkResult
     | QuietApplications
     | QuietResolution
     | { items: ReviewItem[]; fixed?: number[] }
@@ -206,6 +209,7 @@ function update(d: Database, body: Body): Result {
   ).run(...values, now(), current.id);
   return { value: application(d, current.id), changed: ["applications"] };
 }
+const portalLink: Handler = (d, body) => ({ value: savePortalLink(d, body), changed: ["applications"] });
 function move(d: Database, body: Body): Result {
   const current = application(d, body.id);
   requireActive(current);
@@ -268,6 +272,7 @@ const handlers: Record<keyof ApplicationActions, Handler> = {
   "stages/reorder": reorderStages,
   "stages/set-archived": setStageArchived,
   update,
+  "portal-link": portalLink,
   move,
   archive,
   submit,

@@ -93,6 +93,7 @@ const writes = new Set([
   "search/job-details",
   "application-board/create",
   "application-board/update",
+  "application-board/portal-link",
   "application-board/move",
   "application-board/archive",
   "application-board/reopen",

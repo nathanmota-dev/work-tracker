@@ -15,7 +15,7 @@ it("explains that a LinkedIn posting is resolved and saves a pasted employer lin
   fireEvent.change(screen.getByLabelText("Application link"), { target: { value: " https://tally.so/r/QoRLkA " } })
   fireEvent.click(save)
   await waitFor(() => expect(saved).toHaveBeenCalled())
-  expect(boardAction).toHaveBeenCalledWith("update", { id: 2, external_url: "https://tally.so/r/QoRLkA" })
+  expect(boardAction).toHaveBeenCalledWith("portal-link", { id: 2, external_url: "https://tally.so/r/QoRLkA" })
 })
 
 it("shows the save error and renders nothing without an application", async () => {

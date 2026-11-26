@@ -9,6 +9,7 @@ import { JourneyError } from "./journey.ts";
 const actions: (keyof ApplicationActions)[] = [
   "create",
   "update",
+  "portal-link",
   "move",
   "archive",
   "reopen",

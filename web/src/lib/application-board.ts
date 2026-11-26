@@ -6,6 +6,7 @@ import type {
   ApplicationStage,
   JobLinkOptions,
   JobLinkResult,
+  PortalLinkResult,
   QuietApplications,
   QuietResolution,
   ReviewItem,
@@ -46,6 +47,7 @@ export type {
 type ReviewResults = {
   "link/options": JobLinkOptions
   link: JobLinkResult
+  "portal-link": PortalLinkResult
   review: { items: ReviewItem[] }
   "review/resolve": { item: ReviewItem | null }
   "review/reconcile": { items: ReviewItem[]; fixed: number[] }

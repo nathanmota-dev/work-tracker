@@ -89,6 +89,10 @@ export interface ApplicationBoard {
   stages: ApplicationStage[];
   applications: TrackedApplication[];
 }
+export interface PortalLinkResult {
+  id: number;
+  external_url: string;
+}
 export interface ApplicationDetails {
   application: TrackedApplication;
   events: ApplicationEvent[];
@@ -98,6 +102,8 @@ export interface ApplicationActions {
   /** `job_id` links a saved job; its existing application is reused. */
   create: CreateApplication & { request_id?: string; job_id?: number | null };
   update: UpdateApplication;
+  /** The form link of an application that is not submitted yet, on the board or not. */
+  "portal-link": { id: number; external_url: string };
   move: { id: number; stage_id: number; expected_stage_id?: number };
   archive: { id: number; reason: ArchiveReason; note?: string };
   reopen: { id: number };

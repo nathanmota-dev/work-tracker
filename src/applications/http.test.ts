@@ -45,6 +45,7 @@ test("lists the board and rejects invalid routes, methods and JSON", async () =>
 test.each([
   "create",
   "update",
+  "portal-link",
   "move",
   "archive",
   "reopen",
