@@ -1,14 +1,17 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, expect, it, vi } from "vitest"
-import { AgentPanel, AgentCompletion } from "./agent-panel"
+import { AgentPanel, AgentCompletion, AgentExecution } from "./agent-panel"
 import { AgentIndicator } from "./agent-indicator"
 import { clearAgent, dismissAgentCompletion, prepareSkill, runAgent, setAgentPanelOpen } from "@/lib/agent"
 import { publish } from "@/lib/api"
+import { resetSkillInputsCache } from "@/lib/skill-inputs"
 
 vi.mock("@tanstack/react-router", () => ({ Link: ({ to, search, children, ...props }: React.PropsWithChildren<{ to: string; search?: Record<string, string> }>) =>
   <a href={search ? `${to}?${new URLSearchParams(search)}` : to} {...props}>{children}</a> }))
 const request = vi.fn()
 beforeEach(() => {
+  localStorage.clear()
+  resetSkillInputsCache()
   request.mockReset().mockImplementation(async path => {
     if (path === "answers") return []
     if (path === "acp/providers") return { default: "opencode", providers: [{ id: "opencode", displayName: "OpenCode", models: ["careful"] }] }
@@ -87,4 +90,59 @@ it("reflects running, permission, login, completion and failure globally", async
   expect(screen.getByRole("status")).toHaveTextContent("Done")
   act(() => publish({ type: "acp-error", message: "Offline" }))
   expect(screen.getByRole("status")).toHaveTextContent("Error")
+})
+
+it("restores each skill's saved inputs, keeps them for the next run and leaves record context to its run", async () => {
+  localStorage.setItem("work-tracker-launch-fields-v1:recruiter-outreach", JSON.stringify({ location: "Lisbon" }))
+  const first = render(<AgentPanel />)
+  act(() => prepareSkill("recruiter-outreach"))
+  expect(await screen.findByRole("button", { name: "Remove Lisbon" })).toBeInTheDocument()
+  fireEvent.change(screen.getByLabelText("Target company"), { target: { value: "Acme" } })
+  fireEvent.change(screen.getByLabelText("Additional context"), { target: { value: "Engineering only" } })
+  first.unmount()
+  clearAgent()
+  render(<AgentPanel />)
+  act(() => prepareSkill("recruiter-outreach"))
+  expect(await screen.findByLabelText("Target company")).toHaveValue("Acme")
+  expect(screen.getByLabelText("Additional context")).toHaveValue("Engineering only")
+  await waitFor(() => expect(screen.getByRole("button", { name: "Run agent" })).toBeEnabled())
+  fireEvent.click(screen.getByRole("button", { name: "Run agent" }))
+  await waitFor(() => expect(request).toHaveBeenCalledWith("acp/run", { provider: "opencode", skill: "recruiter-outreach", params: { company: "Acme", location: "Lisbon", extra: "Engineering only" } }))
+  act(() => { publish({ type: "acp-status", status: "done" }); clearAgent(); prepareSkill("requirements-check", { jobIds: "7" }) })
+  fireEvent.change(await screen.findByLabelText("Additional context"), { target: { value: "Only job 7" } })
+  expect(localStorage.getItem("work-tracker-skill-inputs-v1:requirements-check")).toBeNull()
+  expect(screen.getByLabelText("Saved job IDs")).toHaveValue("7")
+})
+
+it("adds the opening screen's instructions after the user's context", async () => {
+  localStorage.setItem("work-tracker-skill-inputs-v1:job-scout", JSON.stringify({ query: "React", extra: "Brazil only" }))
+  render(<AgentPanel />)
+  act(() => prepareSkill("job-scout", { instructions: "Pages to search: 2." }))
+  expect(await screen.findByLabelText("Additional context")).toHaveValue("Brazil only")
+  await waitFor(() => expect(screen.getByRole("button", { name: "Run agent" })).toBeEnabled())
+  fireEvent.click(screen.getByRole("button", { name: "Run agent" }))
+  await waitFor(() => expect(request).toHaveBeenCalledWith("acp/run", { provider: "opencode", skill: "job-scout", params: { query: "React", extra: "Brazil only\n\nPages to search: 2." } }))
+  expect(screen.getByRole("link", { name: "Change the default agent" })).toHaveAttribute("href", "/launch?tab=setup")
+})
+
+it("keeps each screen to its own skills: their last conversation stays and other runs never show", async () => {
+  await act(() => runAgent("opencode", "job-scout", { query: "React" }))
+  act(() => publish({ type: "acp-status", status: "done" }))
+  await act(() => runAgent("opencode", "outreach-tracker", {}))
+  const jobs = render(<AgentExecution skills={["job-scout"]} />)
+  expect(screen.getByText(/query: React/)).toBeInTheDocument()
+  expect(screen.queryByText("Review follow-ups")).not.toBeInTheDocument()
+  // Another skill's run only blocks; its status and Cancel belong to its own screen.
+  expect(screen.getByRole("status")).toHaveTextContent("Your agent is busy with Review follow-ups")
+  expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument()
+  jobs.unmount()
+  act(() => publish({ type: "acp-status", status: "done" }))
+  const followups = render(<AgentExecution skills={["outreach-tracker"]} />)
+  expect(screen.getByText("Review follow-ups")).toBeInTheDocument()
+  expect(screen.queryByText(/query: React/)).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole("button", { name: "Clear" }))
+  expect(screen.queryByText("Review follow-ups")).not.toBeInTheDocument()
+  followups.unmount()
+  render(<AgentExecution skills={["job-scout"]} />)
+  expect(screen.getByText(/query: React/)).toBeInTheDocument()
 })

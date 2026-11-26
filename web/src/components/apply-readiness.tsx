@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button"
-import { correctionLink, diagnosticBlocks, integrationLabels, type Target, type IntegrationStatus } from "@/lib/integrations"
+import { agentSetupLink, correctionLink, diagnosticBlocks, integrationLabels, type Target, type IntegrationStatus } from "@/lib/integrations"
 import { getStartedLink, type StepId } from "@/lib/onboarding"
 import { PostingCheck } from "@/components/posting-check"
 import type { StoredGate } from "@/lib/gates"
@@ -18,7 +18,7 @@ export function applyBlocks(input: ReadinessInput, operation: "generate" | "fill
   if (input.busy) blocks.push({ message: "An execution is active. Wait for it to finish or cancel it below.", label: "View activity", href: "#/activity" })
   if (input.archived) blocks.push({ message: "This job is archived.", label: "Restore in Jobs", href: "#/jobs" })
   if (input.submitted) blocks.push({ message: "This application has already been submitted.", label: "Open the board", href: "#/applications?view=board" })
-  if (!input.provider) blocks.push({ message: "No ACP provider is available.", label: "Configure an agent", href: correctionLink(), step: "connect" })
+  if (!input.provider) blocks.push({ message: "No ACP provider is available.", label: "Configure an agent", href: agentSetupLink(), step: "connect" })
   if (input.invalidModel) blocks.push({ message: "The saved model is unavailable for this provider.", label: "Choose a model", action: "model" })
   if (operation === "generate") {
     if (!input.sources) blocks.push({ message: "Choose a valid LaTeX project before generating.", label: "Configure resume sources", href: "#/resume?id=base", step: "resume" })

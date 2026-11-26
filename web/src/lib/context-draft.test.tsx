@@ -44,13 +44,13 @@ it("handles corrupt drafts and unavailable storage without claiming restoration"
 
 it("validates existing route controls and defaults malformed search parameters", () => {
   expect(validateWorkspaceSearch("jobs", { page: -4, view: "other", q: [], status: {}, selected: {}, selection: ["1", "2", "1", 3] }))
-    .toMatchObject({ page: 0, view: "new", q: "", status: "", selected: "", selection: ["1", "2"], keywords: "", location: "", maxPages: 1, assess: false })
+    .toMatchObject({ page: 0, view: "new", q: "", status: "", selected: "", selection: ["1", "2"], keywords: "", location: "", maxPages: 1, mode: "find" })
   expect(validateWorkspaceSearch("search", { kind: "bad", maxPages: 11, workType: "invalid", keywords: {} }))
     .toMatchObject({ kind: "people", maxPages: 1, workType: "", keywords: "" })
   for (const invalid of [true, null, {}, [], 1.5, "", "NaN", Infinity])
     expect(validateWorkspaceSearch("apply", { jobId: invalid, applicationId: invalid })).toMatchObject({ jobId: undefined, applicationId: undefined })
   expect(validateWorkspaceSearch("apply", { jobId: "7", applicationId: 2, pdfTab: "bad", workspaceTab: "bad" }))
     .toMatchObject({ jobId: 7, applicationId: 2, pdfTab: "base", workspaceTab: "activity" })
-  expect(validateWorkspaceSearch("launch", { skill: "resume-tailor", query: {}, model: 123 })).toMatchObject({ skill: "job-scout", query: "", model: undefined })
+  expect(validateWorkspaceSearch("launch", { tab: "console", skill: "resume-tailor", query: "draft", target: 3 })).toEqual({ tab: "setup", target: "" })
   expect(validateWorkspaceSearch("other", {})).toEqual({})
 })

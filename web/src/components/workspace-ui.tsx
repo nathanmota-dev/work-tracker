@@ -43,7 +43,7 @@ export function Page({
   return (
     <section
       aria-label={embedded ? title : undefined}
-      className={embedded ? "flex min-w-0 flex-col gap-4" : cn("flex min-w-0 flex-1 flex-col gap-6 p-6", fill && "min-h-0")}
+      className={embedded ? cn("flex min-w-0 flex-col gap-4", fill && "min-h-0 flex-1") : cn("flex min-w-0 flex-1 flex-col gap-6 p-6", fill && "min-h-0")}
     >
       <header className={embedded && !description && !actions ? "sr-only" : "flex flex-wrap items-start justify-between gap-4"}>
         <div className="flex min-w-0 items-start gap-2">

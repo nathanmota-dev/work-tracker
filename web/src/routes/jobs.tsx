@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react"
 import { ArrowLeft, Plus, Sparkles } from "lucide-react"
 import { JobDiscovery, SearchOutcomes } from "@/components/job-discovery"
+import { RoleAssessment } from "@/components/role-assessment"
+import { AgentJobSearch } from "@/components/agent-job-search"
+import { Tabs, TabsTrigger } from "@/components/ui/tabs"
+import { CountTabsList } from "@/components/underline-tabs"
 import type { SearchSaveResult } from "../../../src/jobs/search-results"
 import { Button } from "@/components/ui/button"
 import {
@@ -142,19 +146,32 @@ function useJobs() {
     setSelectedId, edit, setDeleting, setError, remove, saved, mutate }
 }
 
+/** Discover has two separate tasks: searching LinkedIn for new roles, and assessing one role the user already found. */
 function DiscoverJobsPage({ onBack, onResults }: { onBack: () => void; onResults: (ids: number[], outcomes: SearchSaveResult[]) => void }) {
+  const { search, update } = useWorkspaceState("jobs")
+  const mode = search.mode === "search" || search.mode === "assess" ? search.mode : "find"
   return (
     <Page
       title="Discover opportunities"
-      description="Search LinkedIn and save new roles for triage."
+      description={{ find: "Let your agent find roles that match you and save them for triage.", search: "Search LinkedIn directly and save the results for triage.", assess: "Check how one role fits your experience before you apply." }[mode]}
       back={
         <Button variant="ghost" size="icon-sm" className="-ml-2 shrink-0 text-muted-foreground hover:text-foreground"
           aria-label="Back to jobs" title="Back to jobs" onClick={onBack}>
           <ArrowLeft />
         </Button>
       }
+      fill
     >
-      <JobDiscovery onResults={onResults} />
+      <Tabs value={mode} onValueChange={value => update({ mode: value })} className="border-b">
+        <CountTabsList label="Discover views">
+          {([["find", "Find jobs"], ["search", "Search LinkedIn"], ["assess", "Assess a role"]] as const).map(([value, label]) =>
+            <TabsTrigger key={value} value={value}
+              className="-mb-px rounded-none border-b-2 border-transparent px-0 pt-0 pb-2.5 text-muted-foreground hover:text-foreground data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none">
+              {label}
+            </TabsTrigger>)}
+        </CountTabsList>
+      </Tabs>
+      {mode === "assess" ? <RoleAssessment /> : mode === "search" ? <JobDiscovery onResults={onResults} /> : <AgentJobSearch onResults={onResults} focus={search.focus} />}
     </Page>
   )
 }
@@ -168,11 +185,11 @@ export function JobsPage() {
   if (search.discover || search.focus)
     return (
       <DiscoverJobsPage
-        onBack={() => update({ discover: false, focus: false })}
+        onBack={() => update({ discover: false, focus: false, mode: "find" })}
         onResults={(ids, results) => {
           setArrived(ids)
           setOutcomes(results)
-          update({ discover: false, focus: false, view: "new", page: 0, q: "", status: "", selection: [], selected: "" })
+          update({ discover: false, focus: false, mode: "find", view: "new", page: 0, q: "", status: "", selection: [], selected: "" })
           api.refresh()
         }}
       />

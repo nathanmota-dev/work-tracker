@@ -1,7 +1,4 @@
 import type { ReactNode } from "react"
-import { MessageSquareReply } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { prepareSkill } from "@/lib/agent"
 import { useWorkspaceState } from "@/lib/workspace-state"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Page, PageSection } from "@/components/workspace-ui"
@@ -13,11 +10,12 @@ import { AnswersPage } from "./answers"
 import { RecruiterActions, RecruitersPage, useRecruiterSync } from "./recruiters"
 import { OutreachPage } from "./outreach"
 import { SearchPage } from "./search"
-import { LaunchPage } from "./launch"
+import { AgentPreferences, useAgentPreferences } from "@/components/agent-preferences"
+import { IntegrationSettingsPanel } from "@/components/integration-settings"
 import { ActivityPage } from "./activity"
 
 /** One page whose tabs, kept in the URL, show other pages as its sections. */
-function Hub({ path, title, description, tabs, aside, actions, children }: {
+function Hub({ path, title, description, tabs, aside, actions, fill, children }: {
   path: string
   title: string
   description?: string
@@ -25,12 +23,14 @@ function Hub({ path, title, description, tabs, aside, actions, children }: {
   aside?: ReactNode
   /** Header buttons of the active tab. */
   actions?: (tab: string) => ReactNode
+  /** Tabs whose content takes the visible height, such as the two-column work views. */
+  fill?: (tab: string) => boolean
   children: (tab: string) => ReactNode
 }) {
   const { search, update } = useWorkspaceState(path)
   const tab = search.tab ?? tabs[0][0]
   return (
-    <Page title={title} description={description} actions={actions?.(tab)}>
+    <Page title={title} description={description} actions={actions?.(tab)} fill={fill?.(tab)}>
       <div className="flex flex-wrap items-end justify-between gap-3 border-b">
         <Tabs value={tab} onValueChange={(value) => update({ tab: value })}>
           <TabsList aria-label={`${title} sections`} className="h-auto gap-6 rounded-none bg-transparent p-0">
@@ -57,11 +57,11 @@ export function ContactsHub() {
       title="Contacts"
       description="The people behind your next opportunity, and the follow-ups that keep each conversation going."
       tabs={[["people", "People"], ["follow-ups", "Follow-ups"], ["find", "Find people"]]}
-      actions={(tab) => tab === "people" ? <RecruiterActions sync={sync} />
-        : tab === "follow-ups" ? <Button size="sm" onClick={() => prepareSkill("outreach-tracker")}><MessageSquareReply /> Review follow-ups</Button>
-        : null}
+      actions={(tab) => tab === "people" ? <RecruiterActions sync={sync} /> : null}
+      // Follow-ups and Find people show their work on the left and its output on the right.
+      fill={(tab) => tab !== "people"}
     >
-      {(tab) => tab === "follow-ups" ? <OutreachPage embedded /> : tab === "find" ? <SearchPage /> : <RecruitersPage sync={sync} />}
+      {(tab) => tab === "follow-ups" ? <OutreachPage /> : tab === "find" ? <SearchPage /> : <RecruitersPage sync={sync} />}
     </Hub>
   )
 }
@@ -81,16 +81,27 @@ export function ProfileHub() {
   )
 }
 
+/** The agent skills run with; skills themselves start from the screen they belong to. */
+function AgentSetup() {
+  const preferences = useAgentPreferences()
+  return (
+    <div className="grid items-start gap-4 lg:grid-cols-2">
+      <AgentPreferences preferences={preferences} />
+      <IntegrationSettingsPanel scope="acp" />
+    </div>
+  )
+}
+
 export function AgentHub() {
   return (
     <Hub
       path="launch"
       title="Agent"
-      description="Run any skill with full control, and review what your agent has done."
-      tabs={[["console", "Console"], ["history", "History"]]}
+      description="Choose and test the agent that runs your skills, and review what it has done."
+      tabs={[["setup", "Setup"], ["history", "History"]]}
       aside={<AgentIndicator />}
     >
-      {(tab) => tab === "history" ? <ActivityPage /> : <LaunchPage />}
+      {(tab) => tab === "history" ? <ActivityPage /> : <AgentSetup />}
     </Hub>
   )
 }

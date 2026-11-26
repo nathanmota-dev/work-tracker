@@ -8,7 +8,9 @@ export type IntegrationSettings = { revision: string; entries: IntegrationEntry[
 export type McpInstall = import("../../../src/mcp/install/state").McpInstall
 export type IntegrationStatus = { backend: boolean; entries: { target: Target; executable: boolean; diagnostic?: Diagnostic }[]; install?: McpInstall[]; dependencies: { command: string; available: boolean }[] }
 export const integrationLabels: Record<Target, string> = { "acp/opencode": "opencode ACP", "acp/claude-code": "Claude Code ACP", "mcp/chrome": "Chrome MCP", "mcp/linkedin": "LinkedIn MCP" }
-export const correctionLink = (target?: Target) => `#/settings?section=integrations${target ? `&target=${encodeURIComponent(target)}` : ""}`
+/** Agents are configured in Agent › Setup; MCP servers and installed tools in Settings › Integrations. */
+export const agentSetupLink = (target?: Target) => `#/launch?tab=setup${target ? `&target=${encodeURIComponent(target)}` : ""}`
+export const correctionLink = (target?: Target) => target?.startsWith("acp/") ? agentSetupLink(target) : `#/settings?section=integrations${target ? `&target=${encodeURIComponent(target)}` : ""}`
 export function diagnosticBlocks(check: Check) { return !["ready", "unverified"].includes(check.state) }
 export function useIntegrations() {
   const api = useApi<IntegrationStatus>("integrations/status")

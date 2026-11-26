@@ -1,4 +1,5 @@
 import { test, expect, type Workspace } from './fixtures'
+import { agentPanel, prepareAgentTask } from './ui'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -9,10 +10,12 @@ const alive = (pid: number) => { try { process.kill(pid, 0); return true } catch
 
 test('Backend: an unexpected exit is shown and recovered without closing the window', async ({ workspace, page }) => {
   workspace.setScenario({ agent: 'hold' })
-  await workspace.go('Agent')
-  await page.getByLabel('Role, keywords or job URL').fill('React')
-  await page.getByRole('button', { name: 'Run agent' }).click()
-  await expect(page.getByText('Synthetic agent is working.', { exact: true })).toBeVisible()
+  const agent = await prepareAgentTask(workspace)
+  await agent.getByRole('button', { name: 'Run agent' }).click()
+  await expect(agent.getByText('Synthetic agent is working.', { exact: true })).toBeVisible()
+  // The panel would cover the backend alert; the run continues while it is closed.
+  await agent.getByRole('button', { name: 'Close', exact: true }).click()
+  await expect(agent).toBeHidden()
   const agentPid = workspace.calls('prompt')[0]!.pid as number
 
   const pid = backendPid(workspace)!
@@ -33,10 +36,12 @@ test('Backend: an unexpected exit is shown and recovered without closing the win
   expect(await page.evaluate(() => window.desktop!.backendStatus!())).toMatchObject({ status: 'ready', restarts: 1 })
 
   // The active run is reported as interrupted and is not started again.
+  await agentPanel(page)
   await expect(page.getByRole('log', { name: 'Agent conversation' }).getByText('Interrupted', { exact: true })).toBeVisible()
-  await expect(page.getByText('Interrupted', { exact: true })).toHaveCount(1)
-  await expect(page.getByRole('main').getByRole('status', { name: 'Agent status: Error' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Run agent' })).toBeEnabled()
+  await expect(page.getByRole('log', { name: 'Agent conversation' }).getByText('Interrupted', { exact: true })).toHaveCount(1)
+  await expect(agent.getByRole('status', { name: 'Agent status: Error' })).toBeVisible()
+  await expect(agent.getByRole('button', { name: 'Run agent' })).toBeEnabled()
+  await agent.getByRole('button', { name: 'Close', exact: true }).click()
   expect(workspace.calls('prompt')).toHaveLength(1)
 
   // Navigation and live updates keep working against the new backend.

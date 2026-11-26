@@ -14,7 +14,7 @@ export function WorkspaceRoute() {
   const [remembered, setRemembered] = useState<Record<string, WorkspaceSearch>>({})
   useEffect(() => {
     // Discover opportunities is a transient view of Jobs: the sidebar link always returns to the cards.
-    const { discover: _discover, focus: _focus, ...kept } = search
+    const { discover: _discover, focus: _focus, mode: _mode, ...kept } = search
     setRemembered(previous => ({ ...previous, [path]: kept }))
   }, [path, search])
   const update = useCallback((patch: Patch) => {

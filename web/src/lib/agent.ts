@@ -103,6 +103,8 @@ export type AgentMessage = {
   text: string
   tool?: ToolActivity
   diagnostic?: boolean
+  /** The skill whose run wrote it, so each screen shows only its own conversation. */
+  skill?: string
 }
 let nextMessage = 0
 let runId = 0
@@ -127,9 +129,10 @@ function update(patch: Partial<typeof state>) {
 function append(role: AgentMessage["role"], text: string, chunk = false, diagnostic = false) {
   const messages = [...state.messages]
   const last = messages.at(-1)
-  if (chunk && last?.role === role)
+  const skill = state.current?.skill
+  if (chunk && last?.role === role && last.skill === skill)
     messages[messages.length - 1] = { ...last, text: last.text + text }
-  else messages.push({ id: String(++nextMessage), role, text, diagnostic })
+  else messages.push({ id: String(++nextMessage), role, text, diagnostic, ...(skill && { skill }) })
   update({ messages: messages.slice(-500) })
 }
 export function isLoginPending(tool: ToolActivity): boolean {
@@ -157,7 +160,8 @@ function updateTool(value: Row) {
       : previous?.tool?.output ?? "",
     input: value.rawInput ?? previous?.tool?.input,
   }
-  const message: AgentMessage = { id: previous?.id ?? String(++nextMessage), role: "system", text: "", tool }
+  const skill = previous?.skill ?? state.current?.skill
+  const message: AgentMessage = { id: previous?.id ?? String(++nextMessage), role: "system", text: "", tool, ...(skill && { skill }) }
   if (index >= 0) messages[index] = message
   else messages.push(message)
   if (key) toolMessages.set(key, message.id)
@@ -303,11 +307,17 @@ export async function cancelAgent() {
   try { await request("acp/cancel", {}) }
   catch (error) { update(previous); throw error }
 }
-export function clearAgent() {
-  if (!state.running && state.status !== "Waiting for sign-in") {
+/** Clears the conversation, or only the given skills' part of it; the active run's messages stay until it ends. */
+export function clearAgent(skills?: readonly string[]) {
+  const active = state.running || state.status === "Waiting for sign-in"
+  if (!skills) {
+    if (active) return
     toolMessages.clear()
     update({ messages: [], status: "Ready" })
+    return
   }
+  if (active && state.current && skills.includes(state.current.skill)) return
+  update({ messages: state.messages.filter(message => !message.skill || !skills.includes(message.skill)) })
 }
 
 export function setAgentPanelOpen(panelOpen: boolean) { update({ panelOpen }) }

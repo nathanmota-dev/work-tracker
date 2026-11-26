@@ -28,6 +28,7 @@ beforeEach(() => {
     if (path === "acp/providers") return { providers: [{ id: "fake", displayName: "Fixture", models: ["test"] }], default: "fake" }
     if (path === "resume-sources") return { config: {}, dependencies: [], warnings: [] }
     if (path === "integrations/status") return { entries: [], dependencies: [] }
+    if (path === "integrations") return { revision: "one", entries: [] }
     if (path === "search/jobs") return jobs.map(job => ({ ...job, link: `https://example.com/${job.id}` }))
     if (path === "application-board") return board
     if (path === "application-board/review") return { items: [] }
@@ -125,16 +126,22 @@ it("Search assessment keeps results, pagination and selection while the panel op
   act(() => setAgentPanelOpen(true))
   expect(await screen.findByLabelText("Additional context")).toHaveValue("Assessment context")
   act(() => setAgentPanelOpen(false))
-  await go(router, "/launch?skill=deep-scout&query=other&target=other")
-  expect(await screen.findByRole("button", { name: "Remove other" })).toBeInTheDocument()
-  fireEvent.change(screen.getByLabelText("Additional context"), { target: { value: "Console context" } })
-  await go(router, "/launch?skill=deep-scout&query=another&target=another")
-  expect(await screen.findByLabelText("Additional context")).toHaveValue("")
-  await go(router, "/launch?skill=deep-scout&query=other&target=other")
-  expect(await screen.findByLabelText("Additional context")).toHaveValue("Console context")
+  // A role that is not saved yet is assessed from Discover opportunities.
+  await go(router, "/jobs?discover=true")
+  expect(await screen.findByRole("heading", { name: "Find jobs with your agent" })).toBeInTheDocument()
+  fireEvent.mouseDown(screen.getByRole("tab", { name: "Assess a role" }))
+  const role = await screen.findByLabelText("Job link or title")
+  expect(screen.queryByRole("heading", { name: "Find jobs with your agent" })).not.toBeInTheDocument()
+  expect(router.state.location.search).toMatchObject({ mode: "assess" })
+  fireEvent.change(role, { target: { value: "other" } })
+  await waitFor(() => expect(screen.getByRole("button", { name: "Assess with agent" })).toBeEnabled())
+  fireEvent.click(screen.getByRole("button", { name: "Assess with agent" }))
+  // The assessment runs in place, beside the form, without the side panel.
+  await waitFor(() => expect(request).toHaveBeenCalledWith("acp/run", expect.objectContaining({ skill: "deep-scout", params: { query: "other" } })))
+  expect(screen.getByRole("heading", { name: "Agent workspace" })).toBeInTheDocument()
 })
 
-it("uses route defaults for invalid URLs in Jobs, Search, Apply and Launch", async () => {
+it("uses route defaults for invalid URLs in Jobs, Search, Apply and Agent", async () => {
   const { router } = await mount("/jobs?page=-1&view=bad&status=bad&q=%5B%5D")
   expect(await screen.findByLabelText("Search opportunities")).toHaveValue("")
   expect(screen.getByRole("button", { name: "Page 1" })).toHaveAttribute("aria-current", "page")
@@ -143,8 +150,8 @@ it("uses route defaults for invalid URLs in Jobs, Search, Apply and Launch", asy
   expect(screen.getByLabelText("Work arrangement")).toHaveValue("")
   await go(router, "/apply?jobId=-2&applicationId=oops&pdfTab=bad")
   expect(await screen.findByRole("link", { name: "Open the Jobs shortlist" })).toBeInTheDocument()
-  await go(router, "/launch?skill=bad")
-  expect(await screen.findByLabelText("Skill")).toHaveValue("job-scout")
+  await go(router, "/launch?tab=console")
+  expect(await screen.findByRole("tab", { name: "Setup" })).toHaveAttribute("aria-selected", "true")
 })
 
 it("redirects legacy job search links to Discover opportunities and preserves criteria on return", async () => {

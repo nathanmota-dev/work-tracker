@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input"
 import { Field, controlClass } from "@/components/workspace-ui"
 import { TagField, roleSuggestions, locationSuggestions } from "@/components/tag-field"
 import {
-  skills,
   cancelAgent,
   clearAgent,
   type Providers,
@@ -118,10 +117,13 @@ export function SkillFields({ fields, skill, params, setParams, username, disabl
   )
 }
 
-export function WorkspaceActions({ agent, onError }: { agent: ReturnType<typeof useAgent>; onError: (message: string) => void }) {
+/** Cancel the active run, or clear the conversation; `skills` limits both to a screen's own skills. */
+export function WorkspaceActions({ agent, onError, skills }: { agent: ReturnType<typeof useAgent>; onError: (message: string) => void; skills?: readonly string[] }) {
+  const own = !skills || !!agent.current && skills.includes(agent.current.skill)
+  const messages = skills ? agent.messages.filter(message => message.skill && skills.includes(message.skill)) : agent.messages
   return (
     <div className="flex gap-2">
-      {agent.running || agent.status === "Waiting for sign-in" ? (
+      {own && (agent.running || agent.status === "Waiting for sign-in") ? (
         <Button
           size="sm"
           variant="outline"
@@ -136,41 +138,13 @@ export function WorkspaceActions({ agent, onError }: { agent: ReturnType<typeof 
         <Button
           size="sm"
           variant="ghost"
-          disabled={!agent.messages.length}
-          onClick={clearAgent}
+          disabled={!messages.length || own && agent.running}
+          onClick={() => clearAgent(skills)}
         >
           Clear
         </Button>
       )}
     </div>
-  )
-}
-
-// Resume tailoring, interview prep and follow-ups run from their own pages, which collect the application first.
-export const launchSkills = skills.filter(s => s.id !== "resume-tailor" && s.id !== "interview-prep" && s.id !== "followup")
-
-export function SkillPicker({ skill, disabled, onSkill }: {
-  skill: string
-  disabled: boolean
-  onSkill: (skill: string) => void
-}) {
-  return (
-    <>
-      <Field label="Skill">
-        <SelectControl
-          className={controlClass}
-          value={skill}
-          disabled={disabled}
-          onChange={(e) => onSkill(e.target.value)}
-        >
-          {launchSkills.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </SelectControl>
-      </Field>
-    </>
   )
 }
 

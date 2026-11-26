@@ -21,11 +21,11 @@ beforeEach(() => {
   })
 })
 it("retains hidden placeholders when editing and reports actual save outcomes", async () => {
-  render(<IntegrationSettingsPanel />)
+  render(<IntegrationSettingsPanel scope="acp" />)
   const command = await screen.findByLabelText("Executable command")
   expect(screen.getByLabelText("Environment (JSON object)")).toHaveValue(JSON.stringify(settings.entries[0].env, null, 2))
   fireEvent.change(command, { target: { value: "new-agent" } })
-  expect(screen.getByRole("button", { name: "Test saved integration" })).toBeDisabled()
+  expect(screen.getByRole("button", { name: "Test agent" })).toBeDisabled()
   fireEvent.click(screen.getByRole("button", { name: "Save integration" }))
   expect(await screen.findByRole("status")).toHaveTextContent("Integration saved")
   expect(desktop.request).toHaveBeenCalledWith("integrations", { ...settings.entries[0], command: "new-agent", revision: "one" })
@@ -39,7 +39,7 @@ it("retains hidden placeholders when editing and reports actual save outcomes", 
   expect(command).toHaveValue("edited-again")
 })
 it("rejects invalid JSON before saving and reloads settings", async () => {
-  render(<IntegrationSettingsPanel />)
+  render(<IntegrationSettingsPanel scope="acp" />)
   await screen.findByLabelText("Executable command")
   fireEvent.change(screen.getByLabelText("Arguments (JSON array)"), { target: { value: "invalid" } })
   fireEvent.click(screen.getByRole("button", { name: "Save integration" }))
@@ -48,10 +48,17 @@ it("rejects invalid JSON before saving and reloads settings", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Reload settings" }))
   await waitFor(() => expect(screen.getByLabelText("Arguments (JSON array)")).toHaveValue(JSON.stringify(settings.entries[0].args, null, 2)))
 })
-it("runs diagnostics, displays pending authentication and rechecks tools", async () => {
-  render(<IntegrationSettingsPanel />)
-  fireEvent.click(await screen.findByRole("button", { name: "Test saved integration" }))
+it("tests an agent and displays pending authentication", async () => {
+  render(<IntegrationSettingsPanel scope="acp" />)
+  fireEvent.click(await screen.findByRole("button", { name: "Test agent" }))
   expect(await screen.findByLabelText("Diagnostic results")).toHaveTextContent("authentication_required")
+  expect(screen.getByText(/Complete provider sign-in/)).toBeInTheDocument()
+  expect(screen.queryByText("LaTeX and PDF tools")).not.toBeInTheDocument()
+})
+it("lists only MCP servers in Settings and rechecks installed tools there", async () => {
+  window.location.hash = "#/settings?section=integrations&target=acp%2Fopencode"
+  render(<IntegrationSettingsPanel scope="mcp" />)
+  expect(await screen.findByRole("combobox")).toHaveTextContent("Chrome MCP")
   expect(screen.getByText(/Chrome browser access and the LinkedIn MCP session are independent/)).toBeInTheDocument()
   fireEvent.click(screen.getByRole("button", { name: "Recheck installed tools" }))
   expect(await screen.findByText(/latexmk: missing/)).toBeInTheDocument()
@@ -63,7 +70,7 @@ it("opens the integration linked by an Apply blocker and hides a failed test's p
   window.location.hash = "#/settings?section=integrations&target=mcp%2Flinkedin"
   const original = desktop.request.getMockImplementation()!
   desktop.request.mockImplementation((path, body) => { if (path === "integrations/test") throw new Error("private-output"); return original(path, body) })
-  render(<IntegrationSettingsPanel />)
+  render(<IntegrationSettingsPanel scope="mcp" />)
   expect(await screen.findByLabelText("Executable command")).toHaveValue("fixture-linkedin")
   expect(screen.queryByLabelText("Model to test (empty uses provider default)")).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole("button", { name: "Test saved integration" }))
@@ -73,7 +80,7 @@ it("opens the integration linked by an Apply blocker and hides a failed test's p
 it("shows safe validation details from the backend without exposing arbitrary errors", async () => {
   const original = desktop.request.getMockImplementation()!
   desktop.request.mockImplementation((path, body) => { if (path === "integrations" && body) throw new Error("Arguments must be a JSON array of strings without null characters."); return original(path, body) })
-  render(<IntegrationSettingsPanel />)
+  render(<IntegrationSettingsPanel scope="acp" />)
   await screen.findByLabelText("Executable command")
   fireEvent.change(screen.getByLabelText("Arguments (JSON array)"), { target: { value: "[1]" } })
   fireEvent.click(screen.getByRole("button", { name: "Save integration" }))
@@ -82,7 +89,7 @@ it("shows safe validation details from the backend without exposing arbitrary er
 it("shows how the app installed the selected MCP and retries a failed installation", async () => {
   window.location.hash = "#/settings?section=integrations&target=mcp/linkedin"
   status = { ...status, entries: [{ target: "mcp/linkedin", executable: false }], install: [{ name: "linkedin", state: "failed", message: "LinkedIn MCP could not be downloaded. Check your internet connection, then try again." }, { name: "chrome", state: "ready", message: "Chrome MCP is installed." }] }
-  render(<IntegrationSettingsPanel />)
+  render(<IntegrationSettingsPanel scope="mcp" />)
   expect(await screen.findByRole("alert")).toHaveTextContent("Installation: LinkedIn MCP could not be downloaded.")
   fireEvent.click(screen.getByRole("button", { name: "Try again" }))
   await waitFor(() => expect(desktop.request).toHaveBeenCalledWith("integrations/install", {}))
@@ -90,4 +97,16 @@ it("shows how the app installed the selected MCP and retries a failed installati
   await act(async () => publish({ type: "changed", table: "integrations" }))
   expect(await screen.findByText("Installation: Installing LinkedIn MCP…")).toBeInTheDocument()
   expect(screen.queryByRole("button", { name: "Try again" })).toBeNull()
+})
+it("opens the preferred agent in Agent setup unless a link names another one", async () => {
+  window.location.hash = "#/launch?tab=setup"
+  localStorage.setItem("work-tracker-provider", "claude-code")
+  const view = render(<IntegrationSettingsPanel scope="acp" />)
+  expect(await screen.findByRole("combobox")).toHaveTextContent("Claude Code ACP")
+  expect(screen.queryByLabelText("Executable command")).not.toBeInTheDocument()
+  view.unmount()
+  window.location.hash = "#/launch?tab=setup&target=acp%2Fopencode"
+  render(<IntegrationSettingsPanel scope="acp" />)
+  expect(await screen.findByLabelText("Executable command")).toHaveValue("fixture-agent")
+  localStorage.clear()
 })

@@ -15,12 +15,19 @@ function InstallStatus({ install, retry }: { install?: McpInstall; retry: () => 
     {install.state === "failed" && <Button type="button" size="sm" variant="outline" onClick={retry}>Try again</Button>}
   </p>
 }
-export function IntegrationSettingsPanel() {
+/** The targets a scope shows; a link's target wins, then the preferred agent, then the first one. */
+function initialTarget(scope: "acp" | "mcp", options: Target[]): Target {
+  const linked = new URLSearchParams(window.location.hash.split("?")[1]).get("target") as Target
+  const preferred = scope === "acp" ? `acp/${localStorage.getItem("work-tracker-provider") || "opencode"}` as Target : undefined
+  return [linked, preferred].find(target => target && options.includes(target)) ?? options[0]
+}
+
+/** ACP agents (Agent › Setup) or MCP servers (Settings › Integrations): command, environment and a connection test. */
+export function IntegrationSettingsPanel({ scope }: { scope: "acp" | "mcp" }) {
   const api = useApi<IntegrationSettings>("integrations")
   const status = useIntegrations()
-  const params = new URLSearchParams(window.location.hash.split("?")[1])
-  const initial = params.get("target") as Target
-  const [target, setTarget] = useState<Target>(initial in integrationLabels ? initial : "acp/opencode")
+  const options = (Object.keys(integrationLabels) as Target[]).filter(target => target.startsWith(`${scope}/`))
+  const [target, setTarget] = useState<Target>(() => initialTarget(scope, options))
   const [draft, setDraft] = useState<IntegrationEntry>()
   const [args, setArgs] = useState("")
   const [env, setEnv] = useState("")
@@ -49,11 +56,13 @@ export function IntegrationSettingsPanel() {
     }
     finally { setSaving(false) }
   }
-  return <Panel title="Integrations">
-    <p className="mb-4 text-sm text-muted-foreground">Work Tracker installs the LinkedIn and Chrome MCP servers it needs; configure a command here only to use your own. Stored arguments and environment values are hidden; keep their placeholders to preserve them or enter replacements. ACP agents are not installed automatically.</p>
+  return <Panel title={scope === "acp" ? "Agent connection" : "Integrations"}>
+    <p className="mb-4 text-sm text-muted-foreground">{scope === "acp"
+      ? "Work Tracker runs opencode or Claude Code through ACP. Install the agent yourself, adjust its command only if needed, and test it before running skills. Stored arguments and environment values are hidden; keep their placeholders to preserve them or enter replacements."
+      : "Work Tracker installs the LinkedIn and Chrome MCP servers it needs; configure a command here only to use your own. Stored arguments and environment values are hidden; keep their placeholders to preserve them or enter replacements."}</p>
     <LoadState {...api} retry={api.refresh} />
     {api.data && <form className="space-y-4" onSubmit={event => { event.preventDefault(); void save() }}>
-      <Field label="Integration"><SelectControl className={controlClass} value={target} disabled={saving || status.testing || dirty} onChange={event => { setTarget(event.target.value as Target); setNotice(""); setError(""); setModel("") }}>{Object.entries(integrationLabels).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</SelectControl></Field>
+      <Field label={scope === "acp" ? "Agent" : "Integration"}><SelectControl className={controlClass} value={target} disabled={saving || status.testing || dirty} onChange={event => { setTarget(event.target.value as Target); setNotice(""); setError(""); setModel("") }}>{options.map(id => <option key={id} value={id}>{integrationLabels[id]}</option>)}</SelectControl></Field>
       {draft && <>
         <Field label="Executable command"><Input required value={draft.command} disabled={saving || status.testing} onChange={event => { setDraft({ ...draft, command: event.target.value }); setDirty(true); setNotice("") }} /></Field>
         <Field label="Arguments (JSON array)"><Textarea className="min-h-40 font-mono text-xs" value={args} disabled={saving || status.testing} onChange={event => { setArgs(event.target.value); setDirty(true); setNotice("") }} /></Field>
@@ -61,14 +70,14 @@ export function IntegrationSettingsPanel() {
         <div className="flex gap-2"><Button disabled={!dirty || saving || status.testing}>Save integration</Button><Button type="button" variant="outline" disabled={saving || status.testing} onClick={() => { setDirty(false); api.refresh(); setNotice(""); setError("") }}>Reload settings</Button></div>
       </>}
       {target.startsWith("acp/") && <Field label="Model to test (empty uses provider default)"><Input value={model} onChange={event => setModel(event.target.value)} /></Field>}
-      <Button type="button" variant="outline" disabled={dirty || saving || status.testing} onClick={() => { setNotice(""); void status.test([target], model) }}>{status.testing ? "Testing integration…" : "Test saved integration"}</Button>
+      <Button type="button" variant="outline" disabled={dirty || saving || status.testing} onClick={() => { setNotice(""); void status.test([target], model) }}>{status.testing ? scope === "acp" ? "Testing agent…" : "Testing integration…" : scope === "acp" ? "Test agent" : "Test saved integration"}</Button>
       <p className="text-sm">Executable: {diagnostic ? diagnostic.executable ? "available" : "missing" : "checking"}</p>
       {target.startsWith("mcp/") && <InstallStatus install={status.data?.install?.find(item => `mcp/${item.name}` === target)} retry={() => void request("integrations/install", {}).then(status.refresh, e => setError((e as Error).message))} />}
       {diagnostic?.diagnostic ? <div aria-label="Diagnostic results" className="space-y-2 text-sm"><p>Checked {new Date(diagnostic.diagnostic.checkedAt).toLocaleString()}{target.startsWith("acp/") ? ` · Model: ${diagnostic.diagnostic.model || "provider default"}` : ""}</p>{diagnostic.diagnostic.checks.map((check, i) => <p key={i}>{check.stage}: {check.state} — {check.message}</p>)}</div> : <p className="text-sm">Connection and authentication have not been tested for this configuration.</p>}
-      <p className="text-sm text-muted-foreground">Chrome browser access and the LinkedIn MCP session are independent. Complete provider sign-in using the provider’s login command; LinkedIn may open its own sign-in window during the test.</p>
+      <p className="text-sm text-muted-foreground">{scope === "acp" ? "Complete provider sign-in using the provider’s login command, then test again." : "Chrome browser access and the LinkedIn MCP session are independent. LinkedIn may open its own sign-in window during the test."}</p>
       {notice && <p role="status">{notice}</p>}
       {(error || status.error || status.testError) && <p role="alert">{error || status.error || status.testError}</p>}
     </form>}
-    <div className="mt-4 text-sm"><p>LaTeX and PDF tools</p>{status.data?.dependencies.map(tool => <p key={tool.command}>{tool.command}: {tool.available ? "available" : "missing — install it and add it to PATH"}</p>)}<Button className="mt-2" size="sm" variant="outline" onClick={status.refresh}>Recheck installed tools</Button></div>
+    {scope === "mcp" && <div className="mt-4 text-sm"><p>LaTeX and PDF tools</p>{status.data?.dependencies.map(tool => <p key={tool.command}>{tool.command}: {tool.available ? "available" : "missing — install it and add it to PATH"}</p>)}<Button className="mt-2" size="sm" variant="outline" onClick={status.refresh}>Recheck installed tools</Button></div>}
   </Panel>
 }

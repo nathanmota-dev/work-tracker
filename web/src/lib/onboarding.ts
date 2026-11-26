@@ -20,7 +20,7 @@ export function stepHref(step: OnboardingStep): string {
     case "connect": return correctionLink(target as Target | undefined)
     case "resume": return "#/resume?id=base"
     case "answers": return `#/profile?tab=answers${target ? `&field=${encodeURIComponent(target)}` : ""}`
-    case "search": return "#/jobs?focus=true"
+    case "search": return "#/jobs?focus=true&mode=search"
     case "apply": return "#/jobs?view=shortlist"
   }
 }

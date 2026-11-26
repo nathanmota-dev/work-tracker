@@ -1,7 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { beforeEach, expect, it, vi } from "vitest"
 import { ApplyPage } from "@/routes/apply"
-import { LaunchPage } from "@/routes/launch"
 import { publish } from "@/lib/api"
 const search = vi.hoisted(() => ({ jobId: 7 as number | undefined, applicationId: 3 as number | undefined, runId: undefined as string | undefined }))
 vi.mock("@tanstack/react-router", () => ({ useSearch: () => search }))
@@ -71,14 +70,6 @@ it("updates the persisted activity after a backend event and reports execution f
   expect(await screen.findByText("Selecting React projects")).toBeInTheDocument()
   expect(screen.getByText("Compilation failed")).toBeInTheDocument()
 })
-it("Launch omits tailoring and retains portal filling", async () => {
-  render(<LaunchPage />)
-  const selector = await screen.findByLabelText("Skill")
-  fireEvent.keyDown(selector, { key: "Enter" })
-  expect(await screen.findByRole("option", { name: "Prepare an application" })).toBeInTheDocument()
-  expect(screen.queryByRole("option", { name: "Tailor your resume" })).not.toBeInTheDocument()
-})
-
 it("keeps cancellation available while waiting for browser sign-in", async () => {
   details.runs[0].status = "waiting_for_sign_in"
   details.runs[0].phase = "filling"
@@ -171,7 +162,7 @@ it("updates Apply after a diagnostic retry and opens the matching correction", a
   })
   render(<ApplyPage />)
   const correction = await screen.findAllByRole("link", { name: "Correct opencode ACP" })
-  expect(correction[0]).toHaveAttribute("href", "#/settings?section=integrations&target=acp%2Fopencode")
+  expect(correction[0]).toHaveAttribute("href", "#/launch?tab=setup&target=acp%2Fopencode")
   expect(screen.getByRole("button", { name: "Regenerate" })).toBeDisabled()
   fireEvent.click(screen.getByRole("button", { name: "Test availability again" }))
   await waitFor(() => expect(screen.getByRole("button", { name: "Regenerate" })).toBeEnabled())

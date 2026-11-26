@@ -20,7 +20,8 @@ vi.mock("./recruiters", async () => ({
 }))
 vi.mock("./outreach", async () => ({ OutreachPage: await page("Outreach", "Follow-ups content") }))
 vi.mock("./search", async () => ({ SearchPage: await page("Find people", "People search") }))
-vi.mock("./launch", async () => ({ LaunchPage: await page("Agent console", "Console content") }))
+vi.mock("@/components/agent-preferences", async () => ({ useAgentPreferences: () => ({}), AgentPreferences: await page("Agent preferences", "Preferences content") }))
+vi.mock("@/components/integration-settings", async () => ({ IntegrationSettingsPanel: await page("Agent connection", "Connection content") }))
 vi.mock("./activity", async () => ({ ActivityPage: await page("Activity", "History content") }))
 vi.mock("@/components/deal-breakers", () => ({ DealBreakers: () => <div>Deal-breakers configuration</div> }))
 vi.mock("@/components/agent-indicator", () => ({ AgentIndicator: () => null }))
@@ -29,7 +30,7 @@ describe("hub search parameters", () => {
   it("preserves people search criteria and answer return context", () => {
     expect(validateWorkspaceSearch("contacts", { tab: "people", keywords: "Engineer", company: "Acme" })).toMatchObject({ tab: "people", keywords: "Engineer", company: "Acme" })
     expect(validateWorkspaceSearch("profile", { tab: "answers", field: "email", returnTo: "/apply?jobId=1" })).toEqual({ tab: "answers", field: "email", returnTo: "/apply?jobId=1" })
-    expect(validateWorkspaceSearch("launch", { tab: "history", query: "draft" })).toMatchObject({ tab: "history", query: "draft" })
+    expect(validateWorkspaceSearch("launch", { tab: "history", target: "acp/opencode" })).toEqual({ tab: "history", target: "acp/opencode" })
     expect(validateWorkspaceSearch("profile", { tab: "deal-breakers" })).toMatchObject({ tab: "deal-breakers" })
   })
 })
@@ -38,7 +39,7 @@ describe("hub layout", () => {
   it.each([
     [ContactsHub, "Contacts", "People", ["Recruiters"]],
     [ProfileHub, "Profile", "Profile", []],
-    [AgentHub, "Agent", "Console", ["Agent console"]],
+    [AgentHub, "Agent", "Setup", ["Agent preferences", "Agent connection"]],
   ] as const)("renders one page with its sections stacked inside it", (Hub, title, tab, sections) => {
     render(<Hub />)
     const headings = screen.getAllByRole("heading", { level: 1 })
@@ -59,12 +60,11 @@ describe("hub layout", () => {
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Follow-ups" }))
     expect(screen.getByText("Follow-ups content")).toBeInTheDocument()
     expect(screen.queryByText("People content")).not.toBeInTheDocument()
+    // Follow-ups starts its review from its own form, so the header has no action.
     expect(screen.queryByRole("button", { name: "Find recruiters" })).not.toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Review follow-ups" })).toBeInTheDocument()
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1)
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Find people" }))
     expect(screen.getByText("People search")).toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: "Review follow-ups" })).not.toBeInTheDocument()
   })
 
   it("opens on the profile and keeps questions, LinkedIn and deal-breakers as tabs", () => {

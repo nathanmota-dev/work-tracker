@@ -18,6 +18,7 @@ import {
   type SearchValues,
 } from "@/components/search-results"
 import { useSearchWorkspace } from "@/lib/use-search-workspace"
+import { DiscoverLayout } from "@/components/discover-layout"
 import { text } from "@/lib/api"
 
 export { searchRows } from "@/components/search-results"
@@ -93,11 +94,17 @@ export function SearchFilters({
 }
 
 
+/** Searches LinkedIn people directly, without the agent: the filters on the left, the results on the right. */
 export function SearchPage() {
   const { kind, values, result, selected, setSelected, busy, error, search, update } = useSearchWorkspace()
+  const output = busy
+    ? <Panel title="Results"><p role="status" className="text-sm text-muted-foreground">Looking for a good match. LinkedIn searches can take a moment.</p></Panel>
+    : result === undefined
+      ? <Panel title="Results"><Empty title="Good opportunities start with curiosity" description="Search for a role, a skill or a person. Your results will appear here." /></Panel>
+      : <SearchResults result={result} onSelect={setSelected} />
   return (
-    <Page title="Find people">
-      <Panel title="People & recruiters">
+    <Page title="Find people" fill>
+      <DiscoverLayout title="Search LinkedIn for people" output={output} bare>
         <form
           className="space-y-4"
           onSubmit={(e) => {
@@ -105,13 +112,14 @@ export function SearchPage() {
             void search()
           }}
         >
+          <p className="text-sm text-muted-foreground">Find recruiters, hiring managers and other people on LinkedIn by role, location and company.</p>
           <SearchFilters
             kind={kind}
             values={values}
             busy={busy}
             set={(key, value) => update({ [key]: value })}
           />
-          <Button disabled={busy || !values.keywords.trim()}>
+          <Button className="w-full" disabled={busy || !values.keywords.trim()}>
             <SearchIcon className="size-4" />
             {busy ? "Searching LinkedIn…" : "Search LinkedIn"}
           </Button>
@@ -121,23 +129,7 @@ export function SearchPage() {
             {error}
           </p>
         )}
-      </Panel>
-      {busy && (
-        <p role="status" className="text-sm text-muted-foreground">
-          Looking for a good match. LinkedIn searches can take a moment.
-        </p>
-      )}
-      {result === undefined && !busy && (
-        <Panel title="Your next discovery">
-          <Empty
-            title="Good opportunities start with curiosity"
-            description="Search for a role, a skill or a person. Your results will appear here."
-          />
-        </Panel>
-      )}
-      {result !== undefined && !busy && (
-        <SearchResults result={result} onSelect={setSelected} />
-      )}
+      </DiscoverLayout>
       <Details
         row={selected}
         title={text(selected?.title ?? selected?.name ?? "Search result")}

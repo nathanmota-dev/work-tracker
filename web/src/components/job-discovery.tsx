@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Panel } from "@/components/workspace-ui"
+import { Empty } from "@/components/workspace-ui"
+import { Search } from "lucide-react"
+import { DiscoverLayout } from "@/components/discover-layout"
+import { useSkillInputs } from "@/lib/skill-inputs"
 import { SetupNotice } from "@/components/get-started"
 import { SearchFilters } from "@/routes/search"
 import { useWorkspaceState } from "@/lib/workspace-state"
-import { prepareSkill, useAgent } from "@/lib/agent"
 import { request, text } from "@/lib/api"
 import { structuredSearchRows, type SearchSaveResult } from "../../../src/jobs/search-results"
-
-let shownCompletion: number | undefined
 
 /** "2 saved · 1 already saved · 0 failed" and each item's outcome, after a search saved its results. */
 export function SearchOutcomes({ outcomes, onDismiss }: { outcomes: SearchSaveResult[]; onDismiss?: () => void }) {
@@ -25,10 +25,12 @@ export function SearchOutcomes({ outcomes, onDismiss }: { outcomes: SearchSaveRe
   </div>
 }
 
-/** Search criteria; `onResults` runs once a search saved its results, with the new job IDs and every outcome. */
+/** Inputs of the direct LinkedIn search, kept apart from the agent's job search. */
+export const LINKEDIN_SEARCH = "linkedin-job-search"
+
+/** Searches LinkedIn jobs directly through the MCP, page by page, and saves the results; no agent runs. `onResults` gets the new job IDs and every outcome. */
 export function JobDiscovery({ onResults }: { onResults: (ids: number[], outcomes: SearchSaveResult[]) => void }) {
   const { search, update } = useWorkspaceState("jobs")
-  const agent = useAgent()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
   const [outcomes, setOutcomes] = useState<SearchSaveResult[]>([])
@@ -36,28 +38,25 @@ export function JobDiscovery({ onResults }: { onResults: (ids: number[], outcome
   const form = useRef<HTMLFormElement>(null)
   const mounted = useRef(true)
   useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
-  const onComplete = useRef(onResults)
-  onComplete.current = onResults
-  const values = { keywords: search.keywords ?? "", location: search.location ?? "", company: "", workType: search.workType ?? "", maxPages: search.maxPages ?? 1 }
+  const { inputs, setInputs } = useSkillInputs(LINKEDIN_SEARCH)
+  const values = { keywords: inputs.query ?? "", location: inputs.location ?? "", company: "", workType: inputs.workType ?? "", maxPages: Math.min(10, Math.max(1, Number(inputs.maxPages) || 1)) }
+  const setValue = (key: string, value: unknown) => {
+    const field = key === "keywords" ? "query" : key
+    if (["query", "location", "workType", "maxPages"].includes(field)) setInputs({ [field]: String(value ?? "") })
+  }
+  // Old Search links carried the criteria in the URL; keep them once, then the saved inputs take over.
+  useEffect(() => {
+    if (!search.keywords && !search.location) return
+    setInputs({ ...(search.keywords && { query: search.keywords }), ...(search.location && { location: search.location }),
+      ...(search.workType && { workType: search.workType }), ...(search.maxPages && search.maxPages > 1 && { maxPages: String(search.maxPages) }) })
+    update({ keywords: "", location: "", workType: "", maxPages: 1 })
+  }, [search.keywords, search.location, search.workType, search.maxPages, setInputs, update])
   useEffect(() => {
     if (search.focus) form.current?.querySelector("input")?.focus()
   }, [search.focus])
-  useEffect(() => {
-    const completion = agent.completion
-    if (!completion || completion.skill !== "job-scout" || completion.id === shownCompletion) return
-    shownCompletion = completion.id
-    const outcomes = agent.jobOutcomes
-    setOutcomes(outcomes)
-    onComplete.current(outcomes.filter(item => item.status === "saved" && !item.job?.archived_at).map(item => Number(item.job?.id)), outcomes)
-  }, [agent.completion, agent.jobOutcomes])
 
   async function discover() {
     setError(""); setOutcomes([]); setOutput("")
-    if (search.assess) {
-      prepareSkill("job-scout", { query: values.keywords.trim(), location: values.location,
-        extra: `Work arrangement: ${values.workType || "any"}. Pages to search: ${values.maxPages}. Save discovered jobs for triage and report saved, already saved, or failed for each item.` })
-      return
-    }
     setBusy(true)
     try {
       const result = await request("search/jobs", { ...values, keywords: values.keywords.trim() })
@@ -76,19 +75,19 @@ export function JobDiscovery({ onResults }: { onResults: (ids: number[], outcome
     } catch (e) { setError((e as Error).message) }
     finally { setBusy(false) }
   }
-  return <Panel title="Search criteria">
+  const results = <div role="log" aria-label="Search results" className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-2">
+    {busy && <p role="status" className="text-sm">Searching LinkedIn…</p>}
+    {error && <><p role="alert" className="text-sm text-destructive">{error}</p><SetupNotice step="connect">LinkedIn search needs a tested LinkedIn MCP.</SetupNotice></>}
+    {output && <p role="status" className="whitespace-pre-wrap text-sm">{output}</p>}
+    {!!outcomes.length && <SearchOutcomes outcomes={outcomes} />}
+    {!busy && !error && !output && !outcomes.length && <Empty title="No search yet" description="Results are saved to Jobs and summarized here."><Search className="size-5 text-chart-1" /></Empty>}
+  </div>
+  return <DiscoverLayout title="Search LinkedIn directly" outputTitle="Search results" output={results}>
     <form ref={form} className="space-y-4" onSubmit={event => { event.preventDefault(); void discover() }}>
-      <SearchFilters kind="jobs" values={values} busy={busy} set={(key, value) => update({ [key]: value })} />
-      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!search.assess} disabled={busy}
-        onChange={event => update({ assess: event.target.checked })} />Assess fit with agent</label>
-      <Button disabled={busy || !values.keywords.trim()}>{busy ? "Searching LinkedIn…" : search.assess ? "Search with agent" : "Search LinkedIn"}</Button>
+      <p className="text-sm text-muted-foreground">A quick search of LinkedIn's job results, limited to the pages you choose. Every result is saved to Jobs for triage, without the agent.</p>
+      <SearchFilters kind="jobs" values={values} busy={busy} set={setValue} />
+      <Button className="w-full" disabled={busy || !values.keywords.trim()}>{busy ? "Searching LinkedIn…" : "Search LinkedIn"}</Button>
     </form>
-    <div className="mt-3">
-      {error ? <SetupNotice step="connect">LinkedIn search needs a tested LinkedIn MCP.</SetupNotice>
-        : <SetupNotice step="connect" pendingOnly>LinkedIn search and agent assessment need your agent and the LinkedIn MCP. You can still add jobs by hand.</SetupNotice>}
-    </div>
-    {error && <p role="alert">{error}</p>}
-    {output && <p role="status" className="mt-3 whitespace-pre-wrap text-sm">{output}</p>}
-    {!!outcomes.length && <div className="mt-3"><SearchOutcomes outcomes={outcomes} /></div>}
-  </Panel>
+    <div className="mt-3"><SetupNotice step="connect" pendingOnly>LinkedIn search needs the LinkedIn MCP. You can still add jobs by hand.</SetupNotice></div>
+  </DiscoverLayout>
 }
