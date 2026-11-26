@@ -17,7 +17,8 @@ export function DiscoverLayout({ title, output, outputTitle = "Agent workspace",
 }) {
   return <div className="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-2">
     <div className="flex min-h-0 flex-col"><Panel title={title} fill><div className="min-h-0 flex-1 overflow-y-auto">{children}</div></Panel></div>
-    {bare ? <div className="min-h-0 space-y-4 lg:overflow-y-auto">{output}</div>
+    {/* Bare output cards stretch to the column's height like the left panel, and grow (scrolling) when longer. */}
+    {bare ? <div className="flex h-[70dvh] min-h-0 flex-col gap-4 overflow-y-auto lg:h-auto [&>*]:flex-1">{output}</div>
       : <div className="flex h-[70dvh] min-h-0 flex-col lg:h-auto"><Panel title={outputTitle} fill>{output}</Panel></div>}
   </div>
 }
