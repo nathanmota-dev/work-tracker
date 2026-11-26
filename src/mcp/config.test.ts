@@ -111,3 +111,12 @@ test("without a Chrome on the computer, MCP launches the downloaded build unless
   vi.mocked(loadConfig).mockReturnValue({});
   expect(mcpServers()[1]!.args).toEqual(["--browser-url", "http://127.0.0.1:9222"]);
 });
+test.each([
+  [["--offline", "chrome-devtools-mcp@1.10.1", "--executablePath", "/usr/bin/google-chrome", "--headless"], ["--offline", "chrome-devtools-mcp@1.10.1", "--headless"]],
+  [["--executablePath=/usr/bin/google-chrome", "--channel", "beta"], []],
+  [["-e", "/usr/bin/google-chrome", "--channel=dev", "--viewport", "1280x720"], ["--viewport", "1280x720"]],
+])("attaching to the opened browser drops launch-only options that conflict with --browser-url: %j", (args, kept) => {
+  vi.mocked(chromeBrowserUrl).mockReturnValue("http://127.0.0.1:4567");
+  vi.mocked(loadConfig).mockReturnValue({ mcp: { chrome: { command: "npx", args } } });
+  expect(mcpServers()[1]!.args).toEqual([...kept, "--browser-url", "http://127.0.0.1:4567"]);
+});
