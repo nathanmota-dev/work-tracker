@@ -30,7 +30,7 @@ function StepRow({ step, number, open, focused, busy, onToggle, onSkip }: {
       {step.state === "pending" && <ul aria-label={`${copy.title} requirements`} className="space-y-1 text-xs">
         {step.items.map(item => <li key={item.key} className={item.ready ? "text-muted-foreground" : ""}>{item.ready ? "✓" : "•"} {itemText(item)}</li>)}
       </ul>}
-      {step.state === "skipped" && <p className="text-xs text-muted-foreground">Skipped. Agent features stay unavailable until you resume this step.</p>}
+      {step.state === "skipped" && <p className="text-xs text-muted-foreground">Skipped. Tailored resumes stay unavailable until you resume this step.</p>}
       <div className="flex flex-wrap gap-2">
         {step.state === "pending" && <Button size="sm" asChild><a href={stepHref(step)}>{copy.action}</a></Button>}
         {step.optional && step.state === "pending" && <Button size="sm" variant="outline" disabled={busy} onClick={() => onSkip(true)}>Skip for now</Button>}
@@ -62,12 +62,11 @@ function useChecklistActions(status: OnboardingStatus | undefined) {
   }
   const skipped = status?.steps.filter(step => step.state === "skipped").map(step => step.id) ?? []
   const skip = (id: StepId, value: boolean) => save({ skipped: value ? [...skipped, id] : skipped.filter(step => step !== id) })
-  const manual = () => save({ skipped: status?.steps.filter(step => step.optional && step.state !== "done").map(step => step.id) ?? [] })
-  return { busy, error, save, skip, manual }
+  return { busy, error, save, skip }
 }
 
 /**
- * Dashboard checklist from a new workspace to its first application. Every
+ * Dashboard checklist from a connected agent to the first application. Every
  * state comes from the workspace; `focus` opens it at one step, even while hidden.
  */
 export function GetStarted({ focus }: { focus?: string }) {
@@ -91,7 +90,6 @@ export function GetStarted({ focus }: { focus?: string }) {
     <p role="status" className="text-sm">You’re all set. Your workspace is ready for the next application. You can reopen this checklist in Settings.</p>
   </Panel>
   if (!status || status.hidden && !focus) return null
-  const manual = status.steps.some(step => step.optional && step.state === "pending")
   const next = status.steps.find(step => step.state === "pending")?.id
   const isOpen = (id: StepId) => expanded === undefined ? id === (focus ?? next) : expanded === id
   return <Panel title="Get started" action={<Button size="sm" variant="ghost" disabled={actions.busy} onClick={() => void actions.save({ hidden: true })}>Hide checklist</Button>}>
@@ -101,7 +99,6 @@ export function GetStarted({ focus }: { focus?: string }) {
         {status.steps.map((step, index) => <StepRow key={step.id} step={step} number={index + 1} open={isOpen(step.id)} focused={focus === step.id} busy={actions.busy}
           onToggle={() => setExpanded(isOpen(step.id) ? null : step.id)} onSkip={value => void actions.skip(step.id, value)} />)}
       </ol>
-      {manual && <p className="text-xs text-muted-foreground">Only tracking jobs by hand? <Button size="sm" variant="link" className="h-auto p-0 text-xs" disabled={actions.busy} onClick={() => void actions.manual()}>Start without an agent</Button> and add jobs and applications manually.</p>}
       {actions.error && <p role="alert" className="text-sm text-destructive">{actions.error}</p>}
     </div>
   </Panel>
