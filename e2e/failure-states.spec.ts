@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures'
-import { agentPanel, assessRole, choose, panel } from './ui'
+import { agentPanel, prepareAgentTask, choose, panel } from './ui'
 import { writeFileSync, existsSync, readFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { join } from 'node:path'
@@ -46,7 +46,7 @@ test('Settings: a running preview can be cancelled without leaving a compiler pr
 
 test('Settings: active agent blocks browser sign-in and resume writes until cancellation', async ({ workspace, page }) => {
   workspace.setScenario({ agent: 'hold' })
-  const agent = await assessRole(workspace, 'React')
+  const agent = await prepareAgentTask(workspace)
   await agent.getByRole('button', { name: 'Run agent' }).click()
   await expect(agent.getByText('Synthetic agent is working.', { exact: true })).toBeVisible()
   await agent.getByRole('button', { name: 'Close', exact: true }).click()

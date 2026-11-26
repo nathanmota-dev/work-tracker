@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Panel } from "@/components/workspace-ui"
+import { Empty } from "@/components/workspace-ui"
+import { Search } from "lucide-react"
+import { DiscoverLayout } from "@/components/discover-layout"
 import { useSkillInputs } from "@/lib/skill-inputs"
 import { SetupNotice } from "@/components/get-started"
 import { SearchFilters } from "@/routes/search"
@@ -73,18 +75,19 @@ export function JobDiscovery({ onResults }: { onResults: (ids: number[], outcome
     } catch (e) { setError((e as Error).message) }
     finally { setBusy(false) }
   }
-  return <Panel title="Search LinkedIn directly">
+  const results = <div role="log" aria-label="Search results" className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-2">
+    {busy && <p role="status" className="text-sm">Searching LinkedIn…</p>}
+    {error && <><p role="alert" className="text-sm text-destructive">{error}</p><SetupNotice step="connect">LinkedIn search needs a tested LinkedIn MCP.</SetupNotice></>}
+    {output && <p role="status" className="whitespace-pre-wrap text-sm">{output}</p>}
+    {!!outcomes.length && <SearchOutcomes outcomes={outcomes} />}
+    {!busy && !error && !output && !outcomes.length && <Empty title="No search yet" description="Results are saved to Jobs and summarized here."><Search className="size-5 text-chart-1" /></Empty>}
+  </div>
+  return <DiscoverLayout title="Search LinkedIn directly" outputTitle="Search results" output={results}>
     <form ref={form} className="space-y-4" onSubmit={event => { event.preventDefault(); void discover() }}>
       <p className="text-sm text-muted-foreground">A quick search of LinkedIn's job results, limited to the pages you choose. Every result is saved to Jobs for triage, without the agent.</p>
       <SearchFilters kind="jobs" values={values} busy={busy} set={setValue} />
-      <Button disabled={busy || !values.keywords.trim()}>{busy ? "Searching LinkedIn…" : "Search LinkedIn"}</Button>
+      <Button className="w-full" disabled={busy || !values.keywords.trim()}>{busy ? "Searching LinkedIn…" : "Search LinkedIn"}</Button>
     </form>
-    <div className="mt-3">
-      {error ? <SetupNotice step="connect">LinkedIn search needs a tested LinkedIn MCP.</SetupNotice>
-        : <SetupNotice step="connect" pendingOnly>LinkedIn search needs the LinkedIn MCP. You can still add jobs by hand.</SetupNotice>}
-    </div>
-    {error && <p role="alert">{error}</p>}
-    {output && <p role="status" className="mt-3 whitespace-pre-wrap text-sm">{output}</p>}
-    {!!outcomes.length && <div className="mt-3"><SearchOutcomes outcomes={outcomes} /></div>}
-  </Panel>
+    <div className="mt-3"><SetupNotice step="connect" pendingOnly>LinkedIn search needs the LinkedIn MCP. You can still add jobs by hand.</SetupNotice></div>
+  </DiscoverLayout>
 }

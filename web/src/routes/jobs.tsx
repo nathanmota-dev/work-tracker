@@ -160,6 +160,7 @@ function DiscoverJobsPage({ onBack, onResults }: { onBack: () => void; onResults
           <ArrowLeft />
         </Button>
       }
+      fill
     >
       <Tabs value={mode} onValueChange={value => update({ mode: value })} className="border-b">
         <CountTabsList label="Discover views">

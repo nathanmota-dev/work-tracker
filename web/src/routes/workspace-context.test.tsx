@@ -134,9 +134,11 @@ it("Search assessment keeps results, pagination and selection while the panel op
   expect(screen.queryByRole("heading", { name: "Find jobs with your agent" })).not.toBeInTheDocument()
   expect(router.state.location.search).toMatchObject({ mode: "assess" })
   fireEvent.change(role, { target: { value: "other" } })
+  await waitFor(() => expect(screen.getByRole("button", { name: "Assess with agent" })).toBeEnabled())
   fireEvent.click(screen.getByRole("button", { name: "Assess with agent" }))
-  expect(await screen.findByRole("button", { name: "Remove other" })).toBeInTheDocument()
-  expect(screen.getByLabelText("Additional context", { selector: "[role=dialog] textarea" })).toHaveValue("")
+  // The assessment runs in place, beside the form, without the side panel.
+  await waitFor(() => expect(request).toHaveBeenCalledWith("acp/run", expect.objectContaining({ skill: "deep-scout", params: { query: "other" } })))
+  expect(screen.getByRole("heading", { name: "Agent workspace" })).toBeInTheDocument()
 })
 
 it("uses route defaults for invalid URLs in Jobs, Search, Apply and Agent", async () => {

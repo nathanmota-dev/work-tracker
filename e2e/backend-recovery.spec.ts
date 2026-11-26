@@ -1,5 +1,5 @@
 import { test, expect, type Workspace } from './fixtures'
-import { agentPanel, assessRole } from './ui'
+import { agentPanel, prepareAgentTask } from './ui'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -10,7 +10,7 @@ const alive = (pid: number) => { try { process.kill(pid, 0); return true } catch
 
 test('Backend: an unexpected exit is shown and recovered without closing the window', async ({ workspace, page }) => {
   workspace.setScenario({ agent: 'hold' })
-  const agent = await assessRole(workspace, 'React')
+  const agent = await prepareAgentTask(workspace)
   await agent.getByRole('button', { name: 'Run agent' }).click()
   await expect(agent.getByText('Synthetic agent is working.', { exact: true })).toBeVisible()
   // The panel would cover the backend alert; the run continues while it is closed.

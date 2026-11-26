@@ -1,11 +1,11 @@
 import { test, expect } from './fixtures'
-import { agentPanel, assessRole, choose } from './ui'
+import { agentPanel, prepareAgentTask, choose } from './ui'
 
 test('Permissions: keyboard choice, session memory, persistent allowlist, revocation and navigation', async ({ workspace, page }) => {
   workspace.setScenario({ agent: 'permission' })
   const agent = page.getByRole('dialog', { name: 'Agent task' })
   const start = async () => {
-    await assessRole(workspace, 'Synthetic')
+    await prepareAgentTask(workspace)
     await agent.getByRole('button', { name: 'Run agent' }).click()
   }
   await start()

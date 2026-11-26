@@ -1,8 +1,8 @@
 import type { Page } from '@playwright/test'
-import { choose, panel } from './ui'
+import { choose, panel, prepareAgentTask } from './ui'
 import { test, expect, type Workspace } from './fixtures'
 
-test('Jobs: finding jobs with the agent runs in the contextual panel with all criteria', async ({ workspace, page }) => {
+test('Jobs: finding jobs runs the agent in place, beside its criteria', async ({ workspace, page }) => {
   await workspace.go('Jobs')
   await page.getByRole('button', { name: 'Discover opportunities', exact: true }).click()
   // Finding jobs with the agent is the first view.
@@ -10,16 +10,21 @@ test('Jobs: finding jobs with the agent runs in the contextual panel with all cr
   await page.getByLabel('Roles').fill('React')
   await page.getByLabel('Location', { exact: true }).fill('Brazil')
   await page.getByLabel('Additional context').fill('Junior roles only')
+  workspace.setScenario({ agent: 'hold' })
   await page.getByRole('button', { name: 'Find jobs with agent' }).click()
-  const agent = page.getByRole('dialog', { name: 'Agent task' })
-  await expect(agent).toBeVisible()
+  // The run starts at once and its conversation shows beside the criteria, without the side panel.
+  await expect(page.getByRole('dialog', { name: 'Agent task' })).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Discover opportunities', exact: true, level: 1 })).toBeVisible()
-  await expect(agent.getByRole('button', { name: 'Remove React' })).toBeVisible()
-  await agent.getByRole('button', { name: 'Run agent' }).click()
-  await expect(agent.getByRole('log')).toContainText('Synthetic workflow completed.')
+  await expect(panel(page, 'Agent workspace').getByRole('log')).toContainText('Synthetic agent is working.')
+  await expect(page.getByRole('button', { name: 'Agent is running…' })).toBeDisabled()
+  expect(workspace.calls('prompt')[0]?.text).toContain('React')
   expect(workspace.calls('prompt')[0]?.text).toContain('Junior roles only')
   expect(workspace.calls('prompt')[0]?.text).toContain('Save discovered jobs for triage')
-  await agent.getByRole('button', { name: 'Close', exact: true }).click()
+  await panel(page, 'Agent workspace').getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Find jobs with agent' })).toBeEnabled()
+  workspace.setScenario({})
+  await page.getByRole('button', { name: 'Find jobs with agent' }).click()
+  // Saving the results returns to the new cards.
   await expect(page.getByRole('tab', { name: 'New (1)' })).toHaveAttribute('data-state', 'active')
   await expect(page.getByText('1 saved · 0 already saved · 0 failed')).toBeVisible()
   expect(workspace.query('SELECT shortlisted_at FROM jobs')).toEqual([{ shortlisted_at: null }])
@@ -34,6 +39,18 @@ test('Jobs: finding jobs with the agent runs in the contextual panel with all cr
   // The direct LinkedIn search keeps its own, separate criteria.
   await workspace.page.getByRole('tab', { name: 'Search LinkedIn', exact: true }).click()
   await expect(workspace.page.getByRole('button', { name: 'Remove React' })).toHaveCount(0)
+})
+
+test('Jobs: assessing a role runs the agent in place and saves it with a fit rating', async ({ workspace, page }) => {
+  await workspace.visit('/jobs?discover=true&mode=assess', 'Discover opportunities')
+  await expect(page.getByRole('button', { name: 'Assess with agent' })).toBeDisabled()
+  await page.getByLabel('Job link or title').fill('https://example.com/jobs/9001')
+  await page.getByRole('button', { name: 'Assess with agent' }).click()
+  await expect(page.getByRole('dialog', { name: 'Agent task' })).toHaveCount(0)
+  await expect(panel(page, 'Agent workspace').getByRole('log')).toContainText('Synthetic workflow completed.')
+  expect(workspace.calls('prompt')[0]?.text).toContain('https://example.com/jobs/9001')
+  await workspace.go('Jobs')
+  await expect(page.getByText('React Engineer', { exact: true }).first()).toBeVisible()
 })
 
 test('Search: people/company filters, empty results, errors and retry', async ({ workspace, page }) => {
@@ -56,28 +73,16 @@ test('Search: people/company filters, empty results, errors and retry', async ({
   expect(await workspace.external()).toContain('https://www.linkedin.com/in/alex-recruiter/')
 })
 
+// Finding jobs and assessing a role run in place on Jobs › Discover; their own tests cover them.
 const skills = [
-  ['job-scout', '', 'React', 'Jobs', 'React Engineer'],
-  ['deep-scout', '', 'https://example.com/jobs/9001', 'Jobs', 'React Engineer'],
   ['profile-optimizer', 'LinkedIn username', 'synthetic-candidate', 'Profile', '88 / 100'],
   ['recruiter-outreach', 'Target company', 'Example Company', 'Recruiters', 'Alex Recruiter'],
   ['outreach-tracker', '', '', 'Activity', 'Synthetic workflow completed'],
   ['experience-bank', '', '', 'Activity', 'Synthetic workflow completed'],
 ] as const
 
-/** Opens a skill's agent panel from the screen the skill belongs to; Jobs takes its search or role there. */
-async function openSkill(workspace: Workspace, page: Page, skill: (typeof skills)[number][0], input: string) {
-  if (skill === 'job-scout' || skill === 'deep-scout') {
-    await workspace.visit(`/jobs?discover=true${skill === 'deep-scout' ? '&mode=assess' : ''}`, 'Discover opportunities')
-    if (skill === 'deep-scout') {
-      await page.getByLabel('Job link or title').fill(input)
-      await page.getByRole('button', { name: 'Assess with agent' }).click()
-      return
-    }
-    await page.getByLabel('Roles').fill(input)
-    await page.getByRole('button', { name: 'Find jobs with agent' }).click()
-    return
-  }
+/** Opens a skill's agent panel from the screen the skill belongs to. */
+async function openSkill(workspace: Workspace, page: Page, skill: (typeof skills)[number][0]) {
   const [hash, title, button] = {
     'profile-optimizer': ['/profile?tab=linkedin', 'Profile', 'Audit profile'],
     'recruiter-outreach': ['/contacts?tab=people', 'Contacts', 'Find recruiters'],
@@ -90,7 +95,7 @@ async function openSkill(workspace: Workspace, page: Page, skill: (typeof skills
 
 for (const [skill, field, input, destination, result] of skills) {
   test(`Agent panel: ${skill} starts from its screen, runs through ACP and persists its result`, async ({ workspace, page }) => {
-    await openSkill(workspace, page, skill, input)
+    await openSkill(workspace, page, skill)
     const agent = page.getByRole('dialog', { name: 'Agent task' })
     await agent.getByText('Advanced', { exact: true }).click()
     await choose(page, 'Agent', 'Claude Code')
@@ -122,8 +127,7 @@ for (const [skill, field, input, destination, result] of skills) {
 }
 
 test('Agent panel: errors, cancellation and retained sign-in retry', async ({ workspace, page }) => {
-  await openSkill(workspace, page, 'deep-scout', 'https://example.com/jobs/synthetic')
-  const agent = page.getByRole('dialog', { name: 'Agent task' })
+  const agent = await prepareAgentTask(workspace)
   workspace.setScenario({ agent: 'error' })
   await agent.getByRole('button', { name: 'Run agent' }).click()
   await expect(agent.getByText('Synthetic agent failure', { exact: true })).toBeVisible()
