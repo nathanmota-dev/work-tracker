@@ -74,6 +74,8 @@ export interface PreparationDetails {
     submission_status: string;
     submitted_at: string | null;
     review_reason: string | null;
+    /** The form the portal agent fills: the employer's link, or the LinkedIn posting until it is resolved. */
+    external_url: string | null;
   } | null;
 }
 /** Result of "I submitted in the browser"; a repeat reports the original submission. */
