@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { ArrowLeft, Plus, Sparkles } from "lucide-react"
 import { JobDiscovery, SearchOutcomes } from "@/components/job-discovery"
+import { RoleAssessment } from "@/components/role-assessment"
 import type { SearchSaveResult } from "../../../src/jobs/search-results"
 import { Button } from "@/components/ui/button"
 import {
@@ -154,7 +155,10 @@ function DiscoverJobsPage({ onBack, onResults }: { onBack: () => void; onResults
         </Button>
       }
     >
-      <JobDiscovery onResults={onResults} />
+      <div className="space-y-4">
+        <JobDiscovery onResults={onResults} />
+        <RoleAssessment />
+      </div>
     </Page>
   )
 }

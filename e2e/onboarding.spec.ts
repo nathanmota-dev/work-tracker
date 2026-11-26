@@ -29,10 +29,12 @@ test('Get started: a new workspace reaches its first prepared application by fol
   await expect(step(workspace, 'Connect your agent and integrations')).toContainText('Agent (opencode ACP): not tested yet')
 
   await step(workspace, 'Connect your agent and integrations').getByRole('link', { name: 'Open integrations' }).click()
-  await workspace.ready('Settings')
-  await expect(page.getByRole('combobox', { name: /^Integration/ })).toContainText('opencode ACP')
-  await page.getByRole('button', { name: 'Test saved integration' }).click()
+  // The agent is tested in Agent › Setup; MCP servers in Settings › Integrations.
+  await workspace.ready('Agent')
+  await expect(page.getByRole('combobox', { name: /^Agent(?:$|\s)/ })).toContainText('opencode ACP')
+  await page.getByRole('button', { name: 'Test agent' }).click()
   await expect(page.getByLabel('Diagnostic results')).toContainText('Using the provider default model')
+  await workspace.visit('/settings?section=integrations', 'Settings')
   await choose(page, 'Integration', 'LinkedIn MCP')
   await page.getByRole('button', { name: 'Test saved integration' }).click()
   await expect(page.getByLabel('Diagnostic results')).toContainText('separate LinkedIn session answered')

@@ -5,7 +5,6 @@ const integer = (value: unknown, minimum: number, fallback: number, maximum = Nu
   const n = typeof value === "number" || typeof value === "string" && value.trim() ? Number(value) : NaN
   return Number.isSafeInteger(n) && n >= minimum && n <= maximum ? n : fallback
 }
-export const launchSkillIds = ["job-scout", "deep-scout", "profile-optimizer", "recruiter-outreach", "outreach-tracker", "portal-filler", "experience-bank"]
 
 /** Only existing workspace controls are accepted; malformed URLs are harmless. */
 export function validateWorkspaceSearch(path: string, search: Record<string, unknown>): WorkspaceSearch {
@@ -39,11 +38,8 @@ export function validateWorkspaceSearch(path: string, search: Record<string, unk
     runId: string(search.runId) || undefined, provider: typeof search.provider === "string" ? search.provider : undefined, model: typeof search.model === "string" ? search.model : undefined,
     pdfTab: choice(search.pdfTab, ["base", "tailored"], "base"), workspaceTab: choice(search.workspaceTab, ["activity", "report"], "activity"),
   }
-  if (path === "launch") return {
-    tab: choice(search.tab, ["console", "history"], "console"),
-    skill: choice(search.skill, launchSkillIds, "job-scout"), provider: typeof search.provider === "string" ? search.provider : undefined, model: typeof search.model === "string" ? search.model : undefined, effort: typeof search.effort === "string" ? search.effort : undefined, target: string(search.target),
-    query: string(search.query), location: string(search.location), company: string(search.company), username: string(search.username), url: string(search.url), jobIds: string(search.jobIds),
-  }
+  // The console tab became Setup; skills now start from their own screens.
+  if (path === "launch") return { tab: choice(search.tab, ["setup", "history"], "setup"), target: string(search.target) }
   if (path === "interview-prep") return { q: string(search.q) }
   if (path === "resume") return { id: string(search.id) || undefined }
   if (path === "answers") return { field: string(search.field), returnTo: /^\/apply(\?|$)/.test(string(search.returnTo)) ? string(search.returnTo) : "" }

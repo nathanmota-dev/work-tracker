@@ -12,8 +12,30 @@ import { AgentSelectors, RunFooter, SkillFields, WorkspaceActions } from "@/comp
 import { BrowserSignIn } from "@/components/browser-sign-in"
 import { LoadState } from "@/components/workspace-ui"
 import { SetupNotice } from "@/components/get-started"
+import { savedSkillFields, useSkillInputs, type SkillInputField } from "@/lib/skill-inputs"
 import { reviewPermission } from "@/components/agent-permissions"
 import type { PermissionSnapshot } from "@/lib/permissions"
+
+/** The run's params: saved inputs of the skill, then what the opening screen passed, which wins. */
+function usePanelParams(draft: { skill: string; params: Record<string, string> }, fields: readonly string[]) {
+  const { inputs, setInputs } = useSkillInputs(draft.skill)
+  const kept: string[] = savedSkillFields(draft.skill).filter(key => (fields.includes(key) || key === "extra") && !(key in draft.params))
+  const params: Record<string, string> = { ...Object.fromEntries(kept.flatMap(key => inputs[key as SkillInputField] ? [[key, inputs[key as SkillInputField]!]] : [])), ...draft.params }
+  const setParams: React.Dispatch<React.SetStateAction<Record<string, string>>> = change => {
+    const next = typeof change === "function" ? change(params) : change
+    const saved = Object.fromEntries(kept.filter(key => next[key] !== params[key]).map(key => [key, next[key] ?? ""]))
+    if (Object.keys(saved).length) setInputs(saved)
+    const own = Object.fromEntries(Object.entries(next).filter(([key]) => !kept.includes(key)))
+    if (Object.keys(own).some(key => own[key] !== draft.params[key]) || Object.keys(draft.params).some(key => !(key in own))) updateAgentDraft({ ...draft, params: own })
+  }
+  return { params, setParams }
+}
+
+/** Screen instructions (such as a search's work arrangement) follow the user's own context. */
+export function runParams({ instructions, ...params }: Record<string, string>) {
+  const extra = [params.extra?.trim(), instructions?.trim()].filter(Boolean).join("\n\n")
+  return extra ? { ...params, extra } : params
+}
 
 function AgentPanelForm() {
   const agent = useAgent()
@@ -25,27 +47,25 @@ function AgentPanelForm() {
   const [effort, setEffort] = useState(() => localStorage.getItem("work-tracker-effort") ?? "")
   const draft = agent.draft ?? agent.current ?? { skill: "job-scout", params: {} }
   const selected = skills.find(skill => skill.id === draft.skill) ?? skills[0]
+  const { params, setParams } = usePanelParams(draft, selected.fields)
   const selectedProvider = api.data?.providers.find(item => item.id === provider) ?? api.data?.providers.find(item => item.id === api.data?.default) ?? api.data?.providers[0]
   const effectiveModel = selectedProvider?.models.includes(model) ? model : ""
   const effectiveEffort = supportedEffort(selectedProvider, effort)
-  const setParams: React.Dispatch<React.SetStateAction<Record<string, string>>> = change => {
-    updateAgentDraft({ ...draft, params: typeof change === "function" ? change(draft.params) : change })
-  }
   return <form className="space-y-4" onSubmit={event => {
     event.preventDefault()
-    if (selectedProvider && live) void runAgent(selectedProvider.id, draft.skill, draft.params, effectiveModel || undefined, effectiveEffort || undefined)
+    if (selectedProvider && live) void runAgent(selectedProvider.id, draft.skill, runParams(params), effectiveModel || undefined, effectiveEffort || undefined)
   }}>
     <h3 className="font-medium">{selected.name}</h3>
     <p className="text-sm text-muted-foreground">{selected.description}</p>
     <LoadState {...api} retry={api.refresh} />
     <SetupNotice step="connect">Your agent and integrations have not passed a test yet, so this task may stop early.</SetupNotice>
-    <SkillFields fields={selected.fields} skill={draft.skill} params={draft.params} setParams={setParams} username={candidateFromAnswers(profile.data ?? []).linkedinUsername} disabled={agent.running} />
+    <SkillFields fields={selected.fields} skill={draft.skill} params={params} setParams={setParams} username={candidateFromAnswers(profile.data ?? []).linkedinUsername} disabled={agent.running} />
     <details className="space-y-3">
       <summary className="cursor-pointer text-sm">Advanced</summary>
       {api.data && <AgentSelectors providers={api.data.providers} selectedProvider={selectedProvider} effectiveModel={effectiveModel} effectiveEffort={effectiveEffort} disabled={agent.running} onProvider={value => { setProvider(value); setModel(""); setEffort("") }} onModel={setModel} onEffort={setEffort} />}
-      <Link to="/launch" onClick={() => setAgentPanelOpen(false)} className="text-sm underline">Open advanced console</Link>
+      <Link to="/launch" search={{ tab: "setup" }} onClick={() => setAgentPanelOpen(false)} className="text-sm underline">Change the default agent</Link>
     </details>
-    <RunFooter extra={draft.params.extra ?? ""} onExtra={extra => setParams(params => ({ ...params, extra }))} running={agent.running} canRun={!!selectedProvider && live} live={live} waitingForSignIn={agent.status === "Waiting for sign-in"} />
+    <RunFooter extra={params.extra ?? ""} onExtra={extra => setParams(params => ({ ...params, extra }))} running={agent.running} canRun={!!selectedProvider && live} live={live} waitingForSignIn={agent.status === "Waiting for sign-in"} />
   </form>
 }
 

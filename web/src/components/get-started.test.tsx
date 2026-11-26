@@ -53,7 +53,7 @@ it("renders each step from the workspace with links to the exact correction, one
   expect(view.getByText("• Agent (Claude Code ACP): not tested yet")).toBeInTheDocument()
   expect(view.getByText("✓ LinkedIn MCP: tested")).toBeInTheDocument()
   expect(view.getByText("• Chrome MCP: executable missing")).toBeInTheDocument()
-  expect(view.getByRole("link", { name: "Open integrations" })).toHaveAttribute("href", "#/settings?section=integrations&target=acp%2Fclaude-code")
+  expect(view.getByRole("link", { name: "Open integrations" })).toHaveAttribute("href", "#/launch?tab=setup&target=acp%2Fclaude-code")
   expect(view.getAllByRole("button", { name: "Skip for now" })).toHaveLength(1)
   expect(view.queryByText("• LaTeX and PDF tools: missing latexmk")).not.toBeInTheDocument()
   fireEvent.click(step(/^2\. Set up your base resume/))

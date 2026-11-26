@@ -60,7 +60,7 @@ describe("Updates panel", () => {
     expect(screen.getByRole("button", { name: "Download update" })).toBeEnabled()
     act(() => send({ ...state, status: "unavailable", format: null }))
     expect(screen.getByRole("button", { name: "Check for updates" })).toBeDisabled()
-    expect(screen.getByRole("status")).toHaveTextContent("only available in the AppImage")
+    expect(screen.getByRole("status")).toHaveTextContent("only available in the installed app")
   })
 
   it("surfaces a failed action as a network error", async () => {
@@ -73,6 +73,6 @@ describe("Updates panel", () => {
   it("is unavailable outside the desktop app", async () => {
     delete window.desktop
     render(<AppUpdates />)
-    expect(await screen.findByRole("status")).toHaveTextContent("only available in the AppImage")
+    expect(await screen.findByRole("status")).toHaveTextContent("only available in the installed app")
   })
 })

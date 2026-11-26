@@ -10,7 +10,7 @@ export const routes = [
   ['Contacts', 'contacts', 'Preview connection sync'],
   ['Profile', 'profile', 'Personal details'],
   ['Resumes', 'resumes', 'Your base resume and the resumes tailored from it for a role and stack, reused for every job that matches. Approving a tailored resume in Apply saves it here too.'],
-  ['Agent', 'launch', 'Run a skill'],
+  ['Agent', 'launch', 'Agent preferences'],
   ['Settings', 'settings', 'Appearance'],
 ] as const
 
@@ -87,7 +87,9 @@ const readEndpoints = [
   ['Recruiters', 'recruiters'], ['Outreach', 'outreach'],
   ['Jobs', 'jobs'], ['Applications', 'applications'],
   ['Answers', 'answers/variants'],
-  ['Interviews', 'interviews'], ['Activity', 'activity'], ['Settings', 'acp/providers'],
+  ['Interviews', 'interviews'], ['Activity', 'activity'],
+  // Agent preferences moved to Agent; Settings reads the MCP integrations.
+  ['Settings', 'integrations'],
 ] as const
 for (const [title, endpoint] of readEndpoints) {
   test(`${title}: failed load can be retried`, async ({ workspace, page }) => {
@@ -96,7 +98,7 @@ for (const [title, endpoint] of readEndpoints) {
     await workspace.go(title === 'Jobs' ? 'Settings' : 'Jobs')
     await workspace.fault(endpoint)
     // A failed request deliberately keeps its loader/error visible.
-    const destinations: Record<string, [string, string]> = { Recruiters: ["/contacts?tab=people", "Contacts"], Outreach: ["/contacts?tab=follow-ups", "Contacts"], Answers: ["/profile?tab=answers", "Profile"], LinkedIn: ["/profile?tab=linkedin", "Profile"], Activity: ["/launch?tab=history", "Agent"] }
+    const destinations: Record<string, [string, string]> = { Recruiters: ["/contacts?tab=people", "Contacts"], Outreach: ["/contacts?tab=follow-ups", "Contacts"], Answers: ["/profile?tab=answers", "Profile"], LinkedIn: ["/profile?tab=linkedin", "Profile"], Activity: ["/launch?tab=history", "Agent"], Settings: ["/settings?section=integrations", "Settings"] }
     if (destinations[title]) await page.evaluate(hash => { location.hash = hash }, destinations[title][0])
     else await page.locator('[data-sidebar="sidebar"]').getByRole('link', { name: title, exact: true }).click()
     await expect(page.getByRole('alert').filter({ hasText: 'Synthetic transport failure' })).toBeVisible()

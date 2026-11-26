@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input"
 import { Field, controlClass } from "@/components/workspace-ui"
 import { TagField, roleSuggestions, locationSuggestions } from "@/components/tag-field"
 import {
-  skills,
   cancelAgent,
   clearAgent,
   type Providers,
@@ -143,34 +142,6 @@ export function WorkspaceActions({ agent, onError }: { agent: ReturnType<typeof 
         </Button>
       )}
     </div>
-  )
-}
-
-// Resume tailoring, interview prep and follow-ups run from their own pages, which collect the application first.
-export const launchSkills = skills.filter(s => s.id !== "resume-tailor" && s.id !== "interview-prep" && s.id !== "followup")
-
-export function SkillPicker({ skill, disabled, onSkill }: {
-  skill: string
-  disabled: boolean
-  onSkill: (skill: string) => void
-}) {
-  return (
-    <>
-      <Field label="Skill">
-        <SelectControl
-          className={controlClass}
-          value={skill}
-          disabled={disabled}
-          onChange={(e) => onSkill(e.target.value)}
-        >
-          {launchSkills.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </SelectControl>
-      </Field>
-    </>
   )
 }
 

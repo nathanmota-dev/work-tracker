@@ -1,5 +1,6 @@
+import type { Page } from '@playwright/test'
 import { choose, panel } from './ui'
-import { test, expect } from './fixtures'
+import { test, expect, type Workspace } from './fixtures'
 
 test('Jobs: assessed search runs in the contextual panel with all criteria', async ({ workspace, page }) => {
   await workspace.go('Jobs')
@@ -23,6 +24,12 @@ test('Jobs: assessed search runs in the contextual panel with all criteria', asy
   expect(workspace.query('SELECT shortlisted_at FROM jobs')).toEqual([{ shortlisted_at: null }])
   await workspace.go('Dashboard')
   await expect(panel(page, 'Latest activity')).toContainText('Synthetic workflow completed')
+  // The criteria survive a restart, so the next search starts from them.
+  await workspace.restart()
+  await workspace.visit('/jobs?discover=true', 'Discover opportunities')
+  await expect(workspace.page.getByRole('button', { name: 'Remove React' })).toBeVisible()
+  await expect(workspace.page.getByRole('button', { name: 'Remove Brazil' })).toBeVisible()
+  await expect(workspace.page.getByRole('combobox', { name: /^Work arrangement/ })).toContainText('Remote')
 })
 
 test('Search: people/company filters, empty results, errors and retry', async ({ workspace, page }) => {
@@ -46,30 +53,57 @@ test('Search: people/company filters, empty results, errors and retry', async ({
 })
 
 const skills = [
-  ['job-scout', 'Role, keywords or job URL', 'React', 'Jobs', 'React Engineer'],
-  ['deep-scout', 'Role, keywords or job URL', 'https://example.com/jobs/9001', 'Jobs', 'React Engineer'],
+  ['job-scout', '', 'React', 'Jobs', 'React Engineer'],
+  ['deep-scout', '', 'https://example.com/jobs/9001', 'Jobs', 'React Engineer'],
   ['profile-optimizer', 'LinkedIn username', 'synthetic-candidate', 'Profile', '88 / 100'],
   ['recruiter-outreach', 'Target company', 'Example Company', 'Recruiters', 'Alex Recruiter'],
   ['outreach-tracker', '', '', 'Activity', 'Synthetic workflow completed'],
   ['experience-bank', '', '', 'Activity', 'Synthetic workflow completed'],
 ] as const
+
+/** Opens a skill's agent panel from the screen the skill belongs to; Jobs takes its search or role there. */
+async function openSkill(workspace: Workspace, page: Page, skill: (typeof skills)[number][0], input: string) {
+  if (skill === 'job-scout' || skill === 'deep-scout') {
+    await workspace.visit('/jobs?discover=true', 'Discover opportunities')
+    if (skill === 'deep-scout') {
+      await page.getByLabel('Job link or title').fill(input)
+      await page.getByRole('button', { name: 'Assess with agent' }).click()
+      return
+    }
+    await page.getByLabel('Keywords').fill(input)
+    await page.getByLabel('Assess fit with agent', { exact: true }).check()
+    await page.getByRole('button', { name: 'Search with agent' }).click()
+    return
+  }
+  const [hash, title, button] = {
+    'profile-optimizer': ['/profile?tab=linkedin', 'Profile', 'Audit profile'],
+    'recruiter-outreach': ['/contacts?tab=people', 'Contacts', 'Find recruiters'],
+    'outreach-tracker': ['/contacts?tab=follow-ups', 'Contacts', 'Review follow-ups'],
+    'experience-bank': ['/profile', 'Profile', 'Update experiences'],
+  }[skill]
+  await workspace.visit(hash, title)
+  await page.getByRole('button', { name: button, exact: true }).first().click()
+}
+
 for (const [skill, field, input, destination, result] of skills) {
-  test(`Launch: ${skill} runs through ACP and persists its result`, async ({ workspace, page }) => {
-    await workspace.go('Agent')
-    await choose(page, 'Skill', ({ 'job-scout': 'Discover opportunities', 'deep-scout': 'Assess a role', 'profile-optimizer': 'Audit your profile', 'recruiter-outreach': 'Find recruiters', 'outreach-tracker': 'Review follow-ups', 'portal-filler': 'Prepare an application', 'experience-bank': 'Capture experience' })[skill])
+  test(`Agent panel: ${skill} starts from its screen, runs through ACP and persists its result`, async ({ workspace, page }) => {
+    await openSkill(workspace, page, skill, input)
+    const agent = page.getByRole('dialog', { name: 'Agent task' })
+    await agent.getByText('Advanced', { exact: true }).click()
     await choose(page, 'Agent', 'Claude Code')
     await choose(page, 'Model', 'e2e-careful')
-    if (field) await page.getByLabel(field, { exact: true }).fill(input)
-    await page.getByLabel('Additional context').fill('Emphasize testing experience')
-    await page.getByRole('button', { name: 'Run agent' }).click()
-    await expect(page.getByText('Synthetic agent is working. Synthetic workflow completed.', { exact: true })).toBeVisible()
+    if (field) await agent.getByLabel(field, { exact: true }).fill(input)
+    await agent.getByLabel('Additional context').fill('Emphasize testing experience')
+    await agent.getByRole('button', { name: 'Run agent' }).click()
+    await expect(agent.getByText('Synthetic agent is working. Synthetic workflow completed.', { exact: true })).toBeVisible()
     const prompt = workspace.calls('prompt')[0]!
     expect(prompt.provider).toBe('claude-code')
     expect(prompt.model).toBe('e2e-careful')
     expect(prompt.text).toContain('Emphasize testing experience')
     if (input) expect(prompt.text).toContain(input)
-    await page.getByText('Read LinkedIn profile', { exact: true }).click()
-    await expect(page.getByText('Synthetic tool completed', { exact: true })).toBeVisible()
+    await agent.getByText('Read LinkedIn profile', { exact: true }).click()
+    await expect(agent.getByText('Synthetic tool completed', { exact: true })).toBeVisible()
+    await agent.getByRole('button', { name: 'Close', exact: true }).click()
     if (destination === "Recruiters") await workspace.visit("/contacts", "Contacts")
     else if (destination === "Activity") await workspace.visit("/launch?tab=history", "Agent")
     // The profile audit lands on the Profile's LinkedIn tab.
@@ -78,43 +112,34 @@ for (const [skill, field, input, destination, result] of skills) {
     if (destination === 'Recruiters') await expect(page.getByRole('article', { name: 'Alex Recruiter' })).toBeVisible()
     else await expect(page.getByText(result, { exact: true }).first()).toBeVisible()
     if (skill === 'experience-bank') expect(workspace.query('SELECT summary FROM activity_log')).toHaveLength(1)
-    await workspace.visit('/launch?tab=console', 'Agent')
-    await page.getByRole('button', { name: 'Clear', exact: true }).click()
-    await expect(page.getByText('Synthetic agent is working. Synthetic workflow completed.', { exact: true })).toHaveCount(0)
+    await page.getByRole('button', { name: 'Open agent task' }).click()
+    await agent.getByRole('button', { name: 'Clear', exact: true }).click()
+    await expect(agent.getByText('Synthetic agent is working. Synthetic workflow completed.', { exact: true })).toHaveCount(0)
   })
 }
 
-test('Launch: errors, cancellation and retained sign-in retry', async ({ workspace, page }) => {
-  await workspace.go('Agent')
-  await choose(page, 'Skill', 'Assess a role')
-  await page.getByLabel('Role, keywords or job URL').fill('https://example.com/jobs/synthetic')
+test('Agent panel: errors, cancellation and retained sign-in retry', async ({ workspace, page }) => {
+  await openSkill(workspace, page, 'deep-scout', 'https://example.com/jobs/synthetic')
+  const agent = page.getByRole('dialog', { name: 'Agent task' })
   workspace.setScenario({ agent: 'error' })
-  await page.getByRole('button', { name: 'Run agent' }).click()
-  await expect(page.getByText('Synthetic agent failure', { exact: true })).toBeVisible()
+  await agent.getByRole('button', { name: 'Run agent' }).click()
+  await expect(agent.getByText('Synthetic agent failure', { exact: true })).toBeVisible()
   workspace.setScenario({ agent: 'hold' })
-  await page.getByRole('button', { name: 'Run agent' }).click()
-  await expect(page.getByRole('button', { name: 'Run agent' })).toBeDisabled()
-  await expect(page.getByText('Read LinkedIn profile', { exact: true })).toBeVisible()
-  await workspace.go('Jobs')
-  await workspace.go('Agent')
-  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Run agent' })).toBeEnabled()
-  await choose(page, 'Skill', 'Assess a role')
-  await page.getByLabel('Role, keywords or job URL').fill('https://example.com/jobs/synthetic')
+  await agent.getByRole('button', { name: 'Run agent' }).click()
+  await expect(agent.getByRole('button', { name: 'Run agent' })).toBeDisabled()
+  await expect(agent.getByText('Read LinkedIn profile', { exact: true })).toBeVisible()
+  // The run continues while the panel is closed and another screen is open.
+  await agent.getByRole('button', { name: 'Close', exact: true }).click()
+  await workspace.go('Applications')
+  await page.getByRole('button', { name: 'Open agent task' }).click()
+  await agent.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(agent.getByRole('button', { name: 'Run agent' })).toBeEnabled()
   workspace.setScenario({ agent: 'login' })
-  await page.getByRole('button', { name: 'Run agent' }).click()
-  await expect(page.getByRole('button', { name: 'Retry after sign-in' })).toBeEnabled()
+  await agent.getByRole('button', { name: 'Run agent' }).click()
+  await expect(agent.getByRole('button', { name: 'Retry after sign-in' })).toBeEnabled()
   const prompts = workspace.calls('prompt')
   workspace.setScenario({})
-  await page.getByRole('button', { name: 'Retry after sign-in' }).click()
-  await expect(page.getByRole('button', { name: 'Run agent' })).toBeEnabled()
+  await agent.getByRole('button', { name: 'Retry after sign-in' }).click()
+  await expect(agent.getByRole('button', { name: 'Run agent' })).toBeEnabled()
   expect(workspace.calls('prompt').at(-1)?.pid).toBe(prompts.at(-1)?.pid)
-})
-
-test('Launch: portal preparation opens the application detail before any agent fills a document', async ({ workspace, page }) => {
-  await workspace.go('Agent')
-  await choose(page, 'Skill', 'Prepare an application')
-  await page.getByRole('button', { name: 'Run agent' }).click()
-  await expect(page.getByRole('heading', { name: 'Application', exact: true })).toBeVisible()
-  expect(workspace.calls('prompt')).toEqual([])
 })

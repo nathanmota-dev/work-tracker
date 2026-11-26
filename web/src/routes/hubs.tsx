@@ -13,7 +13,8 @@ import { AnswersPage } from "./answers"
 import { RecruiterActions, RecruitersPage, useRecruiterSync } from "./recruiters"
 import { OutreachPage } from "./outreach"
 import { SearchPage } from "./search"
-import { LaunchPage } from "./launch"
+import { AgentPreferences, useAgentPreferences } from "@/components/agent-preferences"
+import { IntegrationSettingsPanel } from "@/components/integration-settings"
 import { ActivityPage } from "./activity"
 
 /** One page whose tabs, kept in the URL, show other pages as its sections. */
@@ -81,16 +82,27 @@ export function ProfileHub() {
   )
 }
 
+/** The agent skills run with; skills themselves start from the screen they belong to. */
+function AgentSetup() {
+  const preferences = useAgentPreferences()
+  return (
+    <div className="grid items-start gap-4 lg:grid-cols-2">
+      <AgentPreferences preferences={preferences} />
+      <IntegrationSettingsPanel scope="acp" />
+    </div>
+  )
+}
+
 export function AgentHub() {
   return (
     <Hub
       path="launch"
       title="Agent"
-      description="Run any skill with full control, and review what your agent has done."
-      tabs={[["console", "Console"], ["history", "History"]]}
+      description="Choose and test the agent that runs your skills, and review what it has done."
+      tabs={[["setup", "Setup"], ["history", "History"]]}
       aside={<AgentIndicator />}
     >
-      {(tab) => tab === "history" ? <ActivityPage /> : <LaunchPage />}
+      {(tab) => tab === "history" ? <ActivityPage /> : <AgentSetup />}
     </Hub>
   )
 }

@@ -51,6 +51,6 @@ it("validates existing route controls and defaults malformed search parameters",
     expect(validateWorkspaceSearch("apply", { jobId: invalid, applicationId: invalid })).toMatchObject({ jobId: undefined, applicationId: undefined })
   expect(validateWorkspaceSearch("apply", { jobId: "7", applicationId: 2, pdfTab: "bad", workspaceTab: "bad" }))
     .toMatchObject({ jobId: 7, applicationId: 2, pdfTab: "base", workspaceTab: "activity" })
-  expect(validateWorkspaceSearch("launch", { skill: "resume-tailor", query: {}, model: 123 })).toMatchObject({ skill: "job-scout", query: "", model: undefined })
+  expect(validateWorkspaceSearch("launch", { tab: "console", skill: "resume-tailor", query: "draft", target: 3 })).toEqual({ tab: "setup", target: "" })
   expect(validateWorkspaceSearch("other", {})).toEqual({})
 })

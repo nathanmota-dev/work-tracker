@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Panel } from "@/components/workspace-ui"
+import { Field, Panel, controlClass } from "@/components/workspace-ui"
+import { Textarea } from "@/components/ui/textarea"
+import { useSkillInputs } from "@/lib/skill-inputs"
 import { SetupNotice } from "@/components/get-started"
 import { SearchFilters } from "@/routes/search"
 import { useWorkspaceState } from "@/lib/workspace-state"
@@ -38,7 +40,20 @@ export function JobDiscovery({ onResults }: { onResults: (ids: number[], outcome
   useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
   const onComplete = useRef(onResults)
   onComplete.current = onResults
-  const values = { keywords: search.keywords ?? "", location: search.location ?? "", company: "", workType: search.workType ?? "", maxPages: search.maxPages ?? 1 }
+  // Criteria persist with the job search skill, so the agent panel and this form show the same values.
+  const { inputs, setInputs } = useSkillInputs("job-scout")
+  const values = { keywords: inputs.query ?? "", location: inputs.location ?? "", company: "", workType: inputs.workType ?? "", maxPages: Math.min(10, Math.max(1, Number(inputs.maxPages) || 1)) }
+  const setValue = (key: string, value: unknown) => {
+    const field = key === "keywords" ? "query" : key
+    if (["query", "location", "workType", "maxPages"].includes(field)) setInputs({ [field]: String(value ?? "") })
+  }
+  // Old Search links carried the criteria in the URL; keep them once, then the saved inputs take over.
+  useEffect(() => {
+    if (!search.keywords && !search.location) return
+    setInputs({ ...(search.keywords && { query: search.keywords }), ...(search.location && { location: search.location }),
+      ...(search.workType && { workType: search.workType }), ...(search.maxPages && search.maxPages > 1 && { maxPages: String(search.maxPages) }) })
+    update({ keywords: "", location: "", workType: "", maxPages: 1 })
+  }, [search.keywords, search.location, search.workType, search.maxPages, setInputs, update])
   useEffect(() => {
     if (search.focus) form.current?.querySelector("input")?.focus()
   }, [search.focus])
@@ -54,8 +69,8 @@ export function JobDiscovery({ onResults }: { onResults: (ids: number[], outcome
   async function discover() {
     setError(""); setOutcomes([]); setOutput("")
     if (search.assess) {
-      prepareSkill("job-scout", { query: values.keywords.trim(), location: values.location,
-        extra: `Work arrangement: ${values.workType || "any"}. Pages to search: ${values.maxPages}. Save discovered jobs for triage and report saved, already saved, or failed for each item.` })
+      prepareSkill("job-scout", {
+        instructions: `Work arrangement: ${values.workType || "any"}. Pages to search: ${values.maxPages}. Save discovered jobs for triage and report saved, already saved, or failed for each item.` })
       return
     }
     setBusy(true)
@@ -78,9 +93,13 @@ export function JobDiscovery({ onResults }: { onResults: (ids: number[], outcome
   }
   return <Panel title="Search criteria">
     <form ref={form} className="space-y-4" onSubmit={event => { event.preventDefault(); void discover() }}>
-      <SearchFilters kind="jobs" values={values} busy={busy} set={(key, value) => update({ [key]: value })} />
+      <SearchFilters kind="jobs" values={values} busy={busy} set={setValue} />
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!search.assess} disabled={busy}
         onChange={event => update({ assess: event.target.checked })} />Assess fit with agent</label>
+      {search.assess && <Field label="Additional context">
+        <Textarea className={`${controlClass} h-28 resize-y py-2`} placeholder="What should the agent know?" disabled={busy}
+          value={inputs.extra ?? ""} onChange={event => setInputs({ extra: event.target.value })} />
+      </Field>}
       <Button disabled={busy || !values.keywords.trim()}>{busy ? "Searching LinkedIn…" : search.assess ? "Search with agent" : "Search LinkedIn"}</Button>
     </form>
     <div className="mt-3">
