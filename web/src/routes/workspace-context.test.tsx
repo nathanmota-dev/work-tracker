@@ -44,6 +44,11 @@ async function mount(path: string) {
   await act(() => router.load())
   return { router, view }
 }
+/** Open an Apply step's view from the stepper, once the application has loaded. */
+async function openStep(label: string) {
+  const nav = await screen.findByRole("navigation", { name: "Application progress" })
+  fireEvent.click(within(nav).getByRole("button", { name: new RegExp(`^${label}`) }))
+}
 async function go(router: ReturnType<typeof createAppRouter>, href: string) {
   await act(() => router.navigate({ href }))
 }
@@ -65,25 +70,34 @@ it("Jobs → application detail → back restores filters, page and selected det
 
 it("restores the right draft after switching jobs, application attempts and remounting", async () => {
   const { router, view } = await mount("/apply?jobId=1&applicationId=10")
+  await openStep("Resume")
   fireEvent.change(await screen.findByLabelText("Additional context"), { target: { value: "First context" } })
-  fireEvent.change(screen.getByLabelText("Job description"), { target: { value: "Unsaved first description" } })
+  await openStep("Job description")
+  fireEvent.change(await screen.findByLabelText("Job description"), { target: { value: "Unsaved first description" } })
   await go(router, "/apply?jobId=2&applicationId=20")
+  await openStep("Job description")
+  expect(await screen.findByLabelText("Job description")).toHaveValue("Description 2")
+  await openStep("Resume")
   expect(await screen.findByLabelText("Additional context")).toHaveValue("")
-  expect(screen.getByLabelText("Job description")).toHaveValue("Description 2")
   fireEvent.change(screen.getByLabelText("Additional context"), { target: { value: "Second context" } })
   await go(router, "/apply?jobId=1&applicationId=11")
+  await openStep("Resume")
   expect(await screen.findByLabelText("Additional context")).toHaveValue("")
   await go(router, "/apply?jobId=1&applicationId=10")
+  await openStep("Resume")
   expect(await screen.findByLabelText("Additional context")).toHaveValue("First context")
-  expect(screen.getByLabelText("Job description")).toHaveValue("Unsaved first description")
+  await openStep("Job description")
+  expect(await screen.findByLabelText("Job description")).toHaveValue("Unsaved first description")
   jobs[0].description = "Background description"
   act(() => publish({ type: "changed", table: "jobs" }))
   await waitFor(() => expect(request).toHaveBeenCalledWith("application-preparation/details", { jobId: 1, applicationId: 10 }))
   expect(screen.getByLabelText("Job description")).toHaveValue("Unsaved first description")
   view.unmount()
   await mount("/apply?jobId=1&applicationId=10")
+  await openStep("Resume")
   expect(await screen.findByLabelText("Additional context")).toHaveValue("First context")
-  expect(screen.getByLabelText("Job description")).toHaveValue("Unsaved first description")
+  await openStep("Job description")
+  expect(await screen.findByLabelText("Job description")).toHaveValue("Unsaved first description")
 })
 
 it("removes deleted jobs while keeping archived selections reviewable and preserving drafts", async () => {
@@ -176,10 +190,11 @@ it("Apply checklist → Answers correction → back keeps the review, and comple
   request.mockImplementation(async (path: string, body?: { jobId?: number }) => path === "application-preparation/details"
     ? { job: jobs[0], runs: [], busy: false, applicationStatus: "filled", fill, journey: { id: 10, fill_status: "filled", submission_status: "not_submitted" } } : original(path, body))
   const { router } = await mount("/apply?jobId=1&applicationId=10")
+  await openStep("Fill portal")
   fireEvent.click(await screen.findByRole("checkbox", { name: "Completed Gender in the portal" }))
   await go(router, screen.getByRole("link", { name: "Add answer for Phone" }).getAttribute("href")!.slice(1))
   expect(await screen.findByRole("region", { name: "Add an answer" })).toBeInTheDocument()
-  expect(router.state.location.search).toMatchObject({ field: "phone", returnTo: "/apply?jobId=1&applicationId=10" })
+  expect(router.state.location.search).toMatchObject({ field: "phone", returnTo: "/apply?jobId=1&applicationId=10&step=fill" })
   fireEvent.keyDown(screen.getByRole("region", { name: "Add an answer" }), { key: "Escape" })
   await waitFor(() => expect(screen.queryByRole("region", { name: "Add an answer" })).not.toBeInTheDocument())
   await go(router, screen.getByRole("link", { name: "Back to the application checklist" }).getAttribute("href")!.slice(1))
@@ -187,7 +202,8 @@ it("Apply checklist → Answers correction → back keeps the review, and comple
   expect(screen.getByText("1 pending field to complete in the portal.")).toBeInTheDocument()
   fireEvent.click(screen.getByRole("checkbox", { name: "Completed Phone in the portal" }))
   expect(screen.getByText(/^Checklist complete\. The application is not submitted yet/)).toBeInTheDocument()
-  expect(screen.getByRole("button", { name: "I submitted in the browser" })).toBeInTheDocument()
+  await openStep("Confirm submission")
+  expect(await screen.findByRole("button", { name: "I submitted in the browser" })).toBeInTheDocument()
   expect(request).not.toHaveBeenCalledWith("application-preparation/submitted", expect.anything())
   await go(router, "/answers?returnTo=https%3A%2F%2Fexample.com")
   expect(await screen.findByRole("heading", { name: "Questions" })).toBeInTheDocument()
