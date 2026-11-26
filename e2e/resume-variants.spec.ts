@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures'
-import { choose, panel } from './ui'
+import { choose, openStep, panel, resumeCard } from './ui'
 import { copyFileSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -40,22 +40,30 @@ test('Resumes: generate a saved resume once, view it and use it in Apply without
   workspace.cli(['job', 'save', '--linkedin-id', '9401', '--title', 'Backend Engineer', '--company', 'Example Company', '--link', 'https://example.com/jobs/9401', '--description', 'C# and .NET APIs'])
   const id = workspace.query("SELECT id FROM jobs WHERE linkedin_job_id = '9401'")[0]!.id
   await workspace.visit(`/apply?jobId=${id}`, 'Application')
-  await expect(page.getByRole('combobox', { name: /^Saved resume/ })).toContainText('Back-End · C#, .NET — 2 pages')
+  await expect(resumeCard(page, 'Back-End · C#, .NET')).toContainText('Back-End')
+  await resumeCard(page, 'Back-End · C#, .NET').click()
   await page.getByRole('button', { name: 'Use this resume' }).click()
+  // The saved resume becomes this application's own card, which holds its review.
+  await resumeCard(page, 'Back-End · C#, .NET', true).click()
   await expect(page.getByText('From saved resume Back-End · C#, .NET')).toBeVisible()
+  await expect(panel(page, 'Back-End · C#, .NET PDF').locator('.react-pdf__Page__textContent')).toContainText('Tailored resume.')
   await page.getByRole('button', { name: 'Approve this version', exact: true }).click()
+  await openStep(page, 'Fill portal')
   await expect(page.getByRole('button', { name: 'Fill application', exact: true })).toBeEnabled()
   expect(workspace.calls('tailor')).toHaveLength(1)
   const [run] = workspace.query("SELECT id FROM application_runs WHERE provider = 'saved-resume'")
   expect(workspace.query(`SELECT variant_id IS NOT NULL AS linked, approved_at IS NOT NULL AS approved FROM document_versions WHERE run_id = '${run!.id}'`)).toEqual([{ linked: 1, approved: 1 }])
-  await expect(panel(page, 'Tailored PDF').locator('.react-pdf__Page__textContent')).toContainText('Tailored resume.')
   // The saved resume ran no agent, so the selected agent fills the portal with it.
+  await expect(panel(page, 'Fill portal')).toContainText('(the saved resume you chose)')
   await page.getByRole('button', { name: 'Fill application', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'I submitted in the browser' })).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByRole('navigation', { name: 'Application progress' }).getByRole('listitem', { name: '4. Confirm submission: Current step' })).toBeVisible({ timeout: 30_000 })
   expect(workspace.calls('fill')).toHaveLength(1)
   expect(workspace.query(`SELECT provider, status, phase FROM application_runs WHERE id = '${run!.id}'`)).toEqual([{ provider: 'saved-resume', status: 'completed', phase: 'review' }])
   // Choosing the same saved resume again keeps its execution.
+  await openStep(page, 'Resume')
+  await resumeCard(page, 'Back-End · C#, .NET').click()
   await page.getByRole('button', { name: 'Use this resume' }).click()
+  await openStep(page, 'Confirm submission')
   await expect(page.getByRole('button', { name: 'I submitted in the browser' })).toBeVisible()
   expect(workspace.query("SELECT COUNT(*) AS runs FROM application_runs WHERE provider = 'saved-resume'")).toEqual([{ runs: 1 }])
 })
@@ -98,6 +106,7 @@ test('Resumes: approving a tailored resume in Apply saves it with its role and s
   await expect(page.getByRole('button', { name: 'Approve this version', exact: true })).toBeEnabled({ timeout: 90_000 })
   expect(workspace.query('SELECT COUNT(*) AS n FROM resume_variants')).toEqual([{ n: 0 }])
   await page.getByRole('button', { name: 'Approve this version', exact: true }).click()
+  await openStep(page, 'Fill portal')
   await expect(page.getByRole('button', { name: 'Fill application', exact: true })).toBeEnabled()
   expect(workspace.query('SELECT name, role, stacks_json, status, application_id IS NOT NULL AS linked FROM resume_variants')).toEqual([
     { name: 'Desenvolvedor Full Stack .NET/Angular', role: 'fullstack', stacks_json: '[".NET","Angular","C#"]', status: 'ready', linked: 1 },
@@ -119,8 +128,11 @@ test('Resumes: approving a tailored resume in Apply saves it with its role and s
   const tailored = workspace.calls('tailor').length
   const next = save('9502', 'Full Stack Engineer')
   await workspace.visit(`/apply?jobId=${next}`, 'Application')
-  await expect(page.getByRole('combobox', { name: /^Saved resume/ })).toContainText('Tailored for Example Company')
+  await openStep(page, 'Resume')
+  await expect(resumeCard(page, 'Desenvolvedor Full Stack .NET/Angular')).toContainText('Full Stack')
+  await resumeCard(page, 'Desenvolvedor Full Stack .NET/Angular').click()
   await page.getByRole('button', { name: 'Use this resume' }).click()
+  await resumeCard(page, 'Desenvolvedor Full Stack .NET/Angular', true).click()
   await expect(page.getByText('From saved resume Desenvolvedor Full Stack .NET/Angular')).toBeVisible()
   expect(workspace.calls('tailor')).toHaveLength(tailored)
 })

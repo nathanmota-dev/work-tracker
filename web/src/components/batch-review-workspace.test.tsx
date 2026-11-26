@@ -49,6 +49,11 @@ beforeEach(() => {
   })
   window.desktop = desktop
 })
+/** Open a step's view from the stepper, once the item has loaded. */
+async function openStep(label: string) {
+  const nav = await screen.findByRole("navigation", { name: "Application progress" })
+  fireEvent.click(within(nav).getByRole("button", { name: new RegExp(`^${label}`) }))
+}
 function follow(link: HTMLElement, rerender: (ui: React.ReactNode) => void) {
   const href = link.getAttribute("href")!
   const params = new URLSearchParams(href.split("?")[1])
@@ -66,8 +71,10 @@ it("navigates mixed items with the correct PDF and checklist, and restores per-i
   const next = screen.getByRole("link", { name: "Next item" })
   expect(next.getAttribute("href")).toContain("pdfTab=tailored")
   follow(next, view.rerender)
+  await openStep("Resume")
   await screen.findByText("pdf-2")
   expect(screen.queryByText("pdf-1")).not.toBeInTheDocument()
+  await openStep("Fill portal")
   expect(screen.getByRole("list", { name: "Fill checklist" })).toHaveTextContent("Phone 2")
   fireEvent.click(screen.getByRole("checkbox", { name: "Completed Phone 2 in the portal" }))
   expect(screen.getByRole("link", { name: "Add answer for Phone 2" }).getAttribute("href")).toContain("returnTo=%2Fapply%3FbatchId%3Dbatch%26itemId%3Di2")
@@ -75,8 +82,8 @@ it("navigates mixed items with the correct PDF and checklist, and restores per-i
   await screen.findByText("pdf-1")
   expect(screen.getByRole("textbox", { name: "Document adjustment" })).toHaveValue("Emphasize React")
   follow(screen.getByRole("link", { name: "Next item" }), view.rerender)
-  await screen.findByText("pdf-2")
-  expect(screen.getByRole("checkbox", { name: "Completed Phone 2 in the portal" })).toBeChecked()
+  await openStep("Fill portal")
+  expect(await screen.findByRole("checkbox", { name: "Completed Phone 2 in the portal" })).toBeChecked()
   follow(screen.getByRole("link", { name: "Show unfinished only" }), view.rerender)
   expect(within(screen.getByRole("navigation", { name: "Batch items" })).getAllByRole("link")).toHaveLength(3)
   // An event updates the totals without moving the selected item or losing its filter.
@@ -114,6 +121,7 @@ it("keeps a rejected adjustment draft and previous PDF, prevents duplicate reque
   expect(desktop.request.mock.calls.filter(([path]) => path === "preparation-batches/adjust")).toHaveLength(2)
   expect(screen.getByText("pdf-1")).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Approve this version" })).toBeDisabled()
+  await openStep("Fill portal")
   expect(screen.getByRole("button", { name: "Fill application" })).toBeDisabled()
 })
 
@@ -171,6 +179,7 @@ it("keeps the previous PDF visible after a failed adjustment and prevents fillin
   await screen.findByText("pdf-1")
   expect(screen.getByText(/Showing the previous validated resume/)).toHaveTextContent("Retry this item")
   expect(screen.getByRole("button", { name: "Approve this version" })).toBeDisabled()
+  await openStep("Fill portal")
   expect(screen.getByRole("button", { name: "Fill application" })).toBeDisabled()
 })
 
@@ -180,7 +189,10 @@ it("does not expose a different execution's document or checklist before a queue
   render(<ApplyPage />)
   await screen.findByRole("region", { name: "Selected batch item" })
   await waitFor(() => expect(desktop.request).toHaveBeenCalledWith("application-preparation/details", { jobId: 2, applicationId: undefined }))
+  await openStep("Resume")
+  expect(await screen.findByRole("heading", { name: "Choose a resume" })).toBeInTheDocument()
   expect(screen.queryByText("pdf-2")).not.toBeInTheDocument()
+  await openStep("Fill portal")
   expect(screen.queryByRole("list", { name: "Fill checklist" })).not.toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Fill application" })).toBeDisabled()
 })

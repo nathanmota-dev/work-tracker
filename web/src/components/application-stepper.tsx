@@ -1,9 +1,7 @@
-import type { ReactNode } from "react"
 import { Check } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
 import { Empty } from "@/components/workspace-ui"
 import { Button } from "@/components/ui/button"
-import type { ApplicationStep, StepState } from "@/lib/application-steps"
+import type { ApplicationStep, StepKey, StepState } from "@/lib/application-steps"
 import { cn } from "@/lib/utils"
 
 const STATES: Record<StepState, string> = {
@@ -13,25 +11,30 @@ const STATES: Record<StepState, string> = {
   upcoming: "Next",
 }
 
-/** The element that holds a step's actions, which the stepper scrolls to. */
-export const stepAnchor = (key: ApplicationStep["key"]) => `apply-step-${key}`
+/** The step to open first: the one waiting for the user, or the last one once everything is done. */
+export function activeStep(steps: ApplicationStep[]): StepKey {
+  return (steps.find(step => step.state === "current" || step.state === "blocked") ?? steps[steps.length - 1])?.key ?? "description"
+}
 
-/** Where the application is, from job description to confirmed submission; a step opens its section. */
-export function ApplicationStepper({ steps }: { steps: ApplicationStep[] }) {
+/** Where the application is, from job description to confirmed submission; each step opens its own view. */
+export function ApplicationStepper({ steps, selected, onSelect }: { steps: ApplicationStep[]; selected: StepKey; onSelect: (key: StepKey) => void }) {
   return (
     <nav aria-label="Application progress">
       <ol className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
         {steps.map((step, index) => {
           const active = step.state === "current" || step.state === "blocked"
+          const open = step.key === selected
           return (
             <li key={step.key} aria-current={active ? "step" : undefined} aria-label={`${index + 1}. ${step.label}: ${STATES[step.state]}`} className="flex">
               <button
                 type="button"
-                onClick={() => document.getElementById(stepAnchor(step.key))?.scrollIntoView?.({ behavior: "smooth", block: "start" })}
+                aria-pressed={open}
+                onClick={() => onSelect(step.key)}
                 className={cn(
                   "flex w-full cursor-pointer gap-3 rounded-xl border p-3 text-left text-sm outline-none transition-colors hover:border-foreground/20 focus-visible:ring-2 focus-visible:ring-ring",
-                  active && "border-primary bg-primary/5",
-                  step.state === "blocked" && "border-destructive/40 bg-destructive/5",
+                  open && "border-primary bg-primary/5",
+                  step.state === "blocked" && "border-destructive/40",
+                  open && step.state === "blocked" && "bg-destructive/5",
                 )}
               >
                 <StepBadge state={step.state} index={index} />
@@ -68,29 +71,6 @@ export function StepBadge({ state, index }: { state: StepState; index: number })
     >
       {state === "done" ? <Check className="size-3.5" /> : index + 1}
     </span>
-  )
-}
-
-/** A step's own section: its state, its actions and what went wrong with them, together. */
-export function StepSection({ step, index, children, aside }: { step?: ApplicationStep; index: number; children: ReactNode; aside?: ReactNode }) {
-  if (!step) return null
-  return (
-    <section id={stepAnchor(step.key)} aria-label={`Step ${index + 1}: ${step.label}`} className={cn("scroll-mt-4 rounded-2xl border bg-card p-4", (step.state === "current" || step.state === "blocked") && "border-primary/40")}>
-      <header className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-3">
-          <StepBadge state={step.state} index={index} />
-          <div className="min-w-0">
-            <h2 className="text-sm font-medium">{step.label}</h2>
-            <p className="text-xs text-muted-foreground">{step.hint}</p>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {aside}
-          <Badge variant="outline" className={cn("rounded-md font-normal", step.state === "done" && "border-primary/40 text-primary", step.state === "blocked" && "border-destructive/40 text-destructive")}>{STATES[step.state]}</Badge>
-        </div>
-      </header>
-      <div className="min-w-0 space-y-4">{children}</div>
-    </section>
   )
 }
 

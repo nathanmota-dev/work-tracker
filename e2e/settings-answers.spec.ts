@@ -1,6 +1,6 @@
 import { test, expect } from './fixtures'
 import type { Page } from '@playwright/test'
-import { choose, panel } from './ui'
+import { choose, panel, resumeCard } from './ui'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -140,11 +140,11 @@ test('Settings: resume pickers, invalid sources, real preview and download', asy
   await expect(page.getByRole('status').filter({ hasText: 'Base PDF ready (2 pages).' })).toBeVisible()
   workspace.cli(['job', 'save', '--linkedin-id', '9500', '--title', 'PDF Engineer', '--company', 'PDF Company'])
   await workspace.visit(`/apply?jobId=${workspace.query("SELECT id FROM jobs WHERE linkedin_job_id = '9500'")[0]!.id}`, 'Application')
-  await expect(page.getByText(/Base resume configured/)).toBeVisible()
-  await expect(panel(page, 'Base PDF').locator('.react-pdf__Page__canvas')).toBeVisible()
+  await expect(resumeCard(page, 'Base resume')).toContainText('resume.tex')
+  await expect(panel(page, 'Base resume PDF').locator('.react-pdf__Page__canvas')).toBeVisible()
   const destination = join(workspace.home, 'download.pdf')
   await workspace.picker(undefined, destination)
-  await page.getByRole('button', { name: 'Download Base PDF' }).click()
+  await page.getByRole('button', { name: 'Download Base resume PDF' }).click()
   await expect.poll(() => existsSync(destination)).toBe(true)
   expect(readFileSync(destination).subarray(0, 5).toString()).toBe('%PDF-')
 })

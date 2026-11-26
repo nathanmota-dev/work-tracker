@@ -93,22 +93,29 @@ try {
   await waitFor(() => evaluate("!!window.desktop && document.readyState === 'complete'"));
   const sources = await evaluate("window.desktop.request('resume-sources')");
   if (sources.config.projectDir !== project || sources.config.mainFile !== 'resume.tex' || sources.config.dataFile !== dataFile) throw new Error('Repository resume sources were not detected automatically');
-  await evaluate("location.hash = '/apply?jobId=1&applicationId=1'; true");
-  await waitFor(() => evaluate("document.querySelectorAll('.react-pdf__Page__canvas').length === 2 && [...document.querySelectorAll('.react-pdf__Page__canvas')].every(canvas => { if (!canvas.width) return false; const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data; for (let i = 0; i < pixels.length; i += 4) if (pixels[i+3] && pixels[i] + pixels[i+1] + pixels[i+2] < 700) return true; return false }) && document.querySelectorAll('.react-pdf__Page__textContent').length === 2 && [...document.querySelectorAll('.react-pdf__Page__textContent')].every(layer => layer.textContent.length > 100)"));
+  await evaluate("location.hash = '/apply?jobId=1&applicationId=1&step=resume'; true");
+  // The Resume step shows one PDF at a time: the application's tailored resume first, then the base resume once its card is chosen.
+  const readablePdf = "(() => { const canvas = document.querySelector('.react-pdf__Page__canvas'); if (!canvas?.width) return false; const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data; let ink = false; for (let i = 0; i < pixels.length; i += 4) if (pixels[i+3] && pixels[i] + pixels[i+1] + pixels[i+2] < 700) { ink = true; break } const layer = document.querySelector('.react-pdf__Page__textContent'); return ink && layer?.textContent.length > 100 })()";
+  await waitFor(() => evaluate("document.querySelectorAll('.react-pdf__Page__canvas').length === 1 && document.body.textContent.includes('Tailored resume PDF')"));
+  await waitFor(() => evaluate(readablePdf));
+  const tailored = await evaluate("document.body.textContent.replace(/\\s+/g, ' ')");
+  await waitFor(() => evaluate("(() => { const card = document.querySelector('button[aria-label=\"Base resume\"]'); card?.click(); return !!card })()"));
+  await waitFor(() => evaluate("document.querySelectorAll('.react-pdf__Page__canvas').length === 1 && document.body.textContent.includes('Base resume PDF')"));
+  await waitFor(() => evaluate(readablePdf));
   const content = await evaluate("document.body.textContent.replace(/\\s+/g, ' ')");
   await rpc('Emulation.setDeviceMetricsOverride', { width: 1200, height: 1600, deviceScaleFactor: 1, mobile: false });
   await evaluate("document.querySelector('h1').scrollIntoView({block:'start'}); true");
   const screenshot = await rpc('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });
   const screenshotPath = process.env.WORK_TRACKER_QA_SCREENSHOT;
   if (screenshotPath) writeFileSync(screenshotPath, Buffer.from(screenshot.data, 'base64'));
-  if (!content.includes('Seu Nome Completo') || !content.includes('Base PDF') || !content.includes('Tailored PDF')) throw new Error('The two readable PDFs were not displayed: ' + content.slice(-1500));
+  if (!tailored.includes('Seu Nome Completo') || !content.includes('Seu Nome Completo') || !content.includes('Base resume PDF') || !tailored.includes('Tailored resume PDF')) throw new Error('The two readable PDFs were not displayed: ' + content.slice(-1500));
   if (JSON.parse(readFileSync(join(home, 'config.json'), 'utf8')).resumeSources) throw new Error('Automatic detection unexpectedly saved resume settings');
   await evaluate("location.hash = '/resumes'; true");
   // The saved resume's card opens its page, which renders the PDF.
   await waitFor(() => evaluate("(() => { const card = document.querySelector('a[aria-label=\"Smoke imported resume\"]'); card?.click(); return !!card })()"));
   await waitFor(() => evaluate("location.hash.startsWith('#/resume?id=') && document.querySelector('h1')?.textContent === 'Smoke imported resume'"));
   await waitFor(() => evaluate("(() => { const canvas = document.querySelector('.react-pdf__Page__canvas'); if (!canvas?.width) return false; const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data; let ink = false; for (let i = 0; i < pixels.length; i += 4) if (pixels[i+3] && pixels[i] + pixels[i+1] + pixels[i+2] < 700) { ink = true; break } const layer = document.querySelector('.react-pdf__Page__textContent'); return ink && layer?.textContent.length > 100 })()"));
-  console.log(`PASS: Apply detects repository sources without configuration and displays two PDF canvases with selectable text, and Resumes renders a saved resume's PDF (${command})`);
+  console.log(`PASS: Apply detects repository sources without configuration and displays the tailored and base PDF canvases with selectable text, and Resumes renders a saved resume's PDF (${command})`);
 } finally {
   removeSignals();
   await cleanup();

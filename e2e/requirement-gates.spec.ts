@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures'
-import { jobCard, openJob, selectAllJobs, selectionBar } from './ui'
+import { jobCard, openJob, openStep, selectAllJobs, selectionBar } from './ui'
 
 test('Requirement gates: declare languages, check jobs with the agent, mark the failed one and prepare it after confirming', async ({ workspace, page }) => {
   workspace.cli(['job', 'save', '--linkedin-id', '9101', '--title', 'Russian Engineer', '--company', 'Example Company', '--link', 'https://example.com/jobs/9101', '--description', 'Build React apps. Fluent Russian required.'])
@@ -50,13 +50,15 @@ test('Requirement gates: declare languages, check jobs with the agent, mark the 
   // Preparing a failed job needs a second, explicit confirmation of the quoted warning.
   await details.getByRole('button', { name: 'Apply', exact: true }).click()
   await workspace.ready('Application')
+  // The blocked Resume step opens first; its correction leads to the warning in the Job description step.
+  await expect(page.getByRole('button', { name: 'Generate resume', exact: true })).toBeDisabled()
+  await page.getByRole('button', { name: 'Review requirements' }).click()
   const warning = page.getByRole('alert', { name: 'Deal-breaker warning' })
   await expect(warning).toContainText('Fail: this job failed your deal-breakers.')
   await expect(warning).toContainText('Fluent Russian required.')
-  await expect(page.getByRole('button', { name: 'Generate resume', exact: true })).toBeDisabled()
-  await expect(page.getByRole('button', { name: 'Review requirements' })).toBeVisible()
   await warning.getByRole('button', { name: 'Prepare anyway' }).click()
   await expect(warning).toContainText('You confirmed preparing this job anyway.')
+  await openStep(page, 'Resume')
   await expect(page.getByRole('button', { name: 'Review requirements' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Generate resume', exact: true })).toBeEnabled()
   expect(workspace.query("SELECT COUNT(*) AS n FROM jobs WHERE title = 'Russian Engineer' AND archived_at IS NULL")).toEqual([{ n: 1 }])

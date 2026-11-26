@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures'
-import { closeDialog, jobMenu, openJob, panel } from './ui'
+import { closeDialog, jobMenu, openJob, openStep, panel, resumeCard } from './ui'
 import { readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -20,41 +20,50 @@ async function selectJob(workspace: import('./fixtures').Workspace) {
   await expect(step(workspace, '2. Resume: Current step')).toHaveAttribute('aria-current', 'step')
 }
 async function generate(workspace: import('./fixtures').Workspace) {
-  await workspace.page.getByRole('button', { name: /^(Generate resume|Regenerate)$/ }).click()
-  await expect(workspace.page.getByRole('button', { name: 'Approve this version', exact: true })).toBeEnabled({ timeout: 90_000 })
-  await expect(workspace.page.getByRole('button', { name: 'Fill application', exact: true })).toBeDisabled()
-  await expect(workspace.page.getByLabel('Document text comparison').locator('ins')).toContainText('Tailored resume.')
-  await expect(workspace.page.getByLabel('Document text comparison').locator('del')).toContainText('Base resume.')
-  await workspace.page.getByRole('button', { name: 'Approve this version', exact: true }).click()
-  await expect(workspace.page.getByRole('button', { name: 'Fill application', exact: true })).toBeEnabled()
+  const { page } = workspace
+  await openStep(page, 'Resume')
+  await page.getByRole('button', { name: /^(Generate resume|Regenerate)$/ }).click()
+  await expect(page.getByRole('button', { name: 'Approve this version', exact: true })).toBeEnabled({ timeout: 90_000 })
+  await expect(step(workspace, '3. Fill portal: Next')).toBeVisible()
+  await expect(page.getByLabel('Document text comparison').locator('ins')).toContainText('Tailored resume.')
+  await expect(page.getByLabel('Document text comparison').locator('del')).toContainText('Base resume.')
+  await expect(panel(page, 'Tailored resume PDF').locator('.react-pdf__Page__textContent')).toContainText('Tailored resume.')
+  await page.getByRole('button', { name: 'Approve this version', exact: true }).click()
   await expect(step(workspace, '3. Fill portal: Current step')).toBeVisible()
-  await expect(panel(workspace.page, 'Tailored PDF').locator('.react-pdf__Page__textContent')).toContainText('Tailored resume.')
+  await openStep(page, 'Fill portal')
+  await expect(page.getByRole('button', { name: 'Fill application', exact: true })).toBeEnabled()
 }
 
 test('Apply: real PDFs, generation/regeneration/history, filling, submission and persisted application', async ({ workspace, page }) => {
   test.setTimeout(180_000)
   await selectJob(workspace)
-  await page.locator('summary', { hasText: /^Job description$/ }).click()
+  await openStep(page, 'Job description')
   await page.getByLabel('Job description', { exact: true }).fill('React, TypeScript and testing')
-  await expect(page.getByRole('button', { name: 'Generate resume', exact: true })).toBeDisabled()
   await expect(step(workspace, '1. Job description: Blocked')).toContainText('Save your description changes before generating.')
+  await openStep(page, 'Resume')
+  await expect(page.getByRole('button', { name: 'Generate resume', exact: true })).toBeDisabled()
+  await openStep(page, 'Job description')
   await page.getByRole('button', { name: 'Save description' }).click()
+  await openStep(page, 'Resume')
   await page.getByLabel('Additional context').fill('Focus on testing')
   await generate(workspace)
   // The base's own layout findings stay on the base; a clean tailoring adds none.
-  await expect(panel(page, 'Base PDF')).toContainText('Page 1 ends')
-  await expect(panel(page, 'Tailored PDF').getByRole('listitem')).toHaveCount(0)
+  await openStep(page, 'Resume')
+  await expect(panel(page, 'Tailored resume PDF').locator('.react-pdf__Page__textContent')).toContainText('Tailored resume.')
+  await expect(panel(page, 'Tailored resume PDF').getByRole('listitem')).toHaveCount(0)
+  await resumeCard(page, 'Base resume').click()
+  await expect(panel(page, 'Base resume PDF')).toContainText('Page 1 ends')
   // Classic scrollbars consume layout width. At this viewport, zoom crosses
   // the vertical overflow threshold and must not trigger a resize/render loop.
   await workspace.resize(1200)
   await page.addStyleTag({ content: '::-webkit-scrollbar { width: 15px; height: 15px; }' })
   const first = workspace.query('SELECT id FROM application_runs')[0]!.id
   const id = workspace.query('SELECT id FROM applications')[0]!.id
-  await expect(panel(page, 'Base PDF').locator('.react-pdf__Page__textContent')).toContainText('Base resume.')
-  await panel(page, 'Base PDF').getByRole('button', { name: 'Next', exact: true }).click()
-  await expect(panel(page, 'Base PDF').locator('.react-pdf__Page__textContent')).toContainText('Second page.')
-  await panel(page, 'Base PDF').getByRole('button', { name: 'Previous', exact: true }).click()
-  const canvas = panel(page, 'Base PDF').locator('canvas')
+  await expect(panel(page, 'Base resume PDF').locator('.react-pdf__Page__textContent')).toContainText('Base resume.')
+  await panel(page, 'Base resume PDF').getByRole('button', { name: 'Next', exact: true }).click()
+  await expect(panel(page, 'Base resume PDF').locator('.react-pdf__Page__textContent')).toContainText('Second page.')
+  await panel(page, 'Base resume PDF').getByRole('button', { name: 'Previous', exact: true }).click()
+  const canvas = panel(page, 'Base resume PDF').locator('canvas')
   // PDF.js can hide or replace the canvas while changing page or scale, while
   // ResizeObserver may trigger another render. Wait for two identical visible
   // measurements so controls are not exercised during that transient state.
@@ -71,24 +80,25 @@ test('Apply: real PDFs, generation/regeneration/history, filling, submission and
     }).toBeGreaterThan(0)
     return result
   }
-  await expect(panel(page, 'Base PDF').locator('.react-pdf__Page__textContent')).toContainText('Base resume.')
+  await expect(panel(page, 'Base resume PDF').locator('.react-pdf__Page__textContent')).toContainText('Base resume.')
   const baseWidth = await stableCanvasWidth()
-  const viewport = panel(page, 'Base PDF').locator('.overflow-auto')
+  const viewport = panel(page, 'Base resume PDF').locator('.overflow-auto')
   const viewportWidth = await viewport.evaluate(el => el.clientWidth)
-  await page.getByRole('button', { name: 'Zoom in Base PDF' }).click()
+  await page.getByRole('button', { name: 'Zoom in Base resume PDF' }).click()
   expect(await stableCanvasWidth()).toBeGreaterThan(baseWidth)
   expect(await viewport.evaluate(el => el.clientWidth)).toBe(viewportWidth)
-  await page.getByRole('button', { name: 'Zoom out Base PDF' }).click()
+  await page.getByRole('button', { name: 'Zoom out Base resume PDF' }).click()
   expect(await stableCanvasWidth()).toBe(baseWidth)
-  await page.getByRole('button', { name: 'Zoom in Base PDF' }).click()
+  await page.getByRole('button', { name: 'Zoom in Base resume PDF' }).click()
   expect(await stableCanvasWidth()).toBeGreaterThan(baseWidth)
-  await panel(page, 'Base PDF').getByRole('button', { name: 'Fit width', exact: true }).click()
+  await panel(page, 'Base resume PDF').getByRole('button', { name: 'Fit width', exact: true }).click()
   expect(await stableCanvasWidth()).toBe(baseWidth)
-  await page.getByRole('tab', { name: 'Report', exact: true }).click()
+  await page.locator('summary', { hasText: /^Tailoring report$/ }).click()
   await expect(page.getByText('Emphasized React and TypeScript experience.', { exact: true })).toBeVisible()
+  await resumeCard(page, 'Tailored resume', true).click()
   const output = join(workspace.home, 'tailored-export.pdf')
   await workspace.picker(undefined, output)
-  await page.getByRole('button', { name: 'Download Tailored PDF' }).click()
+  await page.getByRole('button', { name: 'Download Tailored resume PDF' }).click()
   await expect.poll(() => existsSync(output)).toBe(true)
   expect(readFileSync(output).subarray(0, 5).toString()).toBe('%PDF-')
   await generate(workspace)
@@ -100,8 +110,9 @@ test('Apply: real PDFs, generation/regeneration/history, filling, submission and
   await page.getByRole('option').last().click()
   await expect(page).toHaveURL(new RegExp(`runId=${first}`))
   await page.getByRole('button', { name: 'Fill application', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'I submitted in the browser' })).toBeVisible({ timeout: 30_000 })
-  await expect(step(workspace, '4. Confirm submission: Current step')).toBeVisible()
+  await expect(step(workspace, '4. Confirm submission: Current step')).toBeVisible({ timeout: 30_000 })
+  await openStep(page, 'Confirm submission')
+  await expect(page.getByRole('button', { name: 'I submitted in the browser' })).toBeVisible()
   const fill = workspace.calls('fill').at(-1)!
   expect(fill.applicationId).toBe(id)
   const approved = workspace.query(`SELECT id, pdf_hash, approved_at FROM document_versions WHERE run_id = '${first}'`)[0]!
@@ -119,7 +130,9 @@ test('Apply: real PDFs, generation/regeneration/history, filling, submission and
   await page.getByRole('button', { name: 'I submitted in the browser' }).click()
   await expect(page.getByText(/Submission confirmed/)).toBeVisible()
   // The fill checklist reflects the confirmation without repeating the submission notice.
+  await openStep(page, 'Fill portal')
   await expect(page.getByText(/^Marked as submitted on /)).toBeVisible()
+  await openStep(page, 'Resume')
   await expect(page.getByRole('button', { name: 'Regenerate', exact: true })).toBeDisabled()
   expect(workspace.query('SELECT status FROM applications')[0]?.status).toBe('submitted')
   expect(workspace.query('SELECT version_id, submitted_at FROM application_documents')[0]).toMatchObject({ version_id: approved.id, submitted_at: expect.any(String) })
@@ -127,6 +140,7 @@ test('Apply: real PDFs, generation/regeneration/history, filling, submission and
   expect(workspace.query("SELECT a.id, s.key, a.tracking_status FROM applications a JOIN application_stages s ON s.id = a.current_stage_id")).toEqual([{ id, key: 'applied', tracking_status: 'active' }])
   expect(workspace.query('SELECT event_type FROM application_events')).toEqual([{ event_type: 'created' }])
   await expect(step(workspace, '4. Confirm submission: Done')).toBeVisible()
+  await openStep(page, 'Confirm submission')
   await page.getByRole('link', { name: 'View it on the board' }).click()
   await workspace.ready('Applications')
   await expect(page).toHaveURL(new RegExp(`view=board&highlight=${id}`))
@@ -167,11 +181,13 @@ test('Apply: the review lists layout problems the tailoring introduced, not the 
   workspace.setScenario({ agent: 'layout-hole' })
   await page.getByRole('button', { name: 'Generate resume', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Approve this version', exact: true })).toBeEnabled({ timeout: 90_000 })
-  await expect(panel(page, 'Tailored PDF').locator('.react-pdf__Page__textContent')).toContainText('Detail pushed down by a gap.')
-  const warnings = panel(page, 'Tailored PDF').getByRole('listitem')
+  await expect(panel(page, 'Tailored resume PDF').locator('.react-pdf__Page__textContent')).toContainText('Detail pushed down by a gap.')
+  const warnings = panel(page, 'Tailored resume PDF').getByRole('listitem')
   await expect(warnings).toHaveCount(1)
   await expect(warnings).toHaveText(/^Page 1 has a \d+ pt gap at y=\d+/)
-  await expect(panel(page, 'Base PDF')).not.toContainText('pt gap')
+  await resumeCard(page, 'Base resume').click()
+  await expect(panel(page, 'Base resume PDF').locator('.react-pdf__Page__textContent')).toContainText('Base resume.')
+  await expect(panel(page, 'Base resume PDF')).not.toContainText('pt gap')
 })
 
 test('Apply: failed regeneration preserves PDF; cancel and sign-in retry keep application identity', async ({ workspace, page }) => {
@@ -180,23 +196,25 @@ test('Apply: failed regeneration preserves PDF; cancel and sign-in retry keep ap
   await generate(workspace)
   const saved = workspace.query('SELECT id, resume_path FROM applications')[0]
   workspace.setScenario({ agent: 'invalid-latex' })
+  await openStep(page, 'Resume')
   await page.getByRole('button', { name: 'Regenerate', exact: true }).click()
   await expect(page.getByText('Execution needs attention', { exact: true })).toBeVisible({ timeout: 90_000 })
   // The failed run keeps its tailored sources and offers to continue from compilation.
   await expect(page.getByRole('region', { name: 'Execution recovery' })).toContainText('Retrying continues from compilation with the tailored sources.')
   await expect(page.getByRole('button', { name: 'Continue from compilation', exact: true })).toBeEnabled()
   expect(workspace.query('SELECT id, resume_path FROM applications')[0]).toEqual(saved)
-  await expect(panel(page, 'Tailored PDF').locator('.react-pdf__Page__textContent')).toContainText('Tailored resume.')
+  await expect(panel(page, 'Tailored resume PDF').locator('.react-pdf__Page__textContent')).toContainText('Tailored resume.')
   workspace.setScenario({ agent: 'hold' })
   await page.getByRole('button', { name: 'Regenerate', exact: true }).click()
   await page.getByRole('button', { name: 'Cancel', exact: true }).click()
   await expect.poll(() => workspace.query('SELECT status FROM application_runs ORDER BY rowid DESC LIMIT 1')[0]?.status).toBe('cancelled')
   workspace.setScenario({ agent: 'login' })
+  await openStep(page, 'Fill portal')
   await page.getByRole('button', { name: 'Fill application', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Retry after sign-in', exact: true })).toBeEnabled()
   workspace.setScenario({})
   await page.getByRole('button', { name: 'Retry after sign-in', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'I submitted in the browser' })).toBeVisible()
+  await expect(step(workspace, '4. Confirm submission: Current step')).toBeVisible()
   expect(workspace.query('SELECT id FROM applications')).toEqual([{ id: saved!.id }])
   // The fill result reads as a checklist; correcting an answer fills again with the same approved PDF.
   const checklist = page.getByRole('list', { name: 'Fill checklist' })
@@ -224,12 +242,15 @@ test('Apply: the base resume is used as it is, without tailoring, and filled by 
   await selectJob(workspace)
   await page.getByRole('button', { name: 'Use base resume', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Approve this version', exact: true })).toBeEnabled({ timeout: 60_000 })
-  await expect(panel(page, 'Tailored PDF').locator('.react-pdf__Page__textContent')).toContainText('Base resume.')
+  await expect(panel(page, 'Base resume PDF').locator('.react-pdf__Page__textContent')).toContainText('Base resume.')
   expect(workspace.calls('tailor')).toHaveLength(0)
   await page.getByRole('button', { name: 'Approve this version', exact: true }).click()
-  await expect(page.getByRole('region', { name: 'Step 3: Fill portal' })).toContainText('fills your base resume as it is')
+  await openStep(page, 'Fill portal')
+  await expect(panel(page, 'Fill portal')).toContainText('(your base resume as it is)')
   await page.getByRole('button', { name: 'Fill application', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'I submitted in the browser' })).toBeVisible({ timeout: 30_000 })
+  await expect(step(workspace, '4. Confirm submission: Current step')).toBeVisible({ timeout: 30_000 })
+  await openStep(page, 'Confirm submission')
+  await expect(page.getByRole('button', { name: 'I submitted in the browser' })).toBeVisible()
   expect(workspace.calls('fill')).toHaveLength(1)
   expect(workspace.query("SELECT provider FROM application_runs")).toEqual([{ provider: 'base-resume' }])
   // The base resume is already in Resumes, so approving it saves nothing there.

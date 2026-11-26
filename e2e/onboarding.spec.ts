@@ -1,5 +1,5 @@
 import { test, expect, type Workspace } from './fixtures'
-import { panel, jobMenu, openJob } from './ui'
+import { openStep, panel, jobMenu, openJob } from './ui'
 
 const card = (workspace: Workspace) => panel(workspace.page, 'Get started')
 const step = (workspace: Workspace, title: string) => card(workspace).locator('li[id^="get-started-"]').filter({ has: workspace.page.getByRole('heading', { name: new RegExp(`^\\d\\. ${title}$`) }) })
@@ -84,9 +84,10 @@ test.describe('a workspace that has not finished setup', () => {
     await openJob(page, 'React Engineer')
     await page.getByRole('dialog', { name: 'React Engineer' }).getByRole('button', { name: 'Apply', exact: true }).click()
     await workspace.ready('Application')
-    await page.locator('summary', { hasText: /^Job description$/ }).click()
+    await openStep(page, 'Job description')
     await page.getByLabel('Job description', { exact: true }).fill('React, TypeScript and testing')
     await page.getByRole('button', { name: 'Save description' }).click()
+    await openStep(page, 'Resume')
     await page.getByRole('button', { name: 'Generate resume', exact: true }).click()
     await expect(page.getByRole('button', { name: 'Approve this version', exact: true })).toBeEnabled({ timeout: 90_000 })
 

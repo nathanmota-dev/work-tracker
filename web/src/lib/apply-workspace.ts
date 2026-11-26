@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useApplyContext } from "@/lib/apply-context"
 import { applyBlocks, type ApplyAction } from "@/components/apply-readiness"
 import { useGateConfirmation } from "@/lib/gates"
-import { useIntegrations, type Target } from "@/lib/integrations"
+import { useIntegrations } from "@/lib/integrations"
 import { request, useApi, useConnection, subscribe } from "@/lib/api"
 import { applicationSteps } from "@/lib/application-steps"
 import type { Providers } from "@/lib/agent"
@@ -17,12 +17,9 @@ export const BASE_RESUME = "base-resume"
 export const usesReadyPdf = (provider?: string) => provider === SAVED_RESUME || provider === BASE_RESUME
 export type ApplyKind = "generate" | "fill" | "retry" | "cancel" | "submitted" | "description" | "approve" | "use-base"
 
-/** Open the job description editor and focus it. */
+/** Focus the job description editor. */
 function focusDescription() {
-  const textarea = document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Job description"]')
-  const details = textarea?.closest("details")
-  if (details) details.open = true
-  textarea?.focus()
+  document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Job description"]')?.focus()
 }
 
 /**
@@ -68,14 +65,14 @@ export function useApplyWorkspace(search: ReviewSearch, review: boolean, reviewL
   // An unavailable saved model is not sent, so it never blocks filling.
   const fillBlocks = applyBlocks({ ...readiness, ...fillAgent, invalidModel: false }, "fill")
   const steps = applicationSteps({ description: !readiness.descriptionMissing && !descriptionDirty, approved: readiness.approved, filled: ["filled", "needs_input"].includes(details.data?.applicationStatus ?? ""), submitted: submitted || details.data?.journey?.submission_status === "submitted", generate: generateBlocks, fill: fillBlocks })
+  // Each correction opens the step that holds it, then brings it into view once rendered.
   function correct(action: ApplyAction) {
-    if (action === "review" || action === "gate") document.getElementById(action === "gate" ? "requirements-warning" : "document-review")?.scrollIntoView?.()
-    else if (action === "description") focusDescription()
-    else { setModel(""); document.querySelector<HTMLElement>('[aria-label="Model"]')?.focus() }
-  }
-  function testAvailability() {
-    const targets: Target[] = [...(fillAgent.provider ? [`acp/${fillAgent.provider}` as Target] : []), "mcp/chrome", ...(!details.data?.job.description && details.data?.job.linkedin_job_id ? ["mcp/linkedin" as const] : [])]
-    void integrations.test(targets, fillAgent.model); sources.refresh(); providers.refresh()
+    if (action === "model") { setModel(""); return }
+    apply.update({ step: action === "review" ? "resume" : "description" })
+    requestAnimationFrame(() => {
+      if (action === "description") focusDescription()
+      else document.getElementById(action === "gate" ? "requirements-warning" : "document-review")?.scrollIntoView?.()
+    })
   }
   const messages = useMemo(() => preparationMessages(run?.events ?? [], run?.status), [run?.events, run?.status])
   const agentFields = review ? {} : { provider: fillAgent.provider, model: fillAgent.model || undefined }
@@ -109,7 +106,7 @@ export function useApplyWorkspace(search: ReviewSearch, review: boolean, reviewL
   return {
     search, review, providers, sources, details, live, integrations, apply, error, setError, notice, setNotice, preview, setPreview, gate,
     selectedProvider, effectiveModel, run, pdfRun, base, version, tailored, busy, reviewBusy, archived, submitted, readiness, fillAgent,
-    generateBlocks, fillBlocks, steps, correct, testAvailability, messages, action, pending,
+    generateBlocks, fillBlocks, steps, correct, messages, action, pending,
   }
 }
 export type ApplyWorkspaceState = ReturnType<typeof useApplyWorkspace>

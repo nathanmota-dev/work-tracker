@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures'
-import { filterJobs, panel } from './ui'
+import { filterJobs, openStep, panel } from './ui'
 
 test('Jobs: create, correct a failed save, deduplicate, edit and prepare an external role', async ({ workspace, page }) => {
   test.setTimeout(120_000)
@@ -41,9 +41,10 @@ test('Jobs: create, correct a failed save, deduplicate, edit and prepare an exte
   await page.getByLabel('Additional context').fill('Synthetic context before the first application')
   await page.getByRole('button', { name: 'Generate resume', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Approve this version', exact: true })).toBeEnabled({ timeout: 90_000 })
+  await expect(panel(page, 'Tailored resume PDF').locator('.react-pdf__Page__textContent')).toContainText('Tailored resume.')
   await page.getByRole('button', { name: 'Approve this version', exact: true }).click()
+  await openStep(page, 'Fill portal')
   await expect(page.getByRole('button', { name: 'Fill application', exact: true })).toBeEnabled()
-  await expect(panel(page, 'Tailored PDF').locator('.react-pdf__Page__textContent')).toContainText('Tailored resume.')
   const application = workspace.query('SELECT id, job_id, resume_path FROM applications')[0]!
   expect(application.job_id).toBe(id)
   await workspace.go('Jobs')
@@ -55,6 +56,7 @@ test('Jobs: create, correct a failed save, deduplicate, edit and prepare an exte
   expect(workspace.query('SELECT id, job_id, resume_path FROM applications')).toEqual([application])
   await page.getByRole('dialog').getByRole('button', { name: 'Continue application', exact: true }).click()
   await workspace.ready('Application')
+  await openStep(page, 'Resume')
   await expect(page.getByLabel('Additional context')).toHaveValue('Synthetic context before the first application')
 })
 

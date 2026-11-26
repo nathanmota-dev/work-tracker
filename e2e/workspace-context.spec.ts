@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures'
-import { closeDialog, openJob } from './ui'
+import { closeDialog, openJob, openStep } from './ui'
 
 test.describe('workspace context', () => {
   test.use({ populated: true })
@@ -17,10 +17,13 @@ test.describe('workspace context', () => {
     expect(scrollTop).toBeGreaterThan(0)
     await page.getByRole('dialog').getByRole('button', { name: 'View application', exact: true }).click()
     await workspace.ready('Application')
-    const applyUrl = page.url()
+    // Each step is its own view, kept in the URL: the drafts belong to the application, not to the step.
+    await openStep(page, 'Resume')
     await page.getByLabel('Additional context').fill('Synthetic first context')
-    await page.locator('summary', { hasText: /^Job description$/ }).click()
+    await openStep(page, 'Job description')
     await page.getByLabel('Job description', { exact: true }).fill('Synthetic unsaved description')
+    await openStep(page, 'Resume')
+    const applyUrl = page.url()
     await page.goBack()
     await workspace.ready('Jobs')
     await expect(page).toHaveURL(jobsUrl)
@@ -32,19 +35,19 @@ test.describe('workspace context', () => {
     await workspace.ready('Application')
     await expect(page).toHaveURL(applyUrl)
     await expect(page.getByLabel('Additional context')).toHaveValue('Synthetic first context')
-    await workspace.visit('/apply?jobId=5', 'Application')
+    await workspace.visit('/apply?jobId=5&step=resume', 'Application')
     await expect(page.getByLabel('Additional context')).toHaveValue('')
     await page.getByLabel('Additional context').fill('Synthetic second context')
     await page.goto(applyUrl)
     await workspace.ready('Application')
     await expect(page.getByLabel('Additional context')).toHaveValue('Synthetic first context')
-    await page.locator('summary', { hasText: /^Job description$/ }).click()
+    await openStep(page, 'Job description')
     await expect(page.getByLabel('Job description', { exact: true })).toHaveValue('Synthetic unsaved description')
     await workspace.restart()
     await workspace.page.goto(applyUrl)
     await workspace.ready('Application')
     await expect(workspace.page.getByLabel('Additional context')).toHaveValue('Synthetic first context')
-    await workspace.page.locator('summary', { hasText: /^Job description$/ }).click()
+    await openStep(workspace.page, 'Job description')
     await expect(workspace.page.getByLabel('Job description', { exact: true })).toHaveValue('Synthetic unsaved description')
     expect(workspace.query('SELECT description FROM jobs').every(row => row.description === 'React developer')).toBe(true)
     expect(workspace.calls('prompt')).toHaveLength(0)
