@@ -61,18 +61,26 @@ describe("updater main wiring", () => {
     expect(app.relaunch).toHaveBeenLastCalledWith(expect.not.objectContaining({ execPath: expect.anything() }))
   })
 
+  it("stays unavailable in development", async () => {
+    app.isPackaged = false
+    const { installedFormat, registerUpdates } = await import("./register-updates")
+    expect(installedFormat()).toBeNull()
+    expect(registerUpdates().getState().status).toBe("unavailable")
+    expect(mocks.createUpdateDriver).not.toHaveBeenCalled()
+  })
+
+  // Packaged installs that cannot replace themselves still check for new releases.
   it.each([
-    ["development", () => { app.isPackaged = false }],
     ["Windows", () => vi.stubGlobal("process", { ...process, platform: "win32", arch: "x64" })],
     ["unsupported CPU", () => vi.stubGlobal("process", { ...process, platform: "linux", arch: "ia32" })],
     ["Snap", () => vi.stubEnv("SNAP", "/snap/x")],
     ["Flatpak", () => vi.stubEnv("FLATPAK_ID", "dev.x")],
     ["an unpacked install", () => vi.stubEnv("APPIMAGE", "")],
-  ])("stays unavailable in %s", async (_name, setup) => {
+  ])("only checks releases in %s", async (_name, setup) => {
     setup()
     const { installedFormat, registerUpdates } = await import("./register-updates")
     expect(installedFormat()).toBeNull()
-    expect(registerUpdates().getState().status).toBe("unavailable")
+    expect(registerUpdates().getState().status).toBe("idle")
     expect(mocks.createUpdateDriver).not.toHaveBeenCalled()
   })
 
