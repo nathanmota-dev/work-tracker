@@ -191,7 +191,7 @@ export function ExternalLink({
   )
 }
 export const controlClass =
-  "h-9 rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+  "h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none dark:bg-input/30 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
 export function Field({
   label,
   children,

@@ -23,7 +23,7 @@ export function ApplyPage() {
 function ExecutionHistory({ w }: { w: ApplyWorkspaceState }) {
   const runs = w.details.data?.runs ?? []
   if (w.review || !runs.length) return null
-  return <SelectControl aria-label="Execution history" className="h-8 max-w-72 rounded-md border bg-background px-2 text-xs" value={w.run?.id ?? ""} onChange={e => openApply(w.search.jobId, w.search.applicationId, e.target.value)}>
+  return <SelectControl aria-label="Execution history" className="h-8 max-w-72 px-2 text-xs" value={w.run?.id ?? ""} onChange={e => openApply(w.search.jobId, w.search.applicationId, e.target.value)}>
     {runs.map(r => <option key={r.id} value={r.id}>{new Date(r.created_at).toLocaleString()} · {r.provider === SAVED_RESUME ? "saved resume" : r.provider === BASE_RESUME ? "base resume" : r.provider} · {r.phase} · {r.status}</option>)}
   </SelectControl>
 }

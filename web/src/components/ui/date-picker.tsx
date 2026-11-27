@@ -55,7 +55,7 @@ export function DatePicker({ value, onChange, disabled, placeholder = "dd/mm/yyy
           type="button"
           disabled={disabled}
           {...props}
-          className={cn("flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 text-left text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50", className)}
+          className={cn("flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-transparent px-3 text-left dark:bg-input/30 text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50", className)}
         >
           <span className={cn("truncate", !selected && "text-muted-foreground")}>
             {selected ? brDate(selected) : placeholder}
@@ -132,7 +132,7 @@ export function DateTimePicker({ value, onChange, disabled, label, className }: 
         aria-label={`${label} time`} inputMode="numeric" placeholder="HH:mm" value={time} disabled={disabled || !day}
         onChange={(e) => typeTime(e.target.value)}
         aria-invalid={!!time && !validTime(time)}
-        className="h-9 w-20 rounded-md border border-input bg-background px-3 text-sm tabular-nums shadow-xs outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 aria-invalid:border-destructive"
+        className="h-9 w-20 rounded-md border border-input bg-transparent px-3 text-sm tabular-nums dark:bg-input/30 shadow-xs outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 aria-invalid:border-destructive"
       />
     </div>
   )

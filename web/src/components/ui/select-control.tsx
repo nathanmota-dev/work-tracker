@@ -34,7 +34,7 @@ export function SelectControl({
       <SelectPrimitive.Trigger
         {...props}
         className={cn(
-          "flex h-9 items-center justify-between gap-2 rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 [&>span]:truncate",
+          "flex h-9 items-center justify-between gap-2 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs dark:bg-input/30 outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 [&>span]:truncate",
           className,
         )}
       >

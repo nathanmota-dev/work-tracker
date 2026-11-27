@@ -70,12 +70,12 @@ export function AnswerEditor({ draft, setDraft, advanced, busy, error, duplicate
       <Field label="Category"><Input value={draft.category} disabled={busy}
         onChange={e => setDraft({ ...draft, category: e.target.value })} /></Field>
     </> : draft.key && spec ? <div><p className="text-xs text-muted-foreground">Field</p><p className="font-medium" aria-label="Field">{spec.label}</p></div>
-      : <Field label="Field"><select className={controlClass} value={draft.key} disabled={draft.existing || busy}
+      : <Field label="Field"><SelectControl aria-label="Field" className={controlClass} value={draft.key} disabled={draft.existing || busy}
       onChange={e => setDraft({ ...draft, key: e.target.value, category: ANSWER_CATALOG.find(s => s.key === e.target.value)?.category ?? "custom" })}>
       <option value="">Choose a field</option>
       {ANSWER_CATALOG.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
       {draft.key && !spec && <option value={draft.key}>{draft.key}</option>}
-    </select></Field>}
+    </SelectControl></Field>}
     <Field label="Language"><Input required value={draft.language} disabled={draft.existing || busy}
       placeholder="default, en, pt-BR" onChange={e => setDraft({ ...draft, language: e.target.value })} /></Field>
     <p className="text-xs text-muted-foreground">The default version preserves existing workflows. Other languages require an explicit fallback selection.</p>
