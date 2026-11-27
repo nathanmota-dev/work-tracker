@@ -8,6 +8,8 @@ const WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"]
 const pad = (value: number) => String(value).padStart(2, "0")
 /** `YYYY-MM-DD` of a local date, the value format of a date input. */
 export const toIsoDate = (date: Date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+/** A date as the Brazilian `dd/mm/yyyy`. */
+export const brDate = (date: Date) => `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}`
 /** The local date of a `YYYY-MM-DD` value, or undefined when it is not one. */
 export function fromIsoDate(value: string): Date | undefined {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
@@ -30,7 +32,7 @@ function weeks(month: Date): (Date | null)[][] {
  * A date field with a calendar popover, the same look in every form. The value
  * is `YYYY-MM-DD`, or "" when empty; `max` is the last selectable day.
  */
-export function DatePicker({ value, onChange, disabled, placeholder = "Pick a date", max, clearable = true, className, ...props }: {
+export function DatePicker({ value, onChange, disabled, placeholder = "dd/mm/yyyy", max, clearable = true, className, ...props }: {
   value: string
   onChange: (value: string) => void
   disabled?: boolean
@@ -56,7 +58,7 @@ export function DatePicker({ value, onChange, disabled, placeholder = "Pick a da
           className={cn("flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 text-left text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50", className)}
         >
           <span className={cn("truncate", !selected && "text-muted-foreground")}>
-            {selected ? selected.toLocaleDateString(undefined, { dateStyle: "medium" }) : placeholder}
+            {selected ? brDate(selected) : placeholder}
           </span>
           <CalendarDays className="size-4 shrink-0 opacity-50" />
         </button>

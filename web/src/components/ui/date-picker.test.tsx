@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
-import { DatePicker, fromIsoDate, toIsoDate } from "./date-picker"
+import { brDate, DatePicker, fromIsoDate, toIsoDate } from "./date-picker"
 
 describe("DatePicker", () => {
   it("round-trips ISO dates and rejects impossible ones", () => {
@@ -24,5 +24,10 @@ describe("DatePicker", () => {
     fireEvent.click(screen.getByRole("button", { name: "Date" }))
     expect(screen.getByRole("button", { name: /November 13, 2026/ })).toBeDisabled()
     expect(screen.getByRole("button", { name: /November 12, 2026/ })).toBeEnabled()
+  })
+  it("shows the chosen day as dd/mm/yyyy", () => {
+    expect(brDate(new Date(2026, 0, 5))).toBe("05/01/2026")
+    render(<DatePicker value="2026-11-24" onChange={vi.fn()} aria-label="Date" />)
+    expect(screen.getByRole("button", { name: "Date" })).toHaveTextContent("24/11/2026")
   })
 })

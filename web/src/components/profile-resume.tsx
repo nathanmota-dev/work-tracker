@@ -5,12 +5,11 @@ import { openExternal, webUrl } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import type { ResumeEntry } from "../../../src/profile/types"
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-
-/** `YYYY-MM` as "Jul 2025"; a year or "Present" as written; "" stays empty. */
+/** Brazilian order: `YYYY-MM-DD` as "15/07/2025", `YYYY-MM` as "07/2025"; a year or "Present" as written. */
 export function profileMonth(value: string): string {
-  const match = /^(\d{4})-(\d{2})$/.exec(value)
-  return match ? `${MONTHS[Number(match[2]) - 1] ?? ""} ${match[1]}`.trim() : value
+  const match = /^(\d{4})-(\d{2})(?:-(\d{2}))?$/.exec(value)
+  if (!match) return value
+  return match[3] ? `${match[3]}/${match[2]}/${match[1]}` : `${match[2]}/${match[1]}`
 }
 export function period(entry: Pick<ResumeEntry, "start" | "end">): string {
   const [start, end] = [profileMonth(entry.start), profileMonth(entry.end)]
