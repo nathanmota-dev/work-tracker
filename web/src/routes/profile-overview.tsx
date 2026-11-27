@@ -7,6 +7,8 @@ import { LoadState } from "@/components/workspace-ui"
 import { ProfileSources } from "@/components/profile-sources"
 import { InlineAnswers } from "@/components/profile-inline-edit"
 import { MissingSummary, ProfileChecklist, type ProfileCheck } from "@/components/profile-checklist"
+import { ChipListEditor } from "@/components/chip-list-editor"
+import { ResumeEntryEditor } from "@/components/resume-entry-editor"
 import { Chips, EditButton, ProfileLink, ProfileSection, SectionEmpty, Timeline } from "@/components/profile-resume"
 import { initials } from "@/components/opportunity-card"
 import { useApi, type Row } from "@/lib/api"
@@ -14,7 +16,7 @@ import { prepareSkill } from "@/lib/agent"
 import { profileValue, syncProfileOnce, SOURCE_LABELS } from "@/lib/profile-details"
 import { useProfileSources } from "@/lib/profile-sources"
 import { ANSWER_CATALOG, answerEntries } from "../../../src/answers/catalog"
-import type { PersonalSource } from "../../../src/profile/types"
+import type { PersonalSource, ResumeEntry } from "../../../src/profile/types"
 
 /** Sections edited in place, by id, with the answers each one holds. */
 const SECTIONS: Record<string, string[]> = {
@@ -62,7 +64,10 @@ function useProfileView() {
 }
 type View = ReturnType<typeof useProfileView>
 /** Which section is open for editing, and how to open, close and save it. */
-type Editing = { section: string | null; open: (section: string) => void; close: () => void; saved: () => void }
+type Editing = { section: string | null; open: (section: string) => void; close: () => void; saved: (notice?: string) => void }
+/** Resume sections changed on this page; they are not written to the resume data yet. */
+type ResumeEdits = Partial<{ experience: ResumeEntry[]; education: ResumeEntry[]; skills: string[]; certifications: string[] }>
+const LOCAL_NOTICE = "Changes are shown on this page only; saving them to your resume data is not connected yet."
 
 function ProfileHeader({ view, onImport }: { view: View; onImport: () => void }) {
   const { value, name, about } = view
@@ -139,8 +144,12 @@ function sourceNote(rows: Row[]) {
   return source && SOURCE_LABELS[source] ? `${SOURCE_LABELS[source]}. Your own edits are never replaced.` : "Your own edits are never replaced by an import."
 }
 
-function ProfileBody({ view, editing, importResume }: { view: View; editing: Editing; importResume: () => void }) {
-  const { about, resume } = view
+function ProfileBody({ view, editing, edits, setEdits, importResume }: { view: View; editing: Editing; edits: ResumeEdits; setEdits: (edits: ResumeEdits) => void; importResume: () => void }) {
+  const experience = edits.experience ?? view.resume.experience
+  const education = edits.education ?? view.resume.education
+  const skills = edits.skills ?? view.about?.skills ?? []
+  const certifications = edits.certifications ?? view.about?.certifications ?? []
+  const keep = (patch: ResumeEdits) => { setEdits({ ...edits, ...patch }); editing.saved(LOCAL_NOTICE) }
   const importAction = <Button size="sm" variant="outline" onClick={importResume}>Import resume</Button>
   return <>
     <ProfileSection id="profile-roles" title="Roles of interest" count={view.roles.length} action={editAction("roles", "Roles of interest", editing)}>
@@ -153,25 +162,27 @@ function ProfileBody({ view, editing, importResume }: { view: View; editing: Edi
         {view.summary ? <p className="text-sm leading-relaxed whitespace-pre-line text-muted-foreground">{view.summary}</p> : <SectionEmpty>A few lines about who you are and what you look for.</SectionEmpty>}
       </Editable>
     </ProfileSection>
-    <ProfileSection title="Experience" count={resume.experience.length}>
-      {resume.experience.length ? <Timeline entries={resume.experience} label="Experience" /> : <SectionEmpty action={importAction}>No experience yet. Import your LinkedIn PDF or resume data.</SectionEmpty>}
+    <ProfileSection id="profile-experience" title="Experience" count={experience.length} action={editAction("experience", "Experience", editing)}>
+      {editing.section === "experience" ? <ResumeEntryEditor kind="experience" entries={experience} onClose={editing.close} onSave={entries => keep({ experience: entries })} />
+        : experience.length ? <Timeline entries={experience} label="Experience" /> : <SectionEmpty action={importAction}>No experience yet. Add it here or import your LinkedIn PDF or resume data.</SectionEmpty>}
     </ProfileSection>
-    <ProfileSection title="Education" count={resume.education.length}>
-      {resume.education.length ? <Timeline entries={resume.education} label="Education" limit={4} /> : <SectionEmpty action={importAction}>No education yet.</SectionEmpty>}
+    <ProfileSection id="profile-education" title="Education" count={education.length} action={editAction("education", "Education", editing)}>
+      {editing.section === "education" ? <ResumeEntryEditor kind="education" entries={education} onClose={editing.close} onSave={entries => keep({ education: entries })} />
+        : education.length ? <Timeline entries={education} label="Education" limit={4} /> : <SectionEmpty action={importAction}>No education yet.</SectionEmpty>}
     </ProfileSection>
-    <ProfileSection title="Skills" count={about?.skills.length ?? 0}>
-      {about?.skills.length ? <Chips items={about.skills} label="Skills" /> : <SectionEmpty action={importAction}>No skills yet.</SectionEmpty>}
+    <ProfileSection id="profile-skills" title="Skills" count={skills.length} action={editAction("skills", "Skills", editing)}>
+      {editing.section === "skills" ? <ChipListEditor items={skills} label="Skills" placeholder="e.g. TypeScript, React, AWS" onClose={editing.close} onSave={items => keep({ skills: items })} />
+        : skills.length ? <Chips items={skills} label="Skills" /> : <SectionEmpty action={importAction}>No skills yet.</SectionEmpty>}
     </ProfileSection>
     <ProfileSection id="profile-languages" title="Languages" count={view.languages.length} action={editAction("languages", "Languages", editing)}>
       <Editable id="languages" view={view} editing={editing} defaults={{ languages: view.languages.join(", ") }}>
         {view.languages.length ? <Chips items={view.languages} label="Languages" /> : <SectionEmpty>Include your level in each one.</SectionEmpty>}
       </Editable>
     </ProfileSection>
-    {!!about?.certifications.length && (
-      <ProfileSection title="Certifications" count={about.certifications.length}>
-        <Chips items={about.certifications} label="Certifications" />
-      </ProfileSection>
-    )}
+    <ProfileSection id="profile-certifications" title="Certifications" count={certifications.length} action={editAction("certifications", "Certifications", editing)}>
+      {editing.section === "certifications" ? <ChipListEditor items={certifications} label="Certifications" placeholder="e.g. AWS Cloud Practitioner" onClose={editing.close} onSave={items => keep({ certifications: items })} />
+        : certifications.length ? <Chips items={certifications} label="Certifications" /> : <SectionEmpty>Courses and certificates worth showing on a resume.</SectionEmpty>}
+    </ProfileSection>
   </>
 }
 
@@ -186,7 +197,7 @@ function useEditing(): Editing & { notice: string } {
       requestAnimationFrame(() => document.getElementById(`profile-${id}`)?.scrollIntoView?.({ behavior: "smooth", block: "start" }))
     },
     close: () => setSection(null),
-    saved: () => { setSection(null); setNotice("Profile saved.") },
+    saved: (notice = "Profile saved.") => { setSection(null); setNotice(notice) },
   }
 }
 
@@ -200,6 +211,7 @@ export function ProfileOverview() {
   const view = useProfileView()
   const editing = useEditing()
   const [importing, setImporting] = useState(false)
+  const [edits, setEdits] = useState<ResumeEdits>({})
   const answer = (key: string) => { const id = sectionOf(key); if (id) editing.open(id) }
   return (
     <div className="grid gap-x-10 gap-y-8 lg:grid-cols-[minmax(0,1fr)_20rem] xl:grid-cols-[minmax(0,1fr)_24rem]">
@@ -207,7 +219,7 @@ export function ProfileOverview() {
         <LoadState loading={view.answers.loading && !view.answers.data} error={view.answers.error} retry={view.answers.refresh} />
         <ProfileHeader view={view} onImport={() => setImporting(true)} />
         {editing.notice && <p role="status" className="text-sm">{editing.notice}</p>}
-        <ProfileBody view={view} editing={editing} importResume={() => setImporting(true)} />
+        <ProfileBody view={view} editing={editing} edits={edits} setEdits={setEdits} importResume={() => setImporting(true)} />
       </div>
       <aside className="space-y-6 lg:sticky lg:top-0 lg:self-start">
         <ProfileChecklist checks={view.checks} onAnswer={answer} onImport={() => setImporting(true)} />

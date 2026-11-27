@@ -85,7 +85,7 @@ it("lists what is missing and completes it with an answer or an import", async (
   fireEvent.click(checklist.getByRole("button", { name: "Import experience" }))
   expect(await screen.findByText("Profile sources panel")).toBeInTheDocument()
   expect(screen.getByRole("dialog", { name: "Resume files" })).toBeInTheDocument()
-  expect(screen.getByText("No experience yet. Import your LinkedIn PDF or resume data.")).toBeInTheDocument()
+  expect(screen.getByText("No experience yet. Add it here or import your LinkedIn PDF or resume data.")).toBeInTheDocument()
 })
 
 it("edits sections in place: one at a time, validated, saving only what changed", async () => {
