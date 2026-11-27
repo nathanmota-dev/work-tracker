@@ -3,7 +3,7 @@ import { applicationSteps, type StepInput } from "./application-steps"
 
 const input = (patch: Partial<StepInput> = {}): StepInput => ({
   description: true,
-  approved: false,
+  resume: false,
   filled: false,
   submitted: false,
   generate: [],
@@ -15,8 +15,8 @@ const states = (patch?: Partial<StepInput>) => applicationSteps(input(patch)).ma
 it("derives the current step from the furthest milestone", () => {
   expect(states({ description: false })).toEqual(["current", "upcoming", "upcoming", "upcoming"])
   expect(states()).toEqual(["done", "current", "upcoming", "upcoming"])
-  expect(states({ approved: true })).toEqual(["done", "done", "current", "upcoming"])
-  expect(states({ approved: true, filled: true })).toEqual(["done", "done", "done", "current"])
+  expect(states({ resume: true })).toEqual(["done", "done", "current", "upcoming"])
+  expect(states({ resume: true, filled: true })).toEqual(["done", "done", "done", "current"])
   // A submitted manual application completes every earlier step.
   expect(states({ description: false, submitted: true })).toEqual(["done", "done", "done", "done"])
 })
@@ -30,6 +30,6 @@ it("reports readiness blocks only on the current step", () => {
   expect(steps[2]!.blocks).toEqual([])
   const resume = applicationSteps(input({ generate: [offline] }))
   expect(resume[1]).toMatchObject({ state: "blocked", blocks: [offline] })
-  const fill = applicationSteps(input({ approved: true, fill: [offline] }))
+  const fill = applicationSteps(input({ resume: true, fill: [offline] }))
   expect(fill[2]).toMatchObject({ state: "blocked", blocks: [offline] })
 })

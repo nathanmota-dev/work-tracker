@@ -1,4 +1,5 @@
 import { test, expect, type Workspace } from './fixtures'
+import { openStep } from './ui'
 
 const name = (company: string) => `${company} Company · React Engineer`
 const prompts = (workspace: Workspace) => workspace.calls('prompt').filter(call => String(call.text).includes('work-tracker-portal-filler')).length
@@ -26,17 +27,20 @@ test('Batch: a form in review, a pending sign-in and restarts keep the queue; an
 
   // Approving a resume in its detail sends it to the fill phase; the filled form then reserves the portal.
   await open('Alpha', 1)
+  await openStep(workspace.page, 'Resume')
   await workspace.page.getByRole('button', { name: 'Approve this version', exact: true }).click()
   await workspace.go('Applications')
   await expect(item(1, 'Alpha')).toContainText('Form in review · needs you', { timeout: 60_000 })
   await expect(workspace.page.getByRole('status').filter({ hasText: `The browser portal is reserved for ${name('Alpha')}` })).toBeVisible()
   await open('Beta', 2)
+  await openStep(workspace.page, 'Resume')
   await workspace.page.getByRole('button', { name: 'Approve this version', exact: true }).click()
   await workspace.go('Applications')
   await expect(item(2, 'Beta')).toContainText('Waiting to fill · pending')
   // A manual fill cannot overwrite the form waiting for the candidate either.
   await workspace.page.goBack()
   await workspace.ready('Application')
+  await openStep(workspace.page, 'Fill portal')
   await workspace.page.getByRole('button', { name: 'Fill application', exact: true }).click()
   await expect(workspace.page.getByRole('alert')).toContainText(`The ${name('Alpha')} form is waiting for your review in the browser`)
   expect(workspace.calls('fill').map(call => call.applicationId)).toEqual([workspace.query("SELECT a.id FROM applications a JOIN jobs j ON j.id = a.job_id WHERE j.company_name = 'Alpha Company'")[0]!.id])

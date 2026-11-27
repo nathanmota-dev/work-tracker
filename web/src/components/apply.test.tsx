@@ -11,6 +11,7 @@ const artifacts = [{ id: "base-1", kind: "base", pages: 1, warnings: [] }, { id:
 let details: Record<string, any>
 let source: Record<string, any>
 beforeEach(() => {
+  localStorage.clear()
   Object.defineProperty(window, "innerWidth", { value: 1200, configurable: true })
   search.jobId = 7; search.applicationId = 3; search.runId = undefined
   details = { job: { id: 7, title: "React Engineer", company_name: "Example", description: "React role", archived_at: null, link: "https://example.com" }, runs: [{ id: "run-1", job_id: 7, application_id: 3, status: "completed", phase: "review", artifacts, events: [], report: "Emphasized React", created_at: "2026-01-01" }], busy: false, applicationStatus: "draft" }
@@ -200,7 +201,7 @@ it("continues an interrupted fill in the same run only after the portal was revi
   expect(window.location.hash).toContain("runId=run-1")
 })
 
-it("requires explicit approval, highlights PDF text changes and reports approval failures", async () => {
+it("fills an unapproved resume and keeps approval optional, with PDF text changes and failures", async () => {
   details.documents[0].approvedAt = null
   details.documents[0].extra = "Emphasize React"
   const original = request.getMockImplementation()!
@@ -214,22 +215,18 @@ it("requires explicit approval, highlights PDF text changes and reports approval
     return original(path, body)
   })
   render(<ApplyPage />)
-  await screen.findByRole("button", { name: "Approve this version" })
-  await openStep("Fill portal")
-  expect(screen.getByRole("button", { name: "Fill application" })).toBeDisabled()
-  fireEvent.click(screen.getByRole("button", { name: "Review document" }))
+  await waitFor(() => expect(screen.getByRole("button", { name: "Fill application" })).toBeEnabled())
+  await openStep("Resume")
   expect(await screen.findByLabelText("Document text comparison")).toBeInTheDocument()
   expect(screen.getByLabelText("Document text comparison").querySelector("ins")).toHaveTextContent("Tailored experience")
   expect(screen.getByLabelText("Document text comparison").querySelector("del")).toHaveTextContent("Original experience")
+  expect(screen.queryByRole("button", { name: "Approve this resume" })).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole("button", { name: "Approve this version" }))
   expect(await screen.findByRole("alert")).toHaveTextContent("PDF changed")
-  await openStep("Fill portal")
-  expect(screen.getByRole("button", { name: "Fill application" })).toBeDisabled()
-  await openStep("Resume")
+  await waitFor(() => expect(screen.getByRole("button", { name: "Approve this version" })).toBeEnabled())
   fireEvent.click(screen.getByRole("button", { name: "Approve this version" }))
   await waitFor(() => expect(request).toHaveBeenCalledWith("application-preparation/approve", { runId: "run-1", versionId: "pdf-1" }))
-  await openStep("Fill portal")
-  await waitFor(() => expect(screen.getByRole("button", { name: "Fill application" })).toBeEnabled())
+  expect(await screen.findByRole("button", { name: "Version approved" })).toBeDisabled()
 })
 
 it("switches version comparisons and shows approval, portal use and frozen submission", async () => {
@@ -252,6 +249,7 @@ it("approves and confirms one result while another execution, such as a batch it
   details.busy = true
   details.documents[0].approvedAt = null
   render(<ApplyPage />)
+  await openStep("Resume")
   const approve = await screen.findByRole("button", { name: "Approve this version" })
   await waitFor(() => expect(approve).toBeEnabled())
   expect(screen.getByRole("button", { name: "Regenerate" })).toBeDisabled()
@@ -261,7 +259,9 @@ it("approves and confirms one result while another execution, such as a batch it
 
 const step = (name: string) => screen.getByRole("listitem", { name: new RegExp(`^${name}: `) })
 it("titles the detail Application, without a job selector, and walks the stepper through each phase", async () => {
-  details.documents[0].approvedAt = null
+  const documents = details.documents
+  const runs = details.runs
+  Object.assign(details, { runs: [], documents: [] })
   const { unmount } = render(<ApplyPage />)
   expect(await screen.findByRole("heading", { name: "Application", level: 1 })).toBeInTheDocument()
   expect(screen.queryByLabelText("Saved job")).not.toBeInTheDocument()
@@ -270,7 +270,8 @@ it("titles the detail Application, without a job selector, and walks the stepper
   expect(step("2. Resume")).toHaveAttribute("aria-current", "step")
   expect(step("3. Fill portal")).toHaveAccessibleName("3. Fill portal: Next")
   unmount()
-  details.documents[0].approvedAt = "2026-01-01"
+  Object.assign(details, { runs, documents })
+  details.documents[0].approvedAt = null
   const approved = render(<ApplyPage />)
   await waitFor(() => expect(step("3. Fill portal")).toHaveAttribute("aria-current", "step"))
   expect(step("2. Resume")).toHaveAccessibleName("2. Resume: Done")
@@ -302,42 +303,61 @@ it("shows an empty state that links to the Jobs shortlist when no job is chosen"
   expect(screen.queryByRole("combobox")).not.toBeInTheDocument()
   expect(request).not.toHaveBeenCalledWith("application-preparation/details", expect.anything())
 })
-it("uses a saved resume for this job without tailoring and labels the document's origin", async () => {
+const savedResume = { id: "v1", name: "Back-End · C#, .NET", role: "backend", stacks: ["C#", ".NET"], status: "ready", archivedAt: null, pdf: { id: "pdf-v1", kind: "variant", pages: 1, warnings: [] } }
+it("fills with the selected saved resume, without a use or approval button", async () => {
   const base = request.getMockImplementation()!
-  const saved = { id: "v1", name: "Back-End · C#, .NET", role: "backend", stacks: ["C#", ".NET"], status: "ready", archivedAt: null, pdf: { id: "pdf-v1", kind: "variant", pages: 1, warnings: [] } }
-  details.documents[0].variant = { id: "v1", name: "Back-End · C#, .NET", role: "backend", stacks: ["C#", ".NET"] }
-  request.mockImplementation(async (path: string, body?: unknown) => path === "resume-variants" ? [saved] : path === "application-preparation/use-variant" ? { id: "run-saved", application_id: 3 } : base(path, body))
+  request.mockImplementation(async (path: string, body?: unknown) => path === "resume-variants" ? [savedResume] : path === "application-preparation/use-variant" ? { id: "run-saved", application_id: 3 } : base(path, body))
   render(<ApplyPage />)
   await openStep("Resume")
-  expect(await screen.findByText("From saved resume Back-End · C#, .NET")).toBeInTheDocument()
-  fireEvent.click(await screen.findByRole("button", { name: "Back-End · C#, .NET" }))
-  expect(screen.getByRole("region", { name: "Back-End · C#, .NET PDF" })).toHaveTextContent("pdf-v1")
-  await waitFor(() => expect(screen.getByRole("button", { name: "Use this resume" })).toBeEnabled())
-  fireEvent.click(screen.getByRole("button", { name: "Use this resume" }))
+  fireEvent.click(await screen.findByRole("button", { name: savedResume.name }))
+  expect(screen.getByRole("region", { name: `${savedResume.name} PDF` })).toHaveTextContent("pdf-v1")
+  expect(screen.getByRole("button", { name: savedResume.name })).toHaveAttribute("aria-pressed", "true")
+  expect(screen.queryByRole("button", { name: /Use this resume|Approve/ })).not.toBeInTheDocument()
+  expect(request).not.toHaveBeenCalledWith("application-preparation/use-variant", expect.anything())
+  await openStep("Fill portal")
+  expect(screen.getByText(/the saved resume you chose/)).toBeInTheDocument()
+  await waitFor(() => expect(screen.getByRole("button", { name: "Fill application" })).toBeEnabled())
+  fireEvent.click(screen.getByRole("button", { name: "Fill application" }))
   await waitFor(() => expect(request).toHaveBeenCalledWith("application-preparation/use-variant", { jobId: 7, applicationId: 3, variantId: "v1" }))
+  await waitFor(() => expect(request).toHaveBeenCalledWith("application-preparation/fill", { runId: "run-saved", extra: "", provider: "opencode" }))
   await waitFor(() => expect(window.location.hash).toContain("runId=run-saved"))
   expect(request).not.toHaveBeenCalledWith("application-preparation/generate", expect.anything())
 })
-it("reports a refused saved resume", async () => {
+it("shows the saved resume in use on its own card, without a document review", async () => {
+  const base = request.getMockImplementation()!
+  details.runs[0].provider = "saved-resume"
+  details.documents[0].variant = { id: "v1", name: savedResume.name, role: "backend", stacks: ["C#", ".NET"] }
+  request.mockImplementation(async (path: string, body?: unknown) => path === "resume-variants" ? [savedResume] : base(path, body))
+  render(<ApplyPage />)
+  await openStep("Resume")
+  const card = await screen.findByRole("button", { name: savedResume.name })
+  await waitFor(() => expect(card).toHaveAttribute("aria-pressed", "true"))
+  expect(card).toHaveTextContent("This application")
+  expect(screen.getByRole("region", { name: `${savedResume.name} PDF` })).toHaveTextContent("pdf-1")
+  expect(screen.queryByLabelText("Document text comparison")).not.toBeInTheDocument()
+})
+it("reports a refused saved resume and does not fill", async () => {
   const base = request.getMockImplementation()!
   request.mockImplementation(async (path: string, body?: unknown) => {
-    if (path === "resume-variants") return [{ id: "v1", name: "Saved", role: "other", stacks: ["Go"], status: "ready", archivedAt: null, pdf: { id: "p", kind: "variant", pages: 1, warnings: [] } }]
+    if (path === "resume-variants") return [savedResume]
     if (path === "application-preparation/use-variant") throw new Error("This saved resume is archived.")
     return base(path, body)
   })
   render(<ApplyPage />)
   await openStep("Resume")
-  fireEvent.click(await screen.findByRole("button", { name: "Saved" }))
-  await waitFor(() => expect(screen.getByRole("button", { name: "Use this resume" })).toBeEnabled())
-  fireEvent.click(screen.getByRole("button", { name: "Use this resume" }))
+  fireEvent.click(await screen.findByRole("button", { name: savedResume.name }))
+  await openStep("Fill portal")
+  await waitFor(() => expect(screen.getByRole("button", { name: "Fill application" })).toBeEnabled())
+  fireEvent.click(screen.getByRole("button", { name: "Fill application" }))
   expect(await screen.findByText("This saved resume is archived.")).toBeInTheDocument()
+  expect(request).not.toHaveBeenCalledWith("application-preparation/fill", expect.anything())
 })
 it("offers a saved resume next to generation and fills it with the selected agent", async () => {
   details.runs[0].provider = "saved-resume"
   render(<ApplyPage />)
   await openStep("Resume")
   expect(await screen.findByRole("heading", { name: "Choose a resume" })).toBeInTheDocument()
-  expect(screen.getByRole("heading", { name: "Generate a tailored resume" })).toBeInTheDocument()
+  expect(screen.getByRole("region", { name: "Generate a tailored resume" })).toBeInTheDocument()
   await openStep("Fill portal")
   expect(screen.getByText(/the saved resume you chose/)).toBeInTheDocument()
   expect(await screen.findByText(/Runs with OpenCode/)).toBeInTheDocument()
@@ -367,15 +387,18 @@ it("opens the current step first and each step's view from the stepper", async (
   await openStep("Confirm submission")
   expect(screen.getByRole("heading", { name: "Confirm submission" })).toBeInTheDocument()
 })
-it("uses the base resume as it is and opens its execution", async () => {
+it("fills with the base resume as it is and opens its execution", async () => {
   const base = request.getMockImplementation()!
   request.mockImplementation(async (path: string, body?: unknown) => path === "application-preparation/use-base" ? { id: "run-base", application_id: 3 } : base(path, body))
   render(<ApplyPage />)
   await openStep("Resume")
   fireEvent.click(await screen.findByRole("button", { name: "Base resume" }))
-  await waitFor(() => expect(screen.getByRole("button", { name: "Use base resume" })).toBeEnabled())
-  fireEvent.click(screen.getByRole("button", { name: "Use base resume" }))
+  await openStep("Fill portal")
+  expect(screen.getByText(/\(your base resume as it is\)/)).toBeInTheDocument()
+  await waitFor(() => expect(screen.getByRole("button", { name: "Fill application" })).toBeEnabled())
+  fireEvent.click(screen.getByRole("button", { name: "Fill application" }))
   await waitFor(() => expect(request).toHaveBeenCalledWith("application-preparation/use-base", { jobId: 7, applicationId: 3 }))
+  await waitFor(() => expect(request).toHaveBeenCalledWith("application-preparation/fill", { runId: "run-base", extra: "", provider: "opencode" }))
   await waitFor(() => expect(window.location.hash).toContain("runId=run-base"))
 })
 it("names the base resume in the Fill portal step", async () => {

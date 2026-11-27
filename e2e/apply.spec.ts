@@ -24,12 +24,13 @@ async function generate(workspace: import('./fixtures').Workspace) {
   await openStep(page, 'Resume')
   await page.getByRole('button', { name: /^(Generate resume|Regenerate)$/ }).click()
   await expect(page.getByRole('button', { name: 'Approve this version', exact: true })).toBeEnabled({ timeout: 90_000 })
-  await expect(step(workspace, '3. Fill portal: Next')).toBeVisible()
+  // A generated resume is ready to fill; approving it is optional.
+  await expect(step(workspace, '3. Fill portal: Current step')).toBeVisible()
   await expect(page.getByLabel('Document text comparison').locator('ins')).toContainText('Tailored resume.')
   await expect(page.getByLabel('Document text comparison').locator('del')).toContainText('Base resume.')
   await expect(panel(page, 'Tailored resume PDF').locator('.react-pdf__Page__textContent')).toContainText('Tailored resume.')
   await page.getByRole('button', { name: 'Approve this version', exact: true }).click()
-  await expect(step(workspace, '3. Fill portal: Current step')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Version approved', exact: true })).toBeDisabled()
   await openStep(page, 'Fill portal')
   await expect(page.getByRole('button', { name: 'Fill application', exact: true })).toBeEnabled()
 }
@@ -240,19 +241,19 @@ test('Apply: failed regeneration preserves PDF; cancel and sign-in retry keep ap
 test('Apply: the base resume is used as it is, without tailoring, and filled by the selected agent', async ({ workspace }) => {
   const { page } = workspace
   await selectJob(workspace)
-  await page.getByRole('button', { name: 'Use base resume', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Approve this version', exact: true })).toBeEnabled({ timeout: 60_000 })
-  await expect(panel(page, 'Base resume PDF').locator('.react-pdf__Page__textContent')).toContainText('Base resume.')
+  await openStep(page, 'Resume')
+  await resumeCard(page, 'Base resume').click()
   expect(workspace.calls('tailor')).toHaveLength(0)
-  await page.getByRole('button', { name: 'Approve this version', exact: true }).click()
   await openStep(page, 'Fill portal')
   await expect(panel(page, 'Fill portal')).toContainText('(your base resume as it is)')
   await page.getByRole('button', { name: 'Fill application', exact: true }).click()
   await expect(step(workspace, '4. Confirm submission: Current step')).toBeVisible({ timeout: 30_000 })
+  await openStep(page, 'Resume')
+  await expect(panel(page, 'Base resume PDF').locator('.react-pdf__Page__textContent')).toContainText('Base resume.')
   await openStep(page, 'Confirm submission')
   await expect(page.getByRole('button', { name: 'I submitted in the browser' })).toBeVisible()
   expect(workspace.calls('fill')).toHaveLength(1)
   expect(workspace.query("SELECT provider FROM application_runs")).toEqual([{ provider: 'base-resume' }])
-  // The base resume is already in Resumes, so approving it saves nothing there.
+  // The base resume is already in Resumes, so filling with it saves nothing there.
   expect(workspace.query('SELECT COUNT(*) AS n FROM resume_variants')).toEqual([{ n: 0 }])
 })

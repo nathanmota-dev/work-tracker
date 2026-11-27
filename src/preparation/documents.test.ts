@@ -69,6 +69,10 @@ test("records usage and freezes it only for a matching successful fill", () => {
   expect(d.statement.run).toHaveBeenCalledWith("now", 2);
   run.status = "failed";
   expect(() => freezeDocumentUse(d.asDatabase, 2, "r")).toThrow("Fill the portal");
+  for (const status of ["cancelled", "interrupted"] as const) {
+    run.status = status;
+    expect(() => freezeDocumentUse(d.asDatabase, 2, "r")).not.toThrow();
+  }
   run.status = "completed";
   d.statement.get.mockReturnValue({ version_id: "other" });
   expect(() => freezeDocumentUse(d.asDatabase, 2, "r")).toThrow("Fill the portal");

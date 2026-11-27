@@ -20,7 +20,7 @@ import { basePreview, compileWithCorrection, copyBaseline, texSources, warnLengt
 export type { PreparationAgent } from "./executor.ts";
 export { readableJobDetails } from "./generation.ts";
 import { journeyRecord, latestForJob, openApplication, settleExecution, startTracking, transition } from "../applications/journey-store.ts";
-import { saveDocument, approvedDocument, approveDocument, freezeDocumentUse } from "./documents.ts";
+import { saveDocument, approvedDocument, approveDocument, documentsForJob, freezeDocumentUse } from "./documents.ts";
 import { missingForPreparation } from "../jobs/preparation.ts";
 import { planTransition } from "../applications/journey.ts";
 import { assertPortalFree } from "./batch-store.ts";
@@ -65,6 +65,12 @@ export class PreparationService {
     if (!version.variant) this.saveInResumes(version.id);
     this.changed(version.runId);
     return version;
+  }
+  /** Choosing a resume to fill the portal approves it; no separate review is required. */
+  private approveForFill(run: PreparationRun, versionId: unknown): void {
+    if (run.status !== "completed" || run.phase !== "review") return;
+    const version = documentsForJob(run.job_id, run.application_id).find(item => item.runId === run.id);
+    if (version && !version.approvedAt) this.approve({ runId: run.id, versionId: versionId ?? version.id });
   }
   /** An approved tailored resume is saved in Resumes for later jobs; a failure there never undoes the approval. */
   private saveInResumes(versionId: string): void {
@@ -238,13 +244,14 @@ export class PreparationService {
     if (!pdf || !run.application_id || !["completed", "waiting_for_sign_in", "failed", "cancelled", "interrupted"].includes(run.status)) throw new PreparationError("Generate a validated PDF before filling the application.");
     // Never repeat a portal action whose outcome is unknown without the candidate's review.
     if (run.recovery.reviewRequired && input.reviewed !== true) throw new PreparationError("The previous portal fill stopped without a result, so the portal may hold a partial fill. Review it in the browser, then confirm before filling again.", 409);
-    const version = approvedDocument(id, input.versionId);
     const agent = fillAgent(run, input);
-    const file = artifactFile(version.id);
     const d = db();
     const application = journeyRecord(d, run.application_id);
     planTransition(application, "fill.start");
     assertPortalFree(d, application.id);
+    this.approveForFill(run, input.versionId);
+    const version = approvedDocument(id, input.versionId);
+    const file = artifactFile(version.id);
     const url = webLink(application.external_url || job.link);
     const manifest = runManifest(id);
     const manifestPath = fillManifestPath(manifest.manifestPath);

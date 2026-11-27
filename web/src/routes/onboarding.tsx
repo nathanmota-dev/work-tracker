@@ -29,7 +29,7 @@ const screens: Screen[] = [
   },
   {
     title: "Apply with confidence",
-    description: "Pick a shortlisted role: the agent tailors your LaTeX resume, you approve it, and it fills the job portal for you to review and submit.",
+    description: "Pick a shortlisted role: the agent tailors your LaTeX resume, and it fills the job portal for you to review and submit.",
     action: "Next",
     content: () => <ApplyPreview />,
   },

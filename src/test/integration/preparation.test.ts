@@ -150,7 +150,7 @@ test("approval binds the portal receipt to the exact PDF and freezes submitted i
   const run = await complete(service.generate({ jobId, provider: "opencode", extra: "Emphasize React" }).id);
   const version = service.details({ jobId }).documents!.find(v => v.runId === run.id)!;
   expect(version).toMatchObject({ approvedAt: null, description: "React developer role", extra: "Emphasize React" });
-  expect(() => service.fill({ runId: run.id })).toThrow("Approve");
+  expect(() => service.fill({ runId: run.id, versionId: "other" })).toThrow("not found");
   service.approve({ runId: run.id, versionId: version.id });
   expect(() => service.fill({ runId: run.id, versionId: "other" })).toThrow("differs");
   const pdf = store.artifactFile(version.id);
@@ -179,7 +179,9 @@ test("approval binds the portal receipt to the exact PDF and freezes submitted i
   const next = service.details({ jobId }).documents!.find(v => v.runId === regenerated.id)!;
   expect(next.approvedAt).toBeNull();
   expect(next.sourceVersion).not.toBe(version.sourceVersion);
-  expect(() => service.fill({ runId: regenerated.id })).toThrow("Approve");
+  // Filling with an unreviewed version approves it.
+  await complete(service.fill({ runId: regenerated.id }).id);
+  expect(service.details({ jobId }).documents!.find(v => v.id === next.id)).toMatchObject({ approvedAt: expect.any(String), usedAt: expect.any(String) });
   expect(readFileSync(pdf.path)).toEqual(bytes);
   // Return to the approved version; the final scenario confirms this exact usage.
   await complete(service.fill({ runId: run.id, reviewed: true }).id);
@@ -211,6 +213,13 @@ test("cancellation preserves the last completed application, and submission is e
   expect(service.details({ jobId }).applicationStatus).toBe("filled");
   const state = service.details({ jobId });
   const valid = state.runs.find(r => r.id === state.uploadedRunId)!;
+  // Cancelling another fill of the same execution keeps the successful one confirmable.
+  mode = "wait";
+  service.fill({ runId: valid.id });
+  expect((await complete(valid.id)).status).toBe("waiting_for_sign_in");
+  await service.cancel(valid.id);
+  expect(service.details({ jobId }).applicationStatus).toBe("filled");
+  mode = "success";
   service.submitted({ runId: valid.id });
   expect(service.details({ jobId }).applicationStatus).toBe("submitted");
   expect(() => service.fill({ runId: valid.id })).toThrow("already submitted");

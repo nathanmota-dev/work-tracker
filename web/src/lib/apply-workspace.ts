@@ -7,15 +7,12 @@ import { request, useApi, useConnection, subscribe } from "@/lib/api"
 import { applicationSteps } from "@/lib/application-steps"
 import type { Providers } from "@/lib/agent"
 import type { ReviewSearch } from "@/lib/batch-review"
+import { readyVariants, useVariants } from "@/lib/variants"
+import { resumeChoice, startUsing, usesReadyPdf } from "@/lib/resume-choice"
 import { openApply, preparationMessages, usePreparation, type SourcesState, type PdfArtifact, type SubmissionConfirmation } from "@/lib/preparation"
 
-/** Marks an execution that reused a saved resume; no agent generated it. */
-export const SAVED_RESUME = "saved-resume"
-/** Marks an execution that used the base resume as it is. */
-export const BASE_RESUME = "base-resume"
-/** No agent generated these executions' PDFs, so the selected agent fills them. */
-export const usesReadyPdf = (provider?: string) => provider === SAVED_RESUME || provider === BASE_RESUME
-export type ApplyKind = "generate" | "fill" | "retry" | "cancel" | "submitted" | "description" | "approve" | "use-base"
+export { BASE_RESUME, SAVED_RESUME, usesReadyPdf } from "@/lib/resume-choice"
+export type ApplyKind = "generate" | "fill" | "retry" | "cancel" | "submitted" | "description" | "approve"
 
 /** Focus the job description editor. */
 function focusDescription() {
@@ -52,7 +49,10 @@ export function useApplyWorkspace(search: ReviewSearch, review: boolean, reviewL
   const base = preview ?? run?.artifacts.find(a => a.kind === "base") ?? sources.data?.preview
   const version = details.data?.documents?.find(item => item.runId === pdfRun?.id)
   const tailored = pdfRun?.artifacts.find(a => a.kind === "tailored")
-  const busy = reviewLocked || pending || details.loading || !details.data || !!details.data.busy
+  const variants = useVariants()
+  const resume = resumeChoice({ review, run: tailored ? pdfRun : undefined, version, saved: readyVariants(variants.data), pick: context.draft.resume })
+  const pickResume = (choice: string) => context.update(previous => ({ ...previous, resume: { choice, runId: tailored ? pdfRun?.id : undefined } }))
+  const busy = reviewLocked || pending || details.loading || !details.data || !!details.data.busy || variants.loading && !variants.data
   const reviewBusy = (!!review && pdfRun?.id !== run?.id) || reviewLocked || pending || details.loading || !details.data || pdfRun?.status === "running" // Review stays possible while a batch runs another execution.
   const archived = !!details.data?.job.archived_at
   const submitted = details.data?.applicationStatus === "submitted"
@@ -60,11 +60,11 @@ export function useApplyWorkspace(search: ReviewSearch, review: boolean, reviewL
   // A batch item is filled by the agent that generated it; otherwise by the selected agent.
   const itemAgent = review && pdfRun && !usesReadyPdf(pdfRun.provider) ? { provider: pdfRun.provider, model: pdfRun.model ?? "" } : undefined
   const fillAgent = itemAgent ?? { provider: selectedProvider?.id, model: effectiveModel }
-  const readiness = { live, busy: (!!review && pdfRun?.id !== run?.id) || busy || integrations.testing, archived, submitted, sources: !!sources.data?.config.projectDir, tools: !missingTools, descriptionDirty, gateUnconfirmed: gate.unconfirmed, linkedinNeeded: !details.data?.job.description && !!details.data?.job.linkedin_job_id, descriptionMissing: !details.data?.job.description && !details.data?.job.linkedin_job_id, tailored: !!tailored && !!version, approved: !!version?.approvedAt, provider: selectedProvider?.id, model, invalidModel: !!model && !selectedProvider?.models.includes(model), integrations: integrations.data }
+  const readiness = { live, busy: (!!review && pdfRun?.id !== run?.id) || busy || integrations.testing, archived, submitted, sources: !!sources.data?.config.projectDir, tools: !missingTools, descriptionDirty, gateUnconfirmed: gate.unconfirmed, linkedinNeeded: !details.data?.job.description && !!details.data?.job.linkedin_job_id, descriptionMissing: !details.data?.job.description && !details.data?.job.linkedin_job_id, tailored: !!resume.replacement || !!tailored && !!version, approved: review ? !!version?.approvedAt : undefined, baseUnconfigured: resume.replacement === "base" && !sources.data?.config.projectDir, provider: selectedProvider?.id, model, invalidModel: !!model && !selectedProvider?.models.includes(model), integrations: integrations.data }
   const generateBlocks = review ? [] : applyBlocks(readiness, "generate")
   // An unavailable saved model is not sent, so it never blocks filling.
   const fillBlocks = applyBlocks({ ...readiness, ...fillAgent, invalidModel: false }, "fill")
-  const steps = applicationSteps({ description: !readiness.descriptionMissing && !descriptionDirty, approved: readiness.approved, filled: ["filled", "needs_input"].includes(details.data?.applicationStatus ?? ""), submitted: submitted || details.data?.journey?.submission_status === "submitted", generate: generateBlocks, fill: fillBlocks })
+  const steps = applicationSteps({ description: !readiness.descriptionMissing && !descriptionDirty, resume: review ? !!readiness.approved : readiness.tailored, filled: ["filled", "needs_input"].includes(details.data?.applicationStatus ?? ""), submitted: submitted || details.data?.journey?.submission_status === "submitted", generate: generateBlocks, fill: fillBlocks })
   // Each correction opens the step that holds it, then brings it into view once rendered.
   function correct(action: ApplyAction) {
     if (action === "model") { setModel(""); return }
@@ -85,28 +85,35 @@ export function useApplyWorkspace(search: ReviewSearch, review: boolean, reviewL
       case "retry": return { runId: run?.id, extra, reviewed, ...agentFields }
       case "fill": return { runId: pdfRun?.id, extra, versionId: version?.id, ...agentFields }
       case "cancel": return { runId: run?.id, extra }
-      case "use-base": return { jobId: search.jobId, applicationId: search.applicationId ?? run?.application_id ?? undefined }
     }
+  }
+  /** The execution to fill: a newly chosen base or saved resume is put in use first. */
+  async function fillTarget() {
+    if (!resume.replacement) return { payload: body("fill", false), runId: pdfRun?.id, applicationId: pdfRun?.application_id }
+    const used = await startUsing(resume.replacement, { jobId: search.jobId, applicationId: search.applicationId ?? run?.application_id ?? undefined })
+    context.update(previous => ({ ...previous, runId: used.id, resume: undefined }))
+    openApply(search.jobId, used.application_id ?? undefined, used.id)
+    return { payload: { runId: used.id, extra, ...agentFields }, runId: used.id, applicationId: used.application_id }
   }
   async function action(kind: ApplyKind, reviewed = false) {
     setPending(true); setError(""); setNotice("")
     try {
-      const payload = body(kind, reviewed)
+      const target = kind === "fill" ? await fillTarget() : undefined
+      const payload = target ? target.payload : body(kind, reviewed)
       const value = await request<{ id?: string; application_id?: number | null } & Partial<SubmissionConfirmation>>(`application-preparation/${kind}`, payload)
-      if (kind === "use-base" && value.id) { const runId = value.id; context.update(previous => ({ ...previous, runId })); openApply(search.jobId, value.application_id ?? undefined, runId) }
       if (kind === "submitted") setNotice(value.alreadySubmitted ? "This submission was already confirmed. The application stays on the board." : "Submission confirmed. The application is now on the board in its initial stage.")
       if (kind === "generate" && value.id) { context.update(previous => ({ ...previous, runId: value.id })); openApply(search.jobId, "applicationId" in payload ? payload.applicationId : undefined, value.id) }
       if (kind === "retry" && run) openApply(search.jobId, search.applicationId, run.id)
-      if (kind === "fill" && pdfRun) openApply(search.jobId, pdfRun.application_id ?? undefined, pdfRun.id)
+      if (target?.runId) openApply(search.jobId, target.applicationId ?? undefined, target.runId)
       if (kind === "description") context.update(previous => ({ ...previous, descriptionDirty: false }))
       details.refresh()
-    } catch (e) { setError((e as Error).message) }
+    } catch (e) { setError((e as Error).message); details.refresh() }
     finally { setPending(false) }
   }
   return {
     search, review, providers, sources, details, live, integrations, apply, error, setError, notice, setNotice, preview, setPreview, gate,
     selectedProvider, effectiveModel, run, pdfRun, base, version, tailored, busy, reviewBusy, archived, submitted, readiness, fillAgent,
-    generateBlocks, fillBlocks, steps, correct, messages, action, pending,
+    generateBlocks, fillBlocks, steps, correct, messages, action, pending, variants, resume, pickResume,
   }
 }
 export type ApplyWorkspaceState = ReturnType<typeof useApplyWorkspace>

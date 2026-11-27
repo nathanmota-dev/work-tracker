@@ -25,7 +25,7 @@ function Source({ variant }: { variant: ResumeVariant }) {
     <Button asChild variant="outline" size="sm" className="w-full">
       <a href={`#/apply?jobId=${source.jobId}&applicationId=${source.applicationId}`}><ExternalLink />Open application</a>
     </Button>
-    <p className="text-muted-foreground">To change its content, tailor the application again in Apply and approve the new version.</p>
+    <p className="text-muted-foreground">To change its content, tailor the application again in Apply and approve or fill with the new version.</p>
   </section>
 }
 

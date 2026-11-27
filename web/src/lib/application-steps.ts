@@ -11,14 +11,15 @@ export type ApplicationStep = {
 }
 const STEPS: { key: StepKey; label: string; hint: string }[] = [
   { key: "description", label: "Job description", hint: "Save or fetch the role description" },
-  { key: "resume", label: "Resume", hint: "Use a saved resume or generate a tailored one, then approve it" },
-  { key: "fill", label: "Fill portal", hint: "The selected agent fills the form with the approved PDF" },
+  { key: "resume", label: "Resume", hint: "Choose a saved resume or generate a tailored one" },
+  { key: "fill", label: "Fill portal", hint: "The selected agent fills the form with the chosen resume" },
   { key: "submission", label: "Confirm submission", hint: "Submit in the browser, then confirm here" },
 ]
 export type StepInput = {
   /** Saved, or fetchable from LinkedIn when generating. */
   description: boolean
-  approved: boolean
+  /** A resume is chosen; a batch item also needs its approval. */
+  resume: boolean
   filled: boolean
   submitted: boolean
   generate: ApplyBlock[]
@@ -31,7 +32,7 @@ export type StepInput = {
  * submitted application still reads as submitted.
  */
 export function applicationSteps(input: StepInput): ApplicationStep[] {
-  const milestones = [input.description, input.approved, input.filled, input.submitted]
+  const milestones = [input.description, input.resume, input.filled, input.submitted]
   const reached = milestones.lastIndexOf(true)
   const blocks: Record<StepKey, ApplyBlock[]> = {
     description: input.generate.filter((block) => block.action === "description"),

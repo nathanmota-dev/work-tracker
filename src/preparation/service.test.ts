@@ -21,7 +21,7 @@ import {
   updateRun,
 } from "./store.ts";
 import { addCheckpoint, dropCheckpoints, markPortal } from "./recovery.ts";
-import { approveDocument } from "./documents.ts";
+import { approveDocument, documentsForJob } from "./documents.ts";
 import { saveTailoredVariant } from "../variants/promote.ts";
 import { assertPortalFree } from "./batch-store.ts";
 import { PreparationService, readableJobDetails } from "./service.ts";
@@ -840,6 +840,18 @@ test("a batch generates and restarts from its recorded sources instead of the cu
   service.retry({ runId: "r" }, recorded);
   await settle();
   expect(snapshotSources).not.toHaveBeenCalled();
+});
+test("filling approves an unreviewed resume, and keeps an earlier approval", () => {
+  vi.mocked(documentsForJob).mockReturnValueOnce([{ id: "tailored", runId: "r", approvedAt: null }] as ReturnType<typeof documentsForJob>);
+  vi.mocked(approveDocument).mockReturnValue({ id: "tailored", runId: "r", variant: null } as ReturnType<typeof approveDocument>);
+  service.fill({ runId: "r" });
+  expect(approveDocument).toHaveBeenCalledWith({ runId: "r", versionId: "tailored" });
+});
+test("an approved resume is not approved again when filling", () => {
+  vi.mocked(documentsForJob).mockReturnValueOnce([{ id: "tailored", runId: "r", approvedAt: "2026-01-01" }] as ReturnType<typeof documentsForJob>);
+  vi.mocked(approveDocument).mockClear();
+  service.fill({ runId: "r" });
+  expect(approveDocument).not.toHaveBeenCalled();
 });
 test("a form reserved in the browser blocks filling another application", () => {
   vi.mocked(assertPortalFree).mockImplementationOnce(() => { throw new PreparationError("The Other form is waiting for your review in the browser.", 409); });

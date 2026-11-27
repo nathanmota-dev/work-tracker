@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, type ReactNode } from "react"
+import { lazy, Suspense, useEffect, type ReactNode } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -8,18 +8,15 @@ import { BlockList } from "@/components/apply-readiness"
 import { DocumentReview } from "@/components/document-review"
 import { Markdown } from "@/components/markdown"
 import { ScoreRing } from "@/components/resume-tile"
-import { request } from "@/lib/api"
 import { ATS_NOTE, byJobScore, useAtsJob, type AtsDocumentScore } from "@/lib/ats"
-import { openApply, type PdfArtifact } from "@/lib/preparation"
+import type { PdfArtifact } from "@/lib/preparation"
 import { BASE_RESUME, SAVED_RESUME, type ApplyWorkspaceState } from "@/lib/apply-workspace"
-import { readyVariants, roleLabels, useVariants, type ResumeVariant } from "@/lib/variants"
+import { readyVariants, roleLabels, type ResumeVariant } from "@/lib/variants"
 import { cn } from "@/lib/utils"
 import { CancelRun, RunProblems } from "@/components/apply-run"
 
 const PdfViewer = lazy(() => import("@/components/pdf-viewer").then(module => ({ default: module.PdfViewer })))
 type Props = { w: ApplyWorkspaceState }
-/** "application" is the resume this application already uses; "base" the base resume; any other value a saved resume's id. */
-type Choice = string
 const MAX_MISSING = 5
 
 /** A sheet of paper with the score ring or plain text lines, like the cards in Resumes. */
@@ -53,97 +50,81 @@ function Stacks({ variant }: { variant: ResumeVariant }) {
 function applicationResume(w: ApplyWorkspaceState) {
   const provider = w.pdfRun?.provider
   const name = provider === SAVED_RESUME ? w.version?.variant?.name ?? "Saved resume" : provider === BASE_RESUME ? "Base resume" : "Tailored resume"
-  const state = w.version?.submittedAt ? "Submitted" : w.version?.approvedAt ? "Approved" : "Awaiting approval"
-  return { name, detail: `${provider === SAVED_RESUME ? "Saved resume" : provider === BASE_RESUME ? "As it is" : "Generated for this job"} · ${state}` }
+  const state = w.version?.submittedAt ? "Submitted" : w.version?.approvedAt ? "Approved" : w.review ? "Awaiting approval" : undefined
+  const origin = provider === SAVED_RESUME ? "Saved resume" : provider === BASE_RESUME ? "As it is" : "Generated for this job"
+  return { name, detail: state ? `${origin} · ${state}` : origin }
 }
 
-/** What can be done with the chosen resume: approve the application's one, or start using another. */
-function ChoiceAction({ w, choice, variant, score }: Props & { choice: Choice; variant?: ResumeVariant; score?: AtsDocumentScore }) {
-  const [pending, setPending] = useState(false)
-  const target = { jobId: w.search.jobId, applicationId: w.search.applicationId ?? w.run?.application_id ?? undefined }
-  const locked = w.busy || w.archived || !w.live || w.readiness.submitted || pending
-  const baseReady = !!w.sources.data?.config.projectDir
-  async function applySaved(variantId: string) {
-    setPending(true); w.setError("")
-    try {
-      const value = await request<{ id: string; application_id: number | null }>("application-preparation/use-variant", { ...target, variantId })
-      w.setNotice(""); w.apply.context.update(previous => ({ ...previous, runId: value.id })); openApply(w.search.jobId, value.application_id ?? undefined, value.id); w.details.refresh()
-    } catch (e) { w.setError((e as Error).message) }
-    finally { setPending(false) }
-  }
+/** What the chosen resume lacks for this job; a batch item's resume is also approved here. */
+function ChoiceNote({ w, shown, score }: Props & { shown: string; score?: AtsDocumentScore }) {
   const missing = score?.requiredMissing.slice(0, MAX_MISSING) ?? []
-  return <div className="space-y-2 rounded-xl border bg-background/40 p-3 text-sm">
-    {choice === "application" && <p>{w.version?.approvedAt ? "This resume is approved. Continue in Fill portal." : "Review the PDF and approve this version before filling."}</p>}
-    {choice === "application" && w.version && !w.version.approvedAt && <Button disabled={w.reviewBusy || w.archived || !w.live || w.submitted} onClick={() => void w.action("approve")}>Approve this resume</Button>}
-    {choice === "base" && <>
-      <p className="text-muted-foreground">Send the base resume as it is, without tailoring. Its PDF is compiled first if needed.</p>
-      <div className="flex flex-wrap items-center gap-2">
-        <Button disabled={!baseReady || locked} onClick={() => void w.action("use-base")}>Use base resume</Button>
-        {w.sources.data && !baseReady && <a className="text-xs underline" href="#/resume?id=base">Configure resume sources</a>}
-      </div>
-    </>}
-    {variant && <>
-      <p className="text-muted-foreground">Reuse this saved resume. No agent runs, so you can approve and fill right away.</p>
-      <Button disabled={locked} onClick={() => void applySaved(variant.id)}>Use this resume</Button>
-    </>}
-    {choice !== "application" && !!missing.length && <p className="text-xs text-muted-foreground" title={ATS_NOTE}>Missing required: {missing.join(", ")}</p>}
-  </div>
+  return <>
+    {w.review && shown === "application" && w.version && !w.version.approvedAt && <div className="space-y-2 rounded-xl border bg-background/40 p-3 text-sm">
+      <p>Review the PDF and approve this version to queue its fill.</p>
+      <Button disabled={w.reviewBusy || w.archived || !w.live || w.submitted} onClick={() => void w.action("approve")}>Approve this resume</Button>
+    </div>}
+    {shown === "base" && w.sources.data && !w.sources.data.config.projectDir && <a className="block text-xs underline" href="#/resume?id=base">Configure resume sources</a>}
+    {!!missing.length && <p className="text-xs text-muted-foreground" title={ATS_NOTE}>Missing required: {missing.join(", ")}</p>}
+  </>
 }
 
 /** Tailor the base resume to this job with the default agent. */
-function GeneratePanel({ w }: Props) {
-  return <Panel title="Generate a tailored resume">
-    <div className="space-y-3">
-      <p className="text-xs text-muted-foreground">Your agent tailors the base resume to this job description. The new resume appears as a card here; it is added to Resumes only after the application is submitted.</p>
-      <Field label="Additional context"><Textarea value={w.apply.extra} disabled={w.busy} onChange={e => w.apply.setExtra(e.target.value)} placeholder="What should the agent emphasize? The resume follows the job description’s language." /></Field>
-      <div className="flex flex-wrap gap-2">
-        <Button disabled={w.generateBlocks.length > 0} onClick={() => void w.action("generate")}>{w.tailored && w.pdfRun?.provider !== SAVED_RESUME && w.pdfRun?.provider !== BASE_RESUME ? "Regenerate" : "Generate resume"}</Button>
-        <CancelRun w={w} filling={false} />
-      </div>
-      <BlockList label="Generate" blocks={w.generateBlocks} correct={w.correct} />
-      <RunProblems w={w} filling={false} />
-      {w.run?.report && w.run.phase !== "filling" && <details className="rounded-lg border p-3"><summary className="cursor-pointer text-xs font-medium">Tailoring report</summary><div className="mt-3 text-sm"><Markdown text={w.run.report} /></div></details>}
+function GenerateSection({ w }: Props) {
+  return <section aria-label="Generate a tailored resume" className="space-y-3 border-t pt-3">
+    <p className="text-xs text-muted-foreground">Or let your agent tailor the base resume to this job description. The new resume appears as a card here and is added to Resumes once you fill the application with it.</p>
+    <Field label="Additional context"><Textarea value={w.apply.extra} disabled={w.busy} onChange={e => w.apply.setExtra(e.target.value)} placeholder="What should the agent emphasize? The resume follows the job description’s language." /></Field>
+    <div className="flex flex-wrap gap-2">
+      <Button disabled={w.generateBlocks.length > 0} onClick={() => void w.action("generate")}>{w.tailored && w.pdfRun?.provider !== SAVED_RESUME && w.pdfRun?.provider !== BASE_RESUME ? "Regenerate" : "Generate resume"}</Button>
+      <CancelRun w={w} filling={false} />
     </div>
-  </Panel>
+    <BlockList label="Generate" blocks={w.generateBlocks} correct={w.correct} />
+    <RunProblems w={w} filling={false} />
+    {w.run?.report && w.run.phase !== "filling" && <details className="rounded-lg border p-3"><summary className="cursor-pointer text-xs font-medium">Tailoring report</summary><div className="mt-3 text-sm"><Markdown text={w.run.report} /></div></details>}
+  </section>
 }
 
 /** The resume step: resumes as cards on the left, the chosen one's PDF on the right. */
 export function ResumeView({ w }: Props) {
-  const variants = useVariants()
+  const variants = w.variants
+  const { route, update } = w.apply
+  const unpinned = !w.review && !route.step
+  // Choosing or generating a resume completes this step; stay on it until the candidate moves on.
+  useEffect(() => { if (unpinned) update({ step: "resume" }) }, [unpinned, update])
   const ats = useAtsJob(w.search.jobId)
   const scores = Array.isArray(ats.data?.documents) ? ats.data.documents : []
   const saved = w.review ? [] : byJobScore(readyVariants(variants.data), scores)
-  const [picked, setPicked] = useState<Choice>()
-  const choices: Choice[] = [...(w.tailored ? ["application"] : []), ...(w.review ? [] : ["base"]), ...saved.map(variant => variant.id)]
-  const choice = picked && choices.includes(picked) ? picked : choices[0] ?? "base"
-  const variant = saved.find(item => item.id === choice)
+  const { current, selected } = w.resume
+  // Nothing chosen yet still previews the base resume.
+  const shown = selected ?? "base"
+  const variant = saved.find(item => item.id === shown)
   const scoreOf = (id?: string) => scores.find(item => (id ? item.variant_id === id : item.kind === "base"))
   const generating = !!w.run && w.run.phase !== "filling" && (w.run.status === "running" || w.run.status === "waiting_for_sign_in")
-  const pdf: PdfArtifact | null | undefined = choice === "application" ? w.tailored : choice === "base" ? w.base : variant?.pdf
-  const current = w.tailored ? applicationResume(w) : undefined
-  const title = choice === "application" ? current?.name : choice === "base" ? "Base resume" : variant?.name
+  const pdf: PdfArtifact | null | undefined = shown === current ? w.tailored : shown === "base" ? w.base : variant?.pdf
+  const own = current === "application" ? applicationResume(w) : undefined
+  const title = shown === "application" ? own?.name : shown === "base" ? "Base resume" : variant?.name
   return <div className="grid gap-4 lg:min-h-[32rem] lg:flex-1 lg:grid-cols-2">
     <div className="flex min-h-0 flex-col gap-4 lg:overflow-y-auto lg:pr-1">
       <Panel title="Choose a resume">
         <div className="space-y-3">
+          {!w.review && <p className="text-xs text-muted-foreground">The selected resume is the one used in Fill portal.</p>}
           <div className="grid grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] gap-3">
-            {current && <ResumeCard name={current.name} detail={current.detail} badge="This application" selected={choice === "application"} onSelect={() => setPicked("application")} />}
-            {!w.review && <ResumeCard name="Base resume" detail={w.sources.data?.config.projectDir ? w.sources.data.config.mainFile : "Not configured"} badge="Default" score={scoreOf()} selected={choice === "base"} onSelect={() => setPicked("base")} />}
-            {saved.map(item => <ResumeCard key={item.id} name={item.name} detail={roleLabels[item.role]} score={scoreOf(item.id)} selected={choice === item.id} onSelect={() => setPicked(item.id)}><Stacks variant={item} /></ResumeCard>)}
+            {own && <ResumeCard name={own.name} detail={own.detail} badge="This application" selected={selected === "application"} onSelect={() => w.pickResume("application")} />}
+            {!w.review && <ResumeCard name="Base resume" detail={w.sources.data?.config.projectDir ? w.sources.data.config.mainFile : "Not configured"} badge={current === "base" ? "This application" : "Default"} score={scoreOf()} selected={selected === "base"} onSelect={() => w.pickResume("base")} />}
+            {saved.map(item => <ResumeCard key={item.id} name={item.name} detail={roleLabels[item.role]} badge={current === item.id ? "This application" : undefined} score={scoreOf(item.id)} selected={selected === item.id} onSelect={() => w.pickResume(item.id)}><Stacks variant={item} /></ResumeCard>)}
           </div>
           {!w.review && !saved.length && variants.data && <p className="text-xs text-muted-foreground">No saved resume is ready. <a className="text-foreground underline" href="#/resumes">Create one in Resumes</a> to reuse it for jobs with the same stack.</p>}
-          <ChoiceAction w={w} choice={choice} variant={variant} score={choice === "base" ? scoreOf() : variant ? scoreOf(variant.id) : undefined} />
+          <ChoiceNote w={w} shown={shown} score={shown === "base" ? scoreOf() : variant ? scoreOf(variant.id) : undefined} />
+          {!w.review && <GenerateSection w={w} />}
         </div>
       </Panel>
-      {!w.review && <GeneratePanel w={w} />}
       {w.review && <RunProblems w={w} filling={false} />}
-      {w.tailored && w.pdfRun?.id !== w.run?.id && <p className="text-sm text-muted-foreground">{w.review ? "Showing the previous validated resume. Retry this item to finish the requested version." : "Showing the previous validated resume. Approve this version before filling if needed."}</p>}
-      {choice === "application" && w.version && <DocumentReview key={w.version.id} version={w.version} versions={w.details.data?.documents ?? []} disabled={w.reviewBusy || w.archived || !w.live || w.submitted} approve={() => void w.action("approve")} />}
+      {w.tailored && w.pdfRun?.id !== w.run?.id && <p className="text-sm text-muted-foreground">{w.review ? "Showing the previous validated resume. Retry this item to finish the requested version." : "Showing the previous validated resume."}</p>}
+      {shown === "application" && w.version && <DocumentReview key={w.version.id} version={w.version} versions={w.details.data?.documents ?? []} disabled={w.reviewBusy || w.archived || !w.live || w.submitted} approve={() => void w.action("approve")} />}
     </div>
     <div className="flex h-[80dvh] min-h-0 flex-col lg:h-auto">
       {generating
         ? <Panel title="Agent workspace" fill><AgentConversation fill messages={w.messages} /></Panel>
-        : <Suspense fallback={<p role="status">Loading PDF viewer…</p>}><PdfViewer key={choice} title={title ? `${title} PDF` : "Resume PDF"} artifact={pdf} fill /></Suspense>}
+        : <Suspense fallback={<p role="status">Loading PDF viewer…</p>}><PdfViewer key={shown} title={title ? `${title} PDF` : "Resume PDF"} artifact={pdf} fill /></Suspense>}
     </div>
   </div>
 }
