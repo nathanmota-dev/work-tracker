@@ -76,6 +76,8 @@ const writes = new Set([
   "resume-variants/generate",
   "resume-variants/regenerate",
   "resume-variants/update",
+  "resume-variants/latex",
+  "resume-variants/save-latex",
   "resume-variants/archive",
   "resume-variants/cancel",
   "resume-variants/import",

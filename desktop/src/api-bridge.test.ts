@@ -138,6 +138,16 @@ describe("api bridge", () => {
     for (const invalid of ["resume-variants?archived=false", "resume-variants?archived=true&x=1", "resume-variants/v1"])
       await expect(request({}, invalid)).rejects.toThrow("Unsupported API request")
   })
+  it("allows reading and saving a saved resume's LaTeX sources", async () => {
+    connectApiBridge({ address: "http://127.0.0.1:4000", token: "fixture" })
+    const fetch = vi.fn(async () => new Response("{}"))
+    vi.stubGlobal("fetch", fetch)
+    const request = electron.handlers.get("api:request")!
+    expect(await request({}, "resume-variants/latex", { id: "v1" })).toEqual({})
+    expect(fetch).toHaveBeenLastCalledWith(expect.objectContaining({ pathname: "/api/resume-variants/latex" }), expect.objectContaining({ method: "POST" }))
+    expect(await request({}, "resume-variants/save-latex", { id: "v1", files: [] })).toEqual({})
+    expect(fetch).toHaveBeenLastCalledWith(expect.objectContaining({ pathname: "/api/resume-variants/save-latex" }), expect.objectContaining({ method: "POST", body: '{"id":"v1","files":[]}' }))
+  })
   it("allows the quiet scan with an optional numeric threshold and its resolve write", async () => {
     connectApiBridge({ address: "http://127.0.0.1:4000", token: "fixture" })
     const fetch = vi.fn(async () => new Response("{}"))
