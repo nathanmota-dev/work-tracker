@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
+import { InlineEditorForm, useSave } from "@/components/inline-editor"
 import { AnswerField } from "@/components/answer-editor"
 import { publish, request, type Row } from "@/lib/api"
 import { profileValue } from "@/lib/profile-details"
@@ -24,13 +24,10 @@ export function InlineAnswers({ keys, rows, defaults = {}, columns = 1, onClose,
 }) {
   const saved = Object.fromEntries(keys.map(key => [key, profileValue(rows, key).value]))
   const [drafts, setDrafts] = useState<Record<string, string>>(() => Object.fromEntries(keys.map(key => [key, saved[key] || defaults[key] || ""])))
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState("")
+  const { busy, error, run } = useSave()
   const invalid = (key: string) => (drafts[key]!.trim() ? validateAnswer(key, drafts[key]!) : null)
   const changed = keys.filter(key => drafts[key]!.trim() !== saved[key])
-  async function save() {
-    setBusy(true); setError("")
-    try {
+  const save = () => run(async () => {
       for (const key of changed) {
         const value = drafts[key]!.trim()
         if (value) await request("answer", { key, value: drafts[key], category: category(key), language: "default" })
@@ -38,12 +35,10 @@ export function InlineAnswers({ keys, rows, defaults = {}, columns = 1, onClose,
       }
       publish({ type: "changed" })
       onSaved()
-    } catch (e) { setError((e as Error).message) }
-    finally { setBusy(false) }
-  }
+  })
   return (
-    <form noValidate className="space-y-4 rounded-xl border bg-muted/20 p-4 animate-in fade-in-0" onSubmit={event => { event.preventDefault(); void save() }}
-      onKeyDown={event => { if (event.key === "Escape" && !busy) onClose() }}>
+    <InlineEditorForm busy={busy} error={error} canSave={!!changed.length && !keys.some(key => invalid(key))} note="Applications and your next resumes use these answers."
+      onSubmit={() => void save()} onClose={onClose}>
       <div className={cn("grid gap-4", columns === 2 && "sm:grid-cols-2")}>
         {keys.map(key => (
           <div key={key} className={cn(columns === 2 && ["summary", "address", "social_links", "preferred_locations"].includes(key) && "sm:col-span-2")}>
@@ -53,12 +48,6 @@ export function InlineAnswers({ keys, rows, defaults = {}, columns = 1, onClose,
           </div>
         ))}
       </div>
-      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-      <div className="flex flex-wrap items-center justify-end gap-2 border-t pt-4">
-        <p className="mr-auto text-xs text-muted-foreground">Applications and your next resumes use these answers.</p>
-        <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={onClose}>Cancel</Button>
-        <Button size="sm" disabled={busy || !changed.length || keys.some(key => invalid(key))}>{busy ? "Saving…" : "Save changes"}</Button>
-      </div>
-    </form>
+    </InlineEditorForm>
   )
 }
