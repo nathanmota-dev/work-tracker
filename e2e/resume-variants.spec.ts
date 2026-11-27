@@ -150,7 +150,7 @@ test('Resumes: approving a tailored resume in Apply saves it with its role and s
   await expect(code).toContainText('Tailored resume.')
   await code.click()
   await page.keyboard.press('ControlOrMeta+a')
-  await page.keyboard.insertText('\\documentclass[a4paper]{article}\n\\begin{document}\nEdited resume. C# and Angular.\n\\end{document}\n')
+  await page.keyboard.insertText('\\documentclass[a4paper]{article}\n\\begin{document}\nEdited resume. C\\# and Angular.\n\\end{document}\n')
   await expect(page.getByText('Unsaved changes')).toBeVisible()
   await page.keyboard.press('ControlOrMeta+s')
   await expect(panel(page, 'Desenvolvedor Full Stack .NET/Angular PDF').locator('.react-pdf__Page__textContent')).toContainText('Edited resume.', { timeout: 60_000 })
