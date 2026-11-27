@@ -1,4 +1,7 @@
+import { Archive, MoreHorizontal, Pencil } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Status } from "@/components/workspace-ui"
 import { ATS_NOTE, NOT_ENOUGH, atsTone, bandLabels, type AtsBest, type ScoreTone } from "@/lib/ats"
 import { cn } from "@/lib/utils"
@@ -30,17 +33,36 @@ function Thumbnail({ variant }: { variant: ResumeVariant }) {
   </div>
 }
 
-/** One saved resume in the Resumes grid; opens its page with the PDF. */
-export function ResumeTile({ variant }: { variant: ResumeVariant }) {
-  return <a href={resumeHref(variant.id)} aria-label={variant.name} className={cn("group flex w-full min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-left outline-none transition-colors hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring", variant.archivedAt && "opacity-60")}>
-    <div className="relative rounded-lg bg-accent/30 py-4">
-      <Thumbnail variant={variant} />
-      {variant.status !== "ready" && <span className="absolute right-2 top-2"><Status value={statusLabels[variant.status]} /></span>}
-    </div>
-    <div className="min-w-0 space-y-2">
-      <h3 className="truncate text-sm font-medium" title={variant.name}>{variant.name}</h3>
-      <p className="text-xs text-muted-foreground">{roleLabels[variant.role]}</p>
-      <ul aria-label={`Stacks of ${variant.name}`} className="flex flex-wrap gap-1">{variant.stacks.map(stack => <li key={stack}><Badge variant="secondary">{stack}</Badge></li>)}</ul>
-    </div>
-  </a>
+export type ResumeTileAction = "edit" | "archive"
+
+/** Rename or archive a saved resume from its tile; none while it is generating. */
+function TileMenu({ variant, onAction }: { variant: ResumeVariant; onAction: (action: ResumeTileAction, variant: ResumeVariant) => void }) {
+  if (variant.status === "generating" || variant.status === "waiting_for_sign_in") return null
+  return <DropdownMenu>
+    <DropdownMenuTrigger asChild>
+      <Button variant="ghost" size="icon-sm" aria-label={`More actions for ${variant.name}`} className="absolute right-2 top-2 bg-card/80 text-muted-foreground"><MoreHorizontal /></Button>
+    </DropdownMenuTrigger>
+    <DropdownMenuContent align="end">
+      <DropdownMenuItem onSelect={() => onAction("edit", variant)}><Pencil /> Edit details</DropdownMenuItem>
+      {!variant.archivedAt && <DropdownMenuItem onSelect={() => onAction("archive", variant)}><Archive /> Archive</DropdownMenuItem>}
+    </DropdownMenuContent>
+  </DropdownMenu>
+}
+
+/** One saved resume in the Resumes grid; opens its page with the editor and PDF, and has a menu of quick actions. */
+export function ResumeTile({ variant, onAction }: { variant: ResumeVariant; onAction: (action: ResumeTileAction, variant: ResumeVariant) => void }) {
+  return <div className="relative flex w-full min-w-0">
+    <a href={resumeHref(variant.id)} aria-label={variant.name} className={cn("group flex w-full min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-left outline-none transition-colors hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring", variant.archivedAt && "opacity-60")}>
+      <div className="relative rounded-lg bg-accent/30 py-4">
+        <Thumbnail variant={variant} />
+        {variant.status !== "ready" && <span className="absolute left-2 top-2"><Status value={statusLabels[variant.status]} /></span>}
+      </div>
+      <div className="min-w-0 space-y-2">
+        <h3 className="truncate pr-6 text-sm font-medium" title={variant.name}>{variant.name}</h3>
+        <p className="text-xs text-muted-foreground">{roleLabels[variant.role]}</p>
+        <ul aria-label={`Stacks of ${variant.name}`} className="flex flex-wrap gap-1">{variant.stacks.map(stack => <li key={stack}><Badge variant="secondary">{stack}</Badge></li>)}</ul>
+      </div>
+    </a>
+    <TileMenu variant={variant} onAction={onAction} />
+  </div>
 }

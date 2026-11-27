@@ -37,7 +37,7 @@ it("lists the base resume first, then saved resumes by role as cards that open t
   expect(within(screen.getByRole("link", { name: "Back-End · C#, .NET" })).getAllByRole("listitem").map(item => item.textContent)).toEqual(["C#", ".NET"])
   expect(within(tailored).getByRole("img", { name: "Match with its job: 78 · Strong match" })).toBeInTheDocument()
   const grid = screen.getByRole("list", { name: "Saved resumes" })
-  expect([...grid.children].map(item => item.firstElementChild?.getAttribute("aria-label"))).toEqual(["Base resume (default)", "Front-End · React", "Back-End · C#, .NET", "New tailored resume"])
+  expect([...grid.children].map(item => item.querySelector("a, button")?.getAttribute("aria-label"))).toEqual(["Base resume (default)", "Front-End · React", "Back-End · C#, .NET", "New tailored resume"])
   expect(within(grid).getByRole("button", { name: "New tailored resume" })).toHaveTextContent("For another role or stack.")
   expect(screen.getByRole("link", { name: "Base resume (default)" })).toHaveAttribute("href", "#/resume?id=base")
   variants.push(variant({ id: "v3", name: "Generating", status: "generating", pdf: null }))
@@ -55,4 +55,38 @@ it("opens the generation and import forms", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Import PDF" }))
   expect(await screen.findByRole("dialog", { name: "Import PDF" })).toBeInTheDocument()
   expect(desktop.request).toHaveBeenCalledWith("resume-variants", undefined)
+})
+
+it("renames and archives a saved resume from its tile menu, which a generating one does not have", async () => {
+  variants = [variant(), variant({ id: "v3", name: "Generating", status: "generating", pdf: null })]
+  desktop.request.mockImplementation(async (path: string) => {
+    if (path === "resume-variants/archive") { variants = variants.filter(item => item.id !== "v1"); return { ok: true } }
+    return path === "resume-variants" ? structuredClone(variants) : { providers: [], default: null }
+  })
+  render(<ResumesPage />)
+  const menu = async () => fireEvent.pointerDown(await screen.findByRole("button", { name: "More actions for Back-End · C#, .NET" }), { button: 0, ctrlKey: false })
+  expect(await screen.findByRole("link", { name: "Generating" })).toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "More actions for Generating" })).not.toBeInTheDocument()
+  await menu()
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Edit details" }))
+  const dialog = await screen.findByRole("dialog", { name: "Edit details" })
+  expect(within(dialog).getByPlaceholderText("Back-End · C#, .NET")).toBeInTheDocument()
+  fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }))
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
+  await menu()
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Archive" }))
+  await waitFor(() => expect(desktop.request).toHaveBeenCalledWith("resume-variants/archive", { id: "v1" }))
+  await waitFor(() => expect(screen.queryByRole("link", { name: "Back-End · C#, .NET" })).not.toBeInTheDocument())
+})
+
+it("reports a failed archive", async () => {
+  variants = [variant()]
+  desktop.request.mockImplementation(async (path: string) => {
+    if (path === "resume-variants/archive") throw new Error("Cancel this generation before archiving it.")
+    return structuredClone(variants)
+  })
+  render(<ResumesPage />)
+  fireEvent.pointerDown(await screen.findByRole("button", { name: "More actions for Back-End · C#, .NET" }), { button: 0, ctrlKey: false })
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Archive" }))
+  expect(await screen.findByRole("alert")).toHaveTextContent("Cancel this generation before archiving it.")
 })
