@@ -9,7 +9,7 @@ export type ApplyAction = "description" | "model" | "review" | "gate"
 export type ApplyBlock = { message: string; label: string; href?: string; action?: ApplyAction; step?: StepId }
 export type ReadinessInput = {
   live: boolean; busy: boolean; archived: boolean; submitted: boolean; sources: boolean; tools: boolean;
-  descriptionDirty: boolean; descriptionMissing: boolean; gateUnconfirmed?: boolean; linkedinNeeded?: boolean; tailored: boolean; approved?: boolean; provider?: string; model: string; invalidModel: boolean;
+  descriptionDirty: boolean; descriptionMissing: boolean; gateUnconfirmed?: boolean; linkedinNeeded?: boolean; tailored: boolean; approved?: boolean; baseUnconfigured?: boolean; provider?: string; model: string; invalidModel: boolean;
   integrations?: IntegrationStatus
 }
 export function applyBlocks(input: ReadinessInput, operation: "generate" | "fill"): ApplyBlock[] {
@@ -25,7 +25,8 @@ export function applyBlocks(input: ReadinessInput, operation: "generate" | "fill
     if (!input.tools) blocks.push({ message: "Required LaTeX or PDF tools are unavailable.", label: "Check installed tools", href: correctionLink(), step: "resume" })
     if (input.gateUnconfirmed) blocks.push({ message: "This job failed a deal-breaker check. Review the quoted requirement and confirm before preparing.", label: "Review requirements", action: "gate" })
     if (input.descriptionDirty || input.descriptionMissing) blocks.push({ message: input.descriptionDirty ? "Save your description changes before generating." : "This job needs a description.", label: "Edit job description", action: "description" })
-  } else if (!input.tailored) blocks.push({ message: "Generate and review a validated PDF before filling.", label: "Configure resume sources", href: "#/resume?id=base" })
+  } else if (!input.tailored) blocks.push({ message: "Choose or generate a resume before filling.", label: "Choose a resume", action: "review" })
+  if (operation === "fill" && input.baseUnconfigured) blocks.push({ message: "Choose a valid LaTeX project to use the base resume.", label: "Configure resume sources", href: "#/resume?id=base", step: "resume" })
   if (operation === "fill" && input.tailored && input.approved === false) blocks.push({ message: "Approve the displayed document version before filling.", label: "Review document", action: "review" })
   const targets: Target[] = [...(input.provider ? [`acp/${input.provider}` as Target] : []), ...(operation === "fill" ? ["mcp/chrome" as const] : input.linkedinNeeded ? ["mcp/linkedin" as const] : [])]
   for (const target of targets) {

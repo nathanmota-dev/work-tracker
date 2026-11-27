@@ -8,7 +8,7 @@ it("maps every local blocker to its correction", () => {
   expect(blocks.map(block => block.label)).toEqual(["Check workspace connection", "View activity", "Restore in Jobs", "Open the board", "Configure an agent", "Choose a model", "Configure resume sources", "Check installed tools", "Edit job description"])
   for (const block of blocks) expect(block.href || block.action).toBeTruthy()
   expect(blocks.filter(block => block.step).map(block => [block.label, block.step])).toEqual([["Configure resume sources", "resume"], ["Check installed tools", "resume"]])
-  expect(applyBlocks({ ...ready, tailored: false }, "fill")[0]?.message).toContain("validated PDF")
+  expect(applyBlocks({ ...ready, tailored: false }, "fill")[0]?.message).toContain("Choose or generate a resume")
   expect(applyBlocks({ ...ready, descriptionMissing: true }, "generate")[0]?.action).toBe("description")
 })
 it("keeps Chrome and LinkedIn independent, ignores old model probes and blocks only relevant integrations", () => {

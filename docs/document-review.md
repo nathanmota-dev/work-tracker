@@ -9,9 +9,14 @@ pixel a pixel.
 Prepare an application em Launch abre Apply; a API genérica de agentes recusa
 preenchimentos que contornariam essa revisão.
 
-Antes de Fill application, use Approve this version depois de revisar o PDF e o
-diff. A aprovação identifica o artefato e seu SHA-256. Uma nova geração exige outra
-aprovação, mesmo se o conteúdo parecer igual. Uma geração que falha preserva os
+O currículo usado no preenchimento é o card selecionado na etapa Resume: o
+adaptado desta candidatura, o base ou um salvo. Selecionar um card apenas escolhe;
+o currículo base ou salvo passa a valer na candidatura ao clicar Fill application.
+
+Revisar e aprovar é opcional na tela Apply. Fill application aprova a versão usada,
+e a aprovação identifica o artefato e seu SHA-256; Approve this version continua
+disponível no Document review de um currículo adaptado. A fila de um
+[lote](preparation-batches.md) é a exceção: ela só preenche depois da aprovação. Uma geração que falha preserva os
 artefatos anteriores; selecione a execução anterior para usá-los. Documentos de
 execuções anteriores à funcionalidade continuam visíveis, mas precisam ser
 regenerados para obter uma versão revisável e preencher novamente.
@@ -24,7 +29,7 @@ vaga não reescreve esses registros.
 
 Uma versão também pode vir de um currículo salvo (variante, ver
 [features-e-fluxos.md](features-e-fluxos.md#16-currículos-reaproveitáveis-variantes)).
-Nesse caso o painel mostra “From saved resume <nome>”, a versão registra
+Nesse caso não há Document review na tela Apply, a versão registra
 `variant_id`, e o snapshot guarda a descrição da vaga, a variante (nome, role e
 stacks), o perfil, o relatório, a seleção e as fontes com que a variante foi gerada
 (nenhuma quando ela foi importada de um PDF). O PDF da candidatura é uma cópia com
@@ -48,7 +53,7 @@ ao salvar não desfaz a aprovação e fica registrada no histórico. Ao abrir o 
 candidaturas com versão adaptada aprovada e sem currículo salvo recebem o seu (a
 versão aprovada mais recente), o que cobre aprovações anteriores a esta função. Um
 currículo salvo de uma candidatura não é regenerado em Resumes: adapte a candidatura
-de novo em Apply e aprove a nova versão.
+de novo em Apply e aprove ou preencha com a nova versão.
 
 O manifesto de preenchimento leva a versão aprovada, seu hash e o caminho exato do
 PDF. O agente deve identificar esses mesmos valores no resultado após confirmar o
@@ -59,7 +64,9 @@ de tentar novamente.
 
 O painel identifica a versão aprovada, a usada no portal e a enviada. I submitted
 in the browser congela a referência do último preenchimento na mesma transação da
-confirmação de envio. Registros legados já preenchidos mantêm seu fluxo de
+confirmação de envio. Cancelar um novo preenchimento, ou fechar o app durante ele,
+mantém o último preenchimento bem-sucedido confirmável; um novo preenchimento que
+falhou exige preencher outra vez. Registros legados já preenchidos mantêm seu fluxo de
 confirmação; a migração não inventa aprovações retroativas. A aplicação nunca clica
 Submit no portal.
 

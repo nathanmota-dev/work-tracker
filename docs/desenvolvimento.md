@@ -407,9 +407,9 @@ npm run test:backend:integration
 npm run package
 node scripts/smoke-electron.mjs
 node scripts/smoke-electron.mjs node_modules/.bin/electron-vite dev --watch --noSandbox
-node scripts/smoke-electron.mjs './release/work-tracker-0.0.1-x86_64.AppImage' --no-sandbox
+node scripts/smoke-electron.mjs "./release/work-tracker-$(node -p "require('./package.json').version")-x86_64.AppImage" --no-sandbox
 node scripts/smoke-apply.mjs node_modules/.bin/electron-vite dev --watch --noSandbox
-node scripts/smoke-apply.mjs './release/work-tracker-0.0.1-x86_64.AppImage' --no-sandbox
+node scripts/smoke-apply.mjs "./release/work-tracker-$(node -p "require('./package.json').version")-x86_64.AppImage" --no-sandbox
 npm run test:e2e
 npm run lint
 npm run test:infra

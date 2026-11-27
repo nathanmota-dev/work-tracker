@@ -107,7 +107,8 @@ export function freezeDocumentUse(d: Database, applicationId: number, runId: str
   // Previously filled legacy applications have no approval record; preserve their existing submission flow.
   if (!documentsForJob(runRecord(runId).job_id, applicationId).some(item => item.runId === runId)) return;
   const version = approvedDocument(runId);
-  if (runRecord(runId).status !== "completed") throw new PreparationError("Fill the portal with the approved version before confirming submission.", 409);
+  // A later fill that was cancelled, or cut off by closing the app, keeps the last successful one; a failed one does not.
+  if (!["completed", "cancelled", "interrupted"].includes(runRecord(runId).status)) throw new PreparationError("Fill the portal with the approved version before confirming submission.", 409);
   const usage = d.query("SELECT version_id, pdf_hash FROM application_documents WHERE application_id = ?").get(applicationId) as { version_id: string; pdf_hash: string } | undefined;
   if (usage?.version_id !== version.id || usage.pdf_hash !== version.pdfHash) throw new PreparationError("Fill the portal with the approved version before confirming submission.", 409);
   d.query("UPDATE application_documents SET submitted_at = COALESCE(submitted_at, ?) WHERE application_id = ?").run(now(), applicationId);

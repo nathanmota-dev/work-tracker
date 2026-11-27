@@ -1,6 +1,8 @@
 import { useState, type SetStateAction } from "react"
 
-export type ContextDraft = { extra: string; description?: string; descriptionDirty?: boolean; runId?: string }
+export type ContextDraft = { extra: string; description?: string; descriptionDirty?: boolean; runId?: string; resume?: ResumePick }
+/** A resume chosen in Apply, valid while the application still shows the resume of `runId`. */
+export type ResumePick = { choice: string; runId?: string }
 const empty: ContextDraft = { extra: "" }
 function read(key: string, seed?: ContextDraft) {
   try {
@@ -13,6 +15,7 @@ function read(key: string, seed?: ContextDraft) {
     return { draft: value && typeof value.extra === "string" ? {
       extra: value.extra, description: typeof value.description === "string" ? value.description : undefined, descriptionDirty: value.descriptionDirty === true,
       ...(typeof value.runId === "string" ? { runId: value.runId } : {}),
+      ...(typeof value.resume?.choice === "string" ? { resume: value.resume as ResumePick } : {}),
     } as ContextDraft : empty, error: "", hasValue: raw !== null }
   } catch { return { draft: empty, error: "Could not restore this context draft.", hasValue: true } }
 }
