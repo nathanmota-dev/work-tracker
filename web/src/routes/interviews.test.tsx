@@ -8,6 +8,7 @@ vi.mock("@/lib/api", async (original) => ({
   request: vi.fn(),
 }))
 vi.mock("@/components/ui/select-control", () => ({ SelectControl: ({ children, ...props }: React.ComponentProps<"select">) => <select {...props}>{children}</select> }))
+vi.mock("@/components/ui/date-picker", () => ({ DateTimePicker: ({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) => <input aria-label={label} value={value} onChange={(e) => onChange(e.target.value)} /> }))
 let rows: Row[]
 const refresh = vi.fn()
 beforeEach(() => {

@@ -98,3 +98,42 @@ export function DatePicker({ value, onChange, disabled, placeholder = "dd/mm/yyy
     </Popover.Root>
   )
 }
+
+/** Typed digits as `HH:mm`: "153" → "15:3", "1530" → "15:30". */
+const maskTime = (text: string) => { const digits = text.replace(/\D/g, "").slice(0, 4); return digits.length > 2 ? `${digits.slice(0, 2)}:${digits.slice(2)}` : digits }
+const validTime = (text: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(text)
+const nowTime = () => { const now = new Date(); return `${pad(now.getHours())}:${pad(now.getMinutes())}` }
+
+/**
+ * A date and a 24-hour time, in place of a native `datetime-local` input. The
+ * value keeps that input's `YYYY-MM-DDTHH:mm` format, or "" when empty; a date
+ * picked without a time starts at the current time.
+ */
+export function DateTimePicker({ value, onChange, disabled, label, className }: {
+  value: string; onChange: (value: string) => void; disabled?: boolean; label: string; className?: string
+}) {
+  const [day = "", saved = ""] = value.split("T")
+  const [time, setTime] = useState(saved.slice(0, 5))
+  const typeTime = (text: string) => {
+    const next = maskTime(text)
+    setTime(next)
+    if (day && validTime(next)) onChange(`${day}T${next}`)
+  }
+  const pickDay = (next: string) => {
+    if (!next) { onChange(""); return }
+    const at = validTime(time) ? time : nowTime()
+    setTime(at)
+    onChange(`${next}T${at}`)
+  }
+  return (
+    <div className={cn("flex gap-2", className)}>
+      <DatePicker value={day} onChange={pickDay} disabled={disabled} aria-label={`${label} date`} className="flex-1" />
+      <input
+        aria-label={`${label} time`} inputMode="numeric" placeholder="HH:mm" value={time} disabled={disabled || !day}
+        onChange={(e) => typeTime(e.target.value)}
+        aria-invalid={!!time && !validTime(time)}
+        className="h-9 w-20 rounded-md border border-input bg-background px-3 text-sm tabular-nums shadow-xs outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 aria-invalid:border-destructive"
+      />
+    </div>
+  )
+}

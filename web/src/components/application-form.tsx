@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { DatePicker } from "@/components/ui/date-picker"
+import { DatePicker, DateTimePicker } from "@/components/ui/date-picker"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { SelectControl } from "@/components/ui/select-control"
@@ -126,10 +126,10 @@ function ApplicationFieldset({ draft, busy, change }: {
         />
       </Field>
       <Field label="Applied at">
-        <Input
-          type="datetime-local"
+        <DateTimePicker
+          label="Applied at"
           value={draft.applied_at}
-          onChange={(e) => change("applied_at", e.target.value)}
+          onChange={(value) => change("applied_at", value)}
         />
       </Field>
       <div className="sm:col-span-2">

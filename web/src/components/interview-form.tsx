@@ -3,6 +3,7 @@ import { useSubmit } from "@/components/form-dialog"
 import { FormSection, FormSheet } from "@/components/form-sheet"
 import { Field, controlClass } from "@/components/workspace-ui"
 import { Input } from "@/components/ui/input"
+import { DateTimePicker } from "@/components/ui/date-picker"
 import { Textarea } from "@/components/ui/textarea"
 import { SelectControl } from "@/components/ui/select-control"
 import { request, type Row } from "@/lib/api"
@@ -54,7 +55,7 @@ export function InterviewForm({ interview, onClose, onSaved }: { interview?: Row
       <fieldset disabled={busy} className="space-y-6">
         <FormSection title="Conversation">
           <Field label="Company"><Input required value={draft.company} onChange={e => set("company")(e.target.value)} /></Field>
-          <Field label="Date and time"><Input type="datetime-local" value={draft.when} onChange={e => set("when")(e.target.value)} /></Field>
+          <Field label="Date and time"><DateTimePicker label="Date and time" value={draft.when} onChange={set("when")} /></Field>
           <Field label="Stage">
             <SelectControl className={controlClass} value={draft.stage} onChange={e => set("stage")(e.target.value)}>
               {stages.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
