@@ -1,26 +1,19 @@
 import { useState } from "react"
+import { ChevronRight } from "lucide-react"
 import { useSubmit } from "@/components/form-dialog"
 import { FormSection, FormSheet } from "@/components/form-sheet"
 import { Field } from "@/components/workspace-ui"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { PREPARATION_FIELDS } from "@/components/job-link-dialog"
+import { applyImport, jobBody, jobDraft, JOB_FIELDS, preparationMissing, type Draft, type JobField } from "@/components/job-draft"
+import { JobLinkField, useJobImport } from "@/components/job-link-field"
 import { request, type Row } from "@/lib/api"
 import type { PreparationField } from "@/lib/application-board"
 import { parsePostingGuard } from "@/components/posting-check"
 
-const fields = {
-  title: "Role title", company_name: "Company name", link: "Job link", location: "Location",
-  work_type: "Work type", comp: "Compensation", deadline: "Application deadline", source: "Source", source_job_id: "Source job ID",
-  linkedin_job_id: "LinkedIn job ID", fit: "Fit", status: "Status",
-  requirements_json: "Requirements (JSON)", description: "Job description",
-}
-type Draft = Record<keyof typeof fields, string>
-const sections: { title: string; keys: (keyof typeof fields)[]; wide?: boolean }[] = [
-  { title: "Role", keys: ["title", "company_name", "link", "location", "work_type", "comp"] },
-  { title: "Tracking", keys: ["status", "fit", "deadline", "source", "source_job_id", "linkedin_job_id"] },
-  { title: "Details", keys: ["description", "requirements_json"], wide: true },
-]
+const ROLE: JobField[] = ["title", "company_name", "location", "work_type", "comp"]
+const MORE: JobField[] = ["status", "fit", "deadline", "source", "source_job_id", "linkedin_job_id"]
 export type JobSaveResult = { job: Row; existing: boolean; missing: PreparationField[] }
 
 /** The verdict of the posting check on a description saved with this form, if any. */
@@ -28,14 +21,39 @@ export function postingNotice(result: JobSaveResult): string {
   return parsePostingGuard(result.job.description_guard_json)?.verdict ?? ""
 }
 
-function preparationMissing(draft: Draft): PreparationField[] {
-  const missing: PreparationField[] = []
-  if (!draft.title.trim()) missing.push("role_title")
-  if (!draft.company_name.trim()) missing.push("company_name")
-  if (!draft.link.trim()) missing.push("external_url")
-  if (!draft.description.trim() && !draft.linkedin_job_id.trim() && !(draft.source.toLowerCase() === "linkedin" && draft.source_job_id.trim())
-    && !/^https?:\/\/(?:[\w-]+\.)?linkedin\.com\/jobs\/view\/(?:[^/]*-)?\d+/i.test(draft.link)) missing.push("description")
-  return missing
+type FieldProps = { draft: Draft; set: (key: JobField, value: string) => void }
+
+function TextFields({ keys, draft, set }: FieldProps & { keys: JobField[] }) {
+  return keys.map(key => (
+    <Field key={key} label={JOB_FIELDS[key]}>
+      <Input type={key === "deadline" ? "date" : "text"} required={key === "title" || key === "company_name"}
+        value={draft[key]} onChange={e => set(key, e.target.value)} />
+    </Field>
+  ))
+}
+
+function LongField({ field, className, draft, set }: FieldProps & { field: JobField; className?: string }) {
+  return (
+    <Field label={JOB_FIELDS[field]}>
+      <Textarea className={className} value={draft[field]} onChange={e => set(field, e.target.value)} />
+    </Field>
+  )
+}
+
+/** Tracking and identity fields, collapsed because most jobs need none of them. */
+function MoreDetails({ draft, set }: FieldProps) {
+  return (
+    <details className="group">
+      <summary className="flex cursor-pointer list-none items-center gap-1 text-xs font-medium uppercase tracking-wide text-muted-foreground hover:text-foreground">
+        <ChevronRight className="size-4 transition-transform group-open:rotate-90" />
+        More details
+      </summary>
+      <div className="mt-3 space-y-3">
+        <div className="grid gap-3 sm:grid-cols-2"><TextFields keys={MORE} draft={draft} set={set} /></div>
+        <LongField field="requirements_json" draft={draft} set={set} />
+      </div>
+    </details>
+  )
 }
 
 /** Saving needs a title and company; preparation also needs a URL and description. */
@@ -44,22 +62,24 @@ export function JobForm({ job, onClose, onSaved }: {
   onClose: () => void
   onSaved: (result: JobSaveResult) => void
 }) {
-  const [draft, setDraft] = useState<Draft>(() => Object.fromEntries(Object.keys(fields)
-    .map(key => [key, String(job?.[key] ?? (key === "status" ? "saved" : ""))])) as Draft)
+  const [draft, setDraft] = useState(() => jobDraft(job))
   const { busy, error, submit } = useSubmit()
+  const importer = useJobImport((previous, next) => setDraft(current => applyImport(current, previous, next)))
   const missing = preparationMissing(draft)
-  const set = (key: keyof Draft, value: string) => setDraft(previous => ({ ...previous, [key]: value }))
+  const locked = busy || importer.importing
+  const set = (key: JobField, value: string) => setDraft(previous => ({ ...previous, [key]: value }))
   return (
     <FormSheet
       title={job ? "Edit job" : "Add job"}
-      description="Save an opportunity directly. Add its link and description when you are ready to prepare an application."
+      description={job ? "Update the saved opportunity." : "Paste a job link to fill the form, or type the details."}
       busy={busy}
       error={error}
       submitLabel="Save job"
-      canSubmit={!!draft.title.trim() && !!draft.company_name.trim()}
+      canSubmit={!importer.importing && !!draft.title.trim() && !!draft.company_name.trim()}
       onClose={onClose}
       onSubmit={() => void submit(async () => {
-        const result = await request<JobSaveResult>(`jobs/${job ? "update" : "create"}`, { ...draft, ...(job ? { id: job.id } : {}) })
+        const body = jobBody(draft, importer.imported)
+        const result = await request<JobSaveResult>(`jobs/${job ? "update" : "create"}`, { ...body, ...(job ? { id: job.id } : {}) })
         onSaved(result)
       })}
       footer={missing.length > 0 && (
@@ -68,22 +88,19 @@ export function JobForm({ job, onClose, onSaved }: {
         </p>
       )}
     >
-      {sections.map(section => (
-        <fieldset key={section.title} disabled={busy}>
-          <FormSection title={section.title} className={section.wide ? "sm:grid-cols-1" : undefined}>
-            {section.keys.map(key => (
-              <Field key={key} label={fields[key]}>
-                {section.wide ? (
-                  <Textarea className={key === "description" ? "min-h-40" : undefined} value={draft[key]} onChange={e => set(key, e.target.value)} />
-                ) : (
-                  <Input type={key === "link" ? "url" : key === "deadline" ? "date" : "text"} required={key === "title" || key === "company_name"}
-                    value={draft[key]} onChange={e => set(key, e.target.value)} />
-                )}
-              </Field>
-            ))}
-          </FormSection>
-        </fieldset>
-      ))}
+      <fieldset disabled={busy}>
+        <JobLinkField value={draft.link} onChange={value => set("link", value)} importer={job ? undefined : importer} />
+      </fieldset>
+      <fieldset disabled={locked}>
+        {/* The role title takes a full row, leaving the other fields in pairs. */}
+        <FormSection title="Role" className="sm:[&>:first-child]:col-span-2"><TextFields keys={ROLE} draft={draft} set={set} /></FormSection>
+      </fieldset>
+      <fieldset disabled={locked}>
+        <LongField field="description" className="min-h-40" draft={draft} set={set} />
+      </fieldset>
+      <fieldset disabled={locked}>
+        <MoreDetails draft={draft} set={set} />
+      </fieldset>
     </FormSheet>
   )
 }

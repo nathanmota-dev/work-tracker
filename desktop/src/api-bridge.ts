@@ -45,6 +45,7 @@ const writes = new Set([
   "integrations/install",
   "onboarding/preferences",
   "browser/login",
+  "jobs/import",
   "jobs/create",
   "jobs/update",
   "jobs/save-search",

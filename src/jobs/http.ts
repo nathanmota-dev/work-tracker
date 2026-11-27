@@ -1,6 +1,7 @@
 import { JobError, saveJob, shortlistJob, type Job } from "./store.ts";
 import { db, now } from "../db/index.ts";
 import { saveSearchResults } from "./search-save.ts";
+import { importJob } from "./import.ts";
 
 /** Job lifecycle actions preserve linked application and interview history. */
 export async function handleJobAction(
@@ -9,12 +10,19 @@ export async function handleJobAction(
   broadcast: (event: unknown) => void,
 ): Promise<Response> {
   const action = path.slice("/api/jobs/".length);
-  if (!["save-search", "create", "update", "shortlist", "archive", "restore", "delete"].includes(action))
+  if (!["save-search", "import", "create", "update", "shortlist", "archive", "restore", "delete"].includes(action))
     return Response.json({ error: "Not found." }, { status: 404 });
   if (req.method !== "POST")
     return Response.json({ error: "Method not allowed." }, { status: 405 });
   const body: unknown = await req.json().catch(() => null);
   if (action === "save-search") return saveSearchResults(body, broadcast);
+  if (action === "import") {
+    try { return Response.json(await importJob(body)); }
+    catch (error) {
+      if (!(error instanceof JobError)) throw error;
+      return Response.json({ error: error.message }, { status: error.status });
+    }
+  }
   if (action === "create" || action === "update") {
     try {
       if (action === "update" && (!body || typeof body !== "object" || !("id" in body)

@@ -4,9 +4,11 @@ import { databaseDouble } from "../test/doubles.ts";
 import { saveJob, JobError } from "./store.ts";
 import { handleJobAction } from "./http.ts";
 import { saveSearchResults } from "./search-save.ts";
+import { importJob } from "./import.ts";
 vi.mock("../db/index.ts", () => ({ db: vi.fn(), now: () => "now" }));
 vi.mock("./store.ts", async (original) => ({ ...await original<typeof import("./store.ts")>(), saveJob: vi.fn() }));
 vi.mock("./search-save.ts", () => ({ saveSearchResults: vi.fn() }));
+vi.mock("./import.ts", () => ({ importJob: vi.fn() }));
 let d: ReturnType<typeof databaseDouble>;
 const broadcast = vi.fn();
 beforeEach(() => {
@@ -30,6 +32,23 @@ test("dispatches direct search batches through the job action endpoint", async (
   const body = { items: [{ key: "0", result: { title: "Role" } }] };
   expect(await call("save-search", body)).toBe(response);
   expect(saveSearchResults).toHaveBeenCalledWith(body, broadcast);
+});
+test("imports a job page without writing and reports why it cannot", async () => {
+  const imported = { fields: { title: "Role" } };
+  vi.mocked(importJob).mockResolvedValueOnce(imported);
+  const body = { url: "https://careers.test/1" };
+  const response = await call("import", body);
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual(imported);
+  expect(importJob).toHaveBeenCalledWith(body);
+  vi.mocked(importJob).mockRejectedValueOnce(new JobError("No job data.", 422));
+  const refused = await call("import", body);
+  expect(refused.status).toBe(422);
+  expect(await refused.json()).toEqual({ error: "No job data." });
+  vi.mocked(importJob).mockRejectedValueOnce(new Error("defect"));
+  await expect(call("import", body)).rejects.toThrow("defect");
+  expect(db).not.toHaveBeenCalled();
+  expect(broadcast).not.toHaveBeenCalled();
 });
 test.each([
   null,

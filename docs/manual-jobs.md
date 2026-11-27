@@ -2,11 +2,22 @@
 
 Use **Jobs → Add job** to save an opportunity without an agent or browser integration. A role title and company name are required. The URL, description, location, work type, compensation, application deadline, assessment, status and requirements JSON can be added now or through **Edit job** later. Source and source job ID identify opportunities from external sites; LinkedIn IDs remain compatible with existing CLI users.
 
+## Import from a job link
+
+In **Add job**, paste the job link and choose **Import** (or press Enter). Work Tracker downloads that one page and fills the form from the schema.org `JobPosting` data (JSON-LD) it publishes: title, company, location, **Remote** work type, salary, application deadline, source (the site's host) and description. Nothing is saved until **Save job**, so every value can be reviewed and changed. A field the page does not publish keeps what you typed, and a second import first clears the values the previous one filled that you did not edit.
+
+The import uses no agent, browser or sign-in. It reads only HTML pages up to 3 MB, waits at most 20 seconds and sends no cookies. Pages that require sign-in, build their content only with JavaScript or publish no `JobPosting` data are reported, and the fields can still be filled by hand. The posting's own identifier is not used as **Source job ID**, because it is only unique inside one company; the link identifies the job. The description shown is the output of the posting check, and saving it unchanged records what the check removed from the published text.
+
+The form keeps the link, role fields and description in view. Status, fit, deadline, source, both job IDs and requirements are under **More details**. **Edit job** has no Import button.
+
+## Draft and preparation
+
 Saving a draft does not create an application or start an agent. The form lists missing preparation fields. Preparation requires a title, company, valid HTTP(S) URL and description; a LinkedIn ID allows the existing preparation flow to retrieve the description. **Prepare application** opens Apply with the saved job, where resume generation is an explicit action.
 
 ## API and CLI
 
 - `POST /api/jobs/create` accepts job fields and returns `{ job, created, existing, missing }`. A new job returns 201 and is shortlisted; an existing identity returns 200 with `existing: true` and the original saved content.
+- `POST /api/jobs/import` accepts `{ url }` and returns `{ fields, description_source? }` without saving. An invalid URL returns 400, a page that cannot be imported returns 422 and an unreachable one 502.
 - `POST /api/jobs/update` accepts a positive local `id` and the fields to change. Omitted fields are preserved; empty optional text clears that field. A conflicting identity returns 409 with `existing_id` when available.
 - Writable fields are `title`, `company_name`, `link`, `description`, `location`, `work_type`, `comp`, `fit`, `status`, `requirements_json`, `source`, `source_job_id`, `linkedin_job_id` and `deadline`.
 - `work-tracker job save --title 'Engineer' --company 'Example' --source careers --source-id 42 --link 'https://careers.example/jobs?id=42'` uses the same validation and deduplication rules. Existing records are reported explicitly. Rediscovery can refresh supplied fit/status fields; archived jobs stay archived.
