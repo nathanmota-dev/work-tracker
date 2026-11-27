@@ -76,7 +76,10 @@ try {
   const port = server.address().port;
   await new Promise(resolve => server.close(resolve));
   const debugFlag = command.includes("electron-vite") ? `--remoteDebuggingPort=${port}` : `--remote-debugging-port=${port}`;
-  child = spawn(command, electronArgs(command, args, [debugFlag]), { env, detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'] });
+  // A Chromium profile of its own: the app's default one keeps the resume picked in an earlier run (localStorage), which would preselect the base resume.
+  const profile = `--user-data-dir=${join(home, 'user-data')}`;
+  const appArgs = !command.includes('electron-vite') ? [...args, profile] : args.includes('--') ? [...args, profile] : [...args, '--', profile];
+  child = spawn(command, electronArgs(command, appArgs, [debugFlag]),{ env, detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'] });
   for (const stream of [child.stdout, child.stderr]) stream.on('data', chunk => { output += chunk; });
   child.on('error', error => { output += error.message; });
   const page = await waitFor(async () => {
