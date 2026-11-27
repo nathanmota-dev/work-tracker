@@ -10,6 +10,7 @@ test('Jobs: create, correct a failed save, deduplicate, edit and prepare an exte
   await dialog.getByLabel('Company name').fill('Synthetic Corp')
   await expect(dialog.getByText('Missing for preparation: job link, job description.')).toBeVisible()
   await dialog.getByLabel('Job link').fill('https://careers.example/jobs?jobId=42')
+  await dialog.getByText('More details', { exact: true }).click()
   await dialog.getByLabel('Source', { exact: true }).fill('careers')
   await dialog.getByLabel('Source job ID').fill('42')
   await workspace.fault('jobs/create')
@@ -91,7 +92,10 @@ test('Jobs: a role with a close deadline shows its urgency in Jobs and on the Da
     const dialog = page.getByRole('dialog', { name: 'Add job' })
     await dialog.getByLabel('Role title').fill(title)
     await dialog.getByLabel('Company name').fill('Synthetic Corp')
-    if (deadline) await dialog.getByLabel('Application deadline').fill(deadline)
+    if (deadline) {
+      await dialog.getByText('More details', { exact: true }).click()
+      await dialog.getByLabel('Application deadline').fill(deadline)
+    }
     await dialog.getByRole('button', { name: 'Save job' }).click()
     await expect(page.getByRole('dialog').getByRole('button', { name: 'Edit job' })).toBeVisible()
     await page.getByRole('dialog').getByRole('button', { name: 'Close' }).click()
