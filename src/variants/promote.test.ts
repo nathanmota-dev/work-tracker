@@ -7,7 +7,7 @@ import { paths } from "../paths.ts";
 import { insertApplication, insertJob, memoryDatabase } from "../test/memory-db.ts";
 import { PreparationError } from "../preparation/sources.ts";
 import { artifactFile } from "../preparation/store.ts";
-import { listVariants, updateVariant, variantRecord } from "./store.ts";
+import { listVariants, updateVariant, variantManifest, variantRecord } from "./store.ts";
 import { saveApprovedTailoredResumes, saveTailoredVariant } from "./promote.ts";
 
 vi.mock("node:fs", async (importOriginal) => ({ ...(await importOriginal<typeof import("node:fs")>()), ...Object.fromEntries(["mkdirSync", "copyFileSync", "rmSync"].map(name => [name, vi.fn()])) }));
@@ -80,6 +80,8 @@ test("saves an approved tailored resume in Resumes with its own copy, role and s
 test("a newer approved version replaces the PDF of the same saved resume and keeps the candidate's edits", () => {
   const id = saveTailoredVariant(tailored("run-1"))!;
   updateVariant(id, { name: "Full Stack · C#, Angular", role: "fullstack", stacks_json: JSON.stringify(["C#", "Angular"]) });
+  // An edited LaTeX copy belongs to the replaced version: the new one is read from its own execution.
+  updateVariant(id, { manifest_json: JSON.stringify({ project: "/artifacts/variants/x/source/project", mainFile: "resume.tex", engine: "pdflatex" }) });
   const first = variantRecord(id).pdf!.id;
   const newer = tailored("run-2", { bytes: "%PDF-newer" });
   expect(saveTailoredVariant(newer)).toBe(id);
@@ -87,6 +89,7 @@ test("a newer approved version replaces the PDF of the same saved resume and kee
   expect(variant).toMatchObject({ name: "Full Stack · C#, Angular", stacks: ["C#", "Angular"], source: { documentVersionId: newer } });
   expect(variant.pdf!.id).not.toBe(first);
   expect(readFileSync(artifactFile(variant.pdf!.id).path)).toBe("%PDF-newer");
+  expect(variantManifest(id)).toEqual({});
   // The earlier PDF stays on disk for the documents that used it.
   expect(existsSync(artifactFile(first).path)).toBe(true);
   expect(listVariants()).toHaveLength(1);

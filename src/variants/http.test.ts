@@ -9,7 +9,7 @@ vi.mock("../profile/import.ts", () => ({ ensureProfileImported: vi.fn() }));
 vi.mock("../preparation/sources.ts", async original => ({ ...(await original<typeof import("../preparation/sources.ts")>()), sourcesConfig: vi.fn(() => ({ profileDir: "/profile" })) }));
 vi.mock("./import.ts", () => ({ importVariantPdf: vi.fn() }));
 
-const service = { list: vi.fn(), get: vi.fn(), generate: vi.fn(), regenerate: vi.fn(), update: vi.fn(), archive: vi.fn(), cancel: vi.fn() };
+const service = { list: vi.fn(), get: vi.fn(), generate: vi.fn(), regenerate: vi.fn(), update: vi.fn(), archive: vi.fn(), cancel: vi.fn(), latex: vi.fn(), saveLatex: vi.fn() };
 const broadcast = vi.fn();
 const call = (path: string, body = '{"id":"v"}', method = "POST", query = "") =>
   handleVariants(`/api/${path}`, new Request(`http://local/api/${path}${query}`, { method, ...(method === "POST" ? { body } : {}) }), service as unknown as VariantService, broadcast);
@@ -28,6 +28,8 @@ test.each([
   ["resume-variants/update", "update", 200],
   ["resume-variants/archive", "archive", 200],
   ["resume-variants/cancel", "cancel", 200],
+  ["resume-variants/latex", "latex", 200],
+  ["resume-variants/save-latex", "saveLatex", 200],
 ] as const)("dispatches %s", async (path, method, status) => {
   expect((await call(path)).status).toBe(status);
   expect(service[method]).toHaveBeenCalledWith({ id: "v" });
@@ -51,4 +53,11 @@ test("reports errors like the other preparation routes", async () => {
   const response = await call("resume-variants/archive");
   expect(response.status).toBe(409);
   expect(await response.json()).toEqual({ error: "Busy" });
+});
+
+test("a LaTeX compilation error answers 422 with the errors", async () => {
+  service.saveLatex.mockRejectedValue(new PreparationError("LaTeX could not compile the resume.\nresume.tex:3: Undefined control sequence.", 422));
+  const response = await call("resume-variants/save-latex", '{"id":"v","files":[]}');
+  expect(response.status).toBe(422);
+  expect(await response.json()).toEqual({ error: "LaTeX could not compile the resume.\nresume.tex:3: Undefined control sequence." });
 });

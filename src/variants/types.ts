@@ -85,3 +85,14 @@ export interface VariantManifest {
   /** Base preview the generation compared against; kept for documents made from it. */
   baseArtifactId: string;
 }
+
+/** One LaTeX file of a saved resume's project; `name` is relative to the project folder. */
+export interface VariantLatexFile {
+  name: string;
+  text: string;
+}
+/** The editable LaTeX sources of a saved resume: its `.tex` files, main file first. */
+export interface VariantLatex {
+  mainFile: string;
+  files: VariantLatexFile[];
+}
