@@ -14,7 +14,7 @@ import { languageLabels, roleLabels, roleOrder, stackSuggestions, variantAction,
 export type VariantFormMode = "generate" | "edit" | "import"
 const copy: Record<VariantFormMode, { title: string; description: string; submit: string }> = {
   generate: { title: "New resume", description: "Generate one resume for a role and its stacks, then reuse it for every job with the same profile.", submit: "Generate resume" },
-  edit: { title: "Edit resume", description: "Rename or re-tag this resume. Its PDF stays the same; regenerate it to change the content.", submit: "Save changes" },
+  edit: { title: "Edit details", description: "Rename or re-tag this resume. To change its content, open it and edit its LaTeX.", submit: "Save changes" },
   import: { title: "Import PDF", description: "Use a resume PDF you already have. It is checked for pages and extractable text.", submit: "Import resume" },
 }
 

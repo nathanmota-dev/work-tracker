@@ -25,19 +25,21 @@ function Source({ variant }: { variant: ResumeVariant }) {
     <Button asChild variant="outline" size="sm" className="w-full">
       <a href={`#/apply?jobId=${source.jobId}&applicationId=${source.applicationId}`}><ExternalLink />Open application</a>
     </Button>
-    <p className="text-muted-foreground">To change its content, tailor the application again in Apply and approve or fill with the new version.</p>
+    <p className="text-muted-foreground">Edit its LaTeX in the Code tab. Approving a newer version in Apply replaces it, edits included.</p>
   </section>
 }
 
-/** One saved resume: what it targets, where it came from and what can be done with it. */
-export function ResumeVariantCard({ variant, busy, onEdit, className }: { variant: ResumeVariant; busy: boolean; onEdit: () => void; className?: string }) {
+/**
+ * One saved resume: what it targets, where it came from, and its generation.
+ * Download, rename and archive live in the page header and the Resumes grid.
+ */
+export function ResumeVariantCard({ variant, busy, className }: { variant: ResumeVariant; busy: boolean; className?: string }) {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState("")
   const messages = useMemo(() => preparationMessages(variant.events, variant.status), [variant.events, variant.status])
-  const generating = variant.status === "generating"
-  const stopped = generating || variant.status === "waiting_for_sign_in"
+  const stopped = variant.status === "generating" || variant.status === "waiting_for_sign_in"
   const regenerable = variant.origin === "generated" && !variant.source && !stopped
-  async function act(action: "regenerate" | "archive" | "cancel") {
+  async function act(action: "regenerate" | "cancel") {
     setPending(true); setError("")
     try { await variantAction(action, { id: variant.id }) } catch (e) { setError((e as Error).message) } finally { setPending(false) }
   }
@@ -56,13 +58,10 @@ export function ResumeVariantCard({ variant, busy, onEdit, className }: { varian
     {variant.stale && <Badge variant="outline">Sources changed since generation</Badge>}
     {variant.error && <p role="alert" className="whitespace-pre-wrap text-xs text-destructive">{variant.error}</p>}
     {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
-    <div className="flex gap-2 [&>*]:flex-1">
-      {variant.pdf && <Button size="sm" variant="outline" onClick={() => void window.desktop?.savePdf(variant.pdf!.id).catch(e => setError(e.message))}>Download</Button>}
+    {(regenerable || stopped) && <div className="flex gap-2 [&>*]:flex-1">
       {regenerable && <Button size="sm" variant="outline" disabled={busy || pending || !!variant.archivedAt} onClick={() => void act("regenerate")}>Regenerate</Button>}
-      {!generating && <Button size="sm" variant="outline" disabled={pending} onClick={onEdit}>Edit</Button>}
-      {!generating && !variant.archivedAt && <Button size="sm" variant="outline" disabled={pending} onClick={() => void act("archive")}>Archive</Button>}
       {stopped && <Button size="sm" variant="outline" disabled={pending} onClick={() => void act("cancel")}>Cancel</Button>}
-    </div>
+    </div>}
     {stopped && <AgentConversation messages={messages} />}
     {variant.report && !stopped && <details className="rounded-lg border p-3">
       <summary className="cursor-pointer text-xs font-medium">Tailoring report</summary>

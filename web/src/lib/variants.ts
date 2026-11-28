@@ -1,6 +1,6 @@
 import { request, useApi } from "./api"
-export type { ResumeVariant, VariantRole, VariantLanguage, VariantStatus, VariantSource } from "../../../src/variants/types"
-import type { ResumeVariant, VariantRole } from "../../../src/variants/types"
+export type { ResumeVariant, VariantRole, VariantLanguage, VariantStatus, VariantSource, VariantLatex, VariantLatexFile } from "../../../src/variants/types"
+import type { ResumeVariant, VariantLatex, VariantLatexFile, VariantRole } from "../../../src/variants/types"
 
 export const roleLabels: Record<VariantRole, string> = { frontend: "Front-End", backend: "Back-End", fullstack: "Full Stack", other: "Other" }
 export const roleOrder: VariantRole[] = ["frontend", "backend", "fullstack", "other"]
@@ -32,4 +32,12 @@ export function resumeHref(id: string) {
 export function variantOrigin(variant: Pick<ResumeVariant, "origin" | "source">) {
   if (variant.source) return `Tailored for ${variant.source.company || variant.source.title || "an application"}`
   return variant.origin === "imported" ? "Imported PDF" : "Generated"
+}
+/** The editable LaTeX files of a saved resume. */
+export function readVariantLatex(id: string) {
+  return request<VariantLatex>("resume-variants/latex", { id })
+}
+/** Save edited LaTeX files; the backend compiles them into a new PDF. */
+export function saveVariantLatex(id: string, files: VariantLatexFile[]) {
+  return request<ResumeVariant>("resume-variants/save-latex", { id, files })
 }

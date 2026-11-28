@@ -11,8 +11,11 @@ import { cn } from "@/lib/utils"
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
 const pdfAssets = new URL("./pdfjs/", document.baseURI).href
 const pdfOptions = { cMapUrl: `${pdfAssets}cmaps/`, cMapPacked: true, standardFontDataUrl: `${pdfAssets}standard_fonts/`, wasmUrl: `${pdfAssets}wasm/` }
-/** @param fill The viewer takes its container's height instead of a fixed one. */
-export function PdfViewer({ title, artifact, fill }: { title: string; artifact?: PdfArtifact | null; fill?: boolean }) {
+/**
+ * @param fill The viewer takes its container's height instead of a fixed one.
+ * @param download False hides its download button, when the page already has one.
+ */
+export function PdfViewer({ title, artifact, fill, download = true }: { title: string; artifact?: PdfArtifact | null; fill?: boolean; download?: boolean }) {
   const [bytes, setBytes] = useState<Uint8Array>()
   const [error, setError] = useState("")
   const [page, setPage] = useState(1)
@@ -34,7 +37,7 @@ export function PdfViewer({ title, artifact, fill }: { title: string; artifact?:
     return () => { active = false }
   }, [artifactId])
   const file = useMemo(() => bytes ? { data: bytes } : undefined, [bytes])
-  return <Panel fill={fill} title={title} action={artifact && <Button size="icon-sm" variant="outline" aria-label={`Download ${title}`} onClick={() => void window.desktop?.savePdf(artifact.id).catch(e => setError(e.message))}><Download /></Button>}>
+  return <Panel fill={fill} title={title} action={artifact && download && <Button size="icon-sm" variant="outline" aria-label={`Download ${title}`} onClick={() => void window.desktop?.savePdf(artifact.id).catch(e => setError(e.message))}><Download /></Button>}>
     {artifact && <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
       <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
       <span>{page} / {pages || artifact.pages}</span>

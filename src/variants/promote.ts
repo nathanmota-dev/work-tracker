@@ -53,7 +53,8 @@ export function saveTailoredVariant(versionId: string): string | null {
     d.transaction(() => {
       const pdf = addArtifact(null, "variant", path, { pages: file.artifact.pages, text: file.text, warnings: file.artifact.warnings }, row.source_version);
       const fields = { pdfArtifactId: pdf.id, documentVersionId: row.id, report: row.report, sourceVersion: row.source_version };
-      if (existing) updateVariant(id, { pdf_artifact_id: fields.pdfArtifactId, document_version_id: fields.documentVersionId, report: fields.report, source_version: fields.sourceVersion, status: "ready", phase: "complete", error: null });
+      // A newer approval replaces the content: its LaTeX is again the new Apply project until edited.
+      if (existing) updateVariant(id, { manifest_json: "{}", pdf_artifact_id: fields.pdfArtifactId, document_version_id: fields.documentVersionId, report: fields.report, source_version: fields.sourceVersion, status: "ready", phase: "complete", error: null });
       else insertTailoredVariant(id, inferVariantProfile({ title: row.title, description: tailoredDescription(row) }), { ...fields, jobId: row.job_id, applicationId: row.application_id, provider: row.provider, model: row.model });
       d.query("INSERT INTO activity_log (kind, skill, summary) VALUES ('resume', 'saved-resume', ?)").run(`Saved tailored resume ${variantRecord(id).name}`);
     })();

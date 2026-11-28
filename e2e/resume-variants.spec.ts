@@ -1,6 +1,6 @@
 import { test, expect } from './fixtures'
 import { choose, openStep, panel, resumeCard } from './ui'
-import { copyFileSync } from 'node:fs'
+import { copyFileSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 async function addStacks(page: import('@playwright/test').Page, stacks: string[]) {
@@ -31,6 +31,9 @@ test('Resumes: generate a saved resume once, view it and use it in Apply without
   expect(workspace.query('SELECT role, stacks_json, origin, status FROM resume_variants')).toEqual([{ role: 'backend', stacks_json: '["C#",".NET"]', origin: 'generated', status: 'ready' }])
   await tile.click()
   await workspace.ready('Back-End · C#, .NET')
+  // The page opens on the LaTeX editor; the details are on their own tab.
+  await expect(page.getByRole('textbox', { name: 'LaTeX of resume.tex' })).toContainText('Tailored resume.')
+  await page.getByRole('tab', { name: 'Details' }).click()
   const card = page.getByRole('article', { name: 'Back-End · C#, .NET' })
   await expect(card).toContainText(/Back-End · Generated · \d{2}\/\d{2}\/\d{4}/)
   await expect(card.getByText('Ready', { exact: true })).toBeVisible()
@@ -81,6 +84,10 @@ test('Resumes: import a ready PDF as a saved resume that cannot be regenerated',
   await expect(tile.getByRole('listitem')).toHaveText(['React'])
   await tile.click()
   await workspace.ready('Synthetic imported resume')
+  // An imported PDF has no LaTeX to edit, only its PDF.
+  await expect(page.getByText('No LaTeX source')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Save' })).toHaveCount(0)
+  await page.getByRole('tab', { name: 'Details' }).click()
   const card = page.getByRole('article', { name: 'Synthetic imported resume' })
   await expect(card).toContainText('Other · Imported PDF')
   await expect(card.getByText('Ready', { exact: true })).toBeVisible()
@@ -114,6 +121,7 @@ test('Resumes: approving a tailored resume in Apply saves it with its role and s
   await expect(tile.getByRole('img', { name: /^Match with its job:/ })).toBeVisible()
   await tile.click()
   await workspace.ready('Desenvolvedor Full Stack .NET/Angular')
+  await page.getByRole('tab', { name: 'Details' }).click()
   await expect(page.getByRole('region', { name: 'Source application' })).toContainText('Example Company')
   await expect(page.getByRole('link', { name: 'Open application' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Back to Resumes' })).toHaveAttribute('href', '#/resumes')
@@ -130,4 +138,25 @@ test('Resumes: approving a tailored resume in Apply saves it with its role and s
   await openStep(page, 'Fill portal')
   await expect(page.getByRole('button', { name: 'Fill application', exact: true })).toBeEnabled()
   expect(workspace.calls('tailor')).toHaveLength(tailored)
+
+  // Editing its LaTeX compiles a new PDF from its own copy; the approved Apply project stays as it was.
+  const [variant] = workspace.query('SELECT id, pdf_artifact_id FROM resume_variants')
+  const [applyRun] = workspace.query(`SELECT manifest_json FROM application_runs WHERE job_id = ${first} AND provider != 'saved-resume'`)
+  const applyProject = JSON.parse(String(applyRun!.manifest_json)).project as string
+  await workspace.go('Resumes')
+  await page.getByRole('link', { name: 'Desenvolvedor Full Stack .NET/Angular' }).click()
+  await workspace.ready('Desenvolvedor Full Stack .NET/Angular')
+  const code = page.getByRole('textbox', { name: 'LaTeX of resume.tex' })
+  await expect(code).toContainText('Tailored resume.')
+  await code.click()
+  await page.keyboard.press('ControlOrMeta+a')
+  await page.keyboard.insertText('\\documentclass[a4paper]{article}\n\\begin{document}\nEdited resume. C\\# and Angular.\n\\end{document}\n')
+  await expect(page.getByText('Unsaved changes')).toBeVisible()
+  await page.keyboard.press('ControlOrMeta+s')
+  await expect(panel(page, 'Desenvolvedor Full Stack .NET/Angular PDF').locator('.react-pdf__Page__textContent')).toContainText('Edited resume.', { timeout: 60_000 })
+  await expect(page.getByRole('button', { name: 'Save' })).toBeDisabled()
+  const [edited] = workspace.query(`SELECT pdf_artifact_id, manifest_json FROM resume_variants WHERE id = '${variant!.id}'`)
+  expect(edited!.pdf_artifact_id).not.toBe(variant!.pdf_artifact_id)
+  expect(JSON.parse(String(edited!.manifest_json)).project).toContain(`variants/${variant!.id}/source/project`)
+  expect(readFileSync(join(applyProject, 'resume.tex'), 'utf8')).toContain('Tailored resume.')
 })

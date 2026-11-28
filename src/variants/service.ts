@@ -7,7 +7,8 @@ import { archiveVariant, insertVariant, interruptStaleVariants, listVariants, up
 import { variantId, variantInput, variantProfile } from "./validation.ts";
 import { generateVariant } from "./generate.ts";
 import { saveApprovedTailoredResumes } from "./promote.ts";
-import type { ResumeVariant, VariantPhase } from "./types.ts";
+import { readVariantLatex, saveVariantLatex } from "./source.ts";
+import type { ResumeVariant, VariantLatex, VariantPhase } from "./types.ts";
 
 /** The current sources' version; null when they are not configured or unreadable. */
 export function currentSourceVersion(): string | null {
@@ -103,6 +104,14 @@ export class VariantService {
     updateVariant(id, { name: profile.name, role: profile.role, stacks_json: JSON.stringify(profile.stacks) });
     this.changed(id);
     return this.get(id);
+  }
+  /** The editable LaTeX files of a saved resume. */
+  latex(input: Record<string, unknown>): VariantLatex { return readVariantLatex(variantId(input.id)); }
+  /** Save edited LaTeX files and compile them into a new PDF. */
+  async saveLatex(input: Record<string, unknown>): Promise<ResumeVariant> {
+    const id = variantId(input.id);
+    try { return await saveVariantLatex(id, input.files); }
+    finally { this.changed(id); this.broadcast({ type: "changed", table: "activity_log" }); }
   }
   archive(input: Record<string, unknown>): ResumeVariant {
     const id = variantId(input.id);

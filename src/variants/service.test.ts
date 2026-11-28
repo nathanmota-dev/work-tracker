@@ -7,11 +7,13 @@ import { snapshotSources, type SourcesSnapshot } from "../preparation/sources.ts
 import { ExecutionSlot } from "../preparation/executor.ts";
 import { generateVariant, type GenerationHooks } from "./generate.ts";
 import { insertTailoredVariant, updateVariant } from "./store.ts";
+import { readVariantLatex, saveVariantLatex } from "./source.ts";
 import { currentSourceVersion, VariantService } from "./service.ts";
 
 vi.mock("../db/index.ts", () => ({ db: vi.fn(), now: () => "2026-11-24T12:00:00.000Z" }));
 vi.mock("../preparation/sources.ts", async original => ({ ...(await original<typeof import("../preparation/sources.ts")>()), snapshotSources: vi.fn() }));
 vi.mock("./generate.ts", () => ({ generateVariant: vi.fn() }));
+vi.mock("./source.ts", () => ({ readVariantLatex: vi.fn(), saveVariantLatex: vi.fn() }));
 
 let d: Database;
 let listener: (event: Record<string, unknown>) => void;
@@ -139,4 +141,20 @@ test("Apply, the batch queue and variants share one execution slot", async () =>
   expect(() => service.generate(input)).toThrow(expect.objectContaining({ status: 409 }));
   held.resolve();
   await idle();
+});
+
+test("reads and saves LaTeX through the source module and announces every save, even a failed one", async () => {
+  const id = "00000000-0000-4000-8000-000000000001";
+  vi.mocked(readVariantLatex).mockReturnValue({ mainFile: "resume.tex", files: [] });
+  expect(service.latex({ id })).toEqual({ mainFile: "resume.tex", files: [] });
+  expect(readVariantLatex).toHaveBeenCalledWith(id);
+  const files = [{ name: "resume.tex", text: "x" }];
+  vi.mocked(saveVariantLatex).mockResolvedValueOnce({ id } as never).mockRejectedValueOnce(new Error("LaTeX"));
+  await expect(service.saveLatex({ id, files })).resolves.toEqual({ id });
+  expect(saveVariantLatex).toHaveBeenCalledWith(id, files);
+  broadcast.mockClear();
+  await expect(service.saveLatex({ id, files })).rejects.toThrow("LaTeX");
+  expect(broadcast).toHaveBeenCalledWith({ type: "changed", table: "resume_variants", variantId: id });
+  expect(() => service.latex({})).toThrow();
+  service.close();
 });
