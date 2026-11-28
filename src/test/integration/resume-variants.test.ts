@@ -1,7 +1,8 @@
 import { beforeAll, afterAll, expect, test, vi } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, copyFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, rmSync, copyFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { tailorCopy, writeProfile } from "./base-profile.ts";
 vi.mock("../../mcp/chrome.ts", () => ({ openChromePortal: vi.fn(async () => {}) }));
 vi.mock("../../mcp/search.ts", () => ({ jobDetails: vi.fn(async () => ({ description: "Synthetic role" })) }));
 const home = mkdtempSync(join(tmpdir(), "work-tracker-variants-"));
@@ -11,15 +12,12 @@ type Services = { preparation: import("../../preparation/service.ts").Preparatio
 let database: typeof import("../../db/index.ts");
 let documents: typeof import("../../preparation/documents.ts");
 let store: typeof import("../../preparation/store.ts");
-let sources: typeof import("../../preparation/sources.ts");
 let services: Services;
 let jobId: number;
 let mode: "success" | "hold" = "success";
 let release: (() => void) | undefined;
 const prompts: Record<string, string>[] = [];
 const listeners = new Set<(event: Record<string, unknown>) => void>();
-const project = join(home, "source");
-const original = "\\documentclass{article}\n\\begin{document}\nGeneric project with C\\# and .NET.\n\\end{document}\n";
 const acp = {
   isRunning: false,
   cancel: vi.fn(() => release?.()),
@@ -29,7 +27,7 @@ const acp = {
     const manifest = JSON.parse(readFileSync(params.manifestPath!, "utf8"));
     for (const listener of listeners) listener({ type: "acp-update", runId: params.runId, update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Tailoring" } } });
     if (mode === "hold") { await new Promise<void>(resolve => { release = resolve; }); return { status: "cancelled" as const }; }
-    writeFileSync(join(manifest.project, manifest.mainFile), original.replace("Generic project", `Back-End project ${prompts.length}`));
+    tailorCopy(manifest, "Generic project", `Back-End project ${prompts.length}`);
     writeFileSync(manifest.selectionPath, JSON.stringify({ language: "en", target: manifest.target, gaps: [] }));
     writeFileSync(manifest.reportPath, "# Changes\nEmphasized .NET.");
     return { status: "done" as const };
@@ -51,12 +49,9 @@ beforeAll(async () => {
   database = await import("../../db/index.ts");
   documents = await import("../../preparation/documents.ts");
   store = await import("../../preparation/store.ts");
-  sources = await import("../../preparation/sources.ts");
   preparationModule = await import("../../preparation/service.ts");
   variantModule = await import("../../variants/service.ts");
-  mkdirSync(project);
-  writeFileSync(join(project, "resume.tex"), original);
-  sources.saveSources({ projectDir: project, mainFile: "resume.tex", dataFile: "", engine: "pdflatex" });
+  writeProfile(home, { summary: "Generic project with C# and .NET." });
   jobId = (database.db().query("INSERT INTO jobs (title, company_name, description, link) VALUES ('Engineer', 'Example', 'C# role', 'https://example.com/apply') RETURNING id").get() as { id: number }).id;
   services = create();
 });
@@ -92,9 +87,9 @@ test("generates a validated variant once and reuses its exact PDF in Apply witho
   const regenerated = await settled(services.variants.regenerate({ id: ready.id }).id);
   expect(regenerated.pdf!.id).not.toBe(ready.pdf!.id);
   expect(documents.approvedDocument(run.id).pdfHash).toBe(variantHash);
-  writeFileSync(join(project, "resume.tex"), original.replace("Generic", "Changed generic"));
+  writeProfile(home, { summary: "Changed generic project with C# and .NET." });
   expect(services.variants.get(ready.id).stale).toBe(true);
-  writeFileSync(join(project, "resume.tex"), original);
+  writeProfile(home, { summary: "Generic project with C# and .NET." });
 }, 120000);
 
 test("imports a ready PDF, archives variants and refuses archived ones in Apply", async () => {

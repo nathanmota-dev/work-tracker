@@ -3,10 +3,10 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync,
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 vi.mock("../../mcp/chrome.ts", () => ({ openChromePortal: vi.fn(async () => {}) }));
+import { tailorCopy } from "./base-profile.ts";
 const home = mkdtempSync(join(tmpdir(), "work-tracker-profile-"));
 const previousHome = process.env.WORK_TRACKER_HOME;
 process.env.WORK_TRACKER_HOME = home;
-const project = join(home, "latex");
 const profileDir = join(home, "profile");
 const dataFile = join(profileDir, "resume-data.json");
 let database: typeof import("../../db/index.ts");
@@ -23,9 +23,7 @@ async function complete(id: string) {
   throw new Error("Execution did not finish");
 }
 beforeAll(async () => {
-  mkdirSync(project);
   mkdirSync(profileDir);
-  writeFileSync(join(project, "resume.tex"), "\\documentclass{article}\n\\begin{document}\nGeneric resume.\n\\end{document}\n");
   copyFileSync(resolve("src/test/fixtures/profile/linkedin-export.pdf"), join(profileDir, "linkedin-export.pdf"));
   writeFileSync(join(profileDir, "broken.pdf"), "%PDF-1.4 not really a PDF");
   const { compileLatex } = await import("../../preparation/latex.ts");
@@ -37,7 +35,6 @@ beforeAll(async () => {
   }
   database = await import("../../db/index.ts");
   sources = await import("../../preparation/sources.ts");
-  sources.saveSources({ projectDir: project, mainFile: "resume.tex", engine: "pdflatex" });
   jobId = (database.db().query("INSERT INTO jobs (title, company_name, description, link) VALUES ('Engineer', 'Example', 'TypeScript role', 'https://example.com/apply') RETURNING id").get() as { id: number }).id;
   const { PreparationService } = await import("../../preparation/service.ts");
   service = new PreparationService({
@@ -45,7 +42,7 @@ beforeAll(async () => {
     run: async (_provider, _skill, params) => {
       const manifest = JSON.parse(readFileSync(params.manifestPath!, "utf8"));
       manifests.push({ ...manifest, profile: JSON.parse(readFileSync(manifest.profilePath, "utf8")) });
-      writeFileSync(join(manifest.project, manifest.mainFile), "\\documentclass{article}\n\\begin{document}\nTailored resume.\n\\end{document}\n");
+      tailorCopy(manifest, "Software engineer building", "Tailored software engineer building");
       writeFileSync(manifest.selectionPath, JSON.stringify({ language: "en" }));
       writeFileSync(manifest.reportPath, "# Changes");
       return { status: "done" };
@@ -55,11 +52,15 @@ beforeAll(async () => {
 afterAll(async () => { await service?.close(); database?.closeDb(); rmSync(home, { recursive: true, force: true }); if (previousHome === undefined) delete process.env.WORK_TRACKER_HOME; else process.env.WORK_TRACKER_HOME = previousHome; });
 
 test("generation imports the folder with Poppler and the agent's profile.json is the LinkedIn export with the other resumes as references", async () => {
-  expect(sources.snapshotSources().warnings).toContain("linkedin-export.pdf has not been imported yet.");
+  // Before the import there is no profile, so no base resume either.
+  expect(() => sources.snapshotSources()).toThrow("Upload your resume data or LinkedIn PDF in Profile to build your base resume.");
+  const { profileEvidence } = await import("../../profile/evidence.ts");
+  expect(profileEvidence(profileDir).warnings).toContain("linkedin-export.pdf has not been imported yet.");
   const { handlePreparation } = await import("../../preparation/http.ts");
   const response = await handlePreparation("/api/application-preparation/generate", new Request("http://local", { method: "POST", body: JSON.stringify({ jobId, provider: "opencode" }) }), service);
   expect(response.status).toBe(202);
-  expect((await complete(((await response.json()) as { id: string }).id)).status).toBe("completed");
+  const finished = await complete(((await response.json()) as { id: string }).id);
+  expect([finished.status, finished.error]).toEqual(["completed", null]);
   const profile = manifests[0]!.profile as { name: string; summary: string; work: { company: string; title: string; start: string; end: string; location: string; highlights: string[] }[]; profileSources: import("../../profile/types.ts").ProfileSources };
   expect(profile.name).toBe("Alex Example");
   expect(profile.work.map(role => [role.company, role.title, role.start, role.end, role.location, role.highlights.length])).toEqual([

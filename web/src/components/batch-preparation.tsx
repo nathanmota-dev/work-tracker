@@ -71,7 +71,7 @@ function BatchDialog({ jobs, onClose, onCreated }: { jobs: Row[]; onClose: () =>
     <Dialog open={!editing} onOpenChange={open => { if (!open && !review.busy) onClose() }}>
       <DialogContent showCloseButton={!review.busy} className="max-h-[90dvh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader><DialogTitle>Prepare jobs in a batch</DialogTitle>
-          <DialogDescription>Review the selection and exclusions. Every job uses the same agent, model and saved resume sources.</DialogDescription>
+          <DialogDescription>Review the selection and exclusions. Every job uses the same agent, model and base resume.</DialogDescription>
         </DialogHeader>
         <LoadState loading={!review.preview && !review.error} error={review.error || providers.error} retry={() => { providers.refresh(); review.refresh() }} />
         <fieldset disabled={review.busy} className="space-y-4">
@@ -94,7 +94,7 @@ function BatchDialog({ jobs, onClose, onCreated }: { jobs: Row[]; onClose: () =>
           </div>
           <Field label="Shared context"><Textarea value={extra} onChange={e => setExtra(e.target.value)} /></Field>
           <p className="text-xs text-muted-foreground">A job's context replaces the shared context for that job. Empty fields use the shared context.</p>
-          <details><summary className="cursor-pointer text-sm">Resume sources for this batch</summary><ResumeSources /></details>
+          <details><summary className="cursor-pointer text-sm">Base resume for this batch</summary><ResumeSources /></details>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={onClose}>Cancel</Button>
             <Button variant="outline" onClick={review.refresh}>Refresh eligibility</Button>

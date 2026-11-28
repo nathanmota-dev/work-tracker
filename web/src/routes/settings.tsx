@@ -88,7 +88,7 @@ export function SettingsPage() {
       <Tabs defaultValue={new URLSearchParams(window.location.hash.split("?")[1]).get("section") ?? "general"}>
         <TabsList aria-label="Settings views">
           <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="resume">Resume sources</TabsTrigger>
+          <TabsTrigger value="resume">Base resume</TabsTrigger>
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
           <TabsTrigger value="permissions">Permissions</TabsTrigger>
           <TabsTrigger value="backup">Backup</TabsTrigger>

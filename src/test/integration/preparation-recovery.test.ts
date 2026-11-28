@@ -1,11 +1,12 @@
 import { beforeAll, afterAll, beforeEach, expect, test, vi } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import type { PreparationAgent, PreparationService } from "../../preparation/service.ts";
 import type { PreparationRun } from "../../preparation/types.ts";
 vi.mock("../../mcp/chrome.ts", () => ({ openChromePortal: vi.fn(async () => {}) }));
 vi.mock("../../mcp/search.ts", () => ({ jobDetails: vi.fn(async () => ({ description: "React developer" })) }));
+import { baseResumeFile, tailorCopy, writeProfile } from "./base-profile.ts";
 // Compiling a tailored project can be held to simulate the app closing while LaTeX runs.
 const compile = vi.hoisted(() => ({ hold: false }));
 vi.mock("../../preparation/latex.ts", async (original) => {
@@ -22,8 +23,6 @@ let jobId = 0;
 /** Fake ACP behavior per skill: "done", "hold" (never returns), "login", or "saved-hold" (writes a result, then never returns). */
 const modes: Record<string, string> = {};
 const calls: string[] = [];
-const project = join(home, "source");
-const original = "\\documentclass{article}\n% Future certification, not earned\n\\begin{document}\nGeneric project with React and Node.js.\n\\end{document}\n";
 function agent(): PreparationAgent {
   const listeners = new Set<(event: Record<string, unknown>) => void>();
   return {
@@ -38,7 +37,7 @@ function agent(): PreparationAgent {
         writeFileSync(manifest.resultPath, JSON.stringify({ versionId: manifest.versionId, pdfHash: manifest.pdfHash, pdfPath: manifest.pdfPath, fields: { resume: manifest.pdfPath }, unfilled: [], externalUrl: manifest.url, portal: "generic" }));
         if (mode === "saved-hold") return new Promise(() => {});
       } else {
-        writeFileSync(join(manifest.project, manifest.mainFile), original.replace("Generic project", "Tailored project"));
+        tailorCopy(manifest, "Generic project", "Tailored project");
         writeFileSync(manifest.selectionPath, JSON.stringify({ language: "en" }));
         writeFileSync(manifest.reportPath, "# Changes\nEmphasized React.");
       }
@@ -63,11 +62,8 @@ async function generated(): Promise<PreparationRun> {
 }
 beforeAll(async () => {
   database = await import("../../db/index.ts");
-  const sources = await import("../../preparation/sources.ts");
   Service = (await import("../../preparation/service.ts")).PreparationService;
-  mkdirSync(project);
-  writeFileSync(join(project, "resume.tex"), original);
-  sources.saveSources({ projectDir: project, mainFile: "resume.tex", dataFile: "", engine: "pdflatex" });
+  writeProfile(home);
   restart();
 });
 beforeEach(() => {
@@ -95,7 +91,7 @@ test("generation interrupted during tailoring keeps its snapshot and continues i
   expect(done.artifacts.map(item => item.kind)).toEqual(["base", "tailored"]);
   expect(service.details({ jobId }).runs).toHaveLength(1);
   expect(applications()).toEqual([expect.objectContaining({ preparation_status: "ready" })]);
-  expect(readFileSync(join(project, "resume.tex"), "utf8")).toBe(original);
+  expect(readFileSync(baseResumeFile(home), "utf8")).toContain("Generic project with React and Node.js.");
 }, 60000);
 
 test("generation interrupted during compilation retries only the compilation", async () => {

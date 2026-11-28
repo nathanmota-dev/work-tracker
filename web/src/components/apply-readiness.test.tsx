@@ -5,9 +5,9 @@ const ready: ReadinessInput = { live: true, busy: false, archived: false, submit
 it("maps every local blocker to its correction", () => {
   expect(applyBlocks(ready, "generate")).toEqual([])
   const blocks = applyBlocks({ ...ready, live: false, busy: true, archived: true, submitted: true, sources: false, tools: false, descriptionDirty: true, provider: undefined, invalidModel: true }, "generate")
-  expect(blocks.map(block => block.label)).toEqual(["Check workspace connection", "View activity", "Restore in Jobs", "Open the board", "Configure an agent", "Choose a model", "Configure resume sources", "Check installed tools", "Edit job description"])
+  expect(blocks.map(block => block.label)).toEqual(["Check workspace connection", "View activity", "Restore in Jobs", "Open the board", "Configure an agent", "Choose a model", "Open Profile", "Check installed tools", "Edit job description"])
   for (const block of blocks) expect(block.href || block.action).toBeTruthy()
-  expect(blocks.filter(block => block.step).map(block => [block.label, block.step])).toEqual([["Configure resume sources", "resume"], ["Check installed tools", "resume"]])
+  expect(blocks.filter(block => block.step).map(block => [block.label, block.step])).toEqual([["Open Profile", "resume"], ["Check installed tools", "resume"]])
   expect(applyBlocks({ ...ready, tailored: false }, "fill")[0]?.message).toContain("Choose or generate a resume")
   expect(applyBlocks({ ...ready, descriptionMissing: true }, "generate")[0]?.action).toBe("description")
 })
@@ -22,7 +22,7 @@ it("keeps Chrome and LinkedIn independent, ignores old model probes and blocks o
 })
 it("renders corrections and re-test actions", () => {
   const correct = vi.fn(), test = vi.fn()
-  render(<ApplyReadiness generate={[{ message: "Needs a description", label: "Edit job description", action: "description" }]} fill={[{ message: "Missing browser", label: "Configure Chrome", href: "#/settings?section=integrations&target=mcp%2Fchrome" }, { message: "No resume", label: "Configure resume sources", href: "#/resume?id=base", step: "resume" }]} correct={correct} test={test} testing={false} error="test failed" />)
+  render(<ApplyReadiness generate={[{ message: "Needs a description", label: "Edit job description", action: "description" }]} fill={[{ message: "Missing browser", label: "Configure Chrome", href: "#/settings?section=integrations&target=mcp%2Fchrome" }, { message: "No resume", label: "Open Profile", href: "#/profile", step: "resume" }]} correct={correct} test={test} testing={false} error="test failed" />)
   fireEvent.click(screen.getByRole("button", { name: "Edit job description" })); expect(correct).toHaveBeenCalledWith("description")
   expect(screen.getByRole("link", { name: "Configure Chrome" })).toHaveAttribute("href", "#/settings?section=integrations&target=mcp%2Fchrome")
   expect(screen.getByRole("link", { name: "Get started guide" })).toHaveAttribute("href", "#/dashboard?step=resume")

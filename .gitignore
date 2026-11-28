@@ -9,11 +9,11 @@ release/
 
 coverage/
 
-# Local resume sources, assets and generated files; publish only generic examples.
-/base/latex/*
-!/base/latex/resume.example.tex
+# Local resume data; publish only the generic example. base/latex held the
+# resume before it was generated from the profile: keep any old copy private.
 /base/data/*
 !/base/data/resume-data.example.json
+/base/latex/
 
 # Playwright reports and failure evidence.
 /playwright-report/

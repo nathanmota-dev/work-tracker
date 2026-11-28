@@ -5,7 +5,6 @@ import { readVersion, rowCounts } from "../db/migrations.ts";
 import { snapshotDatabase } from "../db/snapshot.ts";
 import { Database } from "../db/sqlite.ts";
 import { paths } from "../paths.ts";
-import { sourcesConfig } from "../preparation/sources.ts";
 import { VERSION } from "../version.gen.ts";
 import {
   ARTIFACTS_DIR, BACKUP_FORMAT, BACKUP_FORMAT_VERSION, BackupError, CONFIG_FILE, DATABASE_FILE, MANIFEST_FILE, fileDigest, summarize,
@@ -36,9 +35,8 @@ function excludedSources(): ExcludedSource[] {
     ["backups", paths.backups, "Earlier backups and migration snapshots are not copied into new backups."],
   ];
   const excluded = local.filter(([, path]) => existsSync(path)).map(([kind, path, reason]) => ({ kind, path, reason }));
-  const { projectDir, dataFile } = sourcesConfig();
-  for (const path of [projectDir, dataFile].filter(Boolean))
-    excluded.push({ kind: "resume-source", path, reason: "External resume source. Keep a separate copy of it." });
+  // The base resume's LaTeX is generated again from the profile, so only the profile files matter.
+  if (existsSync(paths.profile)) excluded.push({ kind: "resume-source", path: paths.profile, reason: "Your profile files (resume data, LinkedIn export and resume PDFs) are not copied. Keep a separate copy of them." });
   return excluded;
 }
 

@@ -1,6 +1,7 @@
 import { afterAll, expect, test, vi } from "vitest";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { writeProfile } from "./base-profile.ts";
 import { join, resolve } from "node:path";
 
 // LaTeX tools are machine-specific; their detection has its own tests.
@@ -72,9 +73,6 @@ test("Setup and Get started follow a new workspace to its first application and 
   expect((await save(source, { setupCompleted: true })).status).toBe(400);
 
   // An agent alone completes the setup: the MCP servers are not part of it.
-  const project = join(root, "resume");
-  mkdirSync(project, { recursive: true });
-  writeFileSync(join(project, "resume.tex"), "\\documentclass{article}\\begin{document}Ada\\end{document}\n");
   const command = { command: process.execPath, args: [fixture], env: { FIXTURE_MODE: "normal", FIXTURE_DIAGNOSTIC: "1" } };
   const config = (agent: typeof command) => JSON.stringify({ username: "fixture", acp: { opencode: agent }, mcp: { linkedin: command, chrome: command } });
   writeFileSync(join(source.home, "config.json"), config(command));
@@ -83,7 +81,7 @@ test("Setup and Get started follow a new workspace to its first application and 
   expect(broadcast).toHaveBeenCalledWith({ type: "changed", table: "integrations" });
   expect(await (await save(source, { setupCompleted: true })).json()).toMatchObject({ setupCompletedAt: expect.any(String) });
 
-  // Without a resume project: skip it, then fill answers and add records by hand.
+  // Without a profile: skip the resume step, then fill answers and add records by hand.
   expect((await save(source, { skipped: ["resume"] })).status).toBe(200);
   for (const [key, value] of [["first_name", "Ada"], ["last_name", "Lovelace"], ["email", "ada@example.com"]]) source.answers.saveAnswer({ key, value });
   source.database.db().exec("INSERT INTO jobs (id, title, company_name) VALUES (1, 'Engineer', 'Example Corp')");
@@ -94,9 +92,9 @@ test("Setup and Get started follow a new workspace to its first application and 
   source.database.db().exec("UPDATE applications SET submission_status = 'submitted' WHERE id = 1");
   expect(await status(source)).toMatchObject({ complete: true, next: null });
 
-  // Real resume sources complete the skipped step.
+  // Uploading a profile builds the base resume and completes the skipped step.
   await save(source, { skipped: [] });
-  writeFileSync(join(source.home, "config.json"), JSON.stringify({ ...JSON.parse(config(command)), resumeSources: { projectDir: project, mainFile: "resume.tex", dataFile: "", engine: "pdflatex" } }));
+  writeProfile(source.home, { name: "Ada Lovelace" });
   expect(await states(source)).toEqual(["done", "done", "done", "done"]);
 
   // A failing diagnostic of a changed command leaves no ready agent, but the finished setup stays finished.

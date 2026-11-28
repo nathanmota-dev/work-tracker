@@ -1,13 +1,14 @@
+import { lazy, Suspense } from "react"
 import { Badge } from "@/components/ui/badge"
 import { ResumeSources } from "@/components/resume-sources"
+import { Empty, LoadState, Panel } from "@/components/workspace-ui"
 import { useApi } from "@/lib/api"
 import type { SourcesState } from "@/lib/preparation"
 import { resumeHref } from "@/lib/variants"
+const LatexCodeEditor = lazy(() => import("@/components/latex-code-editor").then(module => ({ default: module.LatexCodeEditor })))
 
 /** Id of the base resume in the Resumes routes; saved variants use generated ids. */
 export const BASE_RESUME_ID = "base"
-
-const name = (path: string) => path.replace(/[\\/]+$/, "").split(/[\\/]/).pop() ?? ""
 
 /**
  * The default resume in the Resumes grid. It is never tailored or scored:
@@ -15,9 +16,8 @@ const name = (path: string) => path.replace(/[\\/]+$/, "").split(/[\\/]/).pop() 
  */
 export function BaseResumeTile() {
   const api = useApi<SourcesState>("resume-sources")
-  const config = api.data?.config
-  const ready = !!config?.projectDir
-  const detail = !api.data ? "Loading…" : ready ? `${config.mainFile} · ${name(config.projectDir)}` : "Add your LaTeX resume to start"
+  const source = api.data?.source
+  const detail = !api.data ? "Loading…" : source ? `Built from ${source.file}` : "Upload your profile to start"
   return <a href={resumeHref(BASE_RESUME_ID)} aria-label="Base resume (default)"
     className="group flex w-full min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-left outline-none transition-colors hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring">
     <div className="relative rounded-lg bg-accent/30 py-4">
@@ -30,14 +30,31 @@ export function BaseResumeTile() {
     <div className="min-w-0 space-y-2">
       <h3 className="truncate text-sm font-medium">Base resume</h3>
       <p className="truncate text-xs text-muted-foreground" title={detail}>{detail}</p>
-      <p className="text-xs text-muted-foreground">Never changes: tailored resumes are new variants.</p>
+      <p className="text-xs text-muted-foreground">Generated from your profile: tailored resumes are new variants.</p>
     </div>
   </a>
 }
 
-/** The base resume's page: its sources on the left and its PDF filling the rest, like a saved resume. */
+function LatexView() {
+  const latex = useApi<{ file: string; text: string }>("resume-sources/latex")
+  return <>
+    <LoadState {...latex} retry={latex.refresh} />
+    {latex.data && <div className="h-[60dvh] min-h-0">
+      <Suspense fallback={<p role="status">Loading editor…</p>}><LatexCodeEditor label={`${latex.data.file} (read-only)`} value={latex.data.text} onChange={() => {}} readOnly /></Suspense>
+    </div>}
+  </>
+}
+/** The generated LaTeX, read-only: the profile is what changes it. */
+function BaseLatex() {
+  const sources = useApi<SourcesState>("resume-sources")
+  return <Panel title="Generated LaTeX">
+    {sources.data?.source ? <LatexView /> : <Empty title="No LaTeX yet" description="It appears once your profile has resume data or a LinkedIn PDF." />}
+  </Panel>
+}
+
+/** The base resume's page: its status and generated LaTeX on the left, its PDF filling the rest. */
 export function BaseResumeDetail() {
-  return <div className="grid gap-4 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(18rem,26rem)_1fr] [&>*:first-child]:xl:min-h-0 [&>*:first-child]:xl:overflow-y-auto">
-    <ResumeSources friendly fill />
+  return <div className="grid gap-4 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(18rem,32rem)_1fr] [&>*:first-child]:xl:min-h-0 [&>*:first-child]:xl:overflow-y-auto">
+    <ResumeSources friendly fill><BaseLatex /></ResumeSources>
   </div>
 }

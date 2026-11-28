@@ -63,7 +63,7 @@ function ChoiceNote({ w, shown, score }: Props & { shown: string; score?: AtsDoc
       <p>Review the PDF and approve this version to queue its fill.</p>
       <Button disabled={w.reviewBusy || w.archived || !w.live || w.submitted} onClick={() => void w.action("approve")}>Approve this resume</Button>
     </div>}
-    {shown === "base" && w.sources.data && !w.sources.data.config.projectDir && <a className="block text-xs underline" href="#/resume?id=base">Configure resume sources</a>}
+    {shown === "base" && w.sources.data && !w.sources.data.source && <a className="block text-xs underline" href="#/profile">Upload your profile to build it</a>}
     {!!missing.length && <p className="text-xs text-muted-foreground" title={ATS_NOTE}>Missing required: {missing.join(", ")}</p>}
   </>
 }
@@ -109,7 +109,7 @@ export function ResumeView({ w }: Props) {
           {!w.review && <p className="text-xs text-muted-foreground">The selected resume is the one used in Fill portal.</p>}
           <div className="grid grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] gap-3">
             {own && <ResumeCard name={own.name} detail={own.detail} badge="This application" selected={selected === "application"} onSelect={() => w.pickResume("application")} />}
-            {!w.review && <ResumeCard name="Base resume" detail={w.sources.data?.config.projectDir ? w.sources.data.config.mainFile : "Not configured"} badge={current === "base" ? "This application" : "Default"} score={scoreOf()} selected={selected === "base"} onSelect={() => w.pickResume("base")} />}
+            {!w.review && <ResumeCard name="Base resume" detail={w.sources.data?.source ? "From your profile" : "No profile yet"} badge={current === "base" ? "This application" : "Default"} score={scoreOf()} selected={selected === "base"} onSelect={() => w.pickResume("base")} />}
             {saved.map(item => <ResumeCard key={item.id} name={item.name} detail={roleLabels[item.role]} badge={current === item.id ? "This application" : undefined} score={scoreOf(item.id)} selected={selected === item.id} onSelect={() => w.pickResume(item.id)}><Stacks variant={item} /></ResumeCard>)}
           </div>
           {!w.review && !saved.length && variants.data && <p className="text-xs text-muted-foreground">No saved resume is ready. <a className="text-foreground underline" href="#/resumes">Create one in Resumes</a> to reuse it for jobs with the same stack.</p>}

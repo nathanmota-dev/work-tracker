@@ -1,14 +1,10 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import * as fs from "node:fs";
-import { join } from "node:path";
-vi.mock("../paths.ts", () => ({
-  loadConfig: vi.fn(() => ({})),
-  saveConfig: vi.fn(),
-  paths: { profile: "/home/.work-tracker/profile" },
-}));
+vi.mock("../paths.ts", () => ({ paths: { profile: "/home/.work-tracker/profile", baseResume: "/home/.work-tracker/resume" } }));
 vi.mock("../profile/evidence.ts", () => ({ profileEvidence: vi.fn() }));
-import { loadConfig, saveConfig } from "../paths.ts";
+vi.mock("../resume/base.ts", () => ({ BASE_RESUME_FILE: "resume.tex", writeBaseResume: vi.fn() }));
 import { profileEvidence } from "../profile/evidence.ts";
+import { writeBaseResume } from "../resume/base.ts";
 import { parseResumeData, sourcesConfig } from "./sources.ts";
 
 describe("static resume inputs", () => {
@@ -28,42 +24,18 @@ describe("static resume inputs", () => {
   });
 });
 
-describe("repository resume defaults", () => {
-  const root = "/fixture/checkout";
-  const profileDir = "/home/.work-tracker/profile";
-  let files: Set<string>;
-  beforeEach(() => {
-    vi.stubEnv("WORK_TRACKER_REPO_ROOT", root);
-    vi.mocked(loadConfig).mockReturnValue({});
-    files = new Set();
-    vi.spyOn(fs, "statSync").mockImplementation((path) => {
-      if (!files.has(String(path))) throw new Error("ENOENT");
-      return { isFile: () => true } as fs.Stats;
-    });
+describe("base resume sources", () => {
+  test("are the app's generated LaTeX and profile folder, with nothing to configure", () => {
+    expect(sourcesConfig()).toEqual({ projectDir: "/home/.work-tracker/resume", mainFile: "resume.tex", engine: "pdflatex", dataFile: "", profileDir: "/home/.work-tracker/profile" });
   });
-  test("uses the build checkout's LaTeX and the app's profile folder, with no saved settings", () => {
-    files.add(join(root, "base/latex/resume.tex"));
-    expect(sourcesConfig()).toEqual({ projectDir: join(root, "base/latex"), mainFile: "resume.tex", dataFile: "", engine: "pdflatex", profileDir });
-    expect(saveConfig).not.toHaveBeenCalled();
-  });
-  test("never selects the versioned example", () => {
-    files.add(join(root, "base/latex/resume.example.tex"));
-    expect(sourcesConfig()).toMatchObject({ projectDir: "", profileDir });
-  });
-  test("respects saved LaTeX settings but always reads the app's profile folder", () => {
-    const saved = { projectDir: "/another/project", mainFile: "main.tex", dataFile: "/old/resume-data.json", engine: "xelatex" as const, profileDir: "/old" };
-    vi.mocked(loadConfig).mockReturnValue({ resumeSources: saved });
-    expect(sourcesConfig()).toEqual({ ...saved, dataFile: "", profileDir });
-    expect(fs.statSync).not.toHaveBeenCalled();
-  });
-  test("uses the current repository for CLI callers without a desktop root", () => {
-    vi.stubEnv("WORK_TRACKER_REPO_ROOT", undefined);
-    files.add(join(process.cwd(), "base/latex/resume.tex"));
-    expect(sourcesConfig().projectDir).toBe(join(process.cwd(), "base/latex"));
+  test("are generated again from the profile before every snapshot, while a recorded copy is only read", () => {
+    vi.mocked(writeBaseResume).mockImplementation(() => { throw new Error("Upload your resume data."); });
+    expect(() => snapshotSources()).toThrow("Upload your resume data.");
+    expect(writeBaseResume).toHaveBeenCalledOnce();
   });
 });
 
-import { saveSources, snapshotSources, writeSnapshot } from "./sources.ts";
+import { snapshotSources, writeSnapshot } from "./sources.ts";
 import type { ResumeSourcesConfig } from "./types.ts";
 describe("isolated source snapshots", () => {
   let config: ResumeSourcesConfig;
@@ -84,7 +56,6 @@ describe("isolated source snapshots", () => {
       "resume.example.tex": { text: "example" },
       "resume.aux": { text: "aux" },
     };
-    vi.mocked(loadConfig).mockReturnValue({});
     vi.mocked(fs.existsSync).mockImplementation(
       (path) =>
         String(path) === "/project" ||
@@ -192,17 +163,6 @@ describe("isolated source snapshots", () => {
       { mode: 0o600 },
     );
   });
-  test("validates before persisting normalized LaTeX settings and preserves other settings", () => {
-    vi.mocked(loadConfig).mockReturnValue({ username: "candidate" });
-    vi.mocked(profileEvidence).mockReturnValue({ data: null, raw: null, source: null, warnings: [], assets: [] });
-    const saved = { ...config, profileDir: "/home/.work-tracker/profile" };
-    expect(saveSources({ ...config, projectDir: " /project ", mainFile: " resume.tex ", dataFile: "/ignored.json" })).toEqual(saved);
-    expect(saveConfig).toHaveBeenLastCalledWith({ username: "candidate", resumeSources: saved });
-    vi.mocked(saveConfig).mockClear();
-    for (const input of [null, {}, { ...config, engine: "bad" }, { ...config, projectDir: "/missing" }, { ...config, mainFile: 7 }])
-      expect(() => saveSources(input)).toThrow();
-    expect(saveConfig).not.toHaveBeenCalled();
-  });
   test("adds the profile to the data, so a new upload or import changes the version", () => {
     const data = { name: "Ada", profileSources: { references: [] } };
     vi.mocked(profileEvidence).mockReturnValue({ data, raw: data, source: { kind: "data", file: "resume-data.json" }, warnings: ["new.pdf has not been imported yet."], assets: [] });
@@ -212,8 +172,6 @@ describe("isolated source snapshots", () => {
     expect(withProfile.warnings).toEqual(["new.pdf has not been imported yet."]);
     vi.mocked(profileEvidence).mockReturnValue({ data: { name: "Bea" }, raw: { name: "Bea" }, source: { kind: "data", file: "resume-data.json" }, warnings: [], assets: [] });
     expect(snapshotSources({ ...config, profileDir: "/profile" }).version).not.toBe(withProfile.version);
-    vi.mocked(profileEvidence).mockReturnValue({ data: null, raw: null, source: null, warnings: [], assets: [] });
-    expect(snapshotSources({ ...config, profileDir: "/profile" }).warnings).toEqual([expect.stringContaining("Upload your resume data or LinkedIn PDF in Profile.")]);
     vi.mocked(profileEvidence).mockClear();
     snapshotSources(config);
     expect(profileEvidence).not.toHaveBeenCalled();

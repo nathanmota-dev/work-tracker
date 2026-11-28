@@ -53,7 +53,7 @@ const dependencies: Record<string, string[]> = {
   "application-board/quiet": ["applications", "application_stages", "application_events", "followup_drafts"],
   "acp/providers": ["integrations"],
   "integrations/status": ["integrations", "applicant_answers", "profile"],
-  "onboarding/status": ["integrations", "applicant_answers", "jobs", "applications", "onboarding_state"],
+  "onboarding/status": ["integrations", "applicant_answers", "jobs", "applications", "onboarding_state", "profile_imports"],
   "acp/permissions": ["agent_permissions"],
   "preparation-batches": ["preparation_batches", "jobs"],
   "interview-preps": ["interview_preps"],
@@ -63,7 +63,9 @@ const dependencies: Record<string, string[]> = {
   "gates/profile": ["candidate_languages", "gate_profile"],
   "gates/jobs": ["jobs", "candidate_languages", "gate_profile"],
   "profile-sources": ["profile_imports"],
-  "resume-sources": ["resume_sources", "profile_imports"],
+  // The base resume is generated from the profile, so a profile change or an edited answer changes it.
+  "resume-sources": ["resume_sources", "profile_imports", "applicant_answers"],
+  "resume-sources/latex": ["resume_sources", "profile_imports", "applicant_answers"],
   // The list carries the company and title of each tailored resume's job, and its score there.
   "resume-variants": ["resume_variants", "jobs"],
   "ats/best": ["jobs", "resume_variants"],

@@ -1,0 +1,174 @@
+{
+  "education": [
+    {
+      "school": "Synthetic University",
+      "degree": "BSc Computer Science",
+      "start": "2015-01",
+      "end": "2018-12"
+    }
+  ],
+  "skills": [
+    "React",
+    "TypeScript"
+  ],
+  "work": [
+    {
+      "company": "Synthetic Company 1",
+      "title": "Software Engineer",
+      "start": "2023-01",
+      "end": "Present",
+      "techStack": [
+        "React",
+        "TypeScript",
+        "Node.js"
+      ],
+      "highlights": [
+        "Base resume. Synthetic candidate. React and TypeScript experience.",
+        "Built synthetic feature 1 with React and TypeScript for internal users across several teams.",
+        "Maintained synthetic service 1 with Node.js, automated tests and continuous delivery pipelines.",
+        "Reviewed code and documented decisions for synthetic module 1 with the rest of the team."
+      ]
+    },
+    {
+      "company": "Synthetic Company 2",
+      "title": "Software Engineer",
+      "start": "2022-01",
+      "end": "2022-12",
+      "techStack": [
+        "React",
+        "TypeScript",
+        "Node.js"
+      ],
+      "highlights": [
+        "Built synthetic feature 2 with React and TypeScript for internal users across several teams.",
+        "Maintained synthetic service 2 with Node.js, automated tests and continuous delivery pipelines.",
+        "Reviewed code and documented decisions for synthetic module 2 with the rest of the team."
+      ]
+    },
+    {
+      "company": "Synthetic Company 3",
+      "title": "Software Engineer",
+      "start": "2021-01",
+      "end": "2021-12",
+      "techStack": [
+        "React",
+        "TypeScript",
+        "Node.js"
+      ],
+      "highlights": [
+        "Built synthetic feature 3 with React and TypeScript for internal users across several teams.",
+        "Maintained synthetic service 3 with Node.js, automated tests and continuous delivery pipelines.",
+        "Reviewed code and documented decisions for synthetic module 3 with the rest of the team."
+      ]
+    },
+    {
+      "company": "Synthetic Company 4",
+      "title": "Software Engineer",
+      "start": "2020-01",
+      "end": "2020-12",
+      "techStack": [
+        "React",
+        "TypeScript",
+        "Node.js"
+      ],
+      "highlights": [
+        "Built synthetic feature 4 with React and TypeScript for internal users across several teams.",
+        "Maintained synthetic service 4 with Node.js, automated tests and continuous delivery pipelines.",
+        "Reviewed code and documented decisions for synthetic module 4 with the rest of the team."
+      ]
+    },
+    {
+      "company": "Synthetic Company 5",
+      "title": "Software Engineer",
+      "start": "2019-01",
+      "end": "2019-12",
+      "techStack": [
+        "React",
+        "TypeScript",
+        "Node.js"
+      ],
+      "highlights": [
+        "Built synthetic feature 5 with React and TypeScript for internal users across several teams.",
+        "Maintained synthetic service 5 with Node.js, automated tests and continuous delivery pipelines.",
+        "Reviewed code and documented decisions for synthetic module 5 with the rest of the team."
+      ]
+    },
+    {
+      "company": "Synthetic Company 6",
+      "title": "Software Engineer",
+      "start": "2018-01",
+      "end": "2018-12",
+      "techStack": [
+        "React",
+        "TypeScript",
+        "Node.js"
+      ],
+      "highlights": [
+        "Built synthetic feature 6 with React and TypeScript for internal users across several teams.",
+        "Maintained synthetic service 6 with Node.js, automated tests and continuous delivery pipelines.",
+        "Reviewed code and documented decisions for synthetic module 6 with the rest of the team."
+      ]
+    },
+    {
+      "company": "Synthetic Company 7",
+      "title": "Software Engineer",
+      "start": "2017-01",
+      "end": "2017-12",
+      "techStack": [
+        "React",
+        "TypeScript",
+        "Node.js"
+      ],
+      "highlights": [
+        "Built synthetic feature 7 with React and TypeScript for internal users across several teams.",
+        "Maintained synthetic service 7 with Node.js, automated tests and continuous delivery pipelines.",
+        "Reviewed code and documented decisions for synthetic module 7 with the rest of the team."
+      ]
+    },
+    {
+      "company": "Synthetic Company 8",
+      "title": "Software Engineer",
+      "start": "2016-01",
+      "end": "2016-12",
+      "techStack": [
+        "React",
+        "TypeScript",
+        "Node.js"
+      ],
+      "highlights": [
+        "Built synthetic feature 8 with React and TypeScript for internal users across several teams.",
+        "Maintained synthetic service 8 with Node.js, automated tests and continuous delivery pipelines.",
+        "Reviewed code and documented decisions for synthetic module 8 with the rest of the team."
+      ]
+    },
+    {
+      "company": "Synthetic Company 9",
+      "title": "Software Engineer",
+      "start": "2015-01",
+      "end": "2015-12",
+      "techStack": [
+        "React",
+        "TypeScript",
+        "Node.js"
+      ],
+      "highlights": [
+        "Built synthetic feature 9 with React and TypeScript for internal users across several teams.",
+        "Maintained synthetic service 9 with Node.js, automated tests and continuous delivery pipelines.",
+        "Reviewed code and documented decisions for synthetic module 9 with the rest of the team."
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "name": "Synthetic Project",
+      "description": "Full-stack application",
+      "date": "2024-01",
+      "techStack": [
+        "Node.js"
+      ],
+      "highlights": [
+        "Second page. Node.js project and testing experience."
+      ]
+    }
+  ]
+}

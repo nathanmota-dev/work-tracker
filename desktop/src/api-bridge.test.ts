@@ -101,6 +101,16 @@ describe("api bridge", () => {
     }
     await expect(request({}, "interviews/archive", {})).rejects.toThrow("Unsupported API request")
   })
+  it("reads the base resume and its generated LaTeX, which nothing writes", async () => {
+    connectApiBridge({ address: "http://127.0.0.1:4000", token: "fixture" })
+    const fetch = vi.fn(async () => new Response('{"file":"resume.tex","text":"x"}'))
+    vi.stubGlobal("fetch", fetch)
+    const request = electron.handlers.get("api:request")!
+    expect(await request({}, "resume-sources/latex")).toEqual({ file: "resume.tex", text: "x" })
+    expect(fetch).toHaveBeenLastCalledWith(expect.objectContaining({ pathname: "/api/resume-sources/latex" }), expect.objectContaining({ method: "GET" }))
+    await expect(request({}, "resume-sources", { projectDir: "/elsewhere" })).rejects.toThrow("Unsupported API request")
+    await expect(request({}, "resume-sources/latex", {})).rejects.toThrow("Unsupported API request")
+  })
   it("allows batch review reads and adjustment writes while rejecting arbitrary paths and methods", async () => {
     connectApiBridge({ address: "http://127.0.0.1:4000", token: "fixture" })
     const fetch = vi.fn(async () => new Response('{"ok":true}'))

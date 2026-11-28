@@ -20,12 +20,12 @@ export function applyBlocks(input: ReadinessInput, operation: "generate" | "fill
   if (!input.provider) blocks.push({ message: "No ACP provider is available.", label: "Configure an agent", href: agentSetupLink() })
   if (input.invalidModel) blocks.push({ message: "The saved model is unavailable for this provider.", label: "Choose a model", action: "model" })
   if (operation === "generate") {
-    if (!input.sources) blocks.push({ message: "Choose a valid LaTeX project before generating.", label: "Configure resume sources", href: "#/resume?id=base", step: "resume" })
+    if (!input.sources) blocks.push({ message: "Upload your resume data or LinkedIn PDF before generating: your base resume is built from it.", label: "Open Profile", href: "#/profile", step: "resume" })
     if (!input.tools) blocks.push({ message: "Required LaTeX or PDF tools are unavailable.", label: "Check installed tools", href: correctionLink(), step: "resume" })
     if (input.gateUnconfirmed) blocks.push({ message: "This job failed a deal-breaker check. Review the quoted requirement and confirm before preparing.", label: "Review requirements", action: "gate" })
     if (input.descriptionDirty || input.descriptionMissing) blocks.push({ message: input.descriptionDirty ? "Save your description changes before generating." : "This job needs a description.", label: "Edit job description", action: "description" })
   } else if (!input.tailored) blocks.push({ message: "Choose or generate a resume before filling.", label: "Choose a resume", action: "review" })
-  if (operation === "fill" && input.baseUnconfigured) blocks.push({ message: "Choose a valid LaTeX project to use the base resume.", label: "Configure resume sources", href: "#/resume?id=base", step: "resume" })
+  if (operation === "fill" && input.baseUnconfigured) blocks.push({ message: "Upload your resume data or LinkedIn PDF to use the base resume.", label: "Open Profile", href: "#/profile", step: "resume" })
   if (operation === "fill" && input.tailored && input.approved === false) blocks.push({ message: "Approve the displayed document version before filling.", label: "Review document", action: "review" })
   const targets: Target[] = [...(input.provider ? [`acp/${input.provider}` as Target] : []), ...(operation === "fill" ? ["mcp/chrome" as const] : input.linkedinNeeded ? ["mcp/linkedin" as const] : [])]
   for (const target of targets) {

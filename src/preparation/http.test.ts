@@ -1,14 +1,15 @@
 import { beforeEach, expect, test, vi } from "vitest";
 import { handlePreparation } from "./http.ts";
-import { PreparationError, saveSources } from "./sources.ts";
+import { PreparationError } from "./sources.ts";
+import { writeBaseResume } from "../resume/base.ts";
 import { pdfBytes } from "./store.ts";
 import { ensureProfileImported } from "../profile/import.ts";
 import type { PreparationService } from "./service.ts";
 vi.mock("./sources.ts", async (original) => ({
   ...(await original<typeof import("./sources.ts")>()),
-  saveSources: vi.fn(),
   sourcesConfig: vi.fn(() => ({ profileDir: "/profile" })),
 }));
+vi.mock("../resume/base.ts", () => ({ BASE_RESUME_FILE: "resume.tex", writeBaseResume: vi.fn() }));
 vi.mock("./store.ts", () => ({ pdfBytes: vi.fn() }));
 vi.mock("../profile/import.ts", () => ({ ensureProfileImported: vi.fn() }));
 const service = {
@@ -59,14 +60,14 @@ test.each([
   // Generation reads the profile folder's PDFs first; other operations never import.
   expect(vi.mocked(ensureProfileImported).mock.calls).toEqual(["generate", "retry"].includes(method) ? [["/profile"]] : []);
 });
-test("reads/saves sources and rejects updates while busy", async () => {
+test("reads the sources and the base resume's generated LaTeX; nothing saves them", async () => {
   expect((await call("resume-sources", "", "GET")).status).toBe(200);
-  await call("resume-sources", '{"engine":"pdflatex"}');
-  expect(saveSources).toHaveBeenCalledWith({ engine: "pdflatex" });
-  vi.mocked(saveSources).mockClear();
-  service.isBusy = true;
-  expect((await call("resume-sources")).status).toBe(409);
-  expect(saveSources).not.toHaveBeenCalled();
+  vi.mocked(writeBaseResume).mockReturnValue("\\documentclass{article}");
+  expect(await (await call("resume-sources/latex", "", "GET")).json()).toEqual({ file: "resume.tex", text: "\\documentclass{article}" });
+  vi.mocked(writeBaseResume).mockImplementation(() => { throw new PreparationError("Upload your resume data.", 409); });
+  const missing = await call("resume-sources/latex", "", "GET");
+  expect([missing.status, await missing.json()]).toEqual([409, { error: "Upload your resume data." }]);
+  expect((await call("resume-sources", '{"engine":"pdflatex"}')).status).toBe(404);
 });
 test.each(["{", "null", "[]", '"string"'])(
   "rejects invalid object body %s",

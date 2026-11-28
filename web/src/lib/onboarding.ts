@@ -5,7 +5,7 @@ import type { OnboardingItem, OnboardingStatus, OnboardingStep, StepId } from ".
 export type { OnboardingItem, OnboardingStatus, OnboardingStep, StepId }
 
 export const stepCopy: Record<StepId, { title: string; description: string; action: string }> = {
-  resume: { title: "Set up your base resume", description: "Choose your LaTeX resume project and make the LaTeX and PDF tools available.", action: "Open base resume" },
+  resume: { title: "Set up your base resume", description: "Upload your resume data or LinkedIn PDF in Profile and make the LaTeX and PDF tools available.", action: "Open base resume" },
   answers: { title: "Fill essential answers", description: "Add the basics every application asks for.", action: "Add answers" },
   search: { title: "Run your first search", description: "Search LinkedIn, or add a role by hand, to start your list of jobs.", action: "Search jobs" },
   apply: { title: "Prepare your first application", description: "Prepare a shortlisted role, or register an application you already sent.", action: "Open the shortlist" },
@@ -26,7 +26,7 @@ export function stepHref(step: OnboardingStep): string {
 export const getStartedLink = (id: StepId) => `#/dashboard?step=${id}`
 
 export function itemText(item: OnboardingItem): string {
-  if (item.key === "sources") return `LaTeX project: ${item.ready ? "ready" : item.reason === "invalid" ? "cannot be read — check its folder and files" : "not chosen"}`
+  if (item.key === "sources") return `Base resume: ${item.ready ? "ready" : item.reason === "invalid" ? "cannot be built — check your profile file" : "upload your profile first"}`
   if (item.key === "tools") return `LaTeX and PDF tools: ${item.ready ? "available" : `missing ${item.reason}`}`
   if (item.key === "jobs") return item.ready ? "A job is saved." : "No saved jobs yet."
   if (item.key === "applications") return item.ready ? "An application is prepared or sent." : "No application prepared or sent yet."

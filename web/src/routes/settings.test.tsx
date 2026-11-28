@@ -62,7 +62,7 @@ it("shows connection changes, changes theme and selects settings tabs", () => {
   expect(screen.getByText("Disconnected")).toBeInTheDocument()
   fireEvent.click(screen.getByRole("button", { name: "dark" }))
   expect(document.documentElement).toHaveClass("dark")
-  fireEvent.mouseDown(screen.getByRole("tab", { name: "Resume sources" }), {
+  fireEvent.mouseDown(screen.getByRole("tab", { name: "Base resume" }), {
     button: 0,
     ctrlKey: false,
   })

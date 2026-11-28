@@ -14,13 +14,20 @@ let d: ReturnType<typeof databaseDouble>;
 beforeEach(() => { d = databaseDouble(); vi.mocked(db).mockReturnValue(d.asDatabase); });
 const field = (key: PersonalField["key"], value: string): PersonalField => ({ key, value, source: "linkedin" });
 
-test("fills only empty answers whose value was not filled before, recording the source", () => {
-  // email: typed by the user; phone: empty and new; location: already filled once with this value.
-  d.statement.get.mockReturnValueOnce({ value: "typed@example.com" })
-    .mockReturnValueOnce({ value: null }).mockReturnValueOnce(undefined)
-    .mockReturnValueOnce(undefined).mockReturnValueOnce({ value: "Lisbon" });
-  expect(autofillAnswers([field("email", "a@example.com"), field("phone", "+351 912 345 678"), field("location", "Lisbon")])).toEqual(["phone"]);
-  expect(saveAnswer).toHaveBeenCalledExactlyOnceWith({ key: "phone", value: "+351 912 345 678" }, d.asDatabase);
+test("fills empty answers, follows the profile where it filled them and never replaces typed or cleared values", () => {
+  // Each field reads its answer, then what the profile filled before.
+  const rows: [{ value: string | null } | undefined, { value: string } | undefined][] = [
+    [{ value: "typed@example.com" }, undefined], // email: typed by the user
+    [{ value: null }, undefined], // phone: empty and new
+    [undefined, { value: "Lisbon" }], // location: filled once with this value, then cleared
+    [{ value: "Old summary" }, { value: "Old summary" }], // summary: filled before, the profile changed it
+    [{ value: "Alex Example" }, { value: "Alex Example" }], // full_name: unchanged
+  ];
+  for (const [answer, previous] of rows) d.statement.get.mockReturnValueOnce(answer).mockReturnValueOnce(previous);
+  expect(autofillAnswers([field("email", "a@example.com"), field("phone", "+351 912 345 678"), field("location", "Lisbon"), field("summary", "New summary"), field("full_name", "Alex Example")])).toEqual(["phone", "summary"]);
+  expect(saveAnswer).toHaveBeenCalledWith({ key: "phone", value: "+351 912 345 678" }, d.asDatabase);
+  expect(saveAnswer).toHaveBeenCalledWith({ key: "summary", value: "New summary" }, d.asDatabase);
+  expect(saveAnswer).toHaveBeenCalledTimes(2);
   expect(d.statement.run).toHaveBeenCalledWith("phone", "linkedin", "+351 912 345 678", "fixture-time");
 });
 

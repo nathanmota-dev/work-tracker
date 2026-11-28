@@ -6,7 +6,7 @@ import { agentReady, onboardingStatus, readyAgents } from "./status.ts";
 import { readPreferences, recordVerification, savePreferences } from "./store.ts";
 import { handleOnboarding } from "./http.ts";
 
-const fake = vi.hoisted(() => ({ executable: vi.fn(), snapshot: vi.fn(), tools: vi.fn(), sources: vi.fn(), read: vi.fn() }));
+const fake = vi.hoisted(() => ({ executable: vi.fn(), snapshot: vi.fn(), tools: vi.fn(), sources: vi.fn(), read: vi.fn(), profile: vi.fn() }));
 vi.mock("../db/index.ts", () => ({ db: vi.fn(), now: () => "2026-10-30T12:00:00.000Z" }));
 vi.mock("../integrations/http.ts", () => ({ executable: fake.executable }));
 vi.mock("../integrations/config.ts", async original => ({
@@ -15,6 +15,7 @@ vi.mock("../integrations/config.ts", async original => ({
 }));
 vi.mock("../preparation/latex.ts", () => ({ dependencyStatus: fake.tools }));
 vi.mock("../preparation/sources.ts", () => ({ sourcesConfig: fake.sources, snapshotSources: fake.read }));
+vi.mock("../profile/evidence.ts", () => ({ profileEvidence: fake.profile }));
 
 let d: Database;
 let clock = 0;
@@ -25,7 +26,8 @@ beforeEach(async () => {
   vi.spyOn(Date, "now").mockReturnValue(++clock * 60_000);
   fake.snapshot.mockReturnValue({ revision: "r", config: {} });
   fake.executable.mockReturnValue(false);
-  fake.sources.mockReturnValue({ projectDir: "", mainFile: "resume.tex", dataFile: "", engine: "pdflatex" });
+  fake.sources.mockReturnValue({ projectDir: "/resume", mainFile: "resume.tex", dataFile: "", engine: "pdflatex", profileDir: "/profile" });
+  fake.profile.mockReturnValue({ source: null });
   fake.read.mockReturnValue({});
   fake.tools.mockResolvedValue([{ command: "latexmk", available: false }, { command: "pdfinfo", available: false }]);
 });
@@ -36,7 +38,7 @@ function answer(key: string, value: string) {
 function configure() {
   fake.executable.mockReturnValue(true);
   for (const target of ["acp/claude-code"]) recordVerification(target, `print-${target}`, true, d);
-  fake.sources.mockReturnValue({ projectDir: "/resume", mainFile: "resume.tex", dataFile: "", engine: "pdflatex" });
+  fake.profile.mockReturnValue({ source: { kind: "data", file: "resume-data.json" } });
   fake.tools.mockResolvedValue([{ command: "latexmk", available: true }]);
   for (const [key, value] of [["first_name", "Ada"], ["last_name", "Lovelace"], ["email", "ada@example.com"]]) answer(key!, value!);
 }
@@ -81,7 +83,8 @@ test("a partly configured workspace keeps a skipped resume step and points at th
   expect(status.steps.map(item => item.state)).toEqual(["skipped", "pending", "done", "pending"]);
   expect(status.next).toBe("answers");
   expect(status.steps[1]!.items.map(item => item.reason)).toEqual([undefined, "missing", "invalid"]);
-  fake.sources.mockReturnValue({ projectDir: "/missing", mainFile: "resume.tex", dataFile: "", engine: "pdflatex" });
+  // A profile whose base resume cannot be built is invalid rather than missing.
+  fake.profile.mockReturnValue({ source: { kind: "linkedin", file: "Profile.pdf" } });
   fake.read.mockImplementation(() => { throw new Error("missing"); });
   expect((await step("resume")).items[0]).toEqual({ key: "sources", ready: false, reason: "invalid" });
 });

@@ -1,98 +1,50 @@
-# Arquivos pessoais do currículo
+# Dados do currículo
 
-Preencha pelo menos o currículo LaTeX. A pasta `data/` é a pasta de perfil:
-tudo o que você deixar nela serve de evidência para os currículos adaptados. O
-arquivo de dados JSON, o PDF exportado do LinkedIn e currículos já prontos em PDF
-são opcionais.
+O currículo base é **gerado pelo app** a partir do seu perfil. Não é preciso
+escrever LaTeX: envie em **Profile → Import resume** uma destas fontes, que se
+substituem (enviar uma pede confirmação e remove a outra):
 
-| Exemplo versionável | Sua cópia local, ignorada pelo Git |
+- **Dados do currículo (`.json`)**: o formato mais completo, documentado em
+  [`data/resume-data.example.json`](data/resume-data.example.json).
+- **PDF do LinkedIn**: no seu perfil, **More → Save to PDF** (ou **Mais → Salvar
+  como PDF**). Ele não traz projetos nem grupos de habilidades: o currículo sai sem
+  a seção de projetos e com as principais competências numa lista única.
+
+Outros PDFs enviados, como currículos que você já tem, ficam como texto de
+referência: o agente os usa como evidência do seu histórico ao adaptar currículos,
+mas eles não entram no currículo base.
+
+Os arquivos ficam em `~/.work-tracker/profile/` e o LaTeX gerado em
+`~/.work-tracker/resume/resume.tex`. Toda mudança no perfil (um novo envio ou um
+dado pessoal editado no Profile) gera o LaTeX de novo; a página **Resumes → Base
+resume** mostra o código, somente leitura, e o PDF.
+
+## Formato do JSON
+
+| Campo | Uso no currículo |
 | --- | --- |
-| `latex/resume.example.tex` | `latex/resume.tex` |
-| `data/resume-data.example.json` | `data/resume-data.json` |
-| — | `data/*.pdf` (export do LinkedIn e currículos de referência) |
+| `name`, `location` | Cabeçalho |
+| `contact.email`, `contact.tel`, `contact.social[].url`, `personalWebsiteUrl` | Linhas de contato e links |
+| `summary` | Resumo Profissional |
+| `education[]`: `school`, `location`, `degree`, `start`, `end` | Formação Acadêmica |
+| `skillGroups[]`: `name`, `items` | Habilidades agrupadas; sem grupos, usa `skills` numa lista única |
+| `work[]`: `company`, `title`, `start`, `end`, `techStack`, `highlights` | Experiência Profissional |
+| `projects[]`: `name`, `description`, `date`, `techStack`, `highlights` | Projetos |
+| `certifications[]` | Certificações |
 
-Na raiz do repositório, copie os exemplos sem sobrescrever arquivos existentes:
+- Datas no formato `AAAA-MM` aparecem como `MM/AAAA`; `Present` aparece como
+  `Atual`.
+- Um item de `work`, `education` ou `projects` com `"hidden": true` fica fora do
+  currículo base, mas continua disponível como evidência para currículos
+  adaptados.
+- Os textos aparecem exatamente como escritos. Seções sem dados são omitidas.
+- Descrições e realizações devem explicar sua contribuição real. Use tecnologias
+  e frameworks nas listas, sem bibliotecas de ícones, animação ou componentes.
 
-```bash
-cp -n base/latex/resume.example.tex base/latex/resume.tex
-# Opcional:
-cp -n base/data/resume-data.example.json base/data/resume-data.json
-```
+O PDF é compilado com pdfLaTeX e precisa de `latexmk`, Poppler (`pdfinfo` e
+`pdftotext`) e dos pacotes LaTeX Roboto, titlesec, enumitem e fancyhdr.
 
-## Preencher o LaTeX
+## Versionamento
 
-Substitua nome, contatos, formação, habilidades, experiências e projetos pelos
-seus dados. Você também pode colocar seu projeto exportado do Overleaf em
-`base/latex/`, com o arquivo principal chamado `resume.tex` e seus arquivos
-auxiliares junto dele.
-
-O exemplo usa pdfLaTeX. Compile no Overleaf ou em uma instalação LaTeX local com
-os pacotes usados pelo documento. Para formação acadêmica, o exemplo apresenta
-somente a conclusão; registre o início nos dados se quiser preservar o histórico.
-Seções comentadas podem permanecer no arquivo e ser preenchidas futuramente.
-
-## Preencher os dados opcionais
-
-`resume-data.example.json` é um objeto JSON. Preencha informações de contato,
-formação, experiências, habilidades e projetos. O campo `type` de um projeto aceita
-`frontend`, `backend` ou `fullstack`. O formato TypeScript (`resume-data.ts`) não é
-mais aceito: salve o objeto `RESUME_DATA` como `resume-data.json`.
-As descrições e realizações devem explicar sua contribuição real. Use tecnologias
-e frameworks nas listas, sem bibliotecas de ícones, animação ou componentes.
-Datas no formato `AAAA-MM` preservam o mês; `Present` indica uma experiência atual.
-
-## Export do LinkedIn e currículos de referência
-
-No LinkedIn, abra o seu perfil e use **More → Save to PDF** (ou **Mais → Salvar como
-PDF**); salve o arquivo em `base/data/`. O app lê esse export com um extrator
-determinístico: headline, resumo, todas as experiências com cargo, período, local e
-bullets, formação, idiomas e principais competências, em contas em inglês ou em
-português. Outros PDFs da pasta, como um currículo focado em outra stack, entram
-como currículos de referência: o agente usa o texto deles como evidência do seu
-histórico.
-
-São lidos os PDFs do nível superior da pasta (sem subpastas nem links simbólicos),
-até 10 arquivos de até 20 MB cada. A importação roda antes de cada geração e pelo
-botão **Import again** em **Profile → Base resume**; cada PDF é lido uma vez e
-guardado pelo hash do conteúdo. Um PDF escaneado, sem texto, gera um aviso e não
-bloqueia a geração.
-
-Quando o JSON e o LinkedIn divergem em uma data ou no local de uma experiência ou
-formação, **Profile → Base resume** mostra o conflito uma vez, com as duas opções e
-**Decide later**. Ano igual com o mês ausente em uma das fontes não é conflito. A
-escolha vale para as próximas gerações; enquanto não houver escolha, o agente mantém
-o valor do LaTeX base.
-
-## Currículos salvos (aba Resumes)
-
-Para não adaptar o currículo de novo a cada vaga parecida, a aba **Resumes** gera,
-a partir destes mesmos arquivos, um currículo por perfil de vaga (role e stacks, por
-exemplo “Back-End · C#, .NET”) e o guarda para reutilização: no Apply, escolha o
-currículo em **Saved resume** e use **Use this resume**. Um PDF pronto que você já tem
-também pode ser importado. Quando o LaTeX ou o perfil mudam, os currículos gerados
-antes mostram “Sources changed since generation”; regenere-os se quiser o conteúdo
-novo.
-
-## Versionamento e integração
-
-O app detecta automaticamente `base/latex/resume.tex`, a pasta de perfil
-`base/data/` e, se existir, `base/data/resume-data.json`.
-Não é necessário selecionar nem salvar esses caminhos. Isso também funciona no
-app instalado a partir deste checkout: o build guarda uma referência ao
-repositório local, sem incluir seus arquivos pessoais no pacote.
-
-Use **Settings → Resume sources** somente para escolher outra pasta, outro
-arquivo principal, outro arquivo de dados, outra pasta de perfil ou outro
-compilador. Uma configuração salva tem prioridade
-sobre a detecção automática. Se mover ou apagar o checkout, atualize o app a
-partir do novo local ou configure os novos caminhos. A variável
-`WORK_TRACKER_REPO_ROOT` permite indicar outro checkout. A tela **Apply** compila
-o PDF base e permite gerar uma versão por vaga.
-
-O `.gitignore` ignora o conteúdo de `base/latex/` e `base/data/`, liberando apenas
-os dois arquivos `.example`. Isso inclui fontes pessoais, arquivos auxiliares,
-imagens, PDFs (inclusive o export do LinkedIn) e saídas de compilação. Mantenha os exemplos com informações
-genéricas e edite suas cópias locais.
-
-A geração usa o agente e modelo selecionados na tela Apply. O preenchimento do
-portal é iniciado separadamente e deixa o envio final para revisão no navegador.
+O `.gitignore` ignora o conteúdo de `base/data/`, exceto o exemplo, e a pasta
+antiga `base/latex/`. Mantenha o exemplo com informações genéricas.
