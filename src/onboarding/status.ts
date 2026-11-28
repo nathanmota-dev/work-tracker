@@ -6,6 +6,7 @@ import { commandFingerprint, configSnapshot, targets, type Target } from "../int
 import { executable } from "../integrations/http.ts";
 import { dependencyStatus } from "../preparation/latex.ts";
 import { snapshotSources, sourcesConfig } from "../preparation/sources.ts";
+import { profileEvidence } from "../profile/evidence.ts";
 import { readPreferences, verifiedFingerprints } from "./store.ts";
 import { ONBOARDING_STEPS, OPTIONAL_STEPS, type OnboardingItem, type OnboardingStatus, type OnboardingStep, type StepId } from "./types.ts";
 
@@ -30,8 +31,8 @@ function toolStatus(engine: Parameters<typeof dependencyStatus>[0]) {
 async function resumeItems(): Promise<OnboardingItem[]> {
   const config = sourcesConfig();
   let sources: OnboardingItem = { key: "sources", ready: false, reason: "not_configured" };
-  if (config.projectDir) {
-    try { snapshotSources(config); sources = { key: "sources", ready: true }; }
+  if (profileEvidence(config.profileDir).source) {
+    try { snapshotSources(); sources = { key: "sources", ready: true }; }
     catch { sources = { key: "sources", ready: false, reason: "invalid" }; }
   }
   const missing = (await toolStatus(config.engine)).filter(tool => !tool.available).map(tool => tool.command);

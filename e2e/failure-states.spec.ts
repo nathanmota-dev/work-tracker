@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures'
-import { agentPanel, prepareAgentTask, choose, panel } from './ui'
+import { agentPanel, prepareAgentTask, panel } from './ui'
 import { writeFileSync, existsSync, readFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { join } from 'node:path'
@@ -14,18 +14,12 @@ test('Jobs: pending load is visible and resolves through the real backend', asyn
   await expect(page.getByRole('heading', { name: 'No roles yet' })).toBeVisible()
 })
 
-test('Settings: missing compiler is reported and preview is disabled', async ({ workspace, page }) => {
-  writeFileSync(join(workspace.home, 'bin', 'lualatex'), '#!/usr/bin/env node\nprocess.exit(4)\n', { mode: 0o700 })
+test('Settings: a missing compiler is reported and preview is disabled', async ({ workspace, page }) => {
+  writeFileSync(join(workspace.home, 'bin', 'pdflatex'), '#!/usr/bin/env node\nprocess.exit(4)\n', { mode: 0o700 })
   await workspace.go('Settings')
-  await page.getByRole('tab', { name: 'Resume sources', exact: true }).click()
-  await choose(page, 'Compiler', 'LuaLaTeX')
-  await page.getByRole('button', { name: 'Save sources' }).click()
-  await expect(page.getByText('Resume sources saved.', { exact: true })).toBeVisible()
-  await expect(page.getByText(/Install these tools.*lualatex/)).toBeVisible()
+  await page.getByRole('tab', { name: 'Base resume', exact: true }).click()
+  await expect(page.getByText(/Install these tools.*pdflatex/)).toBeVisible()
   await expect(page.getByRole('button', { name: 'Update base PDF' })).toBeDisabled()
-  await workspace.app.evaluate(({ dialog }) => { dialog.showOpenDialog = async () => { throw new Error('Synthetic picker failure') } })
-  await page.getByRole('button', { name: 'Browse', exact: true }).first().click()
-  await expect(page.getByRole('alert')).toContainText('Synthetic picker failure')
 })
 
 test('Settings: a running preview can be cancelled without leaving a compiler process', async ({ workspace, page }) => {
@@ -34,17 +28,17 @@ test('Settings: a running preview can be cancelled without leaving a compiler pr
   const marker = join(workspace.home, 'compiler.pid')
   writeFileSync(join(workspace.home, 'bin', 'latexmk'), `#!/usr/bin/env node\nconst {spawnSync}=require('node:child_process');\nif(process.argv.includes('--version'))process.exit(spawnSync(${JSON.stringify(real)},['--version'],{stdio:'inherit'}).status);\nrequire('node:fs').writeFileSync(${JSON.stringify(marker)},String(process.pid));setInterval(()=>{},1000);\n`, { mode: 0o700 })
   await workspace.go('Settings')
-  await page.getByRole('tab', { name: 'Resume sources', exact: true }).click()
+  await page.getByRole('tab', { name: 'Base resume', exact: true }).click()
   await page.getByRole('button', { name: 'Update base PDF' }).click()
   await expect.poll(() => existsSync(marker)).toBe(true)
-  await page.getByRole('button', { name: 'Cancel preview', exact: true }).click()
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
   await expect(page.getByRole('alert')).toContainText('Cancelled')
   await expect(page.getByRole('button', { name: 'Update base PDF' })).toBeEnabled()
   const pid = Number(readFileSync(marker, 'utf8'))
   await expect.poll(() => { try { process.kill(pid, 0); return false } catch { return true } }).toBe(true)
 })
 
-test('Settings: active agent blocks browser sign-in and resume writes until cancellation', async ({ workspace, page }) => {
+test('Settings: an active agent blocks browser sign-in until cancellation', async ({ workspace, page }) => {
   workspace.setScenario({ agent: 'hold' })
   const agent = await prepareAgentTask(workspace)
   await agent.getByRole('button', { name: 'Run agent' }).click()
@@ -53,9 +47,6 @@ test('Settings: active agent blocks browser sign-in and resume writes until canc
   await workspace.go('Settings')
   await page.getByRole('button', { name: 'Open sign-in browser' }).click()
   await expect(panel(page, 'Browser sign-in').getByRole('alert')).toContainText('Finish or cancel')
-  await page.getByRole('tab', { name: 'Resume sources', exact: true }).click()
-  await page.getByLabel('Main .tex file').fill('other.tex')
-  await expect(page.getByRole('button', { name: 'Save sources' })).toBeDisabled()
   await agentPanel(page)
   await agent.getByRole('button', { name: 'Cancel', exact: true }).click()
   await expect(agent.getByRole('button', { name: 'Run agent' })).toBeEnabled()

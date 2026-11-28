@@ -15,7 +15,7 @@ const COPY: Record<EntryKind, { title: string; organization: string; add: string
   experience: { title: "Title", organization: "Company", add: "Add experience", remove: "Remove experience", hint: "Start with the most recent.", untitled: "New experience" },
   education: { title: "Degree", organization: "School", add: "Add education", remove: "Remove education", hint: "Degrees, technical courses and bootcamps.", untitled: "New education" },
 }
-const blank = (): ResumeEntry => ({ title: "", organization: "", start: "", end: "", location: "", bullets: [], skills: [], source: "data" })
+const blank = (): ResumeEntry => ({ title: "", organization: "", start: "", end: "", location: "", bullets: [], skills: [] })
 /** The picker's `YYYY-MM-DD`; a month-only date opens on the 1st of that month. */
 const pickerValue = (value: string) => (/^\d{4}-\d{2}$/.test(value) ? `${value}-01` : /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : "")
 

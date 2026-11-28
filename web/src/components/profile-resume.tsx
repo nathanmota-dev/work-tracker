@@ -88,7 +88,7 @@ export function Timeline({ entries, label, limit = 3 }: { entries: ResumeEntry[]
           <li key={`${entry.organization}-${entry.start}-${index}`} className="relative">
             <span aria-hidden className={cn("absolute top-1.5 -left-[29px] size-2.5 rounded-full border-2 bg-background", entry.end === "Present" ? "border-primary" : "border-muted-foreground/50")} />
             <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5">
-              <h3 className="font-medium">{entry.title || entry.organization}</h3>
+              <h3 className="font-medium">{entry.title || entry.organization}{entry.hidden && <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[11px] font-normal text-muted-foreground">Not on base resume</span>}</h3>
               <span className="text-xs text-muted-foreground tabular-nums">{period(entry)}</span>
             </div>
             {entry.title && <p className="text-sm text-muted-foreground">{[entry.organization, entry.location].filter(Boolean).join(" · ")}</p>}

@@ -122,11 +122,20 @@ it("reports a failed load with a retry, and explains a resume without a PDF yet 
   expect(screen.getByRole("link", { name: "Back to Resumes" })).toBeInTheDocument()
 })
 
-it("opens the base resume as the default, with its sources beside its PDF", async () => {
+it("opens the base resume as the default, with its profile source and read-only LaTeX beside its PDF", async () => {
   vi.mocked(useSearch).mockReturnValue({ id: "base" })
-  desktopWith({ "resume-sources": { config: { projectDir: "/latex", mainFile: "resume.tex", dataFile: "", engine: "pdflatex", profileDir: "" }, dependencies: [], preview: { id: "pdf-base", kind: "preview", pages: 1, warnings: [] }, warnings: [], busy: false } })
-  render(<ResumeDetailPage />)
+  const base = { config: { projectDir: "/home/resume", mainFile: "resume.tex", dataFile: "", engine: "pdflatex", profileDir: "/home/profile" }, source: { kind: "data", file: "resume-data.json" }, version: "v1", dependencies: [], preview: { id: "pdf-base", kind: "preview", pages: 1, warnings: [] }, warnings: [], busy: false }
+  desktopWith({ "resume-sources": base, "resume-sources/latex": { file: "resume.tex", text: "\\documentclass{article}" } })
+  const view = render(<ResumeDetailPage />)
   expect(screen.getByRole("heading", { level: 1, name: "Base resume" })).toBeInTheDocument()
   expect(await screen.findByRole("region", { name: "Base resume PDF" })).toHaveTextContent("pdf-base")
+  expect(screen.getByText(/Built from/)).toHaveTextContent("Built from resume-data.json (resume data).")
+  const code = await screen.findByRole("textbox", { name: "resume.tex (read-only)" })
+  expect(code).toHaveAttribute("readonly")
+  expect(code).toHaveTextContent("\\documentclass{article}")
   expect(screen.getByRole("link", { name: "Back to Resumes" })).toHaveAttribute("href", "#/resumes")
+  view.unmount()
+  desktopWith({ "resume-sources": { ...base, source: null, version: null, preview: null } })
+  render(<ResumeDetailPage />)
+  expect(await screen.findByText("No LaTeX yet")).toBeInTheDocument()
 })

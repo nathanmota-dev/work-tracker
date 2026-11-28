@@ -1,6 +1,7 @@
 import { db } from "../db/index.ts";
 import { journeyRecord } from "../applications/journey-store.ts";
 import { dependencyStatus } from "./latex.ts";
+import { profileEvidence } from "../profile/evidence.ts";
 import { PreparationError, snapshotSources, sourcesConfig } from "./sources.ts";
 import { cachedPreview, runRecord } from "./store.ts";
 import { documentsForJob } from "./documents.ts";
@@ -8,16 +9,18 @@ import { fillReview } from "./fill-review.ts";
 import { jobId, jobRecord } from "./jobs.ts";
 import type { PdfArtifact, PreparationDetails, SourcesState } from "./types.ts";
 
-/** The configured sources, their cached base preview and the LaTeX tools they need. */
+/** The base resume: the profile file it is built from, its cached PDF and the LaTeX tools it needs. */
 export async function sourcesState(busy: boolean): Promise<SourcesState> {
   const config = sourcesConfig();
+  const { source } = profileEvidence(config.profileDir);
   let preview: PdfArtifact | null = null;
   let warnings: string[] = [];
-  if (config.projectDir) {
-    try { const snapshot = snapshotSources(config); preview = cachedPreview(snapshot.version); warnings = snapshot.warnings; }
+  let version: string | null = null;
+  if (source) {
+    try { const snapshot = snapshotSources(); version = snapshot.version; preview = cachedPreview(snapshot.version); warnings = snapshot.warnings; }
     catch (error) { warnings = [error instanceof Error ? error.message : String(error)]; }
   }
-  return { config, preview, warnings, busy, dependencies: await dependencyStatus(config.engine) };
+  return { config, source, version, preview, warnings, busy, dependencies: await dependencyStatus(config.engine) };
 }
 
 /** A job's executions, documents and selected application, as Apply shows them. */

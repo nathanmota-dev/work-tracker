@@ -170,7 +170,7 @@ jobs:
       - name: Install LaTeX and Poppler
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends latexmk texlive-latex-base poppler-utils
+          sudo apt-get install -y --no-install-recommends latexmk texlive-latex-base texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended texlive-fonts-extra poppler-utils
 
       - name: Integration tests
         run: npm run test:backend:integration -- --reporter=default --reporter=junit --outputFile.junit=reports/integration/junit.xml

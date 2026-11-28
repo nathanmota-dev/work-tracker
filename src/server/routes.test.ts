@@ -18,7 +18,6 @@ import { handleProfileSources } from "../profile/http.ts";
 import { handleCompanyResearch } from "../company-research/http.ts";
 import { handleVariants } from "../variants/http.ts";
 import { VariantService } from "../variants/service.ts";
-import { ensureProfileImported } from "../profile/import.ts";
 
 vi.mock("../applications/http.ts", () => ({ handleApplicationBoard: vi.fn() }));
 vi.mock("../jobs/http.ts", () => ({ handleJobAction: vi.fn() }));
@@ -39,8 +38,6 @@ vi.mock("../company-research/http.ts", () => ({ handleCompanyResearch: vi.fn() }
 vi.mock("../variants/http.ts", () => ({ handleVariants: vi.fn() }));
 vi.mock("../variants/service.ts", () => ({ VariantService: vi.fn() }));
 vi.mock("./queries.ts", () => ({ queries: {} }));
-vi.mock("../profile/import.ts", () => ({ ensureProfileImported: vi.fn(async () => {}) }));
-vi.mock("../preparation/sources.ts", () => ({ sourcesConfig: vi.fn(() => ({ profileDir: "/profile" })) }));
 
 const acp = { run: vi.fn(), cancel: vi.fn() };
 const broadcast = vi.fn();
@@ -68,16 +65,6 @@ test("creates the preparation service once and reuses it", async () => {
   expect(PreparationService).toHaveBeenCalledOnce();
   expect(PreparationService).toHaveBeenCalledWith(acp, broadcast);
   expect(handlePreparation).toHaveBeenCalledTimes(2);
-});
-
-test("saving the resume sources imports the profile and fills answers in the background", async () => {
-  const context = { acp, broadcast };
-  await routeApi("/api/resume-sources", new Request("http://localhost/api/resume-sources"), context);
-  expect(ensureProfileImported).not.toHaveBeenCalled();
-  await routeApi("/api/resume-sources", new Request("http://localhost/api/resume-sources", { method: "POST", body: "{}" }), context);
-  expect(ensureProfileImported).toHaveBeenCalledWith("/profile");
-  await vi.waitFor(() => expect(broadcast).toHaveBeenCalledWith({ type: "changed", table: "applicant_answers" }));
-  expect(broadcast).toHaveBeenCalledWith({ type: "changed", table: "profile_imports" });
 });
 
 test("only accepts mutations over POST", async () => {
@@ -186,7 +173,7 @@ test("serves the requirement gates through their handler with the broadcaster", 
 
 test("serves the profile sources through their handler with the broadcaster", async () => {
   vi.mocked(handleProfileSources).mockResolvedValue(ok);
-  for (const path of ["/api/profile-sources", "/api/profile-sources/import", "/api/profile-sources/choice"]) {
+  for (const path of ["/api/profile-sources", "/api/profile-sources/import", "/api/profile-sources/upload"]) {
     const req = new Request(`http://localhost${path}`);
     expect(await routeApi(path, req, { acp, broadcast })).toBe(ok);
     expect(handleProfileSources).toHaveBeenLastCalledWith(path, req, broadcast);

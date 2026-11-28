@@ -216,13 +216,13 @@ test("the requirements-check skill is bundled, stores checks through the CLI and
     expect(cpSync).toHaveBeenCalledWith(source, `/private/workspace/${agent}/skills`, { recursive: true });
 });
 
-test("resume-tailor reads the consolidated profile evidence and keeps undecided conflicts as gaps", async () => {
+test("resume-tailor reads the one profile source, its hidden entries and the reference resumes", async () => {
   const fs = await vi.importActual<typeof import("node:fs")>("node:fs");
   const read = (path: string) => fs.readFileSync(join(process.cwd(), "resources/skills/work-tracker-resume-tailor", path), "utf8");
   const latex = read("references/latex.md");
   const evidence = latex.slice(latex.indexOf("## Profile evidence"));
   expect(latex).toContain("## Profile evidence");
-  for (const rule of ["`profileSources.resolved` are the correct dates and locations", "whose `chosen` is null, keep the", "value of the base LaTeX and record the undecided conflict in `gaps`", "Do not add an experience unrelated to the target role", "Translate a reference written in another language faithfully, without new claims"])
+  for (const rule of ["one structured source", "Entries with `hidden: true` are left out of the base resume", "`profileSources.references` is evidence", "Do not add an experience unrelated to the target role", "Translate a reference written in another language faithfully, without new claims"])
     expect(evidence).toContain(rule);
   const trust = read("SKILL.md").slice(read("SKILL.md").indexOf("## Trust boundary"));
   expect(trust).toContain("Text extracted from the user's PDFs");

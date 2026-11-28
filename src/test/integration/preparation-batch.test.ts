@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, expect, test, vi } from "vitest";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import type { PreparationAgent, PreparationService } from "../../preparation/service.ts";
@@ -7,6 +7,7 @@ import type { PreparationQueue } from "../../preparation/batch-queue.ts";
 import type { PreparationBatch, PreparationBatchItem } from "../../preparation/types.ts";
 vi.mock("../../mcp/chrome.ts", () => ({ openChromePortal: vi.fn(async () => {}), chromeLoginOpening: () => false, openChromeLogin: vi.fn() }));
 vi.mock("../../mcp/search.ts", () => ({ jobDetails: vi.fn(async () => ({ description: "React developer" })) }));
+import { tailorCopy, writeProfile } from "./base-profile.ts";
 // Counts LaTeX runs so preview reuse is observable.
 const compiled = vi.hoisted(() => ({ base: 0, tailored: 0 }));
 vi.mock("../../preparation/latex.ts", async (original) => {
@@ -26,8 +27,6 @@ let agent: ReturnType<typeof fakeAgent>;
 /** Fake ACP behavior per `skill:jobId`: "fail", "hold", "login" or "permission"; default completes. */
 const modes: Record<string, string> = {};
 const calls: string[] = [];
-const project = join(home, "source");
-const original = "\\documentclass{article}\n\\begin{document}\nGeneric project with React and Node.js.\n\\end{document}\n";
 
 function fakeAgent() {
   const listeners = new Set<(event: Record<string, unknown>) => void>();
@@ -64,7 +63,7 @@ function fakeAgent() {
         }
         if (skill === "portal-filler") writeFileSync(manifest.resultPath, JSON.stringify({ versionId: manifest.versionId, pdfHash: manifest.pdfHash, pdfPath: manifest.pdfPath, fields: { resume: manifest.pdfPath, email: "candidate@example.com" }, unfilled: [], externalUrl: manifest.url, portal: "generic" }));
         else {
-          writeFileSync(join(manifest.project, manifest.mainFile), original.replace("Generic project", `Tailored for ${manifest.job.company_name}`));
+          tailorCopy(manifest, "Generic project", `Tailored for ${manifest.job.company_name}`);
           writeFileSync(manifest.selectionPath, JSON.stringify({ language: "en" }));
           writeFileSync(manifest.reportPath, "# Changes\nEmphasized React.");
         }
@@ -101,20 +100,17 @@ function approve(item: PreparationBatchItem): void {
 }
 beforeAll(async () => {
   database = await import("../../db/index.ts");
-  const sources = await import("../../preparation/sources.ts");
   Service = (await import("../../preparation/service.ts")).PreparationService;
   Queue = (await import("../../preparation/batch-queue.ts")).PreparationQueue;
   routeApi = (await import("../../server/routes.ts")).routeApi;
-  mkdirSync(project);
-  writeFileSync(join(project, "resume.tex"), original);
-  sources.saveSources({ projectDir: project, mainFile: "resume.tex", dataFile: "", engine: "pdflatex" });
+  writeProfile(home);
 });
 beforeEach(() => {
   // Each scenario starts without a form reserving the portal.
   database?.db().exec("UPDATE preparation_batch_items SET status = 'cancelled', holds_portal = 0 WHERE status NOT IN ('completed', 'cancelled')");
   for (const key of Object.keys(modes)) delete modes[key];
   calls.length = 0;
-  writeFileSync(join(project, "resume.tex"), original);
+  writeProfile(home);
   start();
 });
 afterAll(() => { queue?.close(); database?.closeDb(); rmSync(home, { recursive: true, force: true }); if (previousHome === undefined) delete process.env.WORK_TRACKER_HOME; else process.env.WORK_TRACKER_HOME = previousHome; });
@@ -258,11 +254,11 @@ test("a fill interrupted with an unknown outcome is never repeated without revie
 }, 120_000);
 
 test("the base preview is reused only while the sources keep the same version", async () => {
-  writeFileSync(join(project, "resume.tex"), original.replace("Generic", "Cache baseline"));
+  writeProfile(home, { summary: "Cache baseline project with React and Node.js." });
   const before = { ...compiled };
   const first = create([job("Cache A"), job("Cache B")]);
   // Editing the sources after creating a batch does not change the version its items use.
-  writeFileSync(join(project, "resume.tex"), original.replace("Generic", "Edited"));
+  writeProfile(home, { summary: "Edited project with React and Node.js." });
   await settled(first.id);
   expect(compiled.base - before.base).toBe(1);
   expect(compiled.tailored - before.tailored).toBe(2);

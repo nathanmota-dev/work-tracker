@@ -45,16 +45,17 @@ async function evaluate(expression) {
 }
 try {
   run(process.execPath, ['out/cli/work-tracker.cjs', 'init']);
-  const project = join(repository, 'base', 'latex');
-  const dataFile = join(repository, 'base', 'data', 'resume-data.json');
-  mkdirSync(project, { recursive: true });
-  mkdirSync(join(repository, 'base', 'data'), { recursive: true });
-  writeFileSync(dataFile, JSON.stringify({ skills: ['React'], projects: [] }));
-  copyFileSync('base/latex/resume.example.tex', join(project, 'resume.tex'));
-  run('latexmk', ['-norc', '-pdf', '-interaction=nonstopmode', '-halt-on-error', 'resume.tex'], project);
+  // The base resume is generated from the profile: the versioned example data stands in for an upload.
+  mkdirSync(join(home, 'profile'), { recursive: true });
+  copyFileSync('base/data/resume-data.example.json', join(home, 'profile', 'resume-data.json'));
+  // The application's own PDF: a generic LaTeX fixture with enough text for a text layer.
+  const fixture = join(home, 'fixture');
+  mkdirSync(fixture, { recursive: true });
+  writeFileSync(join(fixture, 'resume.tex'), '\\documentclass{article}\n\\begin{document}\nSeu Nome Completo\n\nDesenvolvedor de software com experiencia em TypeScript, React e Node.js, entregando aplicacoes web com testes automatizados.\n\\end{document}\n');
+  run('latexmk', ['-norc', '-pdf', '-interaction=nonstopmode', '-halt-on-error', 'resume.tex'], fixture);
   const pdf = join(home, 'artifacts', 'resume.pdf');
   mkdirSync(join(home, 'artifacts'), { recursive: true });
-  copyFileSync(join(project, 'resume.pdf'), pdf);
+  copyFileSync(join(fixture, 'resume.pdf'), pdf);
   const text = run('pdftotext', [pdf, '-']);
   const agent = join(home, 'agent.cjs');
   writeFileSync(agent, `require('node:readline').createInterface({input:process.stdin}).on('line',line=>{const m=JSON.parse(line);if(m.id!==undefined)process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result:m.method==='session/new'?{sessionId:'smoke',models:{availableModels:[]}}:{}})+'\\n')})`);
@@ -95,7 +96,7 @@ try {
   await rpc('Runtime.enable');
   await waitFor(() => evaluate("!!window.desktop && document.readyState === 'complete'"));
   const sources = await evaluate("window.desktop.request('resume-sources')");
-  if (sources.config.projectDir !== project || sources.config.mainFile !== 'resume.tex' || sources.config.dataFile !== dataFile) throw new Error('Repository resume sources were not detected automatically');
+  if (sources.source?.file !== 'resume-data.json' || sources.config.projectDir !== join(home, 'resume') || sources.config.mainFile !== 'resume.tex') throw new Error('The base resume was not built from the uploaded profile: ' + JSON.stringify(sources));
   await evaluate("location.hash = '/apply?jobId=1&applicationId=1&step=resume'; true");
   // The Resume step shows one PDF at a time: the application's tailored resume first, then the base resume once its card is chosen.
   const readablePdf = "(() => { const canvas = document.querySelector('.react-pdf__Page__canvas'); if (!canvas?.width) return false; const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data; let ink = false; for (let i = 0; i < pixels.length; i += 4) if (pixels[i+3] && pixels[i] + pixels[i+1] + pixels[i+2] < 700) { ink = true; break } const layer = document.querySelector('.react-pdf__Page__textContent'); return ink && layer?.textContent.length > 100 })()";
@@ -112,13 +113,13 @@ try {
   const screenshotPath = process.env.WORK_TRACKER_QA_SCREENSHOT;
   if (screenshotPath) writeFileSync(screenshotPath, Buffer.from(screenshot.data, 'base64'));
   if (!tailored.includes('Seu Nome Completo') || !content.includes('Seu Nome Completo') || !content.includes('Base resume PDF') || !tailored.includes('Tailored resume PDF')) throw new Error('The two readable PDFs were not displayed: ' + content.slice(-1500));
-  if (JSON.parse(readFileSync(join(home, 'config.json'), 'utf8')).resumeSources) throw new Error('Automatic detection unexpectedly saved resume settings');
+  if (JSON.parse(readFileSync(join(home, 'config.json'), 'utf8')).resumeSources) throw new Error('Building the base resume unexpectedly saved resume settings');
   await evaluate("location.hash = '/resumes'; true");
   // The saved resume's card opens its page, which renders the PDF.
   await waitFor(() => evaluate("(() => { const card = document.querySelector('a[aria-label=\"Smoke imported resume\"]'); card?.click(); return !!card })()"));
   await waitFor(() => evaluate("location.hash.startsWith('#/resume?id=') && document.querySelector('h1')?.textContent === 'Smoke imported resume'"));
   await waitFor(() => evaluate("(() => { const canvas = document.querySelector('.react-pdf__Page__canvas'); if (!canvas?.width) return false; const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data; let ink = false; for (let i = 0; i < pixels.length; i += 4) if (pixels[i+3] && pixels[i] + pixels[i+1] + pixels[i+2] < 700) { ink = true; break } const layer = document.querySelector('.react-pdf__Page__textContent'); return ink && layer?.textContent.length > 100 })()"));
-  console.log(`PASS: Apply detects repository sources without configuration and displays the tailored and base PDF canvases with selectable text, and Resumes renders a saved resume's PDF (${command})`);
+  console.log(`PASS: Apply builds the base resume from the profile without configuration and displays the tailored and base PDF canvases with selectable text, and Resumes renders a saved resume's PDF (${command})`);
 } finally {
   removeSignals();
   await cleanup();

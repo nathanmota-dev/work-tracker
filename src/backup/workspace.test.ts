@@ -43,7 +43,8 @@ function seed(w: Workspace) {
   real.symlinkSync(join(artifacts, "resume.pdf"), join(artifacts, "linked.pdf"));
   execFileSync("mkfifo", [join(artifacts, "pipe")]);
   real.mkdirSync(join(w.home, "browsers"));
-  real.writeFileSync(join(w.home, "config.json"), JSON.stringify({ username: "synthetic", resumeSources: { projectDir: "/external/latex", mainFile: "resume.tex", dataFile: "", engine: "pdflatex" } }));
+  real.writeFileSync(join(w.home, "config.json"), JSON.stringify({ username: "synthetic" }));
+  real.mkdirSync(join(w.home, "profile"));
   w.sql(`INSERT INTO jobs (id, title) VALUES (1, 'Engineer');
     INSERT INTO application_runs (id, job_id, status, phase, provider, manifest_json, created_at, updated_at) VALUES
       ('run', 1, 'completed', 'review', 'fake', '${JSON.stringify({ reportPath: join(artifacts, "report.md"), nested: { project: join(artifacts, "project") }, attempt: 1 })}', 'now', 'now'),

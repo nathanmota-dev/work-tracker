@@ -107,7 +107,8 @@ describe("Electron apt installer", { skip: process.platform !== "linux" }, () =>
     const installation = f.calls().at(-1);
     const packages = installation.slice(installation.indexOf("--no-install-recommends") + 1);
     for (const name of [...simulation.slice(simulation.indexOf("--no-install-recommends") + 1),
-      "xvfb", "xauth", "libgtk-3-0t64", "latexmk", "texlive-latex-base", "poppler-utils"]) {
+      "xvfb", "xauth", "libgtk-3-0t64", "latexmk", "texlive-latex-base",
+      "texlive-latex-recommended", "texlive-latex-extra", "texlive-fonts-recommended", "texlive-fonts-extra", "poppler-utils"]) {
       assert.ok(packages.includes(name), `Missing apt package: ${name}`);
     }
     assert.equal(new Set(packages).size, packages.length, "Package list must not contain duplicates");

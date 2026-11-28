@@ -5,6 +5,10 @@ export const BASE_RESUME = "base-resume";
 /** A run that used a ready PDF: no agent generated it, so it is filled but never regenerated. */
 export const usesReadyPdf = (provider: string): boolean => provider === SAVED_RESUME || provider === BASE_RESUME;
 export type LatexEngine = "pdflatex" | "xelatex" | "lualatex";
+/**
+ * Where a resume's sources are read: the base resume's generated LaTeX and the
+ * profile folder, or the copies a batch recorded (`dataFile`, no profile folder).
+ */
 export interface ResumeSourcesConfig {
   projectDir: string;
   mainFile: string;
@@ -84,8 +88,14 @@ export interface SubmissionConfirmation {
   applicationId: number;
   submittedAt: string | null;
 }
+/**
+ * @property source The profile file the base resume is built from; null until one is uploaded.
+ * @property version The base resume's current source version; null without a buildable profile.
+ */
 export interface SourcesState {
   config: ResumeSourcesConfig;
+  source: import("../profile/types.ts").StructuredSource | null;
+  version: string | null;
   dependencies: { command: string; available: boolean }[];
   preview: PdfArtifact | null;
   warnings: string[];

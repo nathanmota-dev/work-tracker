@@ -43,7 +43,7 @@ test("imports the folder, notifies the backend and prints the result", async () 
 test("explains a missing folder and an unknown subcommand", async () => {
   vi.mocked(isFolder).mockReturnValue(false);
   await expect(profileCmd("import", {})).rejects.toThrow("exit:1");
-  expect(output.error).toHaveBeenLastCalledWith("error: Choose an existing profile folder in Resume sources first.");
+  expect(output.error).toHaveBeenLastCalledWith("error: Add a file to your profile first.");
   await expect(profileCmd("other", {})).rejects.toThrow("exit:1");
   expect(output.error).toHaveBeenLastCalledWith("error: unknown profile subcommand: other (use sources or import)");
   expect(notifyChange).not.toHaveBeenCalled();

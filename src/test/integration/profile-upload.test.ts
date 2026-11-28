@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, test } from "vitest";
-import { appendFileSync, copyFileSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { appendFileSync, copyFileSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { ProfileSourcesState, UploadResult } from "../../profile/types.ts";
@@ -37,14 +37,16 @@ afterAll(() => {
   }
 });
 
-test("an upload creates the profile, imports the LinkedIn export and survives a restart of the config", async () => {
+test("an upload creates the profile folder and makes the LinkedIn export the profile", async () => {
   const { status, body } = await upload("My LinkedIn.pdf", readFileSync(exportPdf));
   expect([status, body.upload]).toEqual([200, { file: "My LinkedIn.pdf", kind: "pdf", status: "added" }]);
   expect(body.profileDir).toBe(profileDir);
   expect(files(body)).toEqual([["My LinkedIn.pdf", "linkedin", "imported"]]);
-  expect(body.linkedin?.experiences).toBe(4);
+  expect(body.source).toEqual({ kind: "linkedin", file: "My LinkedIn.pdf" });
+  expect(body.resume.experience).toHaveLength(4);
   expect(readdirSync(profileDir)).toEqual(["My LinkedIn.pdf"]);
-  expect(JSON.parse(readFileSync(join(home, "config.json"), "utf8")).resumeSources.profileDir).toBe(profileDir);
+  // Nothing about the profile is saved in the configuration: the folder is always the app's own.
+  expect(existsSync(join(home, "config.json")) ? JSON.parse(readFileSync(join(home, "config.json"), "utf8")).resumeSources : undefined).toBeUndefined();
   expect(events).toEqual([{ type: "changed", table: "profile_imports" }, { type: "changed", table: "applicant_answers" }, { type: "changed", table: "resume_sources" }]);
   // The export's contact details filled the empty answers.
   const { listAnswerVariants } = await import("../../answers/store.ts");
@@ -53,14 +55,16 @@ test("an upload creates the profile, imports the LinkedIn export and survives a 
   expect((await upload("copy.pdf", readFileSync(exportPdf))).body.upload.status).toBe("unchanged");
 });
 
-test("resume data is validated, becomes the data file and is replaced only when confirmed", async () => {
+test("resume data is validated and replaces the LinkedIn export, or other data, only when confirmed", async () => {
   const invalid = await upload("data.json", Buffer.from('{"work":{}}'));
   expect([invalid.status, invalid.body.error]).toEqual([400, "work must be an array."]);
   const first = Buffer.from(JSON.stringify({ work: [{ company: "Northwind Labs", start: "2022-11", end: "Present" }] }));
-  expect((await upload("cv-data.json", first)).body.upload.status).toBe("added");
+  expect((await upload("cv-data.json", first)).body.upload).toEqual({ file: "resume-data.json", kind: "data", status: "replace_required", replaces: "My LinkedIn.pdf" });
   const dataFile = join(profileDir, "resume-data.json");
-  const { sourcesConfig } = await import("../../preparation/sources.ts");
-  expect(sourcesConfig()).toMatchObject({ projectDir: "", dataFile, profileDir });
+  expect(existsSync(dataFile)).toBe(false);
+  const added = await upload("cv-data.json", first, true);
+  expect([added.body.upload.status, added.body.source]).toEqual(["added", { kind: "data", file: "resume-data.json" }]);
+  expect(readdirSync(profileDir)).toEqual(["resume-data.json"]);
   const second = Buffer.from(JSON.stringify({ skills: ["Go"] }));
   expect((await upload("other.json", second)).body.upload.status).toBe("replace_required");
   expect(readFileSync(dataFile)).toEqual(first);

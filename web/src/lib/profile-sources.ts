@@ -1,7 +1,7 @@
 import { useEffect } from "react"
 import { request, subscribe, useApi } from "./api"
-import type { ChoiceSource, ProfileAssetState, ProfileConflict, ProfileSourcesState, UploadResult } from "../../../src/profile/types"
-export type { ChoiceSource, LinkedInExperience, ProfileAssetState, ProfileConflict, ProfileSourcesState, UploadResult } from "../../../src/profile/types"
+import type { ProfileAssetState, ProfileSourcesState, UploadResult } from "../../../src/profile/types"
+export type { ProfileAssetState, ProfileSourcesState, UploadResult } from "../../../src/profile/types"
 
 export const PROFILE_SOURCES_PATH = "profile-sources"
 export const KIND_LABELS: Record<NonNullable<ProfileAssetState["kind"]> | "pending", string> = { data: "Data file", linkedin: "LinkedIn export", reference: "Reference resume", pending: "PDF" }
@@ -14,13 +14,6 @@ export function useProfileSources() {
   useEffect(() => subscribe(event => { if (event.type === "resume-sources-changed") refresh() }), [refresh])
   return api
 }
-/** Conflicts still waiting for a choice; tolerant of a state that has not loaded. */
-export function undecidedConflicts(state?: Partial<ProfileSourcesState>): ProfileConflict[] {
-  return Array.isArray(state?.conflicts) ? state.conflicts.filter(conflict => !conflict.chosen) : []
-}
-export const importAgain = () => request<ProfileSourcesState>("profile-sources/import", { force: true })
-/** `null` forgets the decision ("Decide later"). */
-export const chooseSource = (key: string, source: ChoiceSource | null) => request<ProfileSourcesState>("profile-sources/choice", { key, source })
 
 /** Files the upload accepts: resume and LinkedIn PDFs, and the resume data file. */
 export const UPLOAD_ACCEPT = ".pdf,.json,application/pdf,application/json"
@@ -32,7 +25,7 @@ function base64(file: Blob): Promise<string> {
     reader.readAsDataURL(file)
   })
 }
-/** Copy one file into the profile folder; `replace` confirms replacing different resume data. */
+/** Copy one file into the profile folder; `replace` confirms replacing the file the profile is built from. */
 export async function uploadProfileFile(file: File, replace = false) {
   return request<ProfileSourcesState & { upload: UploadResult }>("profile-sources/upload", { name: file.name, base64: await base64(file), ...(replace && { replace: true }) })
 }

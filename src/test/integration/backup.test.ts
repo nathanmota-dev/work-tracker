@@ -49,7 +49,8 @@ function seedSource(m: Modules, home: string) {
     INSERT INTO company_research (company_key, company_name, fetched_at, sources_json, network_note, summary_md)
       VALUES ('example-corp', 'Example Corp', '2026-03-01T00:00:00Z', '{"website":{"url":"https://example.com/","notes":"Mission"}}', 'One contact', 'Synthetic research');`);
   mkdirSync(join(home, "browsers", "linkedin", "profile"), { recursive: true });
-  writeFileSync(join(home, "config.json"), JSON.stringify({ username: "synthetic-candidate", resumeSources: { projectDir: join(root, "external-latex"), mainFile: "resume.tex", dataFile: "", engine: "pdflatex" } }));
+  writeFileSync(join(home, "config.json"), JSON.stringify({ username: "synthetic-candidate" }));
+  mkdirSync(join(home, "profile"), { recursive: true });
 }
 const destination = join(root, "destination");
 let backup: import("../../backup/format.ts").BackupSummary;

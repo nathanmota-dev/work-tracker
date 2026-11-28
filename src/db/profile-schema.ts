@@ -1,8 +1,10 @@
 /**
  * Profile sources (schema v19): the cached extraction of each PDF in the
- * profile folder, by content hash, and the user's decision for each conflict
- * between the data file and the LinkedIn export. Kept apart so `schema.ts`
- * stays within the file-size limit; see src/profile/.
+ * profile folder, by content hash. `profile_choices` held decisions between
+ * the data file and the LinkedIn export; the profile now has one structured
+ * source, so nothing reads or writes it, and it stays only because removing a
+ * table is an incompatible migration. Kept apart so `schema.ts` stays within
+ * the file-size limit; see src/profile/.
  *
  * Answer autofill (schema v22): the last value each source filled into an empty
  * answer, so the catalog shows its origin and a value the user cleared is not

@@ -5,30 +5,24 @@ import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
 vi.mock("../../mcp/chrome.ts", () => ({ openChromePortal: vi.fn(async () => {}) }));
 vi.mock("../../mcp/search.ts", () => ({ jobDetails: vi.fn(async () => ({ description: "React developer" })) }));
+import { baseResumeFile, tailorCopy, writeProfile } from "./base-profile.ts";
 const home = mkdtempSync(join(tmpdir(), "work-tracker-preparation-"));
 const previousHome = process.env.WORK_TRACKER_HOME;
 process.env.WORK_TRACKER_HOME = home;
 let database: typeof import("../../db/index.ts");
 let service: import("../../preparation/service.ts").PreparationService;
-let sources: typeof import("../../preparation/sources.ts");
 let jobId: number;
 let mode = "success";
 let calls = 0;
 const listeners = new Set<(event: Record<string, unknown>) => void>();
-const project = join(home, "source");
-const original = '\\documentclass{article}\n% Future certification, not earned\n\\begin{document}\nGeneric project with React and Node.js.\n\\end{document}\n';
 async function complete(id: string) {
   for (let i = 0; i < 300; i++) { const run = service.details({ jobId }).runs.find(r => r.id === id)!; if (run.status !== "running") return run; await new Promise(resolve => setTimeout(resolve, 100)); }
   throw new Error("Execution did not finish");
 }
 beforeAll(async () => {
   database = await import("../../db/index.ts");
-  sources = await import("../../preparation/sources.ts");
   const { PreparationService } = await import("../../preparation/service.ts");
-  mkdirSync(project);
-  writeFileSync(join(project, "resume.tex"), original);
-  writeFileSync(join(project, "asset.txt"), "auxiliary asset");
-  sources.saveSources({ projectDir: project, mainFile: "resume.tex", dataFile: "", engine: "pdflatex" });
+  writeProfile(home);
   jobId = (database.db().query("INSERT INTO jobs (title, company_name, description, link) VALUES ('Engineer', 'Example', 'React developer role', 'https://example.com/apply') RETURNING id").get() as { id: number }).id;
   service = new PreparationService({
     isRunning: false, cancel: vi.fn(), subscribe: fn => { listeners.add(fn); return () => { listeners.delete(fn); }; },
@@ -40,7 +34,7 @@ beforeAll(async () => {
       if (skill === "portal-filler") {
         writeFileSync(manifest.resultPath, JSON.stringify({ versionId: mode === "divergent" ? "other" : manifest.versionId, pdfHash: manifest.pdfHash, pdfPath: manifest.pdfPath, fields: { resume: manifest.pdfPath }, unfilled: [], externalUrl: manifest.url, portal: "generic" }));
       } else {
-        writeFileSync(join(manifest.project, manifest.mainFile), mode === "failure" ? original.replace('Generic project', '\\undefinedCommand') : original.replace('Generic project', 'Tailored project'));
+        tailorCopy(manifest, "Generic project", mode === "failure" ? "\\undefinedCommand" : "Tailored project");
         writeFileSync(manifest.selectionPath, JSON.stringify({ language: "en", selectedProjects: ["React"] }));
         writeFileSync(manifest.reportPath, "# Changes\nEmphasized React.");
       }
@@ -58,14 +52,13 @@ test("compiles a preview and a job-specific PDF, preserving sources and register
   expect(done.status).toBe("completed");
   expect(done.artifacts.map(a => a.kind)).toEqual(["base", "tailored"]);
   expect(done.events).toHaveLength(1);
-  expect(readFileSync(join(project, "resume.tex"), "utf8")).toBe(original);
+  // Tailoring works on a copy: the generated base resume is unchanged.
+  expect(readFileSync(baseResumeFile(home), "utf8")).toContain("Generic project with React and Node.js.");
   const store = await import("../../preparation/store.ts");
   expect(store.artifactFile(done.artifacts[1]!.id).text).toContain("Tailored project");
-  const manifest = store.runManifest(run.id);
-  expect(readFileSync(join(manifest.project, "asset.txt"), "utf8")).toBe("auxiliary asset");
   expect(done.application_id).toBeTruthy();
-  // A clean generic resume, tailored without layout changes, has no layout or text-layer warnings.
-  expect(done.artifacts.map(a => a.warnings)).toEqual([[expect.stringContaining("No optional data file")], []]);
+  // A clean generated resume, tailored without layout changes, has no layout or text-layer warnings.
+  expect(done.artifacts.map(a => a.warnings)).toEqual([[], []]);
 }, 60000);
 const layoutFixture = (next: string) => `\\documentclass[a4paper]{article}\n\\begin{document}\n\\noindent Summary line.\\par\\vspace*{\\fill}\n\\noindent Software Engineer\\par\n\\newpage\n${next}\\par\n\\end{document}\n`;
 async function compiled(name: string, source: string) {
@@ -85,18 +78,15 @@ test("reviews the layout and text layer of real PDFs against their base", async 
   expect((await inspectPdf(orphan, undefined, { layout: { identity, baseline: orphan } })).warnings).toEqual([]);
   expect((await inspectPdf(orphan, undefined, { layout: { identity, baseline: clean } })).warnings).toEqual(["Page 1 ends on an entry header (\u201cSoftware Engineer\u201d) whose content continues on page 2."]);
 }, 60000);
-test("the generic example resume has no layout warnings", async ({ skip }) => {
+test("the resume generated from the example data has no layout warnings", async () => {
   const { inspectPdf } = await import("../../preparation/latex.ts");
-  let example: string;
-  try { example = await compiled("example", readFileSync(join(process.cwd(), "base", "latex", "resume.example.tex"), "utf8")); }
-  catch (error) {
-    // CI's integration job installs only texlive-latex-base; the template's packages are checked locally by smoke-apply.
-    if (/LaTeX Error: File `[^']+\.sty' not found/.test(String(error))) return skip("The example template's LaTeX packages are not installed.");
-    throw error;
-  }
+  const { documentFromData } = await import("../../resume/document.ts");
+  const { renderResume } = await import("../../resume/render.ts");
+  const data = JSON.parse(readFileSync(join(process.cwd(), "base", "data", "resume-data.example.json"), "utf8"));
+  const example = await compiled("example", renderResume(documentFromData(data)));
   const warnings = (await inspectPdf(example, undefined, { layout: { identity: { email: "voce@example.com", phone: "(00) 00000-0000" } } })).warnings;
-  // Its en-dash date range is a text-layer note, not a layout problem.
-  expect(warnings).toEqual([expect.stringMatching(/^A date range uses a non-ASCII dash \(U\+2013/)]);
+  // Its en-dash date ranges, kept as in the original resume layout, are a text-layer note, not a layout problem.
+  expect(warnings).toEqual([expect.stringMatching(/^2 date ranges use a non-ASCII dash \(U\+2013/)]);
 }, 60000);
 test("without a usable pdftotext -bbox the layout check is skipped, not failed", async () => {
   const { inspectPdf } = await import("../../preparation/latex.ts");
@@ -171,7 +161,7 @@ test("approval binds the portal receipt to the exact PDF and freezes submitted i
   expect(() => service.submitted({ runId: run.id })).toThrow("Fill the portal");
   mode = "success";
   await complete(service.fill({ runId: run.id, reviewed: true }).id);
-  writeFileSync(join(project, "resume.tex"), original.replace("Generic", "Changed base"));
+  writeProfile(home, { summary: "Changed base project with React and Node.js." });
   service.description({ jobId, description: "Changed job description" });
   expect(readFileSync(pdf.path)).toEqual(bytes);
   expect(service.details({ jobId }).documents!.find(v => v.id === version.id)).toMatchObject({ description: "React developer role", approvedAt: expect.any(String), usedAt: expect.any(String) });
@@ -185,7 +175,7 @@ test("approval binds the portal receipt to the exact PDF and freezes submitted i
   expect(readFileSync(pdf.path)).toEqual(bytes);
   // Return to the approved version; the final scenario confirms this exact usage.
   await complete(service.fill({ runId: run.id, reviewed: true }).id);
-  writeFileSync(join(project, "resume.tex"), original);
+  writeProfile(home);
 }, 60000);
 test("a failed version write rolls back registration and preserves the previous application", async () => {
   const prior = database.db().query("SELECT resume_path, preparation_run_id FROM applications ORDER BY id DESC LIMIT 1").get();
@@ -225,7 +215,7 @@ test("cancellation preserves the last completed application, and submission is e
   expect(() => service.fill({ runId: valid.id })).toThrow("already submitted");
   const frozen = database.db().query("SELECT * FROM application_documents WHERE application_id = ?").get(valid.application_id);
   expect(frozen).toMatchObject({ submitted_at: expect.any(String) });
-  writeFileSync(join(project, "resume.tex"), original.replace("Generic", "Future base"));
+  writeProfile(home, { summary: "Future base project with React and Node.js." });
   await service.preview();
   expect(database.db().query("SELECT * FROM application_documents WHERE application_id = ?").get(valid.application_id)).toEqual(frozen);
 });

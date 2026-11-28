@@ -3,7 +3,6 @@ import { agentSetupLink, correctionLink, diagnosticBlocks, integrationLabels, ty
 import { getStartedLink, type StepId } from "@/lib/onboarding"
 import { PostingCheck } from "@/components/posting-check"
 import type { StoredGate } from "@/lib/gates"
-import { undecidedConflicts, useProfileSources } from "@/lib/profile-sources"
 export type ApplyAction = "description" | "model" | "review" | "gate"
 /** @property [step] Get started step that walks through this correction. */
 export type ApplyBlock = { message: string; label: string; href?: string; action?: ApplyAction; step?: StepId }
@@ -21,12 +20,12 @@ export function applyBlocks(input: ReadinessInput, operation: "generate" | "fill
   if (!input.provider) blocks.push({ message: "No ACP provider is available.", label: "Configure an agent", href: agentSetupLink() })
   if (input.invalidModel) blocks.push({ message: "The saved model is unavailable for this provider.", label: "Choose a model", action: "model" })
   if (operation === "generate") {
-    if (!input.sources) blocks.push({ message: "Choose a valid LaTeX project before generating.", label: "Configure resume sources", href: "#/resume?id=base", step: "resume" })
+    if (!input.sources) blocks.push({ message: "Upload your resume data or LinkedIn PDF before generating: your base resume is built from it.", label: "Open Profile", href: "#/profile", step: "resume" })
     if (!input.tools) blocks.push({ message: "Required LaTeX or PDF tools are unavailable.", label: "Check installed tools", href: correctionLink(), step: "resume" })
     if (input.gateUnconfirmed) blocks.push({ message: "This job failed a deal-breaker check. Review the quoted requirement and confirm before preparing.", label: "Review requirements", action: "gate" })
     if (input.descriptionDirty || input.descriptionMissing) blocks.push({ message: input.descriptionDirty ? "Save your description changes before generating." : "This job needs a description.", label: "Edit job description", action: "description" })
   } else if (!input.tailored) blocks.push({ message: "Choose or generate a resume before filling.", label: "Choose a resume", action: "review" })
-  if (operation === "fill" && input.baseUnconfigured) blocks.push({ message: "Choose a valid LaTeX project to use the base resume.", label: "Configure resume sources", href: "#/resume?id=base", step: "resume" })
+  if (operation === "fill" && input.baseUnconfigured) blocks.push({ message: "Upload your resume data or LinkedIn PDF to use the base resume.", label: "Open Profile", href: "#/profile", step: "resume" })
   if (operation === "fill" && input.tailored && input.approved === false) blocks.push({ message: "Approve the displayed document version before filling.", label: "Review document", action: "review" })
   const targets: Target[] = [...(input.provider ? [`acp/${input.provider}` as Target] : []), ...(operation === "fill" ? ["mcp/chrome" as const] : input.linkedinNeeded ? ["mcp/linkedin" as const] : [])]
   for (const target of targets) {
@@ -55,25 +54,15 @@ export function GateWarning({ gate, confirmed, onConfirm }: { gate?: StoredGate 
   </div>
 }
 /** @property [guard] Stored posting check of the saved description, shown with it. */
-/** Undecided profile conflicts warn without blocking: the base resume keeps its value meanwhile. */
-export function ProfileConflictsWarning({ count }: { count: number }) {
-  if (!count) return null
-  return <p role="status">Your profile has {count} undecided {count === 1 ? "conflict" : "conflicts"} between your data file and LinkedIn. <a className="underline" href="#/profile?tab=profile">Decide in Profile</a></p>
-}
-function ProfileConflicts() {
-  const profile = useProfileSources()
-  return <ProfileConflictsWarning count={undecidedConflicts(profile.data).length} />
-}
 type Correct = (action: ApplyAction) => void
 /** What blocks one operation, each with the link or action that corrects it. */
 export function BlockList({ label, blocks, correct }: { label: string; blocks: ApplyBlock[]; correct: Correct }) {
   if (!blocks.length) return null
   return <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm"><p className="font-medium">{label} is blocked</p><ul className="mt-2 space-y-2">{blocks.map((block, i) => <li key={i}>{block.message} {block.href ? <a className="underline" href={block.href}>{block.label}</a> : <button className="underline" onClick={() => block.action && correct(block.action)}>{block.label}</button>}{block.step && <> · <a className="underline" href={getStartedLink(block.step)}>Get started guide</a></>}</li>)}</ul></div>
 }
-/** Warnings about the role itself: undecided profile conflicts, the posting check and the deal-breaker gate. */
-export function RoleWarnings({ guard, description, gate, profile = false }: { guard?: unknown; description?: unknown; gate?: { value?: StoredGate | null; confirmed: boolean; confirm: () => void }; profile?: boolean }) {
+/** Warnings about the role itself: the posting check and the deal-breaker gate. */
+export function RoleWarnings({ guard, description, gate }: { guard?: unknown; description?: unknown; gate?: { value?: StoredGate | null; confirmed: boolean; confirm: () => void } }) {
   return <div className="space-y-3 text-sm empty:hidden">
-    {profile && <ProfileConflicts />}
     <PostingCheck guard={guard} description={description} />
     {gate && <GateWarning gate={gate.value} confirmed={gate.confirmed} onConfirm={gate.confirm} />}
   </div>
@@ -86,10 +75,9 @@ export function AvailabilityCheck({ testing, error, test }: { testing: boolean; 
     {error && <p role="alert">{error}</p>}
   </div>
 }
-/** @property [profile] Warn about undecided profile conflicts before generating. */
-export function ApplyReadiness({ generate, fill, testing, error, test, correct, guard, description, gate, profile = false }: { generate: ApplyBlock[]; fill: ApplyBlock[]; testing: boolean; error: string; test: () => void; correct: Correct; guard?: unknown; description?: unknown; gate?: { value?: StoredGate | null; confirmed: boolean; confirm: () => void }; profile?: boolean }) {
+export function ApplyReadiness({ generate, fill, testing, error, test, correct, guard, description, gate }: { generate: ApplyBlock[]; fill: ApplyBlock[]; testing: boolean; error: string; test: () => void; correct: Correct; guard?: unknown; description?: unknown; gate?: { value?: StoredGate | null; confirmed: boolean; confirm: () => void } }) {
   return <div className="mt-4 space-y-3 rounded-lg border p-3 text-sm" aria-label="Apply readiness">
-    <RoleWarnings guard={guard} description={description} gate={gate} profile={profile} />
+    <RoleWarnings guard={guard} description={description} gate={gate} />
     <BlockList label="Generate" blocks={generate} correct={correct} />
     <BlockList label="Fill" blocks={fill} correct={correct} />
     <AvailabilityCheck testing={testing} error={error} test={test} />

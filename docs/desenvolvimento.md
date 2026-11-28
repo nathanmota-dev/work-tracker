@@ -189,54 +189,41 @@ A versão da CLI vem do `package.json`. Código e licença de origem estão em
 
 ### Currículo pessoal e exemplos
 
-Os exemplos genéricos em [`base/`](../base/README.md) mostram como preparar um
-currículo LaTeX e um arquivo opcional de experiências e projetos. Copie e
-preencha pelo menos `base/latex/resume.tex`. Os arquivos pessoais dessas pastas,
-incluindo PDFs e recursos do projeto LaTeX, são ignorados pelo Git; somente os
-exemplos são destinados ao versionamento.
+O currículo base é gerado a partir do perfil; não há projeto LaTeX para preparar.
+O usuário envia em **Profile → Import resume** uma fonte estruturada: o
+`resume-data.json` (formato em [`base/README.md`](../base/README.md)) ou o PDF do
+LinkedIn. As duas se substituem, com confirmação. Outros PDFs enviados ficam como
+currículos de referência. Tudo fica em `~/.work-tracker/profile`.
 
-O app usa automaticamente `base/latex/resume.tex` e a pasta de perfil
-`base/data/`, com os dados opcionais em `base/data/resume-data.json`, o PDF
-exportado do LinkedIn e currículos de referência em PDF, sem seleção manual. O
-formato `resume-data.ts` não é mais aceito. Os PDFs são lidos com Poppler
-(`pdftotext -bbox-layout` para o export do LinkedIn, `pdftotext -layout` para os
-demais) e o resultado fica em cache por hash em `profile_imports`; as escolhas
-entre fontes ficam em `profile_choices`. O perfil consolidado chega ao agente em
-`profile.json`, na chave `profileSources` (veja `src/profile/`). Na CLI,
-`work-tracker profile sources` mostra os arquivos e conflitos e
+Os PDFs são lidos com Poppler (`pdftotext -bbox-layout` para o export do
+LinkedIn, `pdftotext -layout` para os demais) e o resultado fica em cache por hash
+em `profile_imports`. O export do LinkedIn é convertido para o formato do JSON
+(`src/profile/linkedin-data.ts`), e o perfil chega ao agente em `profile.json`, com
+o texto dos currículos de referência em `profileSources.references` (veja
+`src/profile/`). Na CLI, `work-tracker profile sources` mostra os arquivos e
 `work-tracker profile import [--force]` importa a pasta.
 
-Quem não usa a pasta `base/` faz tudo em **Profile → Base resume**: **Add files**
-copia o currículo em PDF, o PDF do LinkedIn ou o `resume-data.json` para a pasta
-de perfil configurada (ou, sem nenhuma, para `~/.work-tracker/profile`, que passa
-a ser a pasta salva). O JSON é validado antes de ser gravado e só substitui dados
-diferentes após confirmação. A tela mostra cada fonte pelo nome, sem caminhos
-(eles ficam em **Advanced**), e a prévia do PDF base, compilada ao abrir quando
-não existe. Arquivos colocados à mão na pasta de perfil também são importados
-sem clique: o backend importa o que estiver pendente ao iniciar, acompanha a
-pasta (`fs.watch`) e, como reserva, importa o que estiver pendente quando a tela
-é lida. O cache por hash em `profile_imports` é o registro de importação: um
-arquivo já importado não é reprocessado nem pede confirmação ao reabrir o app.
-O app instalado mantém uma referência ao checkout usado no build e lê esses
-arquivos locais; eles não são incluídos no pacote. Configure **Settings → Resume
-sources** para usar outros arquivos ou outro compilador; caminhos salvos têm
-prioridade sobre a detecção automática. A tela **Apply** está no menu e nos
-botões de preparação de Jobs e Applications. Ela mostra o
-PDF base, gera um currículo no idioma da vaga usando o agente ACP selecionado,
-registra versões e relatórios, e preenche o portal com o PDF escolhido para
-revisão e envio manual.
+Antes de cada snapshot do currículo base, `src/resume/` gera
+`~/.work-tracker/resume/resume.tex` a partir do perfil, com um preâmbulo fixo
+(`src/resume/template.ts`) e os dados pessoais editados no Profile com
+prioridade. O arquivo só é regravado quando muda, e a versão das fontes muda junto
+com o perfil: prévias, currículos salvos e o Apply seguem essa versão. Arquivos
+colocados à mão na pasta de perfil também são importados sem clique: o backend
+importa o que estiver pendente ao iniciar, acompanha a pasta (`fs.watch`) e, como
+reserva, importa o que estiver pendente quando a tela é lida. A tela **Apply** está
+no menu e nos botões de preparação de Jobs e Applications. Ela mostra o PDF base,
+gera um currículo no idioma da vaga usando o agente ACP selecionado, registra
+versões e relatórios, e preenche o portal com o PDF escolhido para revisão e envio
+manual.
 
-A compilação exige `latexmk` e o compilador selecionado (`pdflatex` por padrão;
-`xelatex` e `lualatex` também são aceitos), além de `pdfinfo` e `pdftotext`
-(Poppler). O projeto LaTeX pode exigir pacotes e fontes adicionais. Instale-os
+A compilação exige `latexmk`, `pdflatex`, `pdfinfo` e `pdftotext` (Poppler),
+além dos pacotes LaTeX Roboto, titlesec, enumitem e fancyhdr. Instale-os
 com TeX Live, TinyTeX ou MiKTeX e disponibilize os executáveis no PATH. A tela
 mostra as dependências ausentes e a CLI `doctor` também as verifica.
 
-Os originais são lidos da pasta configurada e cada execução trabalha sobre uma
-cópia em `$WORK_TRACKER_HOME/artifacts/applications/`. TypeScript é interpretado
-como dados estáticos, sem executar imports ou funções. Também é possível usar
-JSON ou somente o `.tex`. Histórico e PDFs anteriores permanecem disponíveis
-quando uma nova execução falha.
+Cada execução trabalha sobre uma cópia do currículo base em
+`$WORK_TRACKER_HOME/artifacts/applications/`. Histórico e PDFs anteriores
+permanecem disponíveis quando uma nova execução falha.
 
 ### Executáveis e integrações
 

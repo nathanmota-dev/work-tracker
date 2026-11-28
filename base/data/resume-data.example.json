@@ -1,24 +1,28 @@
 {
   "name": "Seu Nome Completo",
-  "initials": "SN",
-  "techStack": ["TypeScript", "React", "Node.js"],
-  "avatarUrl": "",
+  "location": "Cidade, UF",
   "personalWebsiteUrl": "https://example.com",
   "contact": {
     "email": "voce@example.com",
-    "tel": "",
+    "tel": "(00) 00000-0000",
     "social": [
-      { "name": "GitHub", "url": "https://github.com/seu-usuario" },
-      { "name": "LinkedIn", "url": "https://www.linkedin.com/in/seu-usuario/" }
+      { "name": "LinkedIn", "url": "https://www.linkedin.com/in/seu-usuario/" },
+      { "name": "GitHub", "url": "https://github.com/seu-usuario" }
     ]
   },
+  "summary": "Descreva em duas ou três frases sua área de atuação, as tecnologias que domina e o tipo de problema que resolve.",
   "education": [
     {
       "school": "Nome da instituição",
+      "location": "Cidade, UF",
       "degree": "Nome do curso",
       "start": "2020-01",
       "end": "2024-12"
     }
+  ],
+  "skillGroups": [
+    { "name": "Front-End", "items": ["TypeScript", "React"] },
+    { "name": "Back-End", "items": ["Node.js", "PostgreSQL"] }
   ],
   "work": [
     {
@@ -32,26 +36,29 @@
         "Descreva uma funcionalidade que você desenvolveu e sua contribuição.",
         "Descreva um problema resolvido e o resultado real, se conhecido."
       ]
+    },
+    {
+      "company": "Empresa Anterior",
+      "title": "Cargo que não aparece no currículo base",
+      "start": "2022-01",
+      "end": "2023-12",
+      "highlights": ["Itens com hidden: true ficam fora do currículo base, mas servem de evidência para currículos adaptados."],
+      "hidden": true
     }
   ],
-  "skills": ["TypeScript", "React", "Node.js", "PostgreSQL"],
   "projects": [
     {
       "name": "Projeto de Exemplo",
-      "description": "Descreva o propósito do projeto e sua participação.",
-      "image": "",
+      "description": "Aplicação Full Stack",
+      "date": "2024-06",
       "techStack": ["React", "TypeScript", "Node.js", "PostgreSQL"],
       "githubUrl": "https://github.com/seu-usuario/seu-projeto",
       "deployUrl": "https://example.com",
-      "type": "fullstack",
       "highlights": [
         "Descreva as funcionalidades que você implementou.",
         "Descreva a integração entre as partes do projeto."
-      ],
-      "link": {
-        "label": "Projeto de Exemplo",
-        "href": "https://example.com"
-      }
+      ]
     }
-  ]
+  ],
+  "certifications": []
 }

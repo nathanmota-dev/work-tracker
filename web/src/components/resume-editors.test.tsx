@@ -9,7 +9,7 @@ vi.mock("@/components/ui/date-picker", () => ({
     <input aria-label={props["aria-label"]} value={value} onChange={e => onChange(e.target.value)} />,
 }))
 
-const role = (patch: Partial<ResumeEntry> = {}): ResumeEntry => ({ title: "Developer", organization: "Acme", start: "2024-01", end: "Present", location: "", bullets: ["Built things"], skills: ["React"], source: "data", ...patch })
+const role = (patch: Partial<ResumeEntry> = {}): ResumeEntry => ({ title: "Developer", organization: "Acme", start: "2024-01", end: "Present", location: "", bullets: ["Built things"], skills: ["React"], ...patch })
 
 describe("ResumeEntryEditor", () => {
   it("edits, adds, moves and removes entries, saving the tidied list", async () => {

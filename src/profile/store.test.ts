@@ -3,7 +3,7 @@ import { db } from "../db/index.ts";
 import type { Database } from "../db/sqlite.ts";
 import { memoryDatabase } from "../test/memory-db.ts";
 import { PARSER_VERSION } from "./linkedin/parse.ts";
-import { cachedImports, profileChoices, saveChoice, saveImport } from "./store.ts";
+import { cachedImports, saveImport } from "./store.ts";
 import type { LinkedInProfile } from "./types.ts";
 
 vi.mock("../db/index.ts", () => ({ db: vi.fn(), now: () => "2026-11-24T12:00:00.000Z" }));
@@ -24,12 +24,3 @@ test("caches imports by hash and treats another parser version as missing", () =
   ]);
 });
 
-test("records, replaces and forgets decisions", () => {
-  saveChoice("k1", { field: "work.start", source: "data", value: "2022-11" });
-  saveChoice("k1", { field: "work.start", source: "linkedin", value: "2022-12" });
-  saveChoice("k2", { field: "work.end", source: "data", value: "2024" });
-  expect(profileChoices()).toEqual(new Map([["k1", "linkedin"], ["k2", "data"]]));
-  expect(d.query("SELECT field, chosen_value, decided_at FROM profile_choices WHERE conflict_key = 'k1'").get()).toEqual({ field: "work.start", chosen_value: "2022-12", decided_at: "2026-11-24T12:00:00.000Z" });
-  saveChoice("k2", null);
-  expect([...profileChoices().keys()]).toEqual(["k1"]);
-});

@@ -53,7 +53,7 @@ test('Apply: real PDFs, generation/regeneration/history, filling, submission and
   await expect(panel(page, 'Tailored resume PDF').locator('.react-pdf__Page__textContent')).toContainText('Tailored resume.')
   await expect(panel(page, 'Tailored resume PDF').getByRole('listitem')).toHaveCount(0)
   await resumeCard(page, 'Base resume').click()
-  await expect(panel(page, 'Base resume PDF')).toContainText('Page 1 ends')
+  await expect(panel(page, 'Base resume PDF')).toContainText('The last page (page 2) is')
   // Classic scrollbars consume layout width. At this viewport, zoom crosses
   // the vertical overflow threshold and must not trigger a resize/render loop.
   await workspace.resize(1200)
@@ -148,7 +148,7 @@ test('Apply: real PDFs, generation/regeneration/history, filling, submission and
   const card = page.getByRole('region', { name: 'Applied applications' }).locator('[data-slot="card"]').filter({ has: page.getByRole('button', { name: 'View Example Company application' }) })
   await expect(card).toHaveAttribute('data-highlighted', 'true')
   await expect(page.getByRole('region', { name: 'Filled applications' }).getByRole('group')).toHaveCount(0)
-  expect(readFileSync(join(workspace.project, 'resume.tex'), 'utf8')).toBe(readFileSync('e2e/fixtures/resume.tex', 'utf8'))
+  expect(readFileSync(workspace.baseResume, 'utf8')).toContain('Base resume. Synthetic candidate.')
   await page.getByRole('radio', { name: 'Cards', exact: true }).click()
   await expect(page).not.toHaveURL(/view=board/)
   const reactCard = page.getByRole('article', { name: 'React Engineer' })

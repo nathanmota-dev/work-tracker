@@ -85,7 +85,6 @@ fi
 copy_directory .cache/work-tracker
 
 copy_directory base/data
-copy_directory base/latex
 copy_directory coverage
 copy_directory out
 copy_directory playwright-report

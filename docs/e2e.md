@@ -37,7 +37,9 @@ display; the supervisor allows five seconds before forcing termination.
 
 Install Node 24+, npm dependencies, latexmk, pdfLaTeX and Poppler. On Ubuntu 24.04,
 the CI workflow installs Playwright's Chromium system dependencies plus Xvfb,
-GTK3, latexmk, texlive-latex-base and poppler-utils. The synthetic two-page resume
+GTK3, latexmk, texlive-latex-base, texlive-latex-recommended, texlive-latex-extra,
+texlive-fonts-recommended, texlive-fonts-extra and poppler-utils, which cover the
+generated base resume preamble. The synthetic two-page resume
 uses the standard article class. Existing Apply smoke checks use the example
 resume and retain their additional font/package requirements.
 

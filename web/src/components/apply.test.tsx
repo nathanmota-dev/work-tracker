@@ -16,7 +16,7 @@ beforeEach(() => {
   search.jobId = 7; search.applicationId = 3; search.runId = undefined
   details = { job: { id: 7, title: "React Engineer", company_name: "Example", description: "React role", archived_at: null, link: "https://example.com" }, runs: [{ id: "run-1", job_id: 7, application_id: 3, status: "completed", phase: "review", artifacts, events: [], report: "Emphasized React", created_at: "2026-01-01" }], busy: false, applicationStatus: "draft" }
   details.documents = [{ id: "pdf-1", runId: "run-1", applicationId: 3, pdfHash: "hash", sourceVersion: "sources-1", text: "Tailored experience", baseText: "Original experience", description: "React role", extra: "", data: null, approvedAt: "2026-01-01", createdAt: "2026-01-01", usedAt: null, submittedAt: null }]
-  source = { config: { projectDir: "/sources", mainFile: "resume.tex", dataFile: "", engine: "pdflatex" }, dependencies: [{ command: "latexmk", available: true }], preview: artifacts[0], warnings: [], busy: false }
+  source = { config: { projectDir: "/sources", mainFile: "resume.tex", dataFile: "", engine: "pdflatex", profileDir: "/profile" }, source: { kind: "data", file: "resume-data.json" }, version: "v1", dependencies: [{ command: "latexmk", available: true }], preview: artifacts[0], warnings: [], busy: false }
   request.mockReset().mockImplementation(async (path: string) => {
     if (path === "integrations/status") return { entries: [], dependencies: [], backend: true }
     if (path === "jobs") return [{ id: 7, title: "React Engineer", company_name: "Example" }]
@@ -45,15 +45,6 @@ it("shows the tailored PDF and starts generation for the selected job without La
   expect(window.location.hash).toContain("/apply?")
   expect(window.location.hash).toContain("runId=run-2")
   expect(request).not.toHaveBeenCalledWith("acp/run", expect.anything())
-})
-it("warns about undecided profile conflicts and still allows generation", async () => {
-  const base = request.getMockImplementation()!
-  request.mockImplementation(async (path: string, body?: unknown) => path === "profile-sources" ? { conflicts: [{ key: "k", chosen: null }, { key: "j", chosen: "data" }] } : base(path, body))
-  render(<ApplyPage />)
-  await openStep("Job description")
-  expect(await screen.findByText(/Your profile has 1 undecided conflict/)).toBeInTheDocument()
-  await openStep("Resume")
-  await waitFor(() => expect(screen.getByRole("button", { name: "Regenerate" })).toBeEnabled())
 })
 it("fills using the displayed run and exposes the report", async () => {
   render(<ApplyPage />)
@@ -93,13 +84,13 @@ it("keeps cancellation available while waiting for browser sign-in", async () =>
   await waitFor(() => expect(request).toHaveBeenCalledWith("application-preparation/cancel", { runId: "run-1", extra: "" }))
 })
 
-it("links base resume configuration to Resumes", async () => {
-  source.config.projectDir = ""
+it("sends a workspace without a profile to Profile to build the base resume", async () => {
+  source.source = null
   render(<ApplyPage />)
   await openStep("Resume")
   fireEvent.click(await screen.findByRole("button", { name: "Base resume" }))
-  const links = await screen.findAllByRole("link", { name: "Configure resume sources" })
-  for (const link of links) expect(link).toHaveAttribute("href", "#/resume?id=base")
+  expect(await screen.findByRole("link", { name: "Upload your profile to build it" })).toHaveAttribute("href", "#/profile")
+  for (const link of await screen.findAllByRole("link", { name: "Open Profile" })) expect(link).toHaveAttribute("href", "#/profile")
   expect(screen.queryByRole("button", { name: "Update base PDF" })).not.toBeInTheDocument()
 })
 

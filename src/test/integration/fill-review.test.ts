@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, expect, test, vi } from "vitest";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { writeProfile } from "./base-profile.ts";
 vi.mock("../../mcp/chrome.ts", () => ({ openChromePortal: vi.fn(async () => {}) }));
 const home = mkdtempSync(join(tmpdir(), "work-tracker-fill-review-"));
 const previousHome = process.env.WORK_TRACKER_HOME;
@@ -42,12 +43,8 @@ async function complete(id: string) {
 beforeAll(async () => {
   database = await import("../../db/index.ts");
   answers = await import("../../answers/store.ts");
-  const sources = await import("../../preparation/sources.ts");
   const { PreparationService } = await import("../../preparation/service.ts");
-  const project = join(home, "source");
-  mkdirSync(project);
-  writeFileSync(join(project, "resume.tex"), "\\documentclass{article}\n\\begin{document}\nGeneric project delivered.\n\\end{document}\n");
-  sources.saveSources({ projectDir: project, mainFile: "resume.tex", dataFile: "", engine: "pdflatex" });
+  writeProfile(home, { summary: "Generic project delivered." });
   jobId = (database.db().query("INSERT INTO jobs (title, company_name, description, link) VALUES ('Engineer', 'Example', 'Generic role', 'https://example.com/apply') RETURNING id").get() as { id: number }).id;
   answers.saveAnswer({ key: "email", value: "candidate@example.com" });
   service = new PreparationService({

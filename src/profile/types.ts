@@ -52,36 +52,12 @@ export interface ProfileImport {
   warnings: string[];
 }
 
-export type ChoiceSource = "data" | "linkedin";
-/**
- * A date or location that the data file and the LinkedIn export disagree on.
- *
- * @property key Hash of the field, the entry and both values: changing either
- *   source reopens only the conflicts whose values changed.
- * @property chosen The user's decision; null until decided.
- */
-export interface ProfileConflict {
-  key: string;
-  field: string;
-  label: string;
-  values: Record<ChoiceSource, string>;
-  chosen: ChoiceSource | null;
-}
-export interface ResolvedValue {
-  key: string;
-  field: string;
-  label: string;
-  source: ChoiceSource;
-  value: string;
-}
-/** Evidence added to the profile under `profileSources`; the data file keys stay unchanged. */
-export interface ProfileSources {
-  linkedin: LinkedInProfile | null;
-  linkedinOnly: LinkedInExperience[];
-  references: { file: string; text: string }[];
-  conflicts: ProfileConflict[];
-  resolved: ResolvedValue[];
-}
+/** Text of a resume PDF that is not the LinkedIn export: evidence for tailoring, never the profile itself. */
+export interface ProfileReference { file: string; text: string }
+/** Evidence added to the profile under `profileSources`; the profile keys stay unchanged. */
+export interface ProfileSources { references: ProfileReference[] }
+/** The one structured source of the profile: the resume data file or the LinkedIn export. */
+export interface StructuredSource { kind: "data" | "linkedin"; file: string }
 
 export type PersonalKey = "first_name" | "last_name" | "full_name" | "email" | "phone" | "location" | "city" | "state" | "country" | "summary" | "languages" | "linkedin_url" | "github_url" | "portfolio_url";
 /** Where a personal detail came from: the data file, the LinkedIn export or another resume PDF. */
@@ -106,9 +82,10 @@ export interface ResumeEntry {
   location: string;
   bullets: string[];
   skills: string[];
-  source: "data" | "linkedin" | "both";
+  /** Kept as evidence for tailored resumes but left out of the base resume. */
+  hidden?: boolean;
 }
-/** Experience and education merged from the data file and the LinkedIn export, most recent first. */
+/** Experience and education of the structured source, most recent first. */
 export interface ProfileResume {
   experience: ResumeEntry[];
   education: ResumeEntry[];
@@ -124,10 +101,9 @@ export interface ProfileAssetState {
 /** What the Profile page shows about the profile folder. */
 export interface ProfileSourcesState {
   profileDir: string;
-  dataFile: string;
   assets: ProfileAssetState[];
-  linkedin: { experiences: number; education: number; skills: number; languages: number; entries: LinkedInExperience[] } | null;
-  conflicts: ProfileConflict[];
+  /** What the profile and the base resume are built from; null until one is uploaded. */
+  source: StructuredSource | null;
   /** Personal details found in the sources, ready to fill the answer catalog. */
   personal: PersonalField[];
   about: ProfileAbout | null;
@@ -139,6 +115,6 @@ export interface ProfileSourcesState {
 /**
  * One uploaded file. `added` wrote it to the profile folder; `unchanged` found
  * the same bytes there already; `replace_required` wrote nothing because it
- * would replace different resume data and `replace` was not set.
+ * would replace the current structured source (`replaces`) and `replace` was not set.
  */
-export interface UploadResult { file: string; kind: "pdf" | "data"; status: "added" | "unchanged" | "replace_required" }
+export interface UploadResult { file: string; kind: "pdf" | "data"; status: "added" | "unchanged" | "replace_required"; replaces?: string }

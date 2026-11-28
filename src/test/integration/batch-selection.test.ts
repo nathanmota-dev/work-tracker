@@ -1,8 +1,9 @@
 import { afterAll, beforeAll, beforeEach, expect, test, vi } from "vitest";
-import { mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { PreparationQueue } from "../../preparation/batch-queue.ts";
+import { baseResumeFile, writeProfile } from "./base-profile.ts";
 import type { BatchPreview, PreparationBatch, PreparationRun } from "../../preparation/types.ts";
 
 const home = mkdtempSync(join(tmpdir(), "work-tracker-selection-"));
@@ -25,9 +26,7 @@ beforeAll(async () => {
   database = await import("../../db/index.ts");
   Queue = (await import("../../preparation/batch-queue.ts")).PreparationQueue;
   handle = (await import("../../preparation/batch-http.ts")).handleBatches;
-  const source = join(home, "source");
-  mkdirSync(source); writeFileSync(join(source, "resume.tex"), "\\documentclass{article}\n\\begin{document}Synthetic resume\\end{document}");
-  (await import("../../preparation/sources.ts")).saveSources({ projectDir: source, mainFile: "resume.tex", dataFile: "", engine: "pdflatex" });
+  writeProfile(home, { summary: "Synthetic resume." });
 });
 beforeEach(() => { queue?.close(); database.db().exec("UPDATE preparation_batch_items SET status = 'cancelled'"); generate.mockClear(); queue = new Queue(service, () => true, () => {}, 0); });
 afterAll(() => {
@@ -78,13 +77,13 @@ test("a failed insertion rolls back the batch, items and request and removes onl
   const id = job("rollback");
   const root = join(home, "artifacts", "batches");
   const before = readdirSync(root);
-  const source = readFileSync(join(home, "source", "resume.tex"), "utf8");
+  const source = readFileSync(baseResumeFile(home), "utf8");
   database.db().exec("CREATE TRIGGER reject_fixture_item BEFORE INSERT ON preparation_batch_items BEGIN SELECT RAISE(ABORT, 'fixture insertion failure'); END;");
   const failed = await call("create", { ...selection(id), provider: "fixture", requestId: "rollback" });
   expect(failed.status).toBe(500);
   expect(await failed.json()).toEqual({ error: "fixture insertion failure" });
   expect(readdirSync(root)).toEqual(before);
-  expect(readFileSync(join(home, "source", "resume.tex"), "utf8")).toBe(source);
+  expect(readFileSync(baseResumeFile(home), "utf8")).toBe(source);
   expect(database.db().query("SELECT * FROM preparation_batch_requests WHERE request_id = 'rollback'").all()).toEqual([]);
   expect(database.db().query("SELECT * FROM preparation_batch_items WHERE job_id = ?").all(id)).toEqual([]);
   database.db().exec("DROP TRIGGER reject_fixture_item");

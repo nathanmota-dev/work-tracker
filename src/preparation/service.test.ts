@@ -46,6 +46,7 @@ vi.mock("../variants/promote.ts", () => ({ saveTailoredVariant: vi.fn(() => "sav
 vi.mock("./use-base.ts", () => ({ useBase: vi.fn((_input, assertIdle: () => void) => { assertIdle(); return { id: "base-run" }; }) }));
 vi.mock("../variants/apply.ts", () => ({ useVariant: vi.fn((_input, assertIdle: () => void) => { assertIdle(); return { id: "saved" }; }) }));
 vi.mock("../paths.ts", () => ({ paths: { artifacts: "/artifacts" } }));
+vi.mock("../profile/evidence.ts", () => ({ profileEvidence: vi.fn(() => ({ source: { kind: "data", file: "resume-data.json" } })) }));
 vi.mock("../mcp/search.ts", () => ({ jobDetails: vi.fn(), jobApplyLink: vi.fn() }));
 vi.mock("../mcp/chrome.ts", () => ({ openChromePortal: vi.fn() }));
 vi.mock("./latex.ts", () => ({
@@ -305,9 +306,10 @@ test("startup settles the journey of interrupted generation and fill runs as fai
   expect(settleExecution).toHaveBeenCalledTimes(2);
   await restarted.close();
 });
-test("reports source dependencies, cache and warnings without generating output", async () => {
+test("reports the profile source, dependencies, cache and warnings without generating output", async () => {
   expect(await service.sourcesState()).toEqual(
     expect.objectContaining({
+      source: { kind: "data", file: "resume-data.json" },
       preview: pdf,
       busy: false,
       dependencies: [{ command: "latexmk", available: true }],

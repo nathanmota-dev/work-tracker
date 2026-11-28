@@ -8,8 +8,6 @@ import { handleApplicationBoard } from "../applications/http.ts";
 import { handleJobAction } from "../jobs/http.ts";
 import { PreparationService } from "../preparation/service.ts";
 import { handlePreparation } from "../preparation/http.ts";
-import { sourcesConfig } from "../preparation/sources.ts";
-import { ensureProfileImported } from "../profile/import.ts";
 import { PreparationQueue } from "../preparation/batch-queue.ts";
 import { handleBatches } from "../preparation/batch-http.ts";
 import { handleIntegrations, integrationTesting } from "../integrations/http.ts";
@@ -134,12 +132,6 @@ const postRoutes: Record<string, Route> = {
   "/api/recruiters/sync": syncRecruiters,
 };
 
-/** New sources may hold new PDFs and personal details: import them and fill empty answers in the background. */
-async function refreshProfile(broadcast: Context["broadcast"]): Promise<void> {
-  await ensureProfileImported(sourcesConfig().profileDir).catch(() => undefined);
-  for (const table of ["profile_imports", "applicant_answers"]) broadcast({ type: "changed", table });
-}
-
 export async function routeApi(path: string, req: Request, context: Context): Promise<Response> {
   if (path === "/api/answer" || path.startsWith("/api/answer/") || path.startsWith("/api/answers/")) return handleAnswer(path, req, context.broadcast);
   if (path === "/api/interview-preps" || path.startsWith("/api/interview-preps/")) return handleInterviewPreps(path, req);
@@ -155,9 +147,7 @@ export async function routeApi(path: string, req: Request, context: Context): Pr
   if (path.startsWith("/api/resume-sources") || path.startsWith("/api/application-preparation/")) {
     if (req.method === "POST" && integrationTesting()) return Response.json({ error: "Wait for the integration diagnostic to finish." }, { status: 409 });
     context.preparation ??= new PreparationService(context.acp, context.broadcast);
-    const response = await handlePreparation(path, req, context.preparation);
-    if (path === "/api/resume-sources" && req.method === "POST" && response.ok) void refreshProfile(context.broadcast);
-    return response;
+    return handlePreparation(path, req, context.preparation);
   }
   if (path === "/api/resume-variants" || path.startsWith("/api/resume-variants/")) {
     if (req.method === "POST" && integrationTesting()) return Response.json({ error: "Wait for the integration diagnostic to finish." }, { status: 409 });

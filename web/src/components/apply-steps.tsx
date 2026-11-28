@@ -23,7 +23,7 @@ export function DescriptionView({ w }: Props) {
         <Button variant="outline" size="sm" disabled={w.busy || !descriptionDirty || !description.trim()} onClick={() => void w.action("description")}>Save description</Button>
       </div>}
       {!job.description && !job.linkedin_job_id && !descriptionDirty && <p role="status" className="text-xs text-muted-foreground">This job has no description yet. Paste it above before generating.</p>}
-      <RoleWarnings profile={!w.review} gate={w.gate.readiness} guard={job.description_guard_json} description={job.description} />
+      <RoleWarnings gate={w.gate.readiness} guard={job.description_guard_json} description={job.description} />
       {w.archived && <p className="text-sm text-muted-foreground">Restore this job in Jobs before preparing an application.</p>}
     </div>
   </Panel>

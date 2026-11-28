@@ -233,7 +233,7 @@ export function ProfileOverview() {
         <SheetContent className="w-full gap-0 overflow-y-auto sm:max-w-xl">
           <SheetHeader className="border-b px-6 py-5 pr-12">
             <SheetTitle>Resume files</SheetTitle>
-            <SheetDescription>Import your LinkedIn PDF, resume PDFs or resume data (.json). You review conflicts before they are used.</SheetDescription>
+            <SheetDescription>Import your resume data (.json) or your LinkedIn PDF: your profile and base resume are built from it. Other resume PDFs are kept as reference text.</SheetDescription>
           </SheetHeader>
           <div className="p-6"><ProfileSources /></div>
         </SheetContent>
