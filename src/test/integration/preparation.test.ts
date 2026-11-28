@@ -78,18 +78,12 @@ test("reviews the layout and text layer of real PDFs against their base", async 
   expect((await inspectPdf(orphan, undefined, { layout: { identity, baseline: orphan } })).warnings).toEqual([]);
   expect((await inspectPdf(orphan, undefined, { layout: { identity, baseline: clean } })).warnings).toEqual(["Page 1 ends on an entry header (\u201cSoftware Engineer\u201d) whose content continues on page 2."]);
 }, 60000);
-test("the resume generated from the example data has no layout warnings", async ({ skip }) => {
+test("the resume generated from the example data has no layout warnings", async () => {
   const { inspectPdf } = await import("../../preparation/latex.ts");
   const { documentFromData } = await import("../../resume/document.ts");
   const { renderResume } = await import("../../resume/render.ts");
   const data = JSON.parse(readFileSync(join(process.cwd(), "base", "data", "resume-data.example.json"), "utf8"));
-  let example: string;
-  try { example = await compiled("example", renderResume(documentFromData(data))); }
-  catch (error) {
-    // CI's integration job installs only texlive-latex-base; the template's packages are checked locally by smoke-apply.
-    if (/LaTeX Error: File `[^']+\.sty' not found/.test(String(error))) return skip("The example template's LaTeX packages are not installed.");
-    throw error;
-  }
+  const example = await compiled("example", renderResume(documentFromData(data)));
   const warnings = (await inspectPdf(example, undefined, { layout: { identity: { email: "voce@example.com", phone: "(00) 00000-0000" } } })).warnings;
   // Its en-dash date ranges, kept as in the original resume layout, are a text-layer note, not a layout problem.
   expect(warnings).toEqual([expect.stringMatching(/^2 date ranges use a non-ASCII dash \(U\+2013/)]);

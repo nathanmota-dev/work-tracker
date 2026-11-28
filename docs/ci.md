@@ -56,7 +56,9 @@ alterados, de outra camada, de outra execução ou de fontes diferentes reprovam
 gate. Para repetir uma execução, use **Re-run all jobs**: repetir apenas o gate
 muda a tentativa e, por isso, rejeita o artifact anterior.
 
-A integração instala `latexmk`, `texlive-latex-base` e `poppler-utils`. As
+A integração instala `latexmk`, `texlive-latex-base`, `texlive-latex-recommended`,
+`texlive-latex-extra`, `texlive-fonts-recommended`, `texlive-fonts-extra` e `poppler-utils`,
+que cobrem os pacotes do preâmbulo do currículo base gerado. As
 dependências gráficas e o Xvfb continuam somente no E2E.
 
 ## Quality gate

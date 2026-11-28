@@ -11,7 +11,7 @@ packages=(
   libcairo2 libcups2t64 libdbus-1-3 libdrm2 libgbm1 libglib2.0-0t64
   libnspr4 libnss3 libpango-1.0-0 libx11-6 libxcb1 libxcomposite1
   libxdamage1 libxext6 libxfixes3 libxkbcommon0 libxrandr2
-  xauth libgtk-3-0t64 latexmk texlive-latex-base poppler-utils
+  xauth libgtk-3-0t64 latexmk texlive-latex-base texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended texlive-fonts-extra poppler-utils
 )
 
 if [[ "${1:-}" == --packages ]]; then
