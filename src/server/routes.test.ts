@@ -186,7 +186,7 @@ test("serves the requirement gates through their handler with the broadcaster", 
 
 test("serves the profile sources through their handler with the broadcaster", async () => {
   vi.mocked(handleProfileSources).mockResolvedValue(ok);
-  for (const path of ["/api/profile-sources", "/api/profile-sources/import", "/api/profile-sources/choice"]) {
+  for (const path of ["/api/profile-sources", "/api/profile-sources/import", "/api/profile-sources/upload"]) {
     const req = new Request(`http://localhost${path}`);
     expect(await routeApi(path, req, { acp, broadcast })).toBe(ok);
     expect(handleProfileSources).toHaveBeenLastCalledWith(path, req, broadcast);

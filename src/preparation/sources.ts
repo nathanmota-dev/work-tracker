@@ -1,78 +1,38 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync, mkdirSync, writeFileSync } from "node:fs";
 import { isAbsolute, relative, resolve, join, dirname } from "node:path";
-import { loadConfig, saveConfig } from "../paths.ts";
+import { loadConfig, paths, saveConfig } from "../paths.ts";
 import type { ResumeSourcesConfig } from "./types.ts";
-import { isFolder, profileEvidence } from "../profile/evidence.ts";
-import { canonicalSkill } from "../ats/vocabulary.ts";
+import { profileEvidence } from "../profile/evidence.ts";
+import { PreparationError, parseResumeData } from "./resume-data.ts";
+export { PreparationError, parseResumeData };
 
-export class PreparationError extends Error {
-  constructor(message: string, public status = 400) { super(message); }
-}
 function isFile(path: string): boolean {
   try { return statSync(path).isFile(); }
   catch { return false; }
 }
-/** A saved configuration from before the profile folder uses the data file's folder. */
-function withProfileDir(saved: Omit<ResumeSourcesConfig, "profileDir"> & { profileDir?: string }): ResumeSourcesConfig {
-  return { ...saved, profileDir: saved.profileDir ?? (saved.dataFile ? dirname(saved.dataFile) : "") };
-}
+/** The LaTeX settings; the profile is always the app's own folder, which uploads fill. */
 export function sourcesConfig(): ResumeSourcesConfig {
   const saved = loadConfig().resumeSources;
-  if (saved?.projectDir) return withProfileDir(saved);
-  // An upload saves the profile before any LaTeX project is chosen.
-  const detected = detectedSources();
-  return { ...detected, ...(saved?.profileDir && { profileDir: saved.profileDir }), ...(saved?.dataFile && { dataFile: saved.dataFile }) };
+  const latex = saved?.projectDir ? { projectDir: saved.projectDir, mainFile: saved.mainFile, engine: saved.engine } : detectedLatex();
+  return { ...latex, dataFile: "", profileDir: paths.profile };
 }
-function detectedSources(): ResumeSourcesConfig {
+function detectedLatex(): Pick<ResumeSourcesConfig, "projectDir" | "mainFile" | "engine"> {
   // The installed desktop app supplies its build checkout; the CLI uses its cwd.
-  // Only real local inputs are defaults: the versioned examples require filling in.
+  // Only a real local resume is a default: the versioned example requires filling in.
   const root = resolve(process.env.WORK_TRACKER_REPO_ROOT ?? process.cwd());
   const projectDir = join(root, "base", "latex");
-  const data = join(root, "base", "data");
-  const profileDir = isFolder(data) ? data : "";
-  if (isFile(join(projectDir, "resume.tex"))) {
-    const dataFile = isFile(join(data, "resume-data.json")) ? join(data, "resume-data.json") : "";
-    return { projectDir, mainFile: "resume.tex", dataFile, engine: "pdflatex", profileDir };
-  }
-  return { projectDir: "", mainFile: "resume.tex", dataFile: "", engine: "pdflatex", profileDir };
+  return { projectDir: isFile(join(projectDir, "resume.tex")) ? projectDir : "", mainFile: "resume.tex", engine: "pdflatex" };
 }
 export function saveSources(body: unknown): ResumeSourcesConfig {
   if (!body || typeof body !== "object") throw new PreparationError("Expected resume source settings.");
   const value = body as Record<string, unknown>;
-  if (!["projectDir", "mainFile", "dataFile", "engine"].every(key => typeof value[key] === "string")) throw new PreparationError("Enter the project folder, main file and compiler.");
-  if (value.profileDir !== undefined && typeof value.profileDir !== "string") throw new PreparationError("The profile folder must be a path.");
-  const profileDir = typeof value.profileDir === "string" ? value.profileDir.trim() : undefined;
-  const config = withProfileDir({ projectDir: String(value.projectDir).trim(), mainFile: String(value.mainFile).trim(), dataFile: String(value.dataFile).trim(), engine: value.engine as ResumeSourcesConfig["engine"], profileDir });
+  if (!["projectDir", "mainFile", "engine"].every(key => typeof value[key] === "string")) throw new PreparationError("Enter the project folder, main file and compiler.");
+  const config: ResumeSourcesConfig = { projectDir: String(value.projectDir).trim(), mainFile: String(value.mainFile).trim(), engine: value.engine as ResumeSourcesConfig["engine"], dataFile: "", profileDir: paths.profile };
   if (!["pdflatex", "xelatex", "lualatex"].includes(config.engine)) throw new PreparationError("Unknown LaTeX compiler.");
-  if (config.profileDir && !isFolder(config.profileDir)) throw new PreparationError("The profile folder must be an absolute path to an existing folder.");
   snapshotSources(config);
   saveConfig({ ...loadConfig(), resumeSources: config });
   return config;
-}
-export function parseResumeData(text: string, extension: string): Record<string, unknown> {
-  if (extension === ".ts") throw new PreparationError("TypeScript resume data is no longer supported. Save the RESUME_DATA object as resume-data.json.");
-  if (extension !== ".json") throw new PreparationError("Choose a .json resume data file.");
-  let value: unknown;
-  try { value = JSON.parse(text); }
-  catch (error) { throw new PreparationError(`Invalid resume data: ${(error as Error).message}`); }
-  if (!value || typeof value !== "object" || Array.isArray(value)) throw new PreparationError("Resume data must be an object.");
-  const result = value as Record<string, unknown>;
-  for (const key of ["education", "work", "projects", "skills", "techStack"]) {
-    if (result[key] !== undefined && !Array.isArray(result[key])) throw new PreparationError(`${key} must be an array.`);
-  }
-  const libraries = /^(shadcn[./]ui|nextauth|three\.js|react-icons|@next\/mdx|styled-components|remixicon|swiperjs|scrollreveal|next-intl|framer(?: motion)?)$/i;
-  function normalize(obj: unknown): void {
-    if (!obj || typeof obj !== "object") return;
-    for (const [key, entry] of Object.entries(obj)) {
-      if (["skills", "techStack"].includes(key) && Array.isArray(entry)) {
-        if (!entry.every(item => typeof item === "string")) throw new PreparationError(`${key} must contain technology names.`);
-        (obj as Record<string, unknown>)[key] = [...new Set(entry.map(canonicalSkill).filter(item => item && !libraries.test(item)))];
-      } else if (Array.isArray(entry)) entry.forEach(normalize);
-    }
-  }
-  normalize(result);
-  return result;
 }
 export interface SourcesSnapshot {
   config: ResumeSourcesConfig;
@@ -109,18 +69,19 @@ export function snapshotSources(config = sourcesConfig()): SourcesSnapshot {
   visit(root);
   let data: SourcesSnapshot["data"] = null;
   const warnings: string[] = [];
-  if (config.dataFile) {
-    if (!isAbsolute(config.dataFile) || !existsSync(config.dataFile)) throw new PreparationError("The resume data file does not exist. Select a file or leave it empty.");
-    data = parseResumeData(readFileSync(config.dataFile, "utf8"), config.dataFile.slice(config.dataFile.lastIndexOf(".")));
-    for (const key of ["projects", "work"]) {
-      const entries = data[key] as Record<string, unknown>[] | undefined;
-      if (entries?.some(item => !item || typeof item !== "object" || (!item.description && !item.highlights))) warnings.push(`Some ${key} entries have no descriptions. The agent can use only evidence available in the template and data.`);
-    }
-  } else warnings.push("No optional data file selected. Tailoring will use only information in the LaTeX source.");
   if (config.profileDir) {
-    const profile = profileEvidence(config.profileDir, data);
+    const profile = profileEvidence(config.profileDir);
     data = profile.data;
     warnings.push(...profile.warnings);
+    if (!profile.source) warnings.push("Upload your resume data or LinkedIn PDF in Profile. Tailoring will use only information in the LaTeX source.");
+  } else if (config.dataFile) {
+    // A batch's recorded copy of the profile.
+    if (!isAbsolute(config.dataFile) || !existsSync(config.dataFile)) throw new PreparationError("The recorded resume data no longer exists.");
+    data = parseResumeData(readFileSync(config.dataFile, "utf8"), ".json");
+  }
+  for (const key of ["projects", "work"]) {
+    const entries = data?.[key] as Record<string, unknown>[] | undefined;
+    if (entries?.some(item => !item || typeof item !== "object" || (item.hidden !== true && !item.description && !item.highlights))) warnings.push(`Some ${key} entries have no descriptions. The agent can use only evidence available in the template and data.`);
   }
   const hash = createHash("sha256").update(JSON.stringify({ mainFile: config.mainFile, engine: config.engine, data }));
   for (const file of files.sort((a, b) => a.name.localeCompare(b.name))) hash.update(file.name).update(file.bytes);

@@ -15,7 +15,7 @@ export async function profileCmd(sub: string, flags: Flags): Promise<void> {
   if (sub === "sources") { console.log(JSON.stringify(profileSourcesState(), null, 2)); return; }
   if (sub !== "import") fail(`unknown profile subcommand: ${sub} (use sources or import)`);
   const config = sourcesConfig();
-  if (!isFolder(config.profileDir)) fail("Choose an existing profile folder in Resume sources first.");
+  if (!isFolder(config.profileDir)) fail("Add a file to your profile first.");
   const result = await importProfileAssets(config.profileDir, { force: flags.force === true });
   await notifyChange("profile_imports");
   console.log(JSON.stringify({ ...result, ...profileSourcesState(config) }, null, 2));

@@ -1,6 +1,6 @@
 import { db, now } from "../db/index.ts";
 import { PARSER_VERSION } from "./linkedin/parse.ts";
-import type { ChoiceSource, ImportKind, LinkedInProfile, ProfileImport } from "./types.ts";
+import type { ImportKind, LinkedInProfile, ProfileImport } from "./types.ts";
 
 type ImportRow = { pdf_hash: string; kind: ImportKind; file_name: string; parser_version: number; extracted_json: string | null; text: string; warnings_json: string };
 const record = (row: ImportRow): ProfileImport => ({
@@ -20,15 +20,3 @@ export function saveImport(value: Omit<ProfileImport, "parserVersion">): void {
     .run(value.hash, value.kind, value.file, PARSER_VERSION, value.profile ? JSON.stringify(value.profile) : null, value.text, JSON.stringify(value.warnings), now());
 }
 
-/** Decided sources by conflict key. */
-export function profileChoices(): Map<string, ChoiceSource> {
-  const rows = db().query("SELECT conflict_key, chosen_source FROM profile_choices").all() as { conflict_key: string; chosen_source: ChoiceSource }[];
-  return new Map(rows.map(row => [row.conflict_key, row.chosen_source]));
-}
-/** Record the chosen source and its value; null forgets the decision ("Decide later"). */
-export function saveChoice(key: string, choice: { field: string; source: ChoiceSource; value: string } | null): void {
-  if (!choice) { db().query("DELETE FROM profile_choices WHERE conflict_key = ?").run(key); return; }
-  db().query(`INSERT INTO profile_choices (conflict_key, field, chosen_source, chosen_value, decided_at) VALUES (?, ?, ?, ?, ?)
-    ON CONFLICT(conflict_key) DO UPDATE SET chosen_source = excluded.chosen_source, chosen_value = excluded.chosen_value, decided_at = excluded.decided_at`)
-    .run(key, choice.field, choice.source, choice.value, now());
-}

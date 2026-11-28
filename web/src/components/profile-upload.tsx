@@ -8,14 +8,14 @@ function summary(added: string[], present: string[]): string {
 }
 
 /**
- * Copies PDFs and the resume data file into the profile folder, as placing
- * them there by hand does. Different resume data is only replaced after a
- * confirmation.
+ * Copies PDFs and the resume data file into the profile folder. The resume
+ * data and the LinkedIn export are the profile itself: one replaces the other
+ * only after a confirmation.
  */
 export function ProfileUpload({ disabled, onUploaded }: { disabled: boolean; onUploaded: () => void }) {
   const input = useRef<HTMLInputElement>(null)
   const [working, setWorking] = useState(false)
-  const [replacing, setReplacing] = useState<File | null>(null)
+  const [replacing, setReplacing] = useState<{ file: File; current: string } | null>(null)
   const [notice, setNotice] = useState("")
   const [errors, setErrors] = useState<string[]>([])
   async function send(files: File[], replace = false) {
@@ -24,7 +24,7 @@ export function ProfileUpload({ disabled, onUploaded }: { disabled: boolean; onU
     for (const file of files) {
       try {
         const { upload } = await uploadProfileFile(file, replace)
-        if (upload.status === "replace_required") setReplacing(file)
+        if (upload.status === "replace_required") setReplacing({ file, current: upload.replaces ?? "" })
         else (upload.status === "added" ? added : present).push(upload.file)
       } catch (e) { failed.push(`${file.name}: ${(e as Error).message}`) }
     }
@@ -41,10 +41,10 @@ export function ProfileUpload({ disabled, onUploaded }: { disabled: boolean; onU
         if (files.length) void send(files)
       }} />
     </div>
-    {replacing && <div role="alertdialog" aria-label="Replace resume data" className="space-y-2 rounded-lg border p-3 text-sm">
-      <p>Your profile already has different resume data. Replace it with {replacing.name}?</p>
+    {replacing && <div role="alertdialog" aria-label="Replace profile source" className="space-y-2 rounded-lg border p-3 text-sm">
+      <p>Your profile is built from {replacing.current || "another file"}. Replace it with {replacing.file.name}? The current file is removed and your base resume is rebuilt.</p>
       <div className="flex gap-2">
-        <Button type="button" size="sm" disabled={working} onClick={() => { const file = replacing; setReplacing(null); void send([file], true) }}>Replace</Button>
+        <Button type="button" size="sm" disabled={working} onClick={() => { const { file } = replacing; setReplacing(null); void send([file], true) }}>Replace</Button>
         <Button type="button" size="sm" variant="outline" disabled={working} onClick={() => setReplacing(null)}>Keep current</Button>
       </div>
     </div>}

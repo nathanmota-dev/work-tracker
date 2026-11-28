@@ -46,15 +46,6 @@ it("shows the tailored PDF and starts generation for the selected job without La
   expect(window.location.hash).toContain("runId=run-2")
   expect(request).not.toHaveBeenCalledWith("acp/run", expect.anything())
 })
-it("warns about undecided profile conflicts and still allows generation", async () => {
-  const base = request.getMockImplementation()!
-  request.mockImplementation(async (path: string, body?: unknown) => path === "profile-sources" ? { conflicts: [{ key: "k", chosen: null }, { key: "j", chosen: "data" }] } : base(path, body))
-  render(<ApplyPage />)
-  await openStep("Job description")
-  expect(await screen.findByText(/Your profile has 1 undecided conflict/)).toBeInTheDocument()
-  await openStep("Resume")
-  await waitFor(() => expect(screen.getByRole("button", { name: "Regenerate" })).toBeEnabled())
-})
 it("fills using the displayed run and exposes the report", async () => {
   render(<ApplyPage />)
   await waitFor(() => expect(screen.getByRole("button", { name: "Fill application" })).toBeEnabled())

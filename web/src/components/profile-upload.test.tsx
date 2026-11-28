@@ -7,7 +7,7 @@ vi.mock("@/lib/api", () => ({ useApi: vi.fn(), request: vi.fn(), publish: vi.fn(
 
 const onUploaded = vi.fn()
 const file = (name: string, text = "%PDF-1.7") => new File([text], name)
-const result = (file: string, status: string, kind = "pdf") => ({ upload: { file, kind, status } })
+const result = (file: string, status: string, kind = "pdf", replaces?: string) => ({ upload: { file, kind, status, ...(replaces && { replaces }) } })
 const choose = (...files: File[]) => fireEvent.change(screen.getByLabelText("Choose profile files"), { target: { files } })
 beforeEach(() => { vi.mocked(request).mockReset(); onUploaded.mockClear() })
 
@@ -21,19 +21,20 @@ it("sends each chosen file as base64 and reports added and known files", async (
   expect(onUploaded).toHaveBeenCalledOnce()
 })
 
-it("asks before replacing different resume data, and keeps it when declined", async () => {
-  vi.mocked(request).mockResolvedValueOnce(result("resume-data.json", "replace_required", "data")).mockResolvedValueOnce(result("resume-data.json", "added", "data"))
+it("asks before replacing the file the profile is built from, and keeps it when declined", async () => {
+  vi.mocked(request).mockResolvedValueOnce(result("resume-data.json", "replace_required", "data", "Profile.pdf")).mockResolvedValueOnce(result("resume-data.json", "added", "data"))
   render(<ProfileUpload disabled={false} onUploaded={onUploaded} />)
   choose(file("mine.json", "{}"))
-  const dialog = await screen.findByRole("alertdialog", { name: "Replace resume data" })
-  expect(dialog).toHaveTextContent("Replace it with mine.json?")
+  const dialog = await screen.findByRole("alertdialog", { name: "Replace profile source" })
+  expect(dialog).toHaveTextContent("Your profile is built from Profile.pdf. Replace it with mine.json? The current file is removed and your base resume is rebuilt.")
   expect(onUploaded).not.toHaveBeenCalled()
   fireEvent.click(screen.getByRole("button", { name: "Replace" }))
   await waitFor(() => expect(request).toHaveBeenLastCalledWith("profile-sources/upload", { name: "mine.json", base64: btoa("{}"), replace: true }))
   expect(await screen.findByRole("status")).toHaveTextContent("Added resume-data.json.")
   vi.mocked(request).mockResolvedValueOnce(result("resume-data.json", "replace_required", "data"))
   choose(file("other.json", "{}"))
-  fireEvent.click(await screen.findByRole("button", { name: "Keep current" }))
+  expect(await screen.findByRole("alertdialog")).toHaveTextContent("Your profile is built from another file.")
+  fireEvent.click(screen.getByRole("button", { name: "Keep current" }))
   expect(screen.queryByRole("alertdialog")).toBeNull()
   expect(request).toHaveBeenCalledTimes(3)
 })

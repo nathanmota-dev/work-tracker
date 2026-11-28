@@ -11,7 +11,7 @@ vi.mock("@/lib/api", async (original) => ({ ...(await original<typeof import("@/
 vi.mock("@/lib/agent", async (original) => ({ ...(await original<typeof import("@/lib/agent")>()), prepareSkill: vi.fn() }))
 vi.mock("@/components/profile-sources", () => ({ ProfileSources: () => <p>Profile sources panel</p> }))
 
-const entry = (fields: Partial<ResumeEntry>): ResumeEntry => ({ title: "", organization: "", start: "", end: "", location: "", bullets: [], skills: [], source: "both", ...fields })
+const entry = (fields: Partial<ResumeEntry>): ResumeEntry => ({ title: "", organization: "", start: "", end: "", location: "", bullets: [], skills: [], ...fields })
 const answer = (key: string, value: string, autofill_source: string | null = null): Row => ({ key, value, language: "default", category: "contact", autofill_source })
 let answers: Row[]
 let sources: ProfileSourcesState
@@ -25,7 +25,7 @@ beforeEach(() => {
     { ...answer("summary", "Builds web apps."), language: "pt-BR" },
   ]
   sources = {
-    profileDir: "/profile", dataFile: "", assets: [], linkedin: null, conflicts: [], personal: [], warnings: [],
+    profileDir: "/profile", assets: [], source: null, personal: [], warnings: [],
     about: { headline: "Software Engineer", summary: "From LinkedIn.", currentCompany: "", skills: ["React", "Angular", "Go"], languages: [{ name: "English", level: "Professional" }], certifications: ["AWS Cloud Practitioner"] },
     resume: {
       experience: [

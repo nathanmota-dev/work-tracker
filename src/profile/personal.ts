@@ -1,6 +1,6 @@
 import { validateAnswer } from "../answers/catalog.ts";
-import { EMPTY_CONTACT, profileUrl, webAddress } from "./linkedin/contact.ts";
-import type { LinkedInProfile, PersonalField, PersonalKey, PersonalSource, ProfileAbout } from "./types.ts";
+import { profileUrl, webAddress } from "./linkedin/contact.ts";
+import type { PersonalField, PersonalKey, PersonalSource, ProfileAbout, StructuredSource } from "./types.ts";
 
 type Data = Record<string, unknown>;
 /** Answer keys a resume can provide, in the order Profile shows them. */
@@ -51,11 +51,6 @@ function fromData(data: Data | null): Values {
   };
 }
 const languageList = (value: unknown): string => (Array.isArray(value) ? value.map(item => typeof item === "string" ? item.trim() : [text((item as Data | null)?.name), text((item as Data | null)?.level)].filter(Boolean).join(" · ")).filter(Boolean).join(", ") : "");
-function fromLinkedIn(profile: LinkedInProfile | null): Values {
-  if (!profile) return {};
-  const contact = profile.contact ?? EMPTY_CONTACT;
-  return { ...nameParts(text(profile.name)), email: contact.email, phone: contact.phone, location: profile.location, ...placeParts(profile.location), summary: profile.summary, languages: languageList(profile.languages), linkedin_url: contact.linkedin, github_url: contact.github, portfolio_url: contact.website };
-}
 const PHONE = /(?:\+\d{1,3}[\s.-]?)?\(?\d{2,3}\)?[\s.-]?\d{4,5}[\s.-]?\d{4}\b/;
 /** Contact details of a resume PDF's header: only its first lines, so dates and numbers further down are ignored. */
 export function fromResumeText(value: string): Values {
@@ -68,12 +63,13 @@ export function fromResumeText(value: string): Values {
 }
 
 /**
- * The personal details every source provides, each from the first source that
- * has a valid value: the data file the user edits, then the LinkedIn export,
- * then the other resume PDFs. Invalid values are never suggested.
+ * The personal details the profile provides, each from the first source that
+ * has a valid value: the structured source (the data file or the LinkedIn
+ * export, in the data file's shape), then the other resume PDFs. Invalid
+ * values are never suggested.
  */
-export function personalFromSources(data: Data | null, linkedin: LinkedInProfile | null, references: { text: string }[]): PersonalField[] {
-  const sources: [PersonalSource, Values][] = [["data", fromData(data)], ["linkedin", fromLinkedIn(linkedin)], ...references.map(reference => ["resume", fromResumeText(reference.text)] as [PersonalSource, Values])];
+export function personalFromSources(data: Data | null, kind: StructuredSource["kind"] | null, references: { text: string }[]): PersonalField[] {
+  const sources: [PersonalSource, Values][] = [...(data && kind ? [[kind, fromData(data)] as [PersonalSource, Values]] : []), ...references.map(reference => ["resume", fromResumeText(reference.text)] as [PersonalSource, Values])];
   // City, state and country describe one place: they come from the source that gave `location`, never a mix.
   const located = sources.find(([, values]) => { const value = values.location?.trim(); return value && !validateAnswer("location", value); });
   return PERSONAL_KEYS.flatMap(key => {
@@ -85,12 +81,16 @@ export function personalFromSources(data: Data | null, linkedin: LinkedInProfile
   });
 }
 
-/** Read-only summary of the profile: from LinkedIn when it was imported, skills also from the data file. */
-export function aboutFromSources(data: Data | null, linkedin: LinkedInProfile | null): ProfileAbout | null {
-  const skills = [...new Set([...(linkedin?.topSkills ?? []), ...strings(data?.techStack), ...strings(data?.skills)])];
+const languages = (value: unknown) => (Array.isArray(value) ? value.flatMap(item => (typeof item === "string" ? (item.trim() ? [{ name: item.trim(), level: "" }] : []) : text((item as Data | null)?.name) ? [{ name: text((item as Data).name), level: text((item as Data).level) }] : [])) : []);
+const groupItems = (value: unknown) => (Array.isArray(value) ? value.flatMap(group => strings((group as Data | null)?.items)) : []);
+
+/** Read-only summary of the profile: headline, summary, current company, skills, languages and certifications. */
+export function aboutFromSources(data: Data | null): ProfileAbout | null {
+  if (!data) return null;
+  const current = Array.isArray(data.work) ? (data.work as Data[]).find(role => text(role?.end).toLowerCase() === "present") : undefined;
   const about: ProfileAbout = {
-    headline: linkedin?.headline ?? "", summary: linkedin?.summary ?? "", currentCompany: linkedin?.experience.find(role => role.end === "Present")?.company ?? "",
-    skills, languages: linkedin?.languages ?? [], certifications: linkedin?.certifications ?? [],
+    headline: text(data.headline), summary: text(data.summary), currentCompany: text(current?.company),
+    skills: [...new Set([...groupItems(data.skillGroups), ...strings(data.skills), ...strings(data.techStack)])], languages: languages(data.languages), certifications: strings(data.certifications),
   };
-  return about.headline || about.summary || skills.length || about.languages.length || about.certifications.length ? about : null;
+  return about.headline || about.summary || about.skills.length || about.languages.length || about.certifications.length ? about : null;
 }

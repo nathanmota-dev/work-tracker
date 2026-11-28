@@ -18,18 +18,15 @@ completion date. Do not invent missing accomplishments or metrics.
 
 ## Profile evidence
 
-The profile at `profilePath` can contain `profileSources`, built by Work Tracker
-from the user's profile folder: the data file, a LinkedIn "Save to PDF" export and
-resumes the user already has as PDFs.
+The profile at `profilePath` is the candidate's one structured source, built by
+Work Tracker from their resume data file or their LinkedIn "Save to PDF" export,
+in the resume data file's shape. It can contain `profileSources.references`: the
+text of resumes the user already has as PDFs.
 
-- The values in `profileSources.resolved` are the correct dates and locations: the
-  user chose them where the data file and LinkedIn disagreed. Use them.
-- For each entry of `profileSources.conflicts` whose `chosen` is null, keep the
-  value of the base LaTeX and record the undecided conflict in `gaps`.
-- `profileSources.linkedin`, `profileSources.linkedinOnly` and
-  `profileSources.references` are evidence from the candidate's own history. They
-  can supply bullets and experience proven there, including roles that exist only on
-  LinkedIn.
+- Entries with `hidden: true` are left out of the base resume but are real
+  history: use them when they prove something the target role needs.
+- `profileSources.references` is evidence from the candidate's own history. It can
+  supply bullets and experience proven there.
 - Do not add an experience unrelated to the target role only because it exists.
 - Translate a reference written in another language faithfully, without new claims.
 
