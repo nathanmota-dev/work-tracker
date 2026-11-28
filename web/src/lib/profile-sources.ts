@@ -14,7 +14,6 @@ export function useProfileSources() {
   useEffect(() => subscribe(event => { if (event.type === "resume-sources-changed") refresh() }), [refresh])
   return api
 }
-export const importAgain = () => request<ProfileSourcesState>("profile-sources/import", { force: true })
 
 /** Files the upload accepts: resume and LinkedIn PDFs, and the resume data file. */
 export const UPLOAD_ACCEPT = ".pdf,.json,application/pdf,application/json"

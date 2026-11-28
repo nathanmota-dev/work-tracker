@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react"
+import { render, screen, within } from "@testing-library/react"
 import { beforeEach, expect, it, vi } from "vitest"
 import { ProfileSources } from "./profile-sources"
 import { publish, request, subscribe, useApi } from "@/lib/api"
@@ -17,7 +17,7 @@ beforeEach(() => {
       { file: "new.pdf", kind: null, status: "pending", warnings: [] },
     ],
     personal: [], about: null,
-    warnings: ["new.pdf has not been imported yet."],
+    warnings: ["scan.pdf: The PDF has no extractable text.", "new.pdf has not been imported yet."],
   }
   vi.mocked(useApi).mockImplementation(() => ({ data: state, loading: false, error: "", refresh }) as ReturnType<typeof useApi>)
   vi.mocked(request).mockReset().mockResolvedValue(state)
@@ -25,32 +25,21 @@ beforeEach(() => {
   refresh.mockClear()
 })
 
-it("lists each file with its type and status and names the file the profile is built from", () => {
+it("lists each file with its type and marks the profile source and the reference files", () => {
   render(<ProfileSources />)
   const files = within(screen.getByRole("list", { name: "Profile files" })).getAllByRole("listitem").map(item => item.textContent)
-  expect(files).toEqual(["resume-data.jsonData fileImported", "linkedin.pdfLinkedIn exportImported", "scan.pdfReference resumeCould not be readThe PDF has no extractable text.", "new.pdfPDFNot imported yet"])
-  expect(screen.getByText(/Your profile and base resume are built from/)).toHaveTextContent("Your profile and base resume are built from resume-data.json (Data file). Other PDFs are reference text for tailored resumes.")
+  expect(files).toEqual(["resume-data.jsonData fileProfile source", "linkedin.pdfLinkedIn exportReference", "scan.pdfReference resumeThe PDF has no extractable text.Could not be read", "new.pdfPDFNot imported yet"])
   expect(screen.getByText("new.pdf has not been imported yet.")).toBeInTheDocument()
+  expect(screen.queryByText("scan.pdf: The PDF has no extractable text.")).toBeNull()
 })
 
-it("imports again and shows failures", async () => {
-  vi.mocked(request).mockRejectedValueOnce(new Error("pdftotext missing"))
-  render(<ProfileSources />)
-  fireEvent.click(screen.getByRole("button", { name: "Reimport all" }))
-  expect(await screen.findByRole("alert")).toHaveTextContent("pdftotext missing")
-  expect(request).toHaveBeenCalledWith("profile-sources/import", { force: true })
-  expect(refresh).not.toHaveBeenCalled()
-})
-
-it("explains an empty or missing profile folder and refreshes after the sources change", () => {
+it("shows only the upload for an empty profile folder and refreshes after the sources change", () => {
   let listener: (event: { type: string }) => void = () => {}
   vi.mocked(subscribe).mockImplementation(fn => { listener = fn; return () => {} })
   state = { ...state, profileDir: "", assets: [], source: null, warnings: [] }
   render(<ProfileSources />)
-  expect(screen.getByText("No files in your profile yet. Add your resume PDF, your LinkedIn PDF or your resume data.")).toBeInTheDocument()
-  expect(screen.getByText("Add your resume data (.json) or your LinkedIn PDF: your profile and your base resume are built from it.")).toBeInTheDocument()
-  expect(screen.getByRole("button", { name: "Add files" })).toBeEnabled()
-  expect(screen.queryByRole("button", { name: "Reimport all" })).toBeNull()
+  expect(screen.queryByRole("list", { name: "Profile files" })).toBeNull()
+  expect(screen.getByRole("button", { name: "Upload profile files" })).toHaveAttribute("aria-disabled", "false")
   listener({ type: "other" })
   expect(refresh).not.toHaveBeenCalled()
   listener({ type: "resume-sources-changed" })
